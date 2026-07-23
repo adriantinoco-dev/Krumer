@@ -294,8 +294,10 @@ def serve_media_file(path: str):
 def get_global_settings(db: Session = Depends(get_db)):
     """Fetches key-value configuration flags."""
     use_filename = db.query(Setting).filter(Setting.key == "use_filename_as_title").first()
+    last_scanned = db.query(Setting).filter(Setting.key == "last_scanned_path").first()
     return {
-        "use_filename_as_title": (use_filename.value == "true") if use_filename else False
+        "use_filename_as_title": (use_filename.value == "true") if use_filename else False,
+        "last_scanned_path": last_scanned.value if last_scanned else None
     }
 
 @app.put("/settings")
@@ -311,6 +313,34 @@ def update_global_settings(payload: SettingsUpdatePayload, db: Session = Depends
             db.add(setting)
         db.commit()
     return get_global_settings(db)
+
+@app.post("/rescan")
+def rescan_directory_route(db: Session = Depends(get_db)):
+    """Reescaneia a última pasta configurada sem abrir seletores ou diálogos (implementacoes.md §1)."""
+    last_setting = db.query(Setting).filter(Setting.key == "last_scanned_path").first()
+    if not last_setting or not last_setting.value:
+        raise HTTPException(
+            status_code=400,
+            detail="Nenhum diretório foi escaneado anteriormente. Escaneie uma pasta primeiro."
+        )
+
+    path = last_setting.value
+    if not os.path.exists(path):
+        raise HTTPException(
+            status_code=400,
+            detail=f"O diretório '{path}' não existe mais no disco."
+        )
+
+    try:
+        scan_library_folder(db, path)
+        return {
+            "status": "success",
+            "message": f"Reescaneamento concluído com sucesso para: {path}",
+            "path": path
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao reescanear: {str(e)}")
+
 
 
 # Run direct script

@@ -341,3 +341,46 @@ body {
   from { transform: translateX(100%); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
+
+/* Botão circular de Reescanear (implementacoes.md §1) */
+.btn-rescan {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background-color: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition);
+  flex-shrink: 0;
+}
+
+.btn-rescan:hover {
+  background-color: var(--bg-card-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.btn-rescan:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-rescan #rescan-icon {
+  transition: transform 0.3s ease;
+}
+
+/* Animação de rotação aplicada via JS durante o reescaneamento */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.btn-rescan.spinning #rescan-icon,
+#rescan-icon.spin {
+  animation: spin 0.8s linear infinite;
+}

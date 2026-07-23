@@ -145,5 +145,12 @@ def scan_library_folder(db: Session, root_path: str):
         children_count = db.query(Item).filter(Item.parent_id == series.id).count()
         if children_count == 0:
             db.delete(series)
+
+    # 4. Persist the last scanned path for the Rescan button
+    last_path_setting = db.query(Setting).filter(Setting.key == "last_scanned_path").first()
+    if last_path_setting:
+        last_path_setting.value = root_path
+    else:
+        db.add(Setting(key="last_scanned_path", value=root_path))
             
     db.commit()

@@ -117,7 +117,40 @@ class AppController {
         if (drawer) drawer.classList.remove('active');
       });
     }
+
+    // Botão circular de Reescanear (implementacoes.md §1)
+    const rescanBtn = document.getElementById('btn-rescan');
+    const rescanIcon = document.getElementById('rescan-icon');
+    if (rescanBtn) {
+      rescanBtn.addEventListener('click', async () => {
+        // Inicia animação de rotação
+        rescanBtn.disabled = true;
+        if (rescanIcon) rescanIcon.classList.add('spin');
+        this.showToast('Reescaneando biblioteca...');
+
+        try {
+          const result = await LibraryAPI.rescanFolder();
+          this.showToast(result.message || 'Reescaneamento concluído com sucesso!');
+          await this.libraryManager.loadTags();
+          await this.libraryManager.loadItems();
+        } catch (err) {
+          console.error(err);
+          // Se nenhuma pasta foi configurada, abre o modal de escanear
+          if (err.message && err.message.includes('anteriormente')) {
+            this.showToast('Nenhuma pasta configurada. Escaneie uma pasta primeiro.');
+            this.openScanModal();
+          } else {
+            this.showToast(`Erro ao reescanear: ${err.message}`);
+          }
+        } finally {
+          // Para animação de rotação
+          rescanBtn.disabled = false;
+          if (rescanIcon) rescanIcon.classList.remove('spin');
+        }
+      });
+    }
   }
+
 
   openScanModal() {
     const modal = document.getElementById('scan-modal');

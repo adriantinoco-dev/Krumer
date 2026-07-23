@@ -7,6 +7,8 @@
   flex: 1;
   padding: 30px;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .section-header {
@@ -34,7 +36,45 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
   gap: 24px 20px;
+  flex: 1;
 }
+
+/* Estado Vazio - Centralizado vertical e horizontalmente (implementacoes.md §2) */
+.empty-state {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--text-muted);
+  flex: 1;
+  min-height: 400px;
+  padding: 40px 20px;
+}
+
+.empty-icon {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 16px;
+  color: #333333;
+}
+
+.empty-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.empty-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  max-width: 360px;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
 
 /* Single Book Card (Strict Specs) */
 .book-card {

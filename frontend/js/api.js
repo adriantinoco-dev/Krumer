@@ -90,6 +90,16 @@ class LibraryAPI {
   }
 
   /**
+   * Triggers rescan of the last saved folder without opening dialogs
+   */
+  static async rescanFolder() {
+    const res = await fetch(`${API_BASE_URL}/rescan`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Falha ao reescanear diretório');
+    return data;
+  }
+
+  /**
    * Gets absolute cover image URL
    */
   static getCoverUrl(id) {
