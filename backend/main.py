@@ -318,6 +318,24 @@ def serve_media_file(path: str):
     media_type = "application/epub+zip" if suffix == ".epub" else "application/pdf"
     return FileResponse(path, media_type=media_type)
 
+@app.get("/browse-folder")
+def browse_folder_native_dialog():
+    """Abre o diálogo nativo do sistema operacional (Windows/Linux/Mac) para seleção de diretório e retorna o caminho absoluto completo."""
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        selected_dir = filedialog.askdirectory(title="Selecionar pasta de livros")
+        root.destroy()
+        if selected_dir:
+            norm_path = os.path.normpath(selected_dir)
+            return {"status": "success", "path": norm_path}
+        return {"status": "cancelled", "path": None}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao abrir seletor nativo: {str(e)}")
+
 @app.get("/settings")
 def get_global_settings(db: Session = Depends(get_db)):
     """Fetches key-value configuration flags."""

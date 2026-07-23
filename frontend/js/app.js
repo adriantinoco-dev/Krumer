@@ -73,31 +73,26 @@ class AppController {
     const closeScanBtn = document.getElementById('close-scan-modal');
     if (closeScanBtn) closeScanBtn.addEventListener('click', () => this.closeScanModal());
 
-    // Botão "Selecionar pasta" com seletor nativo (popup_escanear.md §1)
+    // Botão "Selecionar pasta" com seletor nativo via backend OS (popup_escanear.md §1)
     const browseBtn = document.getElementById('btn-browse-folder');
     const folderInput = document.getElementById('folder-picker-input');
     const pathInput = document.getElementById('scan-path-input');
 
     if (browseBtn) {
       browseBtn.addEventListener('click', async () => {
-        // Tenta showDirectoryPicker (Chrome/Edge modernos)
-        if ('showDirectoryPicker' in window) {
-          try {
-            const dirHandle = await window.showDirectoryPicker({ mode: 'read' });
-            if (dirHandle && pathInput) {
-              // Browsers ocultam o caminho absoluto por segurança;
-              // usamos o nome para feedback visual — o usuário confirma/edita se necessário
-              pathInput.value = dirHandle.name;
-              pathInput.dataset.dirHandle = dirHandle.name;
-              this.showToast(`Pasta "${dirHandle.name}" selecionada. Confirme ou edite o caminho completo.`);
-            }
+        try {
+          // Chama a API do backend para abrir a janela nativa do Windows/OS
+          const result = await LibraryAPI.browseFolder();
+          if (result && result.status === 'success' && result.path) {
+            pathInput.value = result.path;
+            this.showToast(`Pasta selecionada: ${result.path}`);
             return;
-          } catch (err) {
-            if (err.name === 'AbortError') return; // usuário cancelou
-            // Fallback para input[webkitdirectory]
           }
+        } catch (err) {
+          console.warn('Backend nativo não respondeu, tentando fallback local...', err);
         }
-        // Fallback: input[type=file webkitdirectory]
+
+        // Fallback local se o backend não estiver respondendo
         if (folderInput) folderInput.click();
       });
     }
@@ -106,12 +101,14 @@ class AppController {
       folderInput.addEventListener('change', (e) => {
         const files = e.target.files;
         if (files && files.length > 0 && pathInput) {
-          // webkitRelativePath = "NomePasta/arquivo.pdf" — pega só o primeiro segmento
-          const rel = files[0].webkitRelativePath || '';
-          const folderName = rel.split('/')[0] || '';
-          if (folderName) {
-            pathInput.value = folderName;
-            this.showToast(`Pasta "${folderName}" selecionada. Confirme ou edite o caminho completo.`);
+          const firstFile = files[0];
+          if (firstFile.path) {
+            const fullPath = firstFile.path;
+            const lastSlash = Math.max(fullPath.lastIndexOf('/'), fullPath.lastIndexOf('\\'));
+            if (lastSlash > 0) {
+              pathInput.value = fullPath.substring(0, lastSlash);
+              this.showToast(`Pasta selecionada: ${pathInput.value}`);
+            }
           }
         }
       });

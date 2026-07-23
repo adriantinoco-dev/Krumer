@@ -110,6 +110,16 @@ class LibraryAPI {
   }
 
   /**
+   * Abre a janela nativa do Windows/OS via backend para seleção do diretório com caminho absoluto completo
+   */
+  static async browseFolder() {
+    const res = await fetch(`${API_BASE_URL}/browse-folder`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Erro ao abrir janela de arquivos');
+    return data;
+  }
+
+  /**
    * Gets absolute cover image URL
    */
   static getCoverUrl(id) {
