@@ -342,6 +342,44 @@ body {
   to { transform: translateX(0); opacity: 1; }
 }
 
+/* Radio buttons do popup de escanear (popup_escanear.md §2) */
+.radio-options-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.radio-option:hover {
+  background-color: var(--bg-card);
+}
+
+.radio-option input[type="radio"] {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.radio-option:has(input:checked) {
+  background-color: rgba(249, 115, 22, 0.08);
+  color: var(--text-primary);
+}
+
+
 /* Botão circular de Reescanear (implementacoes.md §1) */
 .btn-rescan {
   display: inline-flex;

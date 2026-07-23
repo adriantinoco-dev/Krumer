@@ -118,10 +118,38 @@
         <button id="close-scan-modal" class="close-btn">&times;</button>
       </div>
       <form id="scan-form">
+
+        <!-- 1. Campo de caminho + botão de seleção nativa abaixo (popup_escanear.md §1) -->
         <div class="form-group">
           <label class="form-label" for="scan-path-input">Caminho do diretório raiz</label>
-          <input type="text" id="scan-path-input" class="form-input" placeholder="Ex: C:\MeusLivros ou /home/usuario/livros" required>
+          <input type="text" id="scan-path-input" class="form-input"
+                 placeholder="Ex: C:\MeusLivros ou /home/usuario/livros" required>
+          <!-- input oculto para seleção via webkitdirectory (fallback) -->
+          <input type="file" id="folder-picker-input" webkitdirectory directory style="display:none">
+          <!-- Botão com mesma largura (100%) abaixo do campo -->
+          <button type="button" id="btn-browse-folder" class="btn btn-secondary scan-pick-btn" style="margin-top:8px; width:100%; justify-content:center;">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+            </svg>
+            Selecionar pasta
+          </button>
         </div>
+
+        <!-- 2. Opção de fonte do nome do livro (popup_escanear.md §2) -->
+        <div class="form-group" style="margin-top:18px;">
+          <label class="form-label">Exibir nome dos livros conforme:</label>
+          <div class="radio-options-group">
+            <label class="radio-option">
+              <input type="radio" name="title_source" id="title-source-metadata" value="metadata" checked>
+              <span>Metadados do arquivo</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="title_source" id="title-source-filename" value="filename">
+              <span>Nome do arquivo</span>
+            </label>
+          </div>
+        </div>
+
         <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px;">
           <button type="button" class="btn btn-secondary" onclick="app.closeScanModal()">Cancelar</button>
           <button type="submit" class="btn btn-primary">Iniciar Escaneamento</button>
@@ -129,6 +157,7 @@
       </form>
     </div>
   </div>
+
 
   <!-- Item Details Modal -->
   <div id="detail-modal" class="modal-backdrop">

@@ -73,11 +73,55 @@ class AppController {
     const closeScanBtn = document.getElementById('close-scan-modal');
     if (closeScanBtn) closeScanBtn.addEventListener('click', () => this.closeScanModal());
 
+    // Botão "Selecionar pasta" com seletor nativo (popup_escanear.md §1)
+    const browseBtn = document.getElementById('btn-browse-folder');
+    const folderInput = document.getElementById('folder-picker-input');
+    const pathInput = document.getElementById('scan-path-input');
+
+    if (browseBtn) {
+      browseBtn.addEventListener('click', async () => {
+        // Tenta showDirectoryPicker (Chrome/Edge modernos)
+        if ('showDirectoryPicker' in window) {
+          try {
+            const dirHandle = await window.showDirectoryPicker({ mode: 'read' });
+            if (dirHandle && pathInput) {
+              // Browsers ocultam o caminho absoluto por segurança;
+              // usamos o nome para feedback visual — o usuário confirma/edita se necessário
+              pathInput.value = dirHandle.name;
+              pathInput.dataset.dirHandle = dirHandle.name;
+              this.showToast(`Pasta "${dirHandle.name}" selecionada. Confirme ou edite o caminho completo.`);
+            }
+            return;
+          } catch (err) {
+            if (err.name === 'AbortError') return; // usuário cancelou
+            // Fallback para input[webkitdirectory]
+          }
+        }
+        // Fallback: input[type=file webkitdirectory]
+        if (folderInput) folderInput.click();
+      });
+    }
+
+    if (folderInput) {
+      folderInput.addEventListener('change', (e) => {
+        const files = e.target.files;
+        if (files && files.length > 0 && pathInput) {
+          // webkitRelativePath = "NomePasta/arquivo.pdf" — pega só o primeiro segmento
+          const rel = files[0].webkitRelativePath || '';
+          const folderName = rel.split('/')[0] || '';
+          if (folderName) {
+            pathInput.value = folderName;
+            this.showToast(`Pasta "${folderName}" selecionada. Confirme ou edite o caminho completo.`);
+          }
+        }
+      });
+    }
+
+    // Scan Form Submit — lê caminho + preferência de título (popup_escanear.md §2)
     const scanForm = document.getElementById('scan-form');
     if (scanForm) {
       scanForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const pathInput = document.getElementById('scan-path-input');
         const path = pathInput ? pathInput.value.trim() : '';
 
         if (!path) {
@@ -85,11 +129,15 @@ class AppController {
           return;
         }
 
+        // Lê preferência de fonte do título (metadados ou nome do arquivo)
+        const selectedRadio = document.querySelector('input[name="title_source"]:checked');
+        const useFilenameAsTitle = selectedRadio ? selectedRadio.value === 'filename' : false;
+
         try {
           this.showToast('Iniciando escaneamento da pasta...');
           this.closeScanModal();
-          
-          await LibraryAPI.scanFolder(path);
+
+          await LibraryAPI.scanFolder(path, useFilenameAsTitle);
           this.showToast('Escaneamento concluído com sucesso!');
           this.libraryManager.loadTags();
           this.libraryManager.loadItems();
@@ -99,6 +147,7 @@ class AppController {
         }
       });
     }
+
 
     // Detail Modal close
     const closeDetailBtn = document.getElementById('close-detail-modal');
