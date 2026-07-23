@@ -4,13 +4,13 @@ from pathlib import Path
 from typing import List, Optional
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from database import Base, engine, get_db
+from database import Base, engine, get_db, COVERS_DIR
 from models import (
     Item, Progress, Tag, Setting,
     ItemResponse, ItemUpdate, ProgressResponse,
@@ -198,6 +198,38 @@ def update_item_metadata(id: int, payload: ItemUpdate, db: Session = Depends(get
     db.commit()
     db.refresh(item)
     return item
+
+@app.post("/items/{id}/cover", response_model=ItemResponse)
+async def upload_custom_book_cover(id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    """Uploads and updates a custom cover image for a library item."""
+    item = db.query(Item).filter(Item.id == id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+        
+    import hashlib
+    from PIL import Image
+    import io
+    
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(status_code=400, detail="Empty image file uploaded")
+        
+    try:
+        image = Image.open(io.BytesIO(contents))
+        image.thumbnail((400, 600))
+        
+        cover_hash = hashlib.sha256(item.path.encode('utf-8')).hexdigest()
+        cover_path = COVERS_DIR / f"{cover_hash}.png"
+        image.save(cover_path, format="PNG")
+        
+        item.cover_path = str(cover_path)
+        db.commit()
+        db.refresh(item)
+        return _enrich_item(item, db)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid image format: {str(e)}")
+
+
 
 @app.delete("/items/{id}")
 def remove_item_from_library(id: int, db: Session = Depends(get_db)):

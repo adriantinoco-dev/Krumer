@@ -6,8 +6,8 @@
   <title>Krumer — Biblioteca Pessoal de Livros e HQs</title>
   
   <!-- Stylesheets -->
-  <link rel="stylesheet" href="styles/main.css?v=1.4">
-  <link rel="stylesheet" href="styles/library.css?v=1.4">
+  <link rel="stylesheet" href="styles/main.css?v=1.5">
+  <link rel="stylesheet" href="styles/library.css?v=1.5">
 </head>
 <body>
 
@@ -174,6 +174,12 @@
                   </svg>
                   Ler Agora
                 </button>
+                <button id="details-btn-edit" class="btn btn-secondary" title="Editar metadados deste livro">
+                  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                  </svg>
+                  Editar Metadados
+                </button>
                 <button id="details-btn-remove" class="btn btn-danger-subtle" title="Remover da biblioteca sem apagar do disco">
                   <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
@@ -320,9 +326,79 @@
     </div>
   </div>
 
+  <!-- Edit Metadata Modal Dialog (editar-metadados-livro.md Specs) -->
+  <div id="edit-metadata-modal" class="modal-backdrop">
+    <div class="modal-card" style="width: 580px;">
+      <div class="modal-header">
+        <h2 class="modal-title">Editar Metadados do Livro</h2>
+        <button id="close-edit-modal" class="close-btn">&times;</button>
+      </div>
+      <form id="edit-metadata-form">
+        
+        <div class="form-group">
+          <label class="form-label" for="edit-title-input">Título <span style="color:#ef4444;">*</span></label>
+          <input type="text" id="edit-title-input" class="form-input" required placeholder="Nome principal do livro">
+        </div>
+
+        <div class="form-row-2col">
+          <div class="form-group">
+            <label class="form-label" for="edit-author-input">Autor(es)</label>
+            <input type="text" id="edit-author-input" class="form-input" placeholder="Ex: George Orwell">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-publisher-input">Editora</label>
+            <input type="text" id="edit-publisher-input" class="form-input" placeholder="Ex: Companhia das Letras">
+          </div>
+        </div>
+
+        <div class="form-row-2col">
+          <div class="form-group">
+            <label class="form-label" for="edit-year-input">Ano de Lançamento</label>
+            <input type="number" id="edit-year-input" class="form-input" placeholder="Ex: 1949">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-tags-input">Gêneros / Tags</label>
+            <input type="text" id="edit-tags-input" class="form-input" placeholder="Separadas por vírgula (ex: Ficção, Clássico)">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="edit-synopsis-input">Sinopse</label>
+          <textarea id="edit-synopsis-input" class="form-input form-textarea" rows="4" placeholder="Descrição ou resumo descritivo do livro..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Capa do Livro</label>
+          <div class="edit-cover-picker-box">
+            <div class="edit-cover-preview-wrap">
+              <img id="edit-cover-preview" class="edit-cover-preview-img" src="" alt="Prévia da capa">
+            </div>
+            <div class="edit-cover-picker-info">
+              <input type="file" id="edit-cover-file-input" accept="image/*" style="display:none;">
+              <button type="button" id="btn-pick-cover-file" class="btn btn-secondary" style="font-size:12px; padding:8px 14px;">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                Substituir Imagem da Capa
+              </button>
+              <span id="edit-cover-filename" class="edit-cover-filename-label">Nenhuma nova imagem selecionada</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px;">
+          <button type="button" id="btn-cancel-edit" class="btn btn-secondary">Cancelar</button>
+          <button type="submit" id="btn-submit-edit" class="btn btn-primary">
+            <span id="edit-submit-text">Salvar Alterações</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Scripts -->
-  <script src="js/api.js?v=1.4"></script>
-  <script src="js/library.js?v=1.4"></script>
-  <script src="js/app.js?v=1.4"></script>
+  <script src="js/api.js?v=1.5"></script>
+  <script src="js/library.js?v=1.5"></script>
+  <script src="js/app.js?v=1.5"></script>
 </body>
 </html>

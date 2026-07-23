@@ -252,6 +252,140 @@ class AppController {
         }
       });
     }
+
+    // === Edit Metadata Modal (editar-metadados-livro.md) ===
+
+    // Open modal from "Editar Metadados" button on details page
+    const btnEditMetadata = document.getElementById('details-btn-edit');
+    if (btnEditMetadata) {
+      btnEditMetadata.addEventListener('click', () => {
+        this.libraryManager.openEditMetadataModal();
+      });
+    }
+
+    // Close via × button
+    const closeEditModal = document.getElementById('close-edit-modal');
+    if (closeEditModal) {
+      closeEditModal.addEventListener('click', () => {
+        this.libraryManager.closeEditMetadataModal();
+      });
+    }
+
+    // Close via "Cancelar" button
+    const btnCancelEdit = document.getElementById('btn-cancel-edit');
+    if (btnCancelEdit) {
+      btnCancelEdit.addEventListener('click', () => {
+        this.libraryManager.closeEditMetadataModal();
+      });
+    }
+
+    // Close when clicking outside the modal card
+    const editModal = document.getElementById('edit-metadata-modal');
+    if (editModal) {
+      editModal.addEventListener('click', (e) => {
+        if (e.target === editModal) this.libraryManager.closeEditMetadataModal();
+      });
+    }
+
+    // Cover file picker — live preview
+    const coverFileInput = document.getElementById('edit-cover-file-input');
+    const pickCoverBtn   = document.getElementById('btn-pick-cover-file');
+    const coverPreview   = document.getElementById('edit-cover-preview');
+    const coverFilename  = document.getElementById('edit-cover-filename');
+
+    if (pickCoverBtn && coverFileInput) {
+      pickCoverBtn.addEventListener('click', () => coverFileInput.click());
+    }
+
+    if (coverFileInput) {
+      coverFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (coverFilename) coverFilename.textContent = file.name;
+        if (coverPreview) {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            coverPreview.src = ev.target.result;
+            coverPreview.style.display = 'block';
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+    }
+
+    // Edit metadata form submission
+    const editMetadataForm = document.getElementById('edit-metadata-form');
+    if (editMetadataForm) {
+      editMetadataForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const item = this.libraryManager.selectedItem;
+        if (!item) return;
+
+        const titleInput = document.getElementById('edit-title-input');
+        const title = titleInput ? titleInput.value.trim() : '';
+
+        // Validate required title field
+        if (!title) {
+          if (titleInput) {
+            titleInput.style.borderColor = '#ef4444';
+            titleInput.focus();
+          }
+          this.showToast('O campo Título é obrigatório.');
+          return;
+        }
+        if (titleInput) titleInput.style.borderColor = '';
+
+        const getVal = (id) => {
+          const el = document.getElementById(id);
+          return el ? el.value.trim() : '';
+        };
+
+        const author    = getVal('edit-author-input');
+        const publisher = getVal('edit-publisher-input');
+        const year      = getVal('edit-year-input');
+        const synopsis  = getVal('edit-synopsis-input');
+        const tagsRaw   = getVal('edit-tags-input');
+        const tags      = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(Boolean) : [];
+
+        // Show loading state
+        const submitBtn  = document.getElementById('btn-submit-edit');
+        const submitText = document.getElementById('edit-submit-text');
+        if (submitBtn)  submitBtn.disabled = true;
+        if (submitText) submitText.textContent = 'Salvando...';
+
+        try {
+          // 1. Save text metadata via PATCH
+          await LibraryAPI.updateItem(item.id, {
+            title,
+            author:      author      || null,
+            publisher:   publisher   || null,
+            year:        year ? parseInt(year, 10) : null,
+            description: synopsis    || null,
+            tags,
+          });
+
+          // 2. Upload cover if a new file was selected
+          const newCoverFile = coverFileInput && coverFileInput.files[0];
+          if (newCoverFile) {
+            await LibraryAPI.uploadCover(item.id, newCoverFile);
+          }
+
+          this.libraryManager.closeEditMetadataModal();
+          this.showToast('Metadados salvos com sucesso!');
+
+          // 3. Reload the details page to reflect all changes instantly
+          await this.libraryManager.openBookDetails(item.id);
+
+        } catch (err) {
+          console.error('Erro ao salvar metadados:', err);
+          this.showToast(`Erro ao salvar: ${err.message}`);
+        } finally {
+          if (submitBtn)  submitBtn.disabled = false;
+          if (submitText) submitText.textContent = 'Salvar Alterações';
+        }
+      });
+    }
   }
 
 

@@ -430,6 +430,55 @@ class LibraryManager {
     this.loadItems();
   }
 
+  /**
+   * Opens the Edit Metadata modal pre-filled with the current book's data
+   */
+  openEditMetadataModal() {
+    const item = this.selectedItem;
+    if (!item) return;
+
+    const modal = document.getElementById('edit-metadata-modal');
+    if (!modal) return;
+
+    // Pre-fill all form fields
+    const f = (id) => document.getElementById(id);
+    if (f('edit-title-input'))     f('edit-title-input').value     = item.title     || '';
+    if (f('edit-author-input'))    f('edit-author-input').value    = item.author    || '';
+    if (f('edit-publisher-input')) f('edit-publisher-input').value = item.publisher || '';
+    if (f('edit-year-input'))      f('edit-year-input').value      = item.year      || '';
+    if (f('edit-synopsis-input'))  f('edit-synopsis-input').value  = item.description || '';
+
+    // Tags: join array of tag names
+    const tagNames = (item.tags || []).map(t => t.name || t).join(', ');
+    if (f('edit-tags-input')) f('edit-tags-input').value = tagNames;
+
+    // Reset cover picker state
+    const fileInput   = f('edit-cover-file-input');
+    const filenameLabel = f('edit-cover-filename');
+    const preview     = f('edit-cover-preview');
+    if (fileInput)      fileInput.value = '';
+    if (filenameLabel)  filenameLabel.textContent = 'Nenhuma nova imagem selecionada';
+    if (preview) {
+      if (item.cover_path) {
+        preview.src = LibraryAPI.getCoverUrl(item.id);
+        preview.style.display = 'block';
+      } else {
+        preview.src = '';
+        preview.style.display = 'none';
+      }
+    }
+
+    modal.classList.add('active');
+  }
+
+  /**
+   * Closes the Edit Metadata modal without saving
+   */
+  closeEditMetadataModal() {
+    const modal = document.getElementById('edit-metadata-modal');
+    if (modal) modal.classList.remove('active');
+  }
+
 
   renderLoadingState() {
     if (!this.gridElement) return;

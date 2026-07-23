@@ -120,10 +120,28 @@ class LibraryAPI {
   }
 
   /**
+   * Uploads a custom cover image file for an item
+   */
+  static async uploadCover(id, file) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch(`${API_BASE_URL}/items/${id}/cover`, {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Erro ao fazer upload da capa');
+    }
+    return await res.json();
+  }
+
+  /**
    * Gets absolute cover image URL
    */
   static getCoverUrl(id) {
-    return `${API_BASE_URL}/items/${id}/cover`;
+    return `${API_BASE_URL}/items/${id}/cover?t=${Date.now()}`;
   }
 }
 
