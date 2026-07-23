@@ -34,8 +34,8 @@
 /* Streaming Grid Layout */
 .book-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 24px 20px;
+  grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+  gap: 28px 22px;
   flex: 1;
 }
 
@@ -76,9 +76,9 @@
 }
 
 
-/* Single Book Card (Strict Specs) */
+/* Single Book Card (Fluid & Adaptive Specs) */
 .book-card {
-  width: 130px;
+  width: 100%;
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -91,8 +91,8 @@
 
 .book-cover-wrap {
   position: relative;
-  width: 130px;
-  height: 190px;
+  width: 100%;
+  height: auto;
   border-radius: var(--radius);
   overflow: hidden;
   background-color: var(--bg-card);
@@ -107,16 +107,16 @@
 
 .book-cover {
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  height: auto;
   display: block;
+  border-radius: var(--radius);
   background-color: #1a1a1a;
 }
 
 /* Fallback cover icon if image fails */
 .cover-fallback {
   width: 100%;
-  height: 100%;
+  aspect-ratio: 1 / 1.45;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -212,7 +212,8 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 130px;
+  width: 100%;
+  max-width: 100%;
 }
 
 .book-meta {
@@ -222,7 +223,8 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 130px;
+  width: 100%;
+  max-width: 100%;
 }
 
 /* Star Rating Component */
@@ -375,9 +377,10 @@
 
 .detail-cover {
   width: 140px;
-  height: 200px;
+  aspect-ratio: 2 / 3;
   border-radius: var(--radius);
   object-fit: cover;
+  object-position: center top;
   box-shadow: var(--shadow-card);
 }
 
@@ -589,7 +592,7 @@
 
 .details-cover-wrap {
   width: 230px;
-  height: 335px;
+  height: auto;
   flex-shrink: 0;
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -601,9 +604,9 @@
 
 .details-cover-img {
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  height: auto;
   display: block;
+  border-radius: var(--radius-lg);
 }
 
 .details-info-container {
