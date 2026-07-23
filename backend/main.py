@@ -199,6 +199,34 @@ def update_item_metadata(id: int, payload: ItemUpdate, db: Session = Depends(get
     db.refresh(item)
     return item
 
+@app.delete("/items/{id}")
+def remove_item_from_library(id: int, db: Session = Depends(get_db)):
+    """
+    Remove o item da biblioteca (banco de dados) sem apagar o arquivo do disco.
+    Se for uma série, remove também todos os capítulos filhos e seus progressos.
+    """
+    item = db.query(Item).filter(Item.id == id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    item_title = item.title
+
+    if item.type == "series":
+        # Remove progresso de todos os capítulos filhos
+        children = db.query(Item).filter(Item.parent_id == id).all()
+        for child in children:
+            db.query(Progress).filter(Progress.item_id == child.id).delete()
+            db.delete(child)
+
+    # Remove o progresso do próprio item
+    db.query(Progress).filter(Progress.item_id == id).delete()
+
+    # Remove o item (cascade de tags é tratado pelo ORM)
+    db.delete(item)
+    db.commit()
+
+    return {"status": "removed", "message": f"'{item_title}' foi removido da biblioteca. O arquivo original não foi alterado."}
+
 @app.get("/items/{id}/progress", response_model=List[ProgressResponse])
 def get_reading_progress(id: int, db: Session = Depends(get_db)):
     """

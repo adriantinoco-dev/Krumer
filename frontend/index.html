@@ -172,13 +172,39 @@
           <div id="detail-title" class="detail-title">Título</div>
           <div id="detail-author" class="detail-author">Autor</div>
           <div id="detail-desc" class="detail-desc">Descrição</div>
-          <div style="margin-top:auto;">
+          <div style="margin-top:auto; display:flex; align-items:center; justify-content:space-between; gap:10px;">
             <button class="btn btn-primary" onclick="alert('Leitor de arquivos integrado será ativado na Fase 3/4!')">Abrir Leitor</button>
+            <!-- Remover da biblioteca (não apaga o arquivo do disco) -->
+            <button id="btn-remove-item" class="btn btn-danger-subtle" title="Remove da biblioteca sem apagar o arquivo do disco">
+              <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+              </svg>
+              Remover da biblioteca
+            </button>
           </div>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- Modal de confirmação de remoção -->
+  <div id="confirm-remove-modal" class="modal-backdrop" style="z-index: 700;">
+    <div class="modal-card" style="width: 420px;">
+      <div class="modal-header">
+        <h2 class="modal-title">Remover da biblioteca?</h2>
+        <button id="close-confirm-modal" class="close-btn">&times;</button>
+      </div>
+      <p style="font-size:13px; color:var(--text-secondary); line-height:1.6; margin-bottom:20px;">
+        O livro <strong id="confirm-remove-title" style="color:var(--text-primary);"></strong> será removido da sua biblioteca.<br>
+        <span style="color:var(--text-muted);">O arquivo original no seu computador <strong>não será apagado</strong>.</span>
+      </p>
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button id="btn-cancel-remove" class="btn btn-secondary">Cancelar</button>
+        <button id="btn-confirm-remove" class="btn btn-danger">Remover</button>
+      </div>
+    </div>
+  </div>
+
 
   <!-- Series Drawer (Slide-Over Panel) -->
   <div id="series-drawer" class="drawer-backdrop">

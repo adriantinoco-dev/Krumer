@@ -312,6 +312,32 @@ body {
   border-color: var(--border-light);
 }
 
+/* Botão destrutivo sólido (modal de confirmação) */
+.btn-danger {
+  background-color: #dc2626;
+  color: #ffffff;
+  border: none;
+}
+
+.btn-danger:hover {
+  background-color: #b91c1c;
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35);
+}
+
+/* Botão destrutivo sutil (inline, menos agressivo visualmente) */
+.btn-danger-subtle {
+  background-color: transparent;
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  font-size: 12px;
+  padding: 8px 14px;
+}
+
+.btn-danger-subtle:hover {
+  background-color: rgba(239, 68, 68, 0.08);
+  border-color: #ef4444;
+}
+
 /* Toast Notifications */
 .toast-container {
   position: fixed;

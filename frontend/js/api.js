@@ -100,6 +100,16 @@ class LibraryAPI {
   }
 
   /**
+   * Remove um item da biblioteca sem apagar o arquivo do disco
+   */
+  static async deleteItem(id) {
+    const res = await fetch(`${API_BASE_URL}/items/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Erro ao remover item');
+    return data;
+  }
+
+  /**
    * Gets absolute cover image URL
    */
   static getCoverUrl(id) {

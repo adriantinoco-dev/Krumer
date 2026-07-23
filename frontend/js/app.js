@@ -167,6 +167,59 @@ class AppController {
       });
     }
 
+    // Botão e Modal de Remoção da Biblioteca (Sem apagar do disco)
+    const btnRemoveItem = document.getElementById('btn-remove-item');
+    const confirmModal = document.getElementById('confirm-remove-modal');
+    const closeConfirmModal = document.getElementById('close-confirm-modal');
+    const btnCancelRemove = document.getElementById('btn-cancel-remove');
+    const btnConfirmRemove = document.getElementById('btn-confirm-remove');
+    const confirmTitleEl = document.getElementById('confirm-remove-title');
+
+    if (btnRemoveItem) {
+      btnRemoveItem.addEventListener('click', () => {
+        const selectedItem = this.libraryManager.selectedItem;
+        if (!selectedItem) return;
+        
+        if (confirmTitleEl) confirmTitleEl.textContent = selectedItem.title;
+        if (confirmModal) confirmModal.classList.add('active');
+      });
+    }
+
+    const closeConfirmModalFn = () => {
+      if (confirmModal) confirmModal.classList.remove('active');
+    };
+
+    if (closeConfirmModal) closeConfirmModal.addEventListener('click', closeConfirmModalFn);
+    if (btnCancelRemove) btnCancelRemove.addEventListener('click', closeConfirmModalFn);
+
+    if (btnConfirmRemove) {
+      btnConfirmRemove.addEventListener('click', async () => {
+        const selectedItem = this.libraryManager.selectedItem;
+        if (!selectedItem) return;
+
+        try {
+          btnConfirmRemove.disabled = true;
+          const result = await LibraryAPI.deleteItem(selectedItem.id);
+          this.showToast(result.message || 'Item removido da biblioteca.');
+          
+          closeConfirmModalFn();
+          
+          // Fecha o modal de detalhes
+          const detailModal = document.getElementById('detail-modal');
+          if (detailModal) detailModal.classList.remove('active');
+          
+          // Recarrega a biblioteca
+          await this.libraryManager.loadTags();
+          await this.libraryManager.loadItems();
+        } catch (err) {
+          console.error(err);
+          this.showToast(`Erro ao remover item: ${err.message}`);
+        } finally {
+          btnConfirmRemove.disabled = false;
+        }
+      });
+    }
+
     // Botão circular de Reescanear (implementacoes.md §1)
     const rescanBtn = document.getElementById('btn-rescan');
     const rescanIcon = document.getElementById('rescan-icon');
