@@ -106,6 +106,103 @@
         </div>
       </div>
 
+      <!-- Book Details Viewport (Phase Specs - pagina-detalhes-livro.md) -->
+      <div id="book-details-view" class="book-details-viewport" style="display: none;">
+        
+        <!-- Backdrop Banner Container with overflow hidden to clip blur edges -->
+        <div class="details-hero-banner-wrap">
+          <div id="details-hero-backdrop" class="details-hero-backdrop"></div>
+          <div class="details-hero-overlay"></div>
+        </div>
+
+        <!-- Header Navigation inside Details -->
+        <div class="details-nav-bar">
+          <button id="btn-back-to-library" class="btn btn-secondary back-btn">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            Voltar para Biblioteca
+          </button>
+        </div>
+
+        <div class="details-content-scroll">
+          
+          <!-- Seção Superior — Detalhes do Livro -->
+          <section class="details-upper-section">
+            <div class="details-cover-wrap">
+              <img id="details-cover-img" class="details-cover-img" src="" alt="Capa">
+              <div id="details-cover-fallback" class="cover-fallback" style="display:none;">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                </svg>
+                <span id="details-fallback-title" class="cover-fallback-title"></span>
+              </div>
+            </div>
+
+            <div class="details-info-container">
+              <h1 id="details-title" class="details-title">Título do Livro</h1>
+              <div id="details-author-wrap" class="details-author-wrap">
+                <span class="details-author-label">por</span>
+                <span id="details-author" class="details-author">Autor</span>
+              </div>
+
+              <!-- Metadados Secundários (Ano, Editora, Progresso) -->
+              <div id="details-meta-row" class="details-meta-row">
+                <span id="details-meta-year" class="details-meta-badge" style="display:none;"></span>
+                <span id="details-meta-publisher" class="details-meta-badge" style="display:none;"></span>
+                <span id="details-meta-progress" class="details-meta-badge accent">0% lido</span>
+              </div>
+
+              <!-- Componente de Avaliação por Estrelas (1 a 5, Editável) -->
+              <div class="details-rating-block">
+                <span class="details-rating-label">Sua Avaliação:</span>
+                <div id="details-stars" class="details-stars">
+                  <span class="star empty" data-rating="1">★</span>
+                  <span class="star empty" data-rating="2">★</span>
+                  <span class="star empty" data-rating="3">★</span>
+                  <span class="star empty" data-rating="4">★</span>
+                  <span class="star empty" data-rating="5">★</span>
+                </div>
+                <span id="details-rating-text" class="details-rating-text">(sem nota)</span>
+              </div>
+
+              <!-- Botões de Ação -->
+              <div class="details-actions-row">
+                <button id="details-btn-read" class="btn btn-primary btn-read-large">
+                  <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z"></path>
+                  </svg>
+                  Ler Agora
+                </button>
+                <button id="details-btn-remove" class="btn btn-danger-subtle" title="Remover da biblioteca sem apagar do disco">
+                  <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                  </svg>
+                  Remover
+                </button>
+              </div>
+
+              <!-- Sinopse (Omitida se ausente) -->
+              <div id="details-synopsis-wrap" class="details-synopsis-wrap">
+                <h3 class="details-synopsis-title">Sinopse</h3>
+                <p id="details-synopsis" class="details-synopsis-text"></p>
+              </div>
+            </div>
+          </section>
+
+          <!-- Seção Inferior — Capítulos (Condicional) -->
+          <section id="details-lower-section" class="details-lower-section" style="display: none;">
+            <div class="details-section-divider"></div>
+            <h2 class="details-chapters-title">Capítulos</h2>
+            <div id="details-chapters-grid" class="details-chapters-grid">
+              <!-- Cards dos capítulos renderizados dinamicamente -->
+            </div>
+          </section>
+
+        </div>
+      </div>
+
+
     </main>
 
   </div>

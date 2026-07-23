@@ -485,3 +485,324 @@
   font-size: 11px;
   color: var(--text-muted);
 }
+
+/* ==========================================================================
+   Book Details Page Viewport (pagina-detalhes-livro.md Specs)
+   ========================================================================== */
+
+.book-details-viewport {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-primary);
+  overflow: hidden;
+}
+
+/* Container do Hero Banner — Wrapper com overflow hidden para eliminar bordas/halos de blur */
+.details-hero-banner-wrap {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 520px;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.details-hero-backdrop {
+  position: absolute;
+  top: -40px;
+  left: -40px;
+  right: -40px;
+  bottom: -40px;
+  background-size: cover;
+  background-position: center 25%;
+  background-repeat: no-repeat;
+  filter: brightness(0.35) saturate(1.2) blur(24px);
+  z-index: 1;
+  transition: background-image 0.4s ease;
+}
+
+.details-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: 
+    linear-gradient(to bottom, rgba(17, 17, 17, 0.2) 0%, rgba(17, 17, 17, 0.65) 50%, var(--bg-primary) 100%),
+    linear-gradient(to right, rgba(17, 17, 17, 0.85) 0%, transparent 40%, transparent 60%, rgba(17, 17, 17, 0.85) 100%);
+  z-index: 2;
+}
+
+.details-nav-bar {
+  position: relative;
+  z-index: 10;
+  padding: 24px 40px 12px 40px;
+  display: flex;
+  align-items: center;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: var(--radius);
+  background-color: rgba(30, 30, 30, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(12px);
+  color: var(--text-primary);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+.back-btn:hover {
+  background-color: rgba(45, 45, 45, 0.9);
+  border-color: var(--accent);
+}
+
+.details-content-scroll {
+  position: relative;
+  z-index: 5;
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 40px 60px 40px;
+}
+
+/* Seção Superior — Detalhes do Livro */
+.details-upper-section {
+  display: flex;
+  gap: 40px;
+  align-items: flex-start;
+  margin-top: 10px;
+  margin-bottom: 40px;
+}
+
+@media (max-width: 768px) {
+  .details-upper-section {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+}
+
+.details-cover-wrap {
+  width: 230px;
+  height: 335px;
+  flex-shrink: 0;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background-color: var(--bg-card);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  position: relative;
+}
+
+.details-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.details-info-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 800px;
+}
+
+.details-title {
+  font-size: 34px;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.25;
+  letter-spacing: -0.5px;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+
+.details-author-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+  color: var(--text-secondary);
+}
+
+.details-author-label {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.details-author {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.details-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.details-meta-badge {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px 12px;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+}
+
+.details-meta-badge.accent {
+  background-color: rgba(249, 115, 22, 0.18);
+  color: var(--accent);
+  border-color: rgba(249, 115, 22, 0.35);
+  font-weight: 600;
+}
+
+.details-rating-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  width: fit-content;
+}
+
+.details-rating-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.details-stars {
+  display: flex;
+  gap: 4px;
+}
+
+.details-stars .star {
+  font-size: 20px;
+  color: var(--accent);
+  cursor: pointer;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.details-stars .star:hover {
+  transform: scale(1.25);
+}
+
+.details-stars .star.empty {
+  color: #444444;
+}
+
+.details-rating-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.details-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.btn-read-large {
+  padding: 12px 28px;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: var(--radius);
+  box-shadow: 0 4px 18px var(--accent-glow);
+}
+
+.details-synopsis-wrap {
+  margin-top: 6px;
+  padding: 18px 22px;
+  background-color: rgba(255, 255, 255, 0.03);
+  border-radius: var(--radius);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(8px);
+}
+
+.details-synopsis-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 8px;
+}
+
+.details-synopsis-text {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  white-space: pre-line;
+}
+
+
+/* Seção Inferior — Capítulos (Condicional) */
+.details-section-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 30px 0;
+}
+
+.details-chapters-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 20px;
+}
+
+.details-chapters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.details-chapter-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: var(--transition);
+}
+
+.details-chapter-card:hover {
+  border-color: var(--accent);
+  background-color: var(--bg-card-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+
+.details-chapter-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.details-chapter-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.details-chapter-progress {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+

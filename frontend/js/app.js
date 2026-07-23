@@ -146,7 +146,15 @@ class AppController {
     }
 
 
-    // Detail Modal close
+    // Botão Voltar para Biblioteca na Página de Detalhes
+    const backBtn = document.getElementById('btn-back-to-library');
+    if (backBtn) {
+      backBtn.addEventListener('click', () => {
+        this.libraryManager.closeBookDetails();
+      });
+    }
+
+    // Detail Modal close (fallback)
     const closeDetailBtn = document.getElementById('close-detail-modal');
     if (closeDetailBtn) {
       closeDetailBtn.addEventListener('click', () => {
@@ -155,7 +163,7 @@ class AppController {
       });
     }
 
-    // Drawer close
+    // Drawer close (fallback)
     const closeDrawerBtn = document.getElementById('close-drawer');
     if (closeDrawerBtn) {
       closeDrawerBtn.addEventListener('click', () => {
@@ -201,13 +209,8 @@ class AppController {
           
           closeConfirmModalFn();
           
-          // Fecha o modal de detalhes
-          const detailModal = document.getElementById('detail-modal');
-          if (detailModal) detailModal.classList.remove('active');
-          
-          // Recarrega a biblioteca
-          await this.libraryManager.loadTags();
-          await this.libraryManager.loadItems();
+          // Fecha a página de detalhes se estiver aberta
+          this.libraryManager.closeBookDetails();
         } catch (err) {
           console.error(err);
           this.showToast(`Erro ao remover item: ${err.message}`);
@@ -216,6 +219,7 @@ class AppController {
         }
       });
     }
+
 
     // Botão circular de Reescanear (implementacoes.md §1)
     const rescanBtn = document.getElementById('btn-rescan');

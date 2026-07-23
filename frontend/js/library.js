@@ -199,17 +199,11 @@ class LibraryManager {
         if (e.target.classList.contains('star')) return;
 
         const itemId = parseInt(card.dataset.id, 10);
-        const itemType = card.dataset.type;
-
-        if (itemType === 'series') {
-          this.openSeriesDrawer(itemId);
-        } else {
-          this.openDetailModal(itemId);
-        }
+        this.openBookDetails(itemId);
       });
     });
 
-    // Star rating click event
+    // Star rating click event on grid card
     this.gridElement.querySelectorAll('.book-stars .star').forEach(star => {
       star.addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -238,59 +232,204 @@ class LibraryManager {
   }
 
   /**
-   * Opens details modal for a single book
+   * Opens dedicated Book Details page according to pagina-detalhes-livro.md specs
    */
-  async openDetailModal(id) {
+  async openBookDetails(id) {
     try {
       const item = await LibraryAPI.getItem(id);
       this.selectedItem = item;
-      
-      const modal = document.getElementById('detail-modal');
-      if (!modal) return;
 
-      document.getElementById('detail-title').textContent = item.title;
-      document.getElementById('detail-author').textContent = item.author || 'Autor desconhecido';
-      document.getElementById('detail-desc').textContent = item.description || 'Sem descrição cadastrada.';
-      
-      const coverImg = document.getElementById('detail-cover-img');
-      coverImg.src = LibraryAPI.getCoverUrl(item.id);
+      const detailsView = document.getElementById('book-details-view');
+      const libraryView = document.querySelector('.library-viewport');
+      const appHeader = document.querySelector('.app-header');
+      if (!detailsView) return;
 
-      modal.classList.add('active');
+      // 1. Capa, Hero Backdrop e Fallback
+      const heroBackdrop = document.getElementById('details-hero-backdrop');
+      const coverImg = document.getElementById('details-cover-img');
+      const coverFallback = document.getElementById('details-cover-fallback');
+      const fallbackTitle = document.getElementById('details-fallback-title');
+
+      if (item.cover_path) {
+        const coverUrl = LibraryAPI.getCoverUrl(item.id);
+        coverImg.src = coverUrl;
+        coverImg.style.display = 'block';
+        if (coverFallback) coverFallback.style.display = 'none';
+        if (heroBackdrop) heroBackdrop.style.backgroundImage = `url("${coverUrl}")`;
+      } else {
+        coverImg.style.display = 'none';
+        if (coverFallback) {
+          coverFallback.style.display = 'flex';
+          if (fallbackTitle) fallbackTitle.textContent = item.title;
+        }
+        if (heroBackdrop) heroBackdrop.style.backgroundImage = 'none';
+      }
+
+      // 2. Título
+      const titleEl = document.getElementById('details-title');
+      if (titleEl) titleEl.textContent = item.title;
+
+      // 3. Autor (omitido se ausente, não deixa espaço em branco)
+      const authorWrap = document.getElementById('details-author-wrap');
+      const authorEl = document.getElementById('details-author');
+      if (item.author && item.author.trim() !== '') {
+        if (authorEl) authorEl.textContent = item.author;
+        if (authorWrap) authorWrap.style.display = 'flex';
+      } else {
+        if (authorWrap) authorWrap.style.display = 'none';
+      }
+
+      // 4. Metadados Secundários (Ano, Editora, Progresso)
+      const yearEl = document.getElementById('details-meta-year');
+      if (item.year) {
+        yearEl.textContent = `Ano: ${item.year}`;
+        yearEl.style.display = 'inline-block';
+      } else {
+        yearEl.style.display = 'none';
+      }
+
+      const publisherEl = document.getElementById('details-meta-publisher');
+      if (item.publisher) {
+        publisherEl.textContent = `Editora: ${item.publisher}`;
+        publisherEl.style.display = 'inline-block';
+      } else {
+        publisherEl.style.display = 'none';
+      }
+
+      const progressEl = document.getElementById('details-meta-progress');
+      if (progressEl) {
+        progressEl.textContent = `${item.overall_progress || 0}% lido`;
+      }
+
+      // 5. Avaliação por Estrelas (1 a 5, editável e persistida)
+      this.renderDetailsStars(item.rating || 0);
+
+      // 6. Botão "Ler" principal
+      const readBtn = document.getElementById('details-btn-read');
+      if (readBtn) {
+        readBtn.onclick = () => {
+          alert(`Iniciando leitura de "${item.title}"! (Leitor integrado será ativado nas próximas etapas)`);
+        };
+      }
+
+      // 7. Botão "Remover da biblioteca"
+      const removeBtn = document.getElementById('details-btn-remove');
+      if (removeBtn) {
+        removeBtn.onclick = () => {
+          const confirmModal = document.getElementById('confirm-remove-modal');
+          const confirmTitleEl = document.getElementById('confirm-remove-title');
+          if (confirmTitleEl) confirmTitleEl.textContent = item.title;
+          if (confirmModal) confirmModal.classList.add('active');
+        };
+      }
+
+      // 8. Sinopse / Descrição (omitida se ausente)
+      const synopsisWrap = document.getElementById('details-synopsis-wrap');
+      const synopsisText = document.getElementById('details-synopsis');
+      if (item.description && item.description.trim() !== '') {
+        if (synopsisText) synopsisText.textContent = item.description;
+        if (synopsisWrap) synopsisWrap.style.display = 'block';
+      } else {
+        if (synopsisWrap) synopsisWrap.style.display = 'none';
+      }
+
+      // 9. Seção Inferior — Capítulos (condicional)
+      const lowerSection = document.getElementById('details-lower-section');
+      const chaptersGrid = document.getElementById('details-chapters-grid');
+
+      let chapters = [];
+      if (item.type === 'series' || item.children_count > 0) {
+        try {
+          chapters = await LibraryAPI.getItems({ parent_id: item.id, sort_by: 'title' });
+        } catch (e) {
+          console.warn('Erro ao buscar capítulos do livro:', e);
+        }
+      }
+
+      if (chapters && chapters.length > 0) {
+        if (chaptersGrid) {
+          chaptersGrid.innerHTML = chapters.map((chap, idx) => `
+            <div class="details-chapter-card">
+              <div class="details-chapter-info">
+                <div class="details-chapter-title">${this.escapeHtml(chap.title)}</div>
+                <div class="details-chapter-progress">${chap.overall_progress || 0}% lido</div>
+              </div>
+              <button class="btn btn-secondary" style="padding:6px 14px; font-size:12px;" onclick="alert('Iniciando leitura do capítulo: ${this.escapeHtml(chap.title)}')">
+                Ler
+              </button>
+            </div>
+          `).join('');
+        }
+        if (lowerSection) lowerSection.style.display = 'block';
+      } else {
+        if (lowerSection) lowerSection.style.display = 'none';
+      }
+
+      // 10. Alternar views (oculta biblioteca e exibe página de detalhes)
+      if (libraryView) libraryView.style.display = 'none';
+      if (appHeader) appHeader.style.display = 'none';
+      detailsView.style.display = 'flex';
+
+      // Scroll para o topo
+      const scrollContainer = detailsView.querySelector('.details-content-scroll');
+      if (scrollContainer) scrollContainer.scrollTop = 0;
+
     } catch (err) {
-      console.error('Erro ao carregar detalhes:', err);
+      console.error('Erro ao abrir página de detalhes:', err);
+      if (window.app) window.app.showToast(`Erro ao carregar detalhes: ${err.message}`);
     }
   }
 
   /**
-   * Opens slide-over drawer panel for a series
+   * Renders star rating in details upper section and attaches click handlers
    */
-  async openSeriesDrawer(seriesId) {
-    try {
-      const seriesItem = await LibraryAPI.getItem(seriesId);
-      const chapters = await LibraryAPI.getItems({ parent_id: seriesId, sort_by: 'title' });
+  renderDetailsStars(currentRating) {
+    const starsContainer = document.getElementById('details-stars');
+    const ratingTextEl = document.getElementById('details-rating-text');
+    if (!starsContainer) return;
 
-      const drawer = document.getElementById('series-drawer');
-      if (!drawer) return;
+    starsContainer.querySelectorAll('.star').forEach(star => {
+      const r = parseInt(star.dataset.rating, 10);
+      if (r <= currentRating) star.classList.remove('empty');
+      else star.classList.add('empty');
 
-      document.getElementById('drawer-series-title').textContent = seriesItem.title;
-      document.getElementById('drawer-series-count').textContent = `${chapters.length} capítulos/volumes`;
+      star.onclick = async () => {
+        if (!this.selectedItem) return;
+        const newRating = r;
 
-      const listContainer = document.getElementById('drawer-chapter-list');
-      listContainer.innerHTML = chapters.map(chap => `
-        <div class="chapter-item">
-          <div>
-            <div class="chapter-title">${this.escapeHtml(chap.title)}</div>
-            <div class="chapter-progress">${chap.overall_progress || 0}% lido</div>
-          </div>
-          <button class="btn btn-secondary" style="padding:6px 12px; font-size:12px;" onclick="alert('Leitor de arquivo será ativado na Fase 3/4!')">Ler</button>
-        </div>
-      `).join('');
+        try {
+          await LibraryAPI.updateItem(this.selectedItem.id, { rating: newRating });
+          this.selectedItem.rating = newRating;
+          this.renderDetailsStars(newRating);
+          if (window.app) window.app.showToast(`Avaliação salva: ${newRating} estrelas`);
+        } catch (err) {
+          console.error(err);
+          if (window.app) window.app.showToast(`Erro ao salvar avaliação: ${err.message}`);
+        }
+      };
+    });
 
-      drawer.classList.add('active');
-    } catch (err) {
-      console.error('Erro ao carregar capítulos da série:', err);
+    if (ratingTextEl) {
+      ratingTextEl.textContent = currentRating > 0 ? `(${currentRating}/5 estrelas)` : '(sem nota)';
     }
   }
+
+  /**
+   * Closes Book Details view and returns to library
+   */
+  closeBookDetails() {
+    const detailsView = document.getElementById('book-details-view');
+    const libraryView = document.querySelector('.library-viewport');
+    const appHeader = document.querySelector('.app-header');
+
+    if (detailsView) detailsView.style.display = 'none';
+    if (libraryView) libraryView.style.display = 'flex';
+    if (appHeader) appHeader.style.display = 'flex';
+
+    // Recarrega itens para refletir quaisquer atualizações de avaliação
+    this.loadItems();
+  }
+
 
   renderLoadingState() {
     if (!this.gridElement) return;
