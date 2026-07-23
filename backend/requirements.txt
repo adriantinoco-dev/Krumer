@@ -1,0 +1,8 @@
+fastapi>=0.110.0
+uvicorn>=0.27.0
+ebooklib>=0.18
+pymupdf>=1.23.0
+pillow>=10.0.0
+sqlalchemy>=2.0.0
+watchdog>=4.0.0
+python-multipart

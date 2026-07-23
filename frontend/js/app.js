@@ -1,0 +1,164 @@
+/* ==========================================================================
+   Krumer Personal Library - App Controller & Entry Point
+   ========================================================================== */
+
+class AppController {
+  constructor() {
+    this.libraryManager = new LibraryManager();
+  }
+
+  async init() {
+    this.setupNavigation();
+    this.setupSearchAndFilter();
+    this.setupModals();
+    await this.libraryManager.init();
+  }
+
+  setupNavigation() {
+    document.querySelectorAll('.nav-item[data-category]').forEach(item => {
+      item.addEventListener('click', (e) => {
+        document.querySelectorAll('.nav-item[data-category]').forEach(el => el.classList.remove('active'));
+        const navEl = e.currentTarget;
+        navEl.classList.add('active');
+
+        const category = navEl.dataset.category;
+        this.libraryManager.currentCategory = category;
+        this.libraryManager.currentTag = null; // Clear tag filter on nav switch
+        this.libraryManager.loadTags();
+        this.libraryManager.loadItems();
+      });
+    });
+  }
+
+  setupSearchAndFilter() {
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+      let timeout = null;
+      searchInput.addEventListener('input', (e) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+          this.libraryManager.searchQuery = e.target.value.trim();
+          this.libraryManager.loadItems();
+        }, 300);
+      });
+    }
+
+    const sortSelect = document.getElementById('sort-select');
+    if (sortSelect) {
+      sortSelect.addEventListener('change', (e) => {
+        const val = e.target.value;
+        if (val === 'added_desc') {
+          this.libraryManager.sortBy = 'added_at';
+          this.libraryManager.sortOrder = 'desc';
+        } else if (val === 'rating_desc') {
+          this.libraryManager.sortBy = 'rating';
+          this.libraryManager.sortOrder = 'desc';
+        } else if (val === 'progress_desc') {
+          this.libraryManager.sortBy = 'overall_progress';
+          this.libraryManager.sortOrder = 'desc';
+        } else {
+          this.libraryManager.sortBy = 'title';
+          this.libraryManager.sortOrder = 'asc';
+        }
+        this.libraryManager.loadItems();
+      });
+    }
+  }
+
+  setupModals() {
+    // Scan Modal
+    const scanBtn = document.getElementById('btn-open-scan');
+    if (scanBtn) scanBtn.addEventListener('click', () => this.openScanModal());
+
+    const closeScanBtn = document.getElementById('close-scan-modal');
+    if (closeScanBtn) closeScanBtn.addEventListener('click', () => this.closeScanModal());
+
+    const scanForm = document.getElementById('scan-form');
+    if (scanForm) {
+      scanForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const pathInput = document.getElementById('scan-path-input');
+        const path = pathInput ? pathInput.value.trim() : '';
+
+        if (!path) {
+          this.showToast('Por favor informe um caminho válido de pasta.');
+          return;
+        }
+
+        try {
+          this.showToast('Iniciando escaneamento da pasta...');
+          this.closeScanModal();
+          
+          await LibraryAPI.scanFolder(path);
+          this.showToast('Escaneamento concluído com sucesso!');
+          this.libraryManager.loadTags();
+          this.libraryManager.loadItems();
+        } catch (err) {
+          console.error(err);
+          this.showToast(`Erro ao escanear: ${err.message}`);
+        }
+      });
+    }
+
+    // Detail Modal close
+    const closeDetailBtn = document.getElementById('close-detail-modal');
+    if (closeDetailBtn) {
+      closeDetailBtn.addEventListener('click', () => {
+        const modal = document.getElementById('detail-modal');
+        if (modal) modal.classList.remove('active');
+      });
+    }
+
+    // Drawer close
+    const closeDrawerBtn = document.getElementById('close-drawer');
+    if (closeDrawerBtn) {
+      closeDrawerBtn.addEventListener('click', () => {
+        const drawer = document.getElementById('series-drawer');
+        if (drawer) drawer.classList.remove('active');
+      });
+    }
+  }
+
+  openScanModal() {
+    const modal = document.getElementById('scan-modal');
+    if (modal) modal.classList.add('active');
+  }
+
+  closeScanModal() {
+    const modal = document.getElementById('scan-modal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  showToast(message) {
+    let container = document.querySelector('.toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.className = 'toast-container';
+      document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerHTML = `
+      <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+      </svg>
+      <span>${message}</span>
+    `;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(100%)';
+      toast.style.transition = 'all 0.3s ease';
+      setTimeout(() => toast.remove(), 300);
+    }, 4000);
+  }
+}
+
+// Global instance initialization on DOM Ready
+document.addEventListener('DOMContentLoaded', () => {
+  window.app = new AppController();
+  window.app.init();
+});

@@ -1,0 +1,447 @@
+/* ==========================================================================
+   Krumer Personal Library - Grid & Component Stylesheet (Phase 2 Spec)
+   ========================================================================== */
+
+/* Main Viewport Container */
+.library-viewport {
+  flex: 1;
+  padding: 30px;
+  overflow-y: auto;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.item-count {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-left: 8px;
+}
+
+/* Streaming Grid Layout */
+.book-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 24px 20px;
+}
+
+/* Single Book Card (Strict Specs) */
+.book-card {
+  width: 130px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s ease;
+}
+
+.book-card:hover {
+  transform: translateY(-4px);
+}
+
+.book-cover-wrap {
+  position: relative;
+  width: 130px;
+  height: 190px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background-color: var(--bg-card);
+  box-shadow: var(--shadow-card);
+  transition: outline 0.15s ease, box-shadow 0.2s ease;
+}
+
+.book-card:hover .book-cover-wrap {
+  outline: 2px solid var(--accent);
+  box-shadow: 0 8px 20px rgba(249, 115, 22, 0.25);
+}
+
+.book-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  background-color: #1a1a1a;
+}
+
+/* Fallback cover icon if image fails */
+.cover-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1f1f23, #2a2a30);
+  color: var(--text-muted);
+  padding: 12px;
+  text-align: center;
+}
+
+.cover-fallback svg {
+  width: 36px;
+  height: 36px;
+  margin-bottom: 8px;
+  color: var(--accent);
+  opacity: 0.8;
+}
+
+.cover-fallback-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  line-clamp: 2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Subtle Gradient overlay at bottom */
+.cover-gradient {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 70px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.88), transparent);
+  border-radius: 0 0 var(--radius) var(--radius);
+  pointer-events: none;
+}
+
+/* Series Badge - Top Right Corner */
+.series-badge {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  background: rgba(249, 115, 22, 0.92);
+  color: #ffffff;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+.series-dot {
+  width: 4px;
+  height: 4px;
+  background: #ffffff;
+  border-radius: 50%;
+}
+.series-dot:nth-child(2) { opacity: 0.55; }
+.series-dot:nth-child(3) { opacity: 0.3; }
+
+/* 3px Bottom Progress Bar */
+.cover-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.cover-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 0 0 0 var(--radius);
+  transition: width 0.3s ease;
+}
+
+/* Card Metadata Below Cover */
+.book-title {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 130px;
+}
+
+.book-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 130px;
+}
+
+/* Star Rating Component */
+.book-stars {
+  display: flex;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.star {
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.star:hover {
+  transform: scale(1.2);
+}
+
+.star.empty {
+  color: #444444;
+}
+
+/* Empty State Styling */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.empty-icon {
+  width: 64px;
+  height: 64px;
+  margin-bottom: 16px;
+  color: #333333;
+}
+
+.empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.empty-desc {
+  font-size: 13px;
+  max-width: 360px;
+  margin-bottom: 20px;
+}
+
+/* Modals & Backdrop */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.modal-backdrop.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-card {
+  background-color: var(--bg-modal);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  width: 520px;
+  max-width: 90vw;
+  box-shadow: var(--shadow-main);
+  padding: 24px;
+  transform: scale(0.95);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.modal-backdrop.active .modal-card {
+  transform: scale(1);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.modal-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 20px;
+  padding: 4px;
+}
+.close-btn:hover {
+  color: var(--text-primary);
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 10px 14px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+.form-input:focus {
+  border-color: var(--accent);
+}
+
+/* Details Modal Layout */
+.detail-layout {
+  display: flex;
+  gap: 20px;
+}
+
+.detail-cover {
+  width: 140px;
+  height: 200px;
+  border-radius: var(--radius);
+  object-fit: cover;
+  box-shadow: var(--shadow-card);
+}
+
+.detail-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.detail-author {
+  font-size: 13px;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+
+.detail-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 16px;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+/* Series Chapters Drawer (Slide-Over Panel) */
+.drawer-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 600;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.drawer-backdrop.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.drawer-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 420px;
+  max-width: 90vw;
+  height: 100vh;
+  background-color: var(--bg-modal);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-main);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 610;
+  padding: 24px;
+}
+
+.drawer-backdrop.active .drawer-panel {
+  transform: translateX(0);
+}
+
+.chapter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  flex: 1;
+  margin-top: 16px;
+}
+
+.chapter-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background-color: var(--bg-card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  transition: var(--transition);
+}
+
+.chapter-item:hover {
+  border-color: var(--accent);
+  background-color: var(--bg-card-hover);
+}
+
+.chapter-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.chapter-progress {
+  font-size: 11px;
+  color: var(--text-muted);
+}
