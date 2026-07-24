@@ -196,9 +196,17 @@ def processar_arquivo_livro(
     item_id: int | None = None,
     api_key: str | None = None,
     use_cache: bool = True,
+    query_direta: str | None = None,
 ) -> dict:
-    """Processa um nome de arquivo: limpa o nome e busca metadados via Gemini."""
-    cache_key = nome_arquivo
+    """
+    Processa um livro ou obra agrupada e busca metadados via Gemini.
+
+    Se `query_direta` for fornecido (ex: título limpo de uma série),
+    ele é usado diretamente como query — sem passar pelo `limpar_nome_arquivo`.
+    Caso contrário, `nome_arquivo` é limpo normalmente.
+    """
+    # A chave de cache usa a query final, garantindo hits corretos para séries e arquivos
+    cache_key = query_direta if query_direta else nome_arquivo
 
     if use_cache:
         limpar_cache_negativo(CACHE_PATH)
@@ -212,11 +220,12 @@ def processar_arquivo_livro(
                     return {
                         "item_id": item_id,
                         "arquivo_original": nome_arquivo,
-                        "titulo_limpo": cached.get("titulo_limpo", limpar_nome_arquivo(nome_arquivo)),
+                        "titulo_limpo": cached.get("titulo_limpo", cache_key),
                         "metadados": metadados,
                     }
 
-    titulo_limpo = limpar_nome_arquivo(nome_arquivo)
+    # Usa query_direta se disponível; caso contrário, limpa o nome do arquivo
+    titulo_limpo = query_direta if query_direta else limpar_nome_arquivo(nome_arquivo)
     metadados = obter_metadados_gemini(titulo_limpo, api_key=api_key)
 
     resultado = {
@@ -248,7 +257,10 @@ def processar_lote_com_progresso(
 ) -> Generator[tuple[int, int, dict], None, None]:
     """
     Processa uma lista de itens (máx. 10) e emite progresso após cada item.
+
     Cada item deve ter: { "item_id": int, "nome_arquivo": str }
+    Opcionalmente pode ter: { "query_direta": str } — usado para obras agrupadas
+    (séries) onde o título já está limpo e não precisa de processamento de filename.
     """
     total = len(itens)
 
@@ -257,6 +269,7 @@ def processar_lote_com_progresso(
             item["nome_arquivo"],
             item_id=item["item_id"],
             api_key=api_key,
+            query_direta=item.get("query_direta"),
         )
         yield index, total, resultado
 

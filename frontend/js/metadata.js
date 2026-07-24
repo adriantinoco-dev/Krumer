@@ -60,20 +60,21 @@ class MetadataManager {
     if (this.processando) return;
 
     try {
+      // Busca todos os itens raiz (sem parent_id) — séries já estão agrupadas pelo backend
       const allItems = await LibraryAPI.getItems({ limit: 500 });
-      this.livros = allItems.filter(item => item.type !== 'series');
+      this.livros = allItems; // inclui séries e livros avulsos
       this.selecionados = [];
 
       const titleEl = document.getElementById('metadata-select-title');
       if (titleEl) {
-        titleEl.textContent = 'Selecionar Livros (até 10)';
+        titleEl.textContent = 'Selecionar Obras (até 10)';
       }
 
       this.renderGradeSelecao();
       this.atualizarContadorSelecao();
       this.abrirModal('metadata-select-modal');
     } catch (err) {
-      this.app.showToast(`Erro ao carregar livros: ${err.message}`);
+      this.app.showToast(`Erro ao carregar obras: ${err.message}`);
     }
   }
 
@@ -83,7 +84,7 @@ class MetadataManager {
 
     if (this.livros.length === 0) {
       grid.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1;">
-        <div class="empty-title">Nenhum livro disponível</div>
+        <div class="empty-title">Nenhuma obra disponível</div>
         <div class="empty-desc">Escaneie uma pasta para adicionar livros à biblioteca.</div>
       </div>`;
       return;
@@ -93,6 +94,10 @@ class MetadataManager {
       const ativo = this.selecionados.some(l => l.id === livro.id);
       const desabilitado = !ativo && this.selecionados.length >= this.limite;
       const coverUrl = livro.cover_path ? LibraryAPI.getCoverUrl(livro.id) : '';
+      const isSeries = livro.type === 'series';
+      const badgeText = isSeries
+        ? `${livro.children_count || 0} ${livro.children_count === 1 ? 'vol' : 'vols'}`
+        : '';
 
       return `
         <div class="book-card metadata-select-card ${ativo ? 'selecionado' : ''} ${desabilitado ? 'desabilitado' : ''}"
@@ -107,6 +112,14 @@ class MetadataManager {
               </svg>
               <span class="cover-fallback-title">${escapeHtml(livro.title)}</span>
             </div>
+            ${isSeries ? `
+              <div class="series-badge">
+                <div class="series-dot"></div>
+                <div class="series-dot"></div>
+                <div class="series-dot"></div>
+                ${badgeText}
+              </div>
+            ` : ''}
             <span class="marca-selecao">✓</span>
           </div>
           <div class="book-title" title="${escapeHtml(livro.title)}">${escapeHtml(livro.title)}</div>
@@ -156,7 +169,7 @@ class MetadataManager {
     const lim = this.limite;
 
     if (counter) {
-      counter.textContent = `${n} de ${lim} ${lim === 1 ? 'livro selecionado' : 'livros selecionados'}`;
+      counter.textContent = `${n} de ${lim} ${lim === 1 ? 'obra selecionada' : 'obras selecionadas'}`;
     }
     if (btn) btn.disabled = n === 0;
   }

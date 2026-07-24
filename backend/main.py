@@ -468,29 +468,30 @@ def fetch_metadata_stream(payload: MetadataFetchPayload, db: Session = Depends(g
     if not payload.item_ids:
         raise HTTPException(status_code=400, detail="Nenhum item selecionado.")
     if len(payload.item_ids) > 10:
-        raise HTTPException(status_code=400, detail="Máximo de 10 livros por lote.")
+        raise HTTPException(status_code=400, detail="Máximo de 10 obras por lote.")
 
     items = db.query(Item).filter(Item.id.in_(payload.item_ids)).all()
     if len(items) != len(payload.item_ids):
         raise HTTPException(status_code=404, detail="Um ou mais itens não foram encontrados.")
 
-    for item in items:
-        if item.type == "series":
-            raise HTTPException(
-                status_code=400,
-                detail=f"O item '{item.title}' é uma série e não pode ser processado diretamente.",
-            )
-
     id_order = {item_id: idx for idx, item_id in enumerate(payload.item_ids)}
     items.sort(key=lambda i: id_order[i.id])
 
-    lote = [
-        {
-            "item_id": item.id,
-            "nome_arquivo": os.path.basename(item.path),
-        }
-        for item in items
-    ]
+    lote = []
+    for item in items:
+        if item.type == "series":
+            # Séries já têm um título limpo — usa diretamente como query,
+            # sem passar pelo limpador de nome de arquivo.
+            lote.append({
+                "item_id": item.id,
+                "nome_arquivo": item.title,
+                "query_direta": item.title,
+            })
+        else:
+            lote.append({
+                "item_id": item.id,
+                "nome_arquivo": os.path.basename(item.path),
+            })
 
     def event_stream():
         try:
