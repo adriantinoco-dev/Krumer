@@ -67,7 +67,7 @@ class MetadataManager {
 
       const titleEl = document.getElementById('metadata-select-title');
       if (titleEl) {
-        titleEl.textContent = 'Selecionar Obras (até 10)';
+        titleEl.textContent = 'Selecionar Obras (máx 10)';
       }
 
       this.renderGradeSelecao();
