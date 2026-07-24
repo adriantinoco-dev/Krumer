@@ -21,7 +21,6 @@ function escapeHtml(str) {
 class MetadataManager {
   constructor(app) {
     this.app = app;
-    this.modo = 'lote';
     this.limite = 10;
     this.livros = [];
     this.selecionados = [];
@@ -32,11 +31,7 @@ class MetadataManager {
 
   init() {
     const btn = document.getElementById('btn-obter-metadados');
-    if (btn) btn.addEventListener('click', () => this.abrirPopupModo());
-
-    document.getElementById('close-metadata-mode-modal')?.addEventListener('click', () => this.fecharModal('metadata-mode-modal'));
-    document.getElementById('btn-metadata-mode-cancel')?.addEventListener('click', () => this.fecharModal('metadata-mode-modal'));
-    document.getElementById('btn-metadata-mode-continue')?.addEventListener('click', () => this.confirmarModo());
+    if (btn) btn.addEventListener('click', () => this.abrirSelecaoLivros());
 
     document.getElementById('close-metadata-select-modal')?.addEventListener('click', () => this.fecharModal('metadata-select-modal'));
     document.getElementById('btn-metadata-select-cancel')?.addEventListener('click', () => this.fecharModal('metadata-select-modal'));
@@ -61,23 +56,9 @@ class MetadataManager {
     document.getElementById(id)?.classList.remove('active');
   }
 
-  abrirPopupModo() {
-    if (this.processando) return;
-    const loteRadio = document.querySelector('input[name="metadata_mode"][value="lote"]');
-    if (loteRadio) loteRadio.checked = true;
-    this.modo = 'lote';
-    this.abrirModal('metadata-mode-modal');
-  }
-
-  confirmarModo() {
-    const selected = document.querySelector('input[name="metadata_mode"]:checked');
-    this.modo = selected ? selected.value : 'lote';
-    this.limite = this.modo === 'isolado' ? 1 : 10;
-    this.fecharModal('metadata-mode-modal');
-    this.abrirSelecaoLivros();
-  }
-
   async abrirSelecaoLivros() {
+    if (this.processando) return;
+
     try {
       const allItems = await LibraryAPI.getItems({ limit: 500 });
       this.livros = allItems.filter(item => item.type !== 'series');
@@ -85,9 +66,7 @@ class MetadataManager {
 
       const titleEl = document.getElementById('metadata-select-title');
       if (titleEl) {
-        titleEl.textContent = this.modo === 'isolado'
-          ? 'Selecionar Livro'
-          : `Selecionar Livros (até ${this.limite})`;
+        titleEl.textContent = 'Selecionar Livros (até 10)';
       }
 
       this.renderGradeSelecao();
@@ -112,7 +91,7 @@ class MetadataManager {
 
     grid.innerHTML = this.livros.map(livro => {
       const ativo = this.selecionados.some(l => l.id === livro.id);
-      const desabilitado = this.modo === 'lote' && !ativo && this.selecionados.length >= this.limite;
+      const desabilitado = !ativo && this.selecionados.length >= this.limite;
       const coverUrl = livro.cover_path ? LibraryAPI.getCoverUrl(livro.id) : '';
 
       return `
@@ -146,15 +125,11 @@ class MetadataManager {
   }
 
   alternarSelecao(livro) {
-    if (this.modo === 'isolado') {
-      this.selecionados = [livro];
-    } else {
-      const idx = this.selecionados.findIndex(l => l.id === livro.id);
-      if (idx >= 0) {
-        this.selecionados.splice(idx, 1);
-      } else if (this.selecionados.length < this.limite) {
-        this.selecionados.push(livro);
-      }
+    const idx = this.selecionados.findIndex(l => l.id === livro.id);
+    if (idx >= 0) {
+      this.selecionados.splice(idx, 1);
+    } else if (this.selecionados.length < this.limite) {
+      this.selecionados.push(livro);
     }
     this.atualizarSelecaoDOM();
     this.atualizarContadorSelecao();
@@ -167,7 +142,7 @@ class MetadataManager {
     grid.querySelectorAll('.metadata-select-card').forEach(card => {
       const id = parseInt(card.dataset.id, 10);
       const ativo = this.selecionados.some(l => l.id === id);
-      const desabilitado = this.modo === 'lote' && !ativo && this.selecionados.length >= this.limite;
+      const desabilitado = !ativo && this.selecionados.length >= this.limite;
 
       card.classList.toggle('selecionado', ativo);
       card.classList.toggle('desabilitado', desabilitado);
