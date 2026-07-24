@@ -145,6 +145,14 @@ class LibraryAPI {
   }
 
   /**
+   * Gets absolute file stream URL for EPUB/PDF
+   */
+  static getFileUrl(filePath) {
+    return `${API_BASE_URL}/files?path=${encodeURIComponent(filePath)}`;
+  }
+
+
+  /**
    * Busca metadados via Gemini com streaming de progresso (SSE).
    */
   static async fetchMetadataStream(itemIds, { onProgress, onResult, onDone, onError }) {

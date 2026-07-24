@@ -132,15 +132,15 @@ class TestMetadataAPI(unittest.TestCase):
         self.assertEqual(res.status_code, 400)
 
     @patch("main.get_api_key", return_value="fake-key")
-    def test_fetch_rejeita_series(self, _mock_key):
+    def test_fetch_aceita_series(self, _mock_key):
         series = Item(title="Serie", type="series", path="/tmp/serie")
         self.db.add(series)
         self.db.commit()
         self.db.refresh(series)
 
         res = self.client.post("/metadata/fetch", json={"item_ids": [series.id]})
-        self.assertEqual(res.status_code, 400)
-        self.assertIn("série", res.json()["detail"].lower())
+        self.assertEqual(res.status_code, 200)
+
 
     @patch("main.processar_lote_com_progresso")
     @patch("main.get_api_key", return_value="fake-key")

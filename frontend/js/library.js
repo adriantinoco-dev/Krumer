@@ -308,7 +308,11 @@ class LibraryManager {
       const readBtn = document.getElementById('details-btn-read');
       if (readBtn) {
         readBtn.onclick = () => {
-          alert(`Iniciando leitura de "${item.title}"! (Leitor integrado será ativado nas próximas etapas)`);
+          if (typeof openReader === 'function') {
+            openReader(item);
+          } else {
+            console.error('Função openReader não encontrada');
+          }
         };
       }
 
@@ -354,16 +358,26 @@ class LibraryManager {
                 <div class="details-chapter-title">${this.escapeHtml(chap.title)}</div>
                 <div class="details-chapter-progress">${chap.overall_progress || 0}% lido</div>
               </div>
-              <button class="btn btn-secondary" style="padding:6px 14px; font-size:12px;" onclick="alert('Iniciando leitura do capítulo: ${this.escapeHtml(chap.title)}')">
+              <button class="btn btn-secondary btn-read-chapter" data-index="${idx}" style="padding:6px 14px; font-size:12px;">
                 Ler
               </button>
             </div>
           `).join('');
+
+          chaptersGrid.querySelectorAll('.btn-read-chapter').forEach((btn) => {
+            btn.addEventListener('click', () => {
+              const idx = parseInt(btn.dataset.index, 10);
+              if (chapters[idx] && typeof openReader === 'function') {
+                openReader(chapters[idx]);
+              }
+            });
+          });
         }
         if (lowerSection) lowerSection.style.display = 'block';
       } else {
         if (lowerSection) lowerSection.style.display = 'none';
       }
+
 
       // 10. Alternar views (oculta biblioteca e exibe página de detalhes)
       if (libraryView) libraryView.style.display = 'none';

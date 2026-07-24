@@ -140,6 +140,7 @@ def get_pdf_metadata(file_path: str) -> Tuple[Optional[str], Optional[str], int,
     total_pages = 0
     cover_bytes = None
     
+    doc = None
     try:
         doc = fitz.open(file_path)
         total_pages = len(doc)
@@ -154,12 +155,14 @@ def get_pdf_metadata(file_path: str) -> Tuple[Optional[str], Optional[str], int,
             page = doc[0]
             pix = page.get_pixmap(dpi=150)
             cover_bytes = pix.tobytes(output="png")
-            
-        doc.close()
     except Exception as e:
         print(f"Error parsing PDF {file_path}: {e}")
-        
+    finally:
+        if doc is not None:
+            doc.close()
+            
     return title, author, total_pages, cover_bytes
+
 
 def process_file_metadata_and_cover(file_path: str, display_title_setting: str) -> Tuple[str, Optional[str], Optional[str], Optional[int]]:
     """

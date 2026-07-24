@@ -432,8 +432,70 @@ class AppController {
   }
 }
 
+// Global Reader Controller Helper Functions
+function showReaderView(type) {
+  const appRoot = document.getElementById('app-root');
+  const readerView = document.getElementById('reader-view');
+  if (appRoot) appRoot.style.display = 'none';
+  if (readerView) readerView.classList.remove('hidden');
+}
+
+function closeReader() {
+  const appRoot = document.getElementById('app-root');
+  const readerView = document.getElementById('reader-view');
+  
+  if (readerView) readerView.classList.add('hidden');
+  if (appRoot) appRoot.style.display = 'flex';
+
+  // Fechar instâncias ativas do leitor
+  if (typeof closePdf === 'function') {
+    closePdf();
+  }
+
+  // Recarregar biblioteca/detalhes para atualizar badges de progresso
+  if (window.app && window.app.libraryManager) {
+    window.app.libraryManager.loadItems();
+    if (window.app.libraryManager.currentItem) {
+      window.app.libraryManager.openBookDetails(window.app.libraryManager.currentItem.id);
+    }
+  }
+}
+
+function openReader(item, filePath) {
+  if (!item) return;
+  const pathToOpen = filePath || item.path;
+  if (!pathToOpen) return;
+
+  const ext = pathToOpen.split('.').pop().toLowerCase();
+
+  if (ext === 'pdf') {
+    if (typeof openPdf === 'function') {
+      openPdf(item, pathToOpen);
+    } else {
+      alert('Leitor de PDF não carregado adequadamente.');
+    }
+  } else if (ext === 'epub') {
+    alert(`Leitor de EPUB selecionado para "${item.title}". (EPUB.js será integrado no próximo módulo)`);
+  } else {
+    // Fallback padrão para PDF
+    if (typeof openPdf === 'function') {
+      openPdf(item, pathToOpen);
+    }
+  }
+}
+
+window.showReaderView = showReaderView;
+window.closeReader = closeReader;
+window.openReader = openReader;
+
 // Global instance initialization on DOM Ready
 document.addEventListener('DOMContentLoaded', () => {
   window.app = new AppController();
   window.app.init();
+
+  const backBtn = document.getElementById('btn-back-library');
+  if (backBtn) {
+    backBtn.addEventListener('click', () => closeReader());
+  }
 });
+
