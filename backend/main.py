@@ -178,21 +178,37 @@ def get_item_by_id(id: int, db: Session = Depends(get_db)):
 
 @app.put("/items/{id}", response_model=ItemResponse)
 def update_item_metadata(id: int, payload: ItemUpdate, db: Session = Depends(get_db)):
-    """Allows manual editing of item details, ratings, and tags."""
+    """Allows manual editing of item details, ratings, and tags.
+    
+    Empty strings are treated as 'user wants to clear this field' and are
+    stored as NULL in the database.  A field set to None in the payload
+    means 'not sent / not changed' and is left untouched.
+    """
     item = db.query(Item).filter(Item.id == id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
-        
+
+    # Helper: normalise blank / whitespace-only strings to None (NULL in DB)
+    def _clean(value):
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped if stripped else None
+        return value
+
+    # Only update fields that were explicitly sent (not None).
+    # An empty string "" is intentional — the user cleared the field.
     if payload.title is not None:
-        item.title = payload.title
+        cleaned_title = _clean(payload.title)
+        if cleaned_title:                    # title must never be blank
+            item.title = cleaned_title
     if payload.author is not None:
-        item.author = payload.author
+        item.author = _clean(payload.author)
     if payload.publisher is not None:
-        item.publisher = payload.publisher
+        item.publisher = _clean(payload.publisher)
     if payload.year is not None:
-        item.year = payload.year
+        item.year = payload.year if payload.year else None  # 0 = clear
     if payload.description is not None:
-        item.description = payload.description
+        item.description = _clean(payload.description)
         
     if payload.rating is not None:
         if payload.rating < 1 or payload.rating > 5:

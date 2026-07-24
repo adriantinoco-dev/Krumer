@@ -357,13 +357,16 @@ class AppController {
         if (submitText) submitText.textContent = 'Salvando...';
 
         try {
-          // 1. Save text metadata via PATCH
+          // 1. Save text metadata
+          // Always send every field so the backend can distinguish
+          // "user cleared the field" (empty string) from "field not touched" (absent key).
+          // Since this is a "full-screen" edit modal, all fields are always present.
           await LibraryAPI.updateItem(item.id, {
             title,
-            author:      author      || null,
-            publisher:   publisher   || null,
-            year:        year ? parseInt(year, 10) : null,
-            description: synopsis    || null,
+            author:      author,
+            publisher:   publisher,
+            year:        year ? parseInt(year, 10) : 0,
+            description: synopsis,
             tags,
           });
 
