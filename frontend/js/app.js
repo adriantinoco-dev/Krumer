@@ -5,12 +5,14 @@
 class AppController {
   constructor() {
     this.libraryManager = new LibraryManager();
+    this.metadataManager = new MetadataManager(this);
   }
 
   async init() {
     this.setupNavigation();
     this.setupSearchAndFilter();
     this.setupModals();
+    this.metadataManager.init();
     await this.libraryManager.init();
   }
 

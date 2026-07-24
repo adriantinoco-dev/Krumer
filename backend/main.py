@@ -1,11 +1,12 @@
 import os
+import json
 import datetime
 from pathlib import Path
 from typing import List, Optional
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -18,6 +19,12 @@ from models import (
 )
 from scanner import scan_library_folder, SUPPORTED_EXTENSIONS, get_setting
 from metadata import process_file_metadata_and_cover
+from metadata_service import (
+    get_api_key,
+    processar_lote_com_progresso,
+    mapear_metadados_para_item,
+    MetadataServiceError,
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -56,6 +63,16 @@ class ProgressUpdatePayload(BaseModel):
     current_page: int
     total_pages: Optional[int] = None
     cfi: Optional[str] = None
+
+class MetadataFetchPayload(BaseModel):
+    item_ids: List[int]
+
+class MetadataApplyItem(BaseModel):
+    item_id: int
+    metadados: Optional[dict] = None
+
+class MetadataApplyPayload(BaseModel):
+    results: List[MetadataApplyItem]
 
 
 # --- Helper Functions ---
@@ -418,6 +435,100 @@ def rescan_directory_route(db: Session = Depends(get_db)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao reescanear: {str(e)}")
+
+
+@app.post("/metadata/fetch")
+def fetch_metadata_stream(payload: MetadataFetchPayload, db: Session = Depends(get_db)):
+    """
+    Busca metadados via Gemini para até 10 itens, emitindo progresso via SSE.
+    Não altera arquivos originais — apenas retorna resultados para preview.
+    """
+    if not get_api_key():
+        raise HTTPException(
+            status_code=400,
+            detail="GEMINI_API_KEY não configurada. Defina a variável de ambiente antes de buscar metadados.",
+        )
+
+    if not payload.item_ids:
+        raise HTTPException(status_code=400, detail="Nenhum item selecionado.")
+    if len(payload.item_ids) > 10:
+        raise HTTPException(status_code=400, detail="Máximo de 10 livros por lote.")
+
+    items = db.query(Item).filter(Item.id.in_(payload.item_ids)).all()
+    if len(items) != len(payload.item_ids):
+        raise HTTPException(status_code=404, detail="Um ou mais itens não foram encontrados.")
+
+    for item in items:
+        if item.type == "series":
+            raise HTTPException(
+                status_code=400,
+                detail=f"O item '{item.title}' é uma série e não pode ser processado diretamente.",
+            )
+
+    id_order = {item_id: idx for idx, item_id in enumerate(payload.item_ids)}
+    items.sort(key=lambda i: id_order[i.id])
+
+    lote = [
+        {
+            "item_id": item.id,
+            "nome_arquivo": os.path.basename(item.path),
+        }
+        for item in items
+    ]
+
+    def event_stream():
+        try:
+            for atual, total, resultado in processar_lote_com_progresso(lote):
+                yield f"data: {json.dumps({'type': 'progress', 'atual': atual, 'total': total}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'result', 'data': resultado}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        except MetadataServiceError as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': f'Erro ao buscar metadados: {str(e)}'}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.post("/metadata/apply", response_model=List[ItemResponse])
+def apply_metadata(payload: MetadataApplyPayload, db: Session = Depends(get_db)):
+    """
+    Aplica metadados encontrados ao registro interno do app (SQLite).
+    Arquivos originais no disco não são alterados.
+    """
+    updated_items = []
+
+    for entry in payload.results:
+        if not entry.metadados:
+            continue
+
+        item = db.query(Item).filter(Item.id == entry.item_id).first()
+        if not item:
+            continue
+
+        mapped = mapear_metadados_para_item(entry.metadados)
+
+        if mapped.get("title"):
+            item.title = mapped["title"]
+            item.metadata_title = mapped["metadata_title"]
+        if mapped.get("author") is not None:
+            item.author = mapped["author"]
+        if mapped.get("year") is not None:
+            item.year = mapped["year"]
+        if mapped.get("description") is not None:
+            item.description = mapped["description"]
+
+        updated_items.append(item)
+
+    db.commit()
+    for item in updated_items:
+        db.refresh(item)
+
+    return [_enrich_item(item, db) for item in updated_items]
 
 
 

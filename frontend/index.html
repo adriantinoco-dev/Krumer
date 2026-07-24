@@ -82,6 +82,13 @@
             </svg>
           </button>
 
+          <button id="btn-obter-metadados" class="btn btn-secondary" title="Buscar metadados via Gemini">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+            Obter Metadados
+          </button>
+
           <button id="btn-open-scan" class="btn btn-primary">
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
@@ -396,9 +403,76 @@
     </div>
   </div>
 
+  <!-- Metadata Mode Selection Modal -->
+  <div id="metadata-mode-modal" class="modal-backdrop">
+    <div class="modal-card" style="width: 480px;">
+      <div class="modal-header">
+        <h2 class="modal-title">Obter Metadados</h2>
+        <button id="close-metadata-mode-modal" class="close-btn">&times;</button>
+      </div>
+      <p style="font-size:13px; color:var(--text-secondary); margin-bottom:16px;">
+        Como deseja buscar os metadados?
+      </p>
+      <div class="radio-options-group">
+        <label class="radio-option">
+          <input type="radio" name="metadata_mode" value="lote" checked>
+          <span>Buscar em lote (até 10 livros)</span>
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="metadata_mode" value="isolado">
+          <span>Buscar isolado (1 livro)</span>
+        </label>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px;">
+        <button type="button" id="btn-metadata-mode-cancel" class="btn btn-secondary">Cancelar</button>
+        <button type="button" id="btn-metadata-mode-continue" class="btn btn-primary">Continuar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Metadata Book Selection Modal -->
+  <div id="metadata-select-modal" class="modal-backdrop">
+    <div class="modal-card metadata-select-modal-card">
+      <div class="modal-header">
+        <h2 id="metadata-select-title" class="modal-title">Selecionar Livros (até 10)</h2>
+        <button id="close-metadata-select-modal" class="close-btn">&times;</button>
+      </div>
+      <div id="metadata-select-grid" class="book-grid metadata-select-grid"></div>
+      <div class="metadata-select-footer">
+        <span id="metadata-select-counter" class="contador-selecao">0 de 10 livros selecionados</span>
+        <div style="display:flex; gap:10px;">
+          <button type="button" id="btn-metadata-select-cancel" class="btn btn-secondary">Cancelar</button>
+          <button type="button" id="btn-metadata-fetch" class="btn btn-primary" disabled>Buscar Metadados</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Metadata Results Modal -->
+  <div id="metadata-results-modal" class="modal-backdrop">
+    <div class="modal-card metadata-results-modal-card">
+      <div class="modal-header">
+        <h2 class="modal-title">Resultado da Busca de Metadados</h2>
+        <button id="close-metadata-results-modal" class="close-btn">&times;</button>
+      </div>
+      <div class="metadata-results-layout">
+        <div class="coluna-lista">
+          <ul id="metadata-results-list" class="lista-livros-resultado"></ul>
+          <div id="metadata-results-counters" class="contadores"></div>
+        </div>
+        <div id="metadata-results-preview" class="coluna-previa-wrap"></div>
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+        <button type="button" id="btn-metadata-results-close" class="btn btn-secondary">Fechar</button>
+        <button type="button" id="btn-metadata-apply" class="btn btn-primary">Aplicar Metadados</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Scripts -->
-  <script src="js/api.js?v=1.5"></script>
-  <script src="js/library.js?v=1.5"></script>
-  <script src="js/app.js?v=1.5"></script>
+  <script src="js/api.js?v=1.6"></script>
+  <script src="js/library.js?v=1.6"></script>
+  <script src="js/metadata.js?v=1.6"></script>
+  <script src="js/app.js?v=1.6"></script>
 </body>
 </html>

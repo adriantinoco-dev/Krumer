@@ -143,6 +143,76 @@ class LibraryAPI {
   static getCoverUrl(id) {
     return `${API_BASE_URL}/items/${id}/cover?t=${Date.now()}`;
   }
+
+  /**
+   * Busca metadados via Gemini com streaming de progresso (SSE).
+   */
+  static async fetchMetadataStream(itemIds, { onProgress, onResult, onDone, onError }) {
+    const res = await fetch(`${API_BASE_URL}/metadata/fetch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_ids: itemIds }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || `Falha ao buscar metadados: ${res.statusText}`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const event = JSON.parse(line.slice(6));
+          if (event.type === 'progress' && onProgress) {
+            onProgress(event.atual, event.total);
+          } else if (event.type === 'result' && onResult) {
+            onResult(event.data);
+          } else if (event.type === 'done' && onDone) {
+            onDone();
+          } else if (event.type === 'error' && onError) {
+            onError(event.message);
+          }
+        } catch (parseErr) {
+          console.warn('Evento SSE inválido:', line, parseErr);
+        }
+      }
+    }
+  }
+
+  /**
+   * Aplica metadados encontrados ao banco interno do app.
+   */
+  static async applyMetadata(results) {
+    const payload = {
+      results: results
+        .filter(r => r.metadados)
+        .map(r => ({ item_id: r.item_id, metadados: r.metadados })),
+    };
+
+    const res = await fetch(`${API_BASE_URL}/metadata/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Erro ao aplicar metadados');
+    }
+    return await res.json();
+  }
 }
 
 window.LibraryAPI = LibraryAPI;

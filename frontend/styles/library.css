@@ -876,3 +876,239 @@
 }
 
 
+/* ==========================================================================
+   Metadata Scraper UI (implementacao-scrapper-metadados.md)
+   ========================================================================== */
+
+.metadata-select-modal-card {
+  width: 900px;
+  max-width: 95vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.metadata-select-grid {
+  max-height: 55vh;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.metadata-select-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.contador-selecao {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.book-card.metadata-select-card {
+  cursor: pointer;
+  position: relative;
+}
+
+.book-card.selecionado {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
+.book-card.desabilitado {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.marca-selecao {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--accent);
+  color: #fff;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  z-index: 2;
+}
+
+.metadata-progress-toast {
+  padding: 16px 20px;
+  border-radius: var(--radius);
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-main);
+  font-size: 13px;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.metadata-progress-title {
+  font-weight: 600;
+}
+
+.metadata-progress-bar-wrap {
+  height: 6px;
+  background: var(--bg-primary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.metadata-progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.metadata-progress-pct {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.metadata-progress-detail {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.metadata-results-modal-card {
+  width: 820px;
+  max-width: 95vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.metadata-results-layout {
+  display: grid;
+  grid-template-columns: 35% 65%;
+  gap: 20px;
+  flex: 1;
+  min-height: 360px;
+  overflow: hidden;
+}
+
+@media (max-width: 700px) {
+  .metadata-results-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.coluna-lista {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.lista-livros-resultado {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+  max-height: 320px;
+}
+
+.metadata-result-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition: var(--transition);
+}
+
+.metadata-result-item:hover {
+  background: var(--bg-card);
+}
+
+.metadata-result-item.ativo {
+  background: var(--bg-card);
+  border: 1px solid var(--accent);
+}
+
+.icone-ok {
+  color: #22c55e;
+  font-weight: 700;
+}
+
+.icone-erro {
+  color: #ef4444;
+  font-weight: 700;
+}
+
+.contadores {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 12px;
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.contador-ok {
+  color: #22c55e;
+}
+
+.contador-erro {
+  color: var(--text-muted);
+}
+
+.coluna-previa-wrap {
+  overflow-y: auto;
+  max-height: 380px;
+  padding-right: 8px;
+}
+
+.coluna-previa h2 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 12px 0 8px;
+}
+
+.coluna-previa p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.coluna-previa.vazio {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 20px;
+}
+
+.metadata-preview-cover {
+  width: 120px;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius);
+  object-fit: cover;
+  box-shadow: var(--shadow-card);
+}
+
+.coluna-previa .sinopse {
+  margin-top: 12px;
+}
+
+.coluna-previa .sinopse p {
+  margin-top: 6px;
+  line-height: 1.6;
+  max-height: 200px;
+  overflow-y: auto;
+}
+

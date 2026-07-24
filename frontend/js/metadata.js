@@ -1,0 +1,340 @@
+/* ==========================================================================
+   Krumer - Metadata Scraper Flow Manager
+   ========================================================================== */
+
+function paraTitleCase(texto) {
+  if (!texto) return '';
+  return texto
+    .toLowerCase()
+    .split(' ')
+    .map(palavra => palavra.charAt(0).toUpperCase() + palavra.slice(1))
+    .join(' ');
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+class MetadataManager {
+  constructor(app) {
+    this.app = app;
+    this.modo = 'lote';
+    this.limite = 10;
+    this.livros = [];
+    this.selecionados = [];
+    this.resultados = [];
+    this.resultadoSelecionado = null;
+    this.processando = false;
+  }
+
+  init() {
+    const btn = document.getElementById('btn-obter-metadados');
+    if (btn) btn.addEventListener('click', () => this.abrirPopupModo());
+
+    document.getElementById('close-metadata-mode-modal')?.addEventListener('click', () => this.fecharModal('metadata-mode-modal'));
+    document.getElementById('btn-metadata-mode-cancel')?.addEventListener('click', () => this.fecharModal('metadata-mode-modal'));
+    document.getElementById('btn-metadata-mode-continue')?.addEventListener('click', () => this.confirmarModo());
+
+    document.getElementById('close-metadata-select-modal')?.addEventListener('click', () => this.fecharModal('metadata-select-modal'));
+    document.getElementById('btn-metadata-select-cancel')?.addEventListener('click', () => this.fecharModal('metadata-select-modal'));
+    document.getElementById('btn-metadata-fetch')?.addEventListener('click', () => this.iniciarBusca());
+
+    document.getElementById('close-metadata-results-modal')?.addEventListener('click', () => this.fecharResultados());
+    document.getElementById('btn-metadata-results-close')?.addEventListener('click', () => this.fecharResultados());
+    document.getElementById('btn-metadata-apply')?.addEventListener('click', () => this.aplicarMetadados());
+  }
+
+  setProcessando(ativo) {
+    this.processando = ativo;
+    const btn = document.getElementById('btn-obter-metadados');
+    if (btn) btn.disabled = ativo;
+  }
+
+  abrirModal(id) {
+    document.getElementById(id)?.classList.add('active');
+  }
+
+  fecharModal(id) {
+    document.getElementById(id)?.classList.remove('active');
+  }
+
+  abrirPopupModo() {
+    if (this.processando) return;
+    const loteRadio = document.querySelector('input[name="metadata_mode"][value="lote"]');
+    if (loteRadio) loteRadio.checked = true;
+    this.modo = 'lote';
+    this.abrirModal('metadata-mode-modal');
+  }
+
+  confirmarModo() {
+    const selected = document.querySelector('input[name="metadata_mode"]:checked');
+    this.modo = selected ? selected.value : 'lote';
+    this.limite = this.modo === 'isolado' ? 1 : 10;
+    this.fecharModal('metadata-mode-modal');
+    this.abrirSelecaoLivros();
+  }
+
+  async abrirSelecaoLivros() {
+    try {
+      const allItems = await LibraryAPI.getItems({ limit: 500 });
+      this.livros = allItems.filter(item => item.type !== 'series');
+      this.selecionados = [];
+
+      const titleEl = document.getElementById('metadata-select-title');
+      if (titleEl) {
+        titleEl.textContent = this.modo === 'isolado'
+          ? 'Selecionar Livro'
+          : `Selecionar Livros (até ${this.limite})`;
+      }
+
+      this.renderGradeSelecao();
+      this.atualizarContadorSelecao();
+      this.abrirModal('metadata-select-modal');
+    } catch (err) {
+      this.app.showToast(`Erro ao carregar livros: ${err.message}`);
+    }
+  }
+
+  renderGradeSelecao() {
+    const grid = document.getElementById('metadata-select-grid');
+    if (!grid) return;
+
+    if (this.livros.length === 0) {
+      grid.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1;">
+        <div class="empty-title">Nenhum livro disponível</div>
+        <div class="empty-desc">Escaneie uma pasta para adicionar livros à biblioteca.</div>
+      </div>`;
+      return;
+    }
+
+    grid.innerHTML = this.livros.map(livro => {
+      const ativo = this.selecionados.some(l => l.id === livro.id);
+      const desabilitado = this.modo === 'lote' && !ativo && this.selecionados.length >= this.limite;
+      const coverUrl = livro.cover_path ? LibraryAPI.getCoverUrl(livro.id) : '';
+
+      return `
+        <div class="book-card metadata-select-card ${ativo ? 'selecionado' : ''} ${desabilitado ? 'desabilitado' : ''}"
+             data-id="${livro.id}">
+          <div class="book-cover-wrap">
+            ${coverUrl ? `<img class="book-cover" src="${coverUrl}" alt="${escapeHtml(livro.title)}">` : `
+              <div class="cover-fallback" style="display:flex;">
+                <span class="cover-fallback-title">${escapeHtml(livro.title)}</span>
+              </div>`}
+            ${ativo ? '<span class="marca-selecao">✓</span>' : ''}
+          </div>
+          <div class="book-title">${escapeHtml(livro.title)}</div>
+        </div>
+      `;
+    }).join('');
+
+    grid.querySelectorAll('.metadata-select-card').forEach(card => {
+      card.addEventListener('click', () => {
+        if (card.classList.contains('desabilitado')) return;
+        const id = parseInt(card.dataset.id, 10);
+        const livro = this.livros.find(l => l.id === id);
+        if (livro) this.alternarSelecao(livro);
+      });
+    });
+  }
+
+  alternarSelecao(livro) {
+    if (this.modo === 'isolado') {
+      this.selecionados = [livro];
+    } else {
+      const idx = this.selecionados.findIndex(l => l.id === livro.id);
+      if (idx >= 0) {
+        this.selecionados.splice(idx, 1);
+      } else if (this.selecionados.length < this.limite) {
+        this.selecionados.push(livro);
+      }
+    }
+    this.renderGradeSelecao();
+    this.atualizarContadorSelecao();
+  }
+
+  atualizarContadorSelecao() {
+    const counter = document.getElementById('metadata-select-counter');
+    const btn = document.getElementById('btn-metadata-fetch');
+    const n = this.selecionados.length;
+    const lim = this.limite;
+
+    if (counter) {
+      counter.textContent = `${n} de ${lim} ${lim === 1 ? 'livro selecionado' : 'livros selecionados'}`;
+    }
+    if (btn) btn.disabled = n === 0;
+  }
+
+  async iniciarBusca() {
+    if (this.selecionados.length === 0) return;
+
+    const itemIds = this.selecionados.map(l => l.id);
+    this.fecharModal('metadata-select-modal');
+    this.resultados = [];
+    this.setProcessando(true);
+    this.mostrarProgresso(0, itemIds.length);
+
+    try {
+      await LibraryAPI.fetchMetadataStream(itemIds, {
+        onProgress: (atual, total) => this.mostrarProgresso(atual, total),
+        onResult: (data) => this.resultados.push(data),
+        onDone: () => {
+          this.esconderProgresso();
+          this.setProcessando(false);
+          this.abrirResultados();
+        },
+        onError: (msg) => {
+          this.esconderProgresso();
+          this.setProcessando(false);
+          this.app.showToast(msg);
+        },
+      });
+    } catch (err) {
+      this.esconderProgresso();
+      this.setProcessando(false);
+      this.app.showToast(err.message);
+    }
+  }
+
+  mostrarProgresso(atual, total) {
+    let toast = document.getElementById('metadata-progress-toast');
+    if (!toast) {
+      let container = document.querySelector('.toast-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+      }
+      toast = document.createElement('div');
+      toast.id = 'metadata-progress-toast';
+      toast.className = 'metadata-progress-toast';
+      container.appendChild(toast);
+    }
+
+    const pct = total > 0 ? Math.round((atual / total) * 100) : 0;
+    toast.innerHTML = `
+      <span class="metadata-progress-title">Buscando metadados...</span>
+      <div class="metadata-progress-bar-wrap">
+        <div class="metadata-progress-bar-fill" style="width: ${pct}%"></div>
+      </div>
+      <span class="metadata-progress-pct">${pct}%</span>
+      <span class="metadata-progress-detail">${atual} de ${total} livros processados</span>
+    `;
+  }
+
+  esconderProgresso() {
+    document.getElementById('metadata-progress-toast')?.remove();
+  }
+
+  abrirResultados() {
+    const primeiroEncontrado = this.resultados.find(r => r.metadados) || this.resultados[0] || null;
+    this.resultadoSelecionado = primeiroEncontrado;
+    this.renderListaResultados();
+    this.renderPreviaResultado();
+    this.abrirModal('metadata-results-modal');
+  }
+
+  renderListaResultados() {
+    const lista = document.getElementById('metadata-results-list');
+    const contadores = document.getElementById('metadata-results-counters');
+    if (!lista) return;
+
+    const encontrados = this.resultados.filter(r => r.metadados).length;
+    const naoEncontrados = this.resultados.length - encontrados;
+
+    lista.innerHTML = this.resultados.map(r => {
+      const ativo = this.resultadoSelecionado === r;
+      const ok = !!r.metadados;
+      const label = r.titulo_limpo || r.arquivo_original;
+      return `
+        <li class="metadata-result-item ${ativo ? 'ativo' : ''}" data-arquivo="${escapeHtml(r.arquivo_original)}">
+          <span class="${ok ? 'icone-ok' : 'icone-erro'}">${ok ? '✓' : '✗'}</span>
+          ${escapeHtml(label)}
+        </li>
+      `;
+    }).join('');
+
+    if (contadores) {
+      contadores.innerHTML = `
+        <span class="contador-ok">Encontrados: ${encontrados}</span>
+        <span class="contador-erro">Não encontrados: ${naoEncontrados}</span>
+      `;
+    }
+
+    lista.querySelectorAll('.metadata-result-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const arquivo = item.dataset.arquivo;
+        this.resultadoSelecionado = this.resultados.find(r => r.arquivo_original === arquivo) || null;
+        this.renderListaResultados();
+        this.renderPreviaResultado();
+      });
+    });
+  }
+
+  renderPreviaResultado() {
+    const previa = document.getElementById('metadata-results-preview');
+    if (!previa) return;
+
+    const item = this.resultadoSelecionado;
+    if (!item || !item.metadados) {
+      previa.innerHTML = `<div class="coluna-previa vazio">Nenhum metadado encontrado para este item.</div>`;
+      return;
+    }
+
+    const { nome_da_obra, autor, data_de_lancamento, sinopse } = item.metadados;
+    const livroOriginal = this.selecionados.find(l => l.id === item.item_id)
+      || this.livros.find(l => l.id === item.item_id);
+    const coverUrl = livroOriginal?.cover_path ? LibraryAPI.getCoverUrl(livroOriginal.id) : '';
+
+    previa.innerHTML = `
+      <div class="coluna-previa">
+        ${coverUrl ? `<img class="metadata-preview-cover" src="${coverUrl}" alt="${escapeHtml(nome_da_obra || '')}">` : ''}
+        <h2>${escapeHtml(paraTitleCase(nome_da_obra))}</h2>
+        <p><strong>Autor:</strong> ${escapeHtml(autor || 'Não identificado')}</p>
+        <p><strong>Lançamento:</strong> ${escapeHtml(data_de_lancamento || 'Não identificado')}</p>
+        <div class="sinopse">
+          <strong>Sinopse:</strong>
+          <p>${escapeHtml(sinopse || 'Sinopse não disponível.')}</p>
+        </div>
+      </div>
+    `;
+  }
+
+  fecharResultados() {
+    this.fecharModal('metadata-results-modal');
+    this.resultados = [];
+    this.resultadoSelecionado = null;
+  }
+
+  async aplicarMetadados() {
+    const comMetadados = this.resultados.filter(r => r.metadados);
+    if (comMetadados.length === 0) {
+      this.app.showToast('Nenhum metadado encontrado para aplicar.');
+      return;
+    }
+
+    const btn = document.getElementById('btn-metadata-apply');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Aplicando...';
+    }
+
+    try {
+      await LibraryAPI.applyMetadata(this.resultados);
+      this.fecharResultados();
+      await this.app.libraryManager.loadItems();
+      this.app.showToast(`Metadados aplicados em ${comMetadados.length} livro(s)!`);
+    } catch (err) {
+      this.app.showToast(`Erro ao aplicar: ${err.message}`);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Aplicar Metadados';
+      }
+    }
+  }
+}
+
+window.MetadataManager = MetadataManager;
