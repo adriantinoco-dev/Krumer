@@ -10,11 +10,11 @@ class LibraryManager {
     this.searchQuery = '';
     this.sortBy = 'title';
     this.sortOrder = 'asc';
-    
+
     this.gridElement = document.getElementById('book-grid');
     this.itemCountElement = document.getElementById('item-count');
     this.tagsContainer = document.getElementById('tags-container');
-    
+
     this.selectedItem = null;
   }
 
@@ -32,7 +32,7 @@ class LibraryManager {
   async loadItems() {
     try {
       this.renderLoadingState();
-      
+
       const params = {
         sort_by: this.sortBy === 'overall_progress' ? 'title' : this.sortBy,
         order: this.sortOrder
@@ -77,7 +77,7 @@ class LibraryManager {
     try {
       const tags = await LibraryAPI.getTags();
       if (!this.tagsContainer) return;
-      
+
       if (tags.length === 0) {
         this.tagsContainer.innerHTML = `<span style="font-size:11px; color:var(--text-muted);">Nenhuma tag</span>`;
         return;
@@ -216,7 +216,7 @@ class LibraryManager {
           // Update item state locally and re-render stars
           const item = this.items.find(i => i.id === itemId);
           if (item) item.rating = newRating;
-          
+
           starsContainer.querySelectorAll('.star').forEach(s => {
             const r = parseInt(s.dataset.rating, 10);
             if (r <= newRating) s.classList.remove('empty');
@@ -442,22 +442,22 @@ class LibraryManager {
 
     // Pre-fill all form fields
     const f = (id) => document.getElementById(id);
-    if (f('edit-title-input'))     f('edit-title-input').value     = item.title     || '';
-    if (f('edit-author-input'))    f('edit-author-input').value    = item.author    || '';
+    if (f('edit-title-input')) f('edit-title-input').value = item.title || '';
+    if (f('edit-author-input')) f('edit-author-input').value = item.author || '';
     if (f('edit-publisher-input')) f('edit-publisher-input').value = item.publisher || '';
-    if (f('edit-year-input'))      f('edit-year-input').value      = item.year      || '';
-    if (f('edit-synopsis-input'))  f('edit-synopsis-input').value  = item.description || '';
+    if (f('edit-year-input')) f('edit-year-input').value = item.year || '';
+    if (f('edit-synopsis-input')) f('edit-synopsis-input').value = item.description || '';
 
     // Tags: join array of tag names
     const tagNames = (item.tags || []).map(t => t.name || t).join(', ');
     if (f('edit-tags-input')) f('edit-tags-input').value = tagNames;
 
     // Reset cover picker state
-    const fileInput   = f('edit-cover-file-input');
+    const fileInput = f('edit-cover-file-input');
     const filenameLabel = f('edit-cover-filename');
-    const preview     = f('edit-cover-preview');
-    if (fileInput)      fileInput.value = '';
-    if (filenameLabel)  filenameLabel.textContent = 'Nenhuma nova imagem selecionada';
+    const preview = f('edit-cover-preview');
+    if (fileInput) fileInput.value = '';
+    if (filenameLabel) filenameLabel.textContent = 'Nenhuma nova imagem selecionada';
     if (preview) {
       if (item.cover_path) {
         preview.src = LibraryAPI.getCoverUrl(item.id);
@@ -500,7 +500,7 @@ class LibraryManager {
 
   escapeHtml(str) {
     if (!str) return '';
-    return str.replace(/[&<>"']/g, function(m) {
+    return str.replace(/[&<>"']/g, function (m) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
     });
   }

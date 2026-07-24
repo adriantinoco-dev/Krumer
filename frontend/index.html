@@ -1,20 +1,22 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Krumer — Biblioteca Pessoal de Livros e HQs</title>
-  
+
   <!-- Stylesheets -->
   <link rel="stylesheet" href="styles/main.css?v=1.5">
   <link rel="stylesheet" href="styles/library.css?v=1.5">
 </head>
+
 <body>
 
   <div id="app-root">
-    
+
     <!-- Sidebar Navigation -->
-    <aside class="sidebar"> 
+    <aside class="sidebar">
       <div class="brand-container">
         <div class="brand-icon">K</div>
         <div class="brand-title">Krumer</div>
@@ -25,19 +27,25 @@
         <ul class="nav-list">
           <li class="nav-item active" data-category="all">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z">
+              </path>
             </svg>
             <span>Todos os itens</span>
           </li>
           <li class="nav-item" data-category="reading">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253">
+              </path>
             </svg>
             <span>Lendo atualmente</span>
           </li>
           <li class="nav-item" data-category="series">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
+              </path>
             </svg>
             <span>Séries & Mangás</span>
           </li>
@@ -54,12 +62,13 @@
 
     <!-- Main Content Area -->
     <main class="main-wrapper">
-      
+
       <!-- Top Navbar Header -->
       <header class="app-header">
         <div class="search-box">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
           </svg>
           <input type="text" id="search-input" class="search-input" placeholder="Buscar por título ou autor...">
         </div>
@@ -78,20 +87,24 @@
           <!-- Botão circular de Reescanear (implementacoes.md §1) -->
           <button id="btn-rescan" class="btn-rescan" title="Reescanear pastas já configuradas">
             <svg id="rescan-icon" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+              </path>
             </svg>
           </button>
 
           <button id="btn-obter-metadados" class="btn btn-secondary" title="Buscar metadados via Gemini">
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
             </svg>
             Obter Metadados
           </button>
 
           <button id="btn-open-scan" class="btn btn-primary">
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
             </svg>
             Escanear Pasta
           </button>
@@ -115,7 +128,7 @@
 
       <!-- Book Details Viewport (Phase Specs - pagina-detalhes-livro.md) -->
       <div id="book-details-view" class="book-details-viewport" style="display: none;">
-        
+
         <!-- Backdrop Banner Container with overflow hidden to clip blur edges -->
         <div class="details-hero-banner-wrap">
           <div id="details-hero-backdrop" class="details-hero-backdrop"></div>
@@ -126,21 +139,24 @@
         <div class="details-nav-bar">
           <button id="btn-back-to-library" class="btn btn-secondary back-btn">
             <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18">
+              </path>
             </svg>
             Voltar para Biblioteca
           </button>
         </div>
 
         <div class="details-content-scroll">
-          
+
           <!-- Seção Superior — Detalhes do Livro -->
           <section class="details-upper-section">
             <div class="details-cover-wrap">
               <img id="details-cover-img" class="details-cover-img" src="" alt="Capa">
               <div id="details-cover-fallback" class="cover-fallback" style="display:none;">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253">
+                  </path>
                 </svg>
                 <span id="details-fallback-title" class="cover-fallback-title"></span>
               </div>
@@ -183,25 +199,30 @@
                 </button>
                 <button id="details-btn-edit" class="btn btn-secondary" title="Editar metadados deste livro">
                   <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
+                    </path>
                   </svg>
                   Editar Metadados
                 </button>
-                <button id="details-btn-remove" class="btn btn-danger-subtle" title="Remover da biblioteca sem apagar do disco">
+                <button id="details-btn-remove" class="btn btn-danger-subtle"
+                  title="Remover da biblioteca sem apagar do disco">
                   <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                    </path>
                   </svg>
                   Remover
                 </button>
               </div>
-
-              <!-- Sinopse (Omitida se ausente) -->
-              <div id="details-synopsis-wrap" class="details-synopsis-wrap">
-                <h3 class="details-synopsis-title">Sinopse</h3>
-                <p id="details-synopsis" class="details-synopsis-text"></p>
-              </div>
             </div>
           </section>
+
+          <!-- Sinopse — Card de largura total (abaixo do bloco capa + info) -->
+          <div id="details-synopsis-wrap" class="details-synopsis-wrap">
+            <h3 class="details-synopsis-title">Sinopse</h3>
+            <p id="details-synopsis" class="details-synopsis-text"></p>
+          </div>
 
           <!-- Seção Inferior — Capítulos (Condicional) -->
           <section id="details-lower-section" class="details-lower-section" style="display: none;">
@@ -233,13 +254,15 @@
         <div class="form-group">
           <label class="form-label" for="scan-path-input">Caminho do diretório raiz</label>
           <input type="text" id="scan-path-input" class="form-input"
-                 placeholder="Ex: C:\MeusLivros ou /home/usuario/livros" required>
+            placeholder="Ex: C:\MeusLivros ou /home/usuario/livros" required>
           <!-- input oculto para seleção via webkitdirectory (fallback) -->
           <input type="file" id="folder-picker-input" webkitdirectory directory style="display:none">
           <!-- Botão com mesma largura (100%) abaixo do campo -->
-          <button type="button" id="btn-browse-folder" class="btn btn-secondary scan-pick-btn" style="margin-top:8px; width:100%; justify-content:center;">
+          <button type="button" id="btn-browse-folder" class="btn btn-secondary scan-pick-btn"
+            style="margin-top:8px; width:100%; justify-content:center;">
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
             </svg>
             Selecionar pasta
           </button>
@@ -283,11 +306,15 @@
           <div id="detail-author" class="detail-author">Autor</div>
           <div id="detail-desc" class="detail-desc">Descrição</div>
           <div style="margin-top:auto; display:flex; align-items:center; justify-content:space-between; gap:10px;">
-            <button class="btn btn-primary" onclick="alert('Leitor de arquivos integrado será ativado na Fase 3/4!')">Abrir Leitor</button>
+            <button class="btn btn-primary"
+              onclick="alert('Leitor de arquivos integrado será ativado na Fase 3/4!')">Abrir Leitor</button>
             <!-- Remover da biblioteca (não apaga o arquivo do disco) -->
-            <button id="btn-remove-item" class="btn btn-danger-subtle" title="Remove da biblioteca sem apagar o arquivo do disco">
+            <button id="btn-remove-item" class="btn btn-danger-subtle"
+              title="Remove da biblioteca sem apagar o arquivo do disco">
               <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                </path>
               </svg>
               Remover da biblioteca
             </button>
@@ -305,8 +332,10 @@
         <button id="close-confirm-modal" class="close-btn">&times;</button>
       </div>
       <p style="font-size:13px; color:var(--text-secondary); line-height:1.6; margin-bottom:20px;">
-        O livro <strong id="confirm-remove-title" style="color:var(--text-primary);"></strong> será removido da sua biblioteca.<br>
-        <span style="color:var(--text-muted);">O arquivo original no seu computador <strong>não será apagado</strong>.</span>
+        O livro <strong id="confirm-remove-title" style="color:var(--text-primary);"></strong> será removido da sua
+        biblioteca.<br>
+        <span style="color:var(--text-muted);">O arquivo original no seu computador <strong>não será
+            apagado</strong>.</span>
       </p>
       <div style="display:flex; justify-content:flex-end; gap:10px;">
         <button id="btn-cancel-remove" class="btn btn-secondary">Cancelar</button>
@@ -341,7 +370,7 @@
         <button id="close-edit-modal" class="close-btn">&times;</button>
       </div>
       <form id="edit-metadata-form">
-        
+
         <div class="form-group">
           <label class="form-label" for="edit-title-input">Título <span style="color:#ef4444;">*</span></label>
           <input type="text" id="edit-title-input" class="form-input" required placeholder="Nome principal do livro">
@@ -365,13 +394,15 @@
           </div>
           <div class="form-group">
             <label class="form-label" for="edit-tags-input">Gêneros / Tags</label>
-            <input type="text" id="edit-tags-input" class="form-input" placeholder="Separadas por vírgula (ex: Ficção, Clássico)">
+            <input type="text" id="edit-tags-input" class="form-input"
+              placeholder="Separadas por vírgula (ex: Ficção, Clássico)">
           </div>
         </div>
 
         <div class="form-group">
           <label class="form-label" for="edit-synopsis-input">Sinopse</label>
-          <textarea id="edit-synopsis-input" class="form-input form-textarea" rows="4" placeholder="Descrição ou resumo descritivo do livro..."></textarea>
+          <textarea id="edit-synopsis-input" class="form-input form-textarea" rows="4"
+            placeholder="Descrição ou resumo descritivo do livro..."></textarea>
         </div>
 
         <div class="form-group">
@@ -382,9 +413,12 @@
             </div>
             <div class="edit-cover-picker-info">
               <input type="file" id="edit-cover-file-input" accept="image/*" style="display:none;">
-              <button type="button" id="btn-pick-cover-file" class="btn btn-secondary" style="font-size:12px; padding:8px 14px;">
+              <button type="button" id="btn-pick-cover-file" class="btn btn-secondary"
+                style="font-size:12px; padding:8px 14px;">
                 <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z">
+                  </path>
                 </svg>
                 Substituir Imagem da Capa
               </button>
@@ -449,4 +483,5 @@
   <script src="js/metadata.js?v=1.6"></script>
   <script src="js/app.js?v=1.6"></script>
 </body>
+
 </html>
