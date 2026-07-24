@@ -173,7 +173,7 @@
   align-items: center;
   gap: 3px;
   backdrop-filter: blur(4px);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .series-dot {
@@ -182,8 +182,14 @@
   background: #ffffff;
   border-radius: 50%;
 }
-.series-dot:nth-child(2) { opacity: 0.55; }
-.series-dot:nth-child(3) { opacity: 0.3; }
+
+.series-dot:nth-child(2) {
+  opacity: 0.55;
+}
+
+.series-dot:nth-child(3) {
+  opacity: 0.3;
+}
 
 /* 3px Bottom Progress Bar */
 .cover-progress {
@@ -339,6 +345,7 @@
   font-size: 20px;
   padding: 4px;
 }
+
 .close-btn:hover {
   color: var(--text-primary);
 }
@@ -365,6 +372,7 @@
   font-size: 13px;
   outline: none;
 }
+
 .form-input:focus {
   border-color: var(--accent);
 }
@@ -531,7 +539,7 @@
 .details-hero-overlay {
   position: absolute;
   inset: 0;
-  background: 
+  background:
     linear-gradient(to bottom, rgba(17, 17, 17, 0.2) 0%, rgba(17, 17, 17, 0.65) 50%, var(--bg-primary) 100%),
     linear-gradient(to right, rgba(17, 17, 17, 0.85) 0%, transparent 40%, transparent 60%, rgba(17, 17, 17, 0.85) 100%);
   z-index: 2;
@@ -623,7 +631,7 @@
   color: var(--text-primary);
   line-height: 1.25;
   letter-spacing: -0.5px;
-  text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
 .details-author-wrap {
@@ -892,6 +900,10 @@
   max-height: 55vh;
   overflow-y: auto;
   margin-bottom: 16px;
+  padding: 12px 18px;
+  margin-left: -6px;
+  margin-right: -6px;
+  box-sizing: border-box;
 }
 
 .metadata-select-footer {
@@ -913,10 +925,9 @@
   position: relative;
 }
 
-.book-card.selecionado {
+.book-card.selecionado .book-cover-wrap {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: var(--radius);
 }
 
 .book-card.desabilitado {
@@ -933,12 +944,16 @@
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   font-size: 12px;
   font-weight: 700;
   z-index: 2;
+}
+
+.book-card.selecionado .marca-selecao {
+  display: flex;
 }
 
 .metadata-progress-toast {
@@ -1111,4 +1126,3 @@
   max-height: 200px;
   overflow-y: auto;
 }
-

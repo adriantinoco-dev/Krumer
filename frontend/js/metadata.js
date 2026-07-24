@@ -119,13 +119,18 @@ class MetadataManager {
         <div class="book-card metadata-select-card ${ativo ? 'selecionado' : ''} ${desabilitado ? 'desabilitado' : ''}"
              data-id="${livro.id}">
           <div class="book-cover-wrap">
-            ${coverUrl ? `<img class="book-cover" src="${coverUrl}" alt="${escapeHtml(livro.title)}">` : `
-              <div class="cover-fallback" style="display:flex;">
-                <span class="cover-fallback-title">${escapeHtml(livro.title)}</span>
-              </div>`}
-            ${ativo ? '<span class="marca-selecao">✓</span>' : ''}
+            ${coverUrl ? `
+              <img class="book-cover" src="${coverUrl}" alt="${escapeHtml(livro.title)}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            ` : ''}
+            <div class="cover-fallback" style="${coverUrl ? 'display:none;' : 'display:flex;'}">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+              </svg>
+              <span class="cover-fallback-title">${escapeHtml(livro.title)}</span>
+            </div>
+            <span class="marca-selecao">✓</span>
           </div>
-          <div class="book-title">${escapeHtml(livro.title)}</div>
+          <div class="book-title" title="${escapeHtml(livro.title)}">${escapeHtml(livro.title)}</div>
         </div>
       `;
     }).join('');
@@ -151,8 +156,22 @@ class MetadataManager {
         this.selecionados.push(livro);
       }
     }
-    this.renderGradeSelecao();
+    this.atualizarSelecaoDOM();
     this.atualizarContadorSelecao();
+  }
+
+  atualizarSelecaoDOM() {
+    const grid = document.getElementById('metadata-select-grid');
+    if (!grid) return;
+
+    grid.querySelectorAll('.metadata-select-card').forEach(card => {
+      const id = parseInt(card.dataset.id, 10);
+      const ativo = this.selecionados.some(l => l.id === id);
+      const desabilitado = this.modo === 'lote' && !ativo && this.selecionados.length >= this.limite;
+
+      card.classList.toggle('selecionado', ativo);
+      card.classList.toggle('desabilitado', desabilitado);
+    });
   }
 
   atualizarContadorSelecao() {
