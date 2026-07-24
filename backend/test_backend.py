@@ -68,54 +68,8 @@ class TestLibrarianBackend(unittest.TestCase):
         if self.test_dir.exists():
             shutil.rmtree(self.test_dir)
             
-    def test_scanner_with_metadata_titles(self):
-        """Test scanning where items use their metadata titles by default."""
-        # Set preference to metadata (default)
-        setting = Setting(key="use_filename_as_title", value="false")
-        self.db.add(setting)
-        self.db.commit()
-        
-        # Run scan
-        scan_library_folder(self.db, str(self.test_dir))
-        
-        # Verify single book (should use metadata title)
-        book1 = self.db.query(Item).filter(Item.path == str(self.test_dir / "livro_avulso_1.epub")).first()
-        self.assertIsNotNone(book1)
-        self.assertEqual(book1.title, "EPUB Mock Title Metadata")
-        self.assertEqual(book1.type, "book")
-        self.assertEqual(book1.author, "EPUB Mock Author")
-        
-        # Verify series parent was created
-        series = self.db.query(Item).filter(Item.path == str(self.series_dir)).first()
-        self.assertIsNotNone(series)
-        self.assertEqual(series.title, "Serie_Incrível") # Folder name is title for series
-        self.assertEqual(series.type, "series")
-        
-        # Verify series has child chapters
-        chapters = self.db.query(Item).filter(Item.parent_id == series.id).all()
-        self.assertEqual(len(chapters), 2)
-        
-        # Check children details
-        chap1 = self.db.query(Item).filter(Item.path == str(self.series_dir / "capitulo_01.epub")).first()
-        self.assertIsNotNone(chap1)
-        self.assertEqual(chap1.title, "Capitulo_01 Title Metadata")
-        self.assertEqual(chap1.type, "chapter")
-        
-        # Check empty directory was indeed ignored
-        empty_folder = self.db.query(Item).filter(Item.path == str(self.empty_dir)).first()
-        self.assertNullItem(empty_folder)
-        
-    def assertNullItem(self, item):
-        self.assertIsNone(item)
-
     def test_scanner_with_filename_titles(self):
         """Test scanning where items use their filename stems as titles."""
-        # Set preference to filename titles
-        setting = Setting(key="use_filename_as_title", value="true")
-        self.db.add(setting)
-        self.db.commit()
-        
-        # Run scan
         scan_library_folder(self.db, str(self.test_dir))
         
         # Verify single book uses filename
@@ -123,7 +77,30 @@ class TestLibrarianBackend(unittest.TestCase):
         self.assertIsNotNone(book1)
         self.assertEqual(book1.title, "livro_avulso_1")
         self.assertEqual(book1.filename_title, "livro_avulso_1")
-        self.assertEqual(book1.metadata_title, "EPUB Mock Title Metadata") # Metadata title is still stored
+
+    def test_rescan_preserves_existing_metadata(self):
+        """Test that re-scanning does NOT overwrite or erase scraped metadata (author, synopsis, year, title)."""
+        scan_library_folder(self.db, str(self.test_dir))
+        
+        book1 = self.db.query(Item).filter(Item.path == str(self.test_dir / "livro_avulso_1.epub")).first()
+        self.assertIsNotNone(book1)
+        
+        # Simulate user scraping/editing metadata for book1
+        book1.title = "O Conto da AIA"
+        book1.author = "Margaret Atwood"
+        book1.description = "Uma sinopse detalhada e completa da obra."
+        book1.year = 1985
+        self.db.commit()
+        
+        # Perform re-scan
+        scan_library_folder(self.db, str(self.test_dir))
+        
+        # Verify all scraped metadata was 100% preserved after re-scan
+        reloaded_book1 = self.db.query(Item).filter(Item.path == str(self.test_dir / "livro_avulso_1.epub")).first()
+        self.assertEqual(reloaded_book1.title, "O Conto da AIA")
+        self.assertEqual(reloaded_book1.author, "Margaret Atwood")
+        self.assertEqual(reloaded_book1.description, "Uma sinopse detalhada e completa da obra.")
+        self.assertEqual(reloaded_book1.year, 1985)
         
     def test_cleanup_stale_files(self):
         """Test that files deleted on disk are cleaned up from DB on re-scan."""

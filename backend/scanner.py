@@ -33,30 +33,32 @@ def scan_library_folder(db: Session, root_path: str):
     for entry in sorted(root.iterdir()):
         if entry.is_file() and entry.suffix.lower() in SUPPORTED_EXTENSIONS:
             # Single book
-            display_title, metadata_title, author, total_pages = process_file_metadata_and_cover(
-                str(entry), display_title_setting
-            )
-            
+            filename_title = entry.stem
             cover_hash = hashlib.sha256(str(entry).encode('utf-8')).hexdigest()
             cover_path = str(COVERS_DIR / f"{cover_hash}.png")
             
             db_item = db.query(Item).filter(Item.path == str(entry)).first()
             if db_item:
-                db_item.title = display_title
-                db_item.metadata_title = metadata_title
-                db_item.filename_title = entry.stem
-                db_item.author = author
-                db_item.cover_path = cover_path
+                # Existing item: Preserve all scraped/edited metadata (title, author, description, year, publisher, cover)
+                db_item.filename_title = filename_title
                 db_item.parent_id = None
+                if not db_item.cover_path or not os.path.exists(db_item.cover_path):
+                    process_file_metadata_and_cover(str(entry), 'filename')
+                    db_item.cover_path = cover_path
             else:
+                # New item found: Extract cover, use filename strictly as display title
+                process_file_metadata_and_cover(str(entry), 'filename')
                 new_item = Item(
-                    title=display_title,
-                    metadata_title=metadata_title,
-                    filename_title=entry.stem,
+                    title=filename_title,
+                    metadata_title=filename_title,
+                    filename_title=filename_title,
                     type="book",
                     path=str(entry),
                     cover_path=cover_path,
-                    author=author,
+                    author=None,
+                    description=None,
+                    year=None,
+                    publisher=None,
                     parent_id=None
                 )
                 db.add(new_item)
@@ -84,50 +86,49 @@ def scan_library_folder(db: Session, root_path: str):
                     db.add(db_series)
                     db.flush()  # Retrieve series ID
                 else:
-                    db_series.title = entry.name
+                    db_series.filename_title = entry.name
                     db_series.parent_id = None
                 
                 # Upsert all child chapters
                 first_child_cover = None
-                first_child_author = None
                 
                 for idx, child in enumerate(child_files):
-                    display_title, metadata_title, author, total_pages = process_file_metadata_and_cover(
-                        str(child), display_title_setting
-                    )
-                    
+                    child_filename = child.stem
                     cover_hash = hashlib.sha256(str(child).encode('utf-8')).hexdigest()
                     cover_path = str(COVERS_DIR / f"{cover_hash}.png")
                     
                     if idx == 0:
                         first_child_cover = cover_path
-                        first_child_author = author
                         
                     db_child = db.query(Item).filter(Item.path == str(child)).first()
                     if db_child:
-                        db_child.title = display_title
-                        db_child.metadata_title = metadata_title
-                        db_child.filename_title = child.stem
-                        db_child.author = author
-                        db_child.cover_path = cover_path
+                        # Existing chapter: Preserve all existing metadata
+                        db_child.filename_title = child_filename
                         db_child.parent_id = db_series.id
+                        if not db_child.cover_path or not os.path.exists(db_child.cover_path):
+                            process_file_metadata_and_cover(str(child), 'filename')
+                            db_child.cover_path = cover_path
                     else:
+                        # New chapter: use filename strictly as display title
+                        process_file_metadata_and_cover(str(child), 'filename')
                         new_child = Item(
-                            title=display_title,
-                            metadata_title=metadata_title,
-                            filename_title=child.stem,
+                            title=child_filename,
+                            metadata_title=child_filename,
+                            filename_title=child_filename,
                             type="chapter",
                             path=str(child),
                             cover_path=cover_path,
-                            author=author,
+                            author=None,
+                            description=None,
+                            year=None,
+                            publisher=None,
                             parent_id=db_series.id
                         )
                         db.add(new_child)
                         
-                # Update series cover and author based on first chapter
-                db_series.cover_path = first_child_cover
-                if not db_series.author:
-                    db_series.author = first_child_author
+                # Update series cover if missing
+                if not db_series.cover_path or not os.path.exists(db_series.cover_path):
+                    db_series.cover_path = first_child_cover
                     
     db.flush()
 
