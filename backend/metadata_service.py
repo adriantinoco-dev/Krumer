@@ -108,6 +108,27 @@ def _save_json_file(path: Path, data: dict) -> None:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
+def limpar_cache_negativo(cache_path: Path = CACHE_PATH) -> int:
+    """
+    Remove do arquivo de cache qualquer entrada que seja 'not_found' ou tenha metadados None.
+    Retorna a quantidade de entradas removidas.
+    """
+    if not cache_path.exists():
+        return 0
+    cache = _load_json_file(cache_path)
+    if not isinstance(cache, dict):
+        return 0
+    chaves_para_remover = [
+        k for k, v in cache.items()
+        if isinstance(v, dict) and (v.get("status") == "not_found" or v.get("metadados") is None)
+    ]
+    if chaves_para_remover:
+        for k in chaves_para_remover:
+            del cache[k]
+        _save_json_file(cache_path, cache)
+    return len(chaves_para_remover)
+
+
 def _check_daily_limit() -> None:
     today = datetime.date.today().isoformat()
     data = _load_json_file(DAILY_COUNT_PATH)
@@ -180,15 +201,20 @@ def processar_arquivo_livro(
     cache_key = nome_arquivo
 
     if use_cache:
+        limpar_cache_negativo(CACHE_PATH)
         cache = _load_json_file(CACHE_PATH)
         if cache_key in cache:
             cached = cache[cache_key]
-            return {
-                "item_id": item_id,
-                "arquivo_original": nome_arquivo,
-                "titulo_limpo": cached.get("titulo_limpo", limpar_nome_arquivo(nome_arquivo)),
-                "metadados": cached.get("metadados"),
-            }
+            if isinstance(cached, dict):
+                metadados = cached.get("metadados")
+                status = cached.get("status")
+                if metadados is not None and status != "not_found":
+                    return {
+                        "item_id": item_id,
+                        "arquivo_original": nome_arquivo,
+                        "titulo_limpo": cached.get("titulo_limpo", limpar_nome_arquivo(nome_arquivo)),
+                        "metadados": metadados,
+                    }
 
     titulo_limpo = limpar_nome_arquivo(nome_arquivo)
     metadados = obter_metadados_gemini(titulo_limpo, api_key=api_key)
@@ -202,8 +228,16 @@ def processar_arquivo_livro(
 
     if use_cache:
         cache = _load_json_file(CACHE_PATH)
-        cache[cache_key] = {"titulo_limpo": titulo_limpo, "metadados": metadados}
-        _save_json_file(CACHE_PATH, cache)
+        if metadados is not None:
+            cache[cache_key] = {
+                "status": "found",
+                "titulo_limpo": titulo_limpo,
+                "metadados": metadados,
+            }
+            _save_json_file(CACHE_PATH, cache)
+        elif cache_key in cache:
+            del cache[cache_key]
+            _save_json_file(CACHE_PATH, cache)
 
     return resultado
 

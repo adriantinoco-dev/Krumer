@@ -16,6 +16,7 @@ import models
 from models import Item
 from metadata_service import (
     limpar_nome_arquivo,
+    limpar_cache_negativo,
     processar_arquivo_livro,
     processar_lote_com_progresso,
     mapear_metadados_para_item,
@@ -179,6 +180,75 @@ class TestMetadataAPI(unittest.TestCase):
         self.assertEqual(data[0]["author"], "Novo Autor")
         self.assertEqual(data[0]["year"], 1999)
         self.assertEqual(data[0]["description"], "Nova sinopse")
+
+
+class TestCacheMetadados(unittest.TestCase):
+    def setUp(self):
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.cache_path = Path(self.tmp_dir.name) / "metadados_cache.json"
+
+    def tearDown(self):
+        self.tmp_dir.cleanup()
+
+    @patch("metadata_service.obter_metadados_gemini")
+    def test_livro_encontrado_usa_cache(self, mock_obter):
+        with patch("metadata_service.CACHE_PATH", self.cache_path):
+            mock_obter.return_value = {"nome_da_obra": "Dom Casmurro", "autor": "Machado de Assis"}
+
+            # Primeira chamada: busca via Gemini
+            res1 = processar_arquivo_livro("dom_casmurro.epub", use_cache=True)
+            self.assertEqual(mock_obter.call_count, 1)
+            self.assertEqual(res1["metadados"]["nome_da_obra"], "Dom Casmurro")
+
+            # Segunda chamada: deve utilizar o cache
+            res2 = processar_arquivo_livro("dom_casmurro.epub", use_cache=True)
+            self.assertEqual(mock_obter.call_count, 1)
+            self.assertEqual(res2["metadados"]["nome_da_obra"], "Dom Casmurro")
+
+    @patch("metadata_service.obter_metadados_gemini")
+    def test_livro_nao_encontrado_nao_salva_no_cache_permanente(self, mock_obter):
+        with patch("metadata_service.CACHE_PATH", self.cache_path):
+            mock_obter.return_value = None
+
+            # Primeira chamada: não encontra
+            res1 = processar_arquivo_livro("livro_inexistente.epub", use_cache=True)
+            self.assertEqual(mock_obter.call_count, 1)
+            self.assertIsNone(res1["metadados"])
+
+            # Segunda chamada: deve tentar novamente na API Gemini
+            res2 = processar_arquivo_livro("livro_inexistente.epub", use_cache=True)
+            self.assertEqual(mock_obter.call_count, 2)
+            self.assertIsNone(res2["metadados"])
+
+    def test_limpar_cache_negativo(self):
+        content = {
+            "valido.epub": {
+                "status": "found",
+                "titulo_limpo": "valido",
+                "metadados": {"nome_da_obra": "Válido"}
+            },
+            "invalido_none.epub": {
+                "titulo_limpo": "invalido",
+                "metadados": None
+            },
+            "invalido_status.epub": {
+                "status": "not_found",
+                "titulo_limpo": "invalido status",
+                "metadados": None
+            }
+        }
+        with open(self.cache_path, "w", encoding="utf-8") as f:
+            json.dump(content, f)
+
+        removidos = limpar_cache_negativo(self.cache_path)
+        self.assertEqual(removidos, 2)
+
+        with open(self.cache_path, "r", encoding="utf-8") as f:
+            novo_cache = json.load(f)
+
+        self.assertIn("valido.epub", novo_cache)
+        self.assertNotIn("invalido_none.epub", novo_cache)
+        self.assertNotIn("invalido_status.epub", novo_cache)
 
 
 if __name__ == "__main__":
