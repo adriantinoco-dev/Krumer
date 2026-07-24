@@ -200,16 +200,60 @@
 }
 
 
+/* Mode toggle button */
+.btn-mode-toggle {
+  height: 38px;
+  background-color: var(--bg-card, #202020);
+  border: 1px solid var(--border, #2e2e2e);
+  border-radius: var(--radius, 8px);
+  color: var(--text-primary, #f1f1f1);
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.btn-mode-toggle:hover {
+  border-color: var(--accent, #f97316);
+  color: var(--accent, #f97316);
+}
+
 /* Container & Canvas Scroll Area */
 #reader-container {
   flex: 1;
   overflow: auto;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
   padding: 30px 20px;
   background-color: #0d0d0d;
   position: relative;
+  scroll-behavior: smooth;
+}
+
+/* Horizontal: mostra apenas a página ativa */
+#reader-container.horizontal {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+#reader-container.horizontal .pdf-canvas-wrap {
+  display: none;
+}
+#reader-container.horizontal .pdf-canvas-wrap.current-page {
+  display: inline-block;
+}
+
+/* Vertical: empilha todas as páginas com rolagem */
+#reader-container.vertical {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+#reader-container.vertical .pdf-canvas-wrap {
+  display: inline-block !important;
+  margin-bottom: 20px;
 }
 
 .pdf-canvas-wrap {
@@ -217,14 +261,36 @@
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
   border-radius: 4px;
   overflow: hidden;
-  background-color: #ffffff;
+  background-color: #1a1a1a;
+  position: relative;
   transition: transform 0.15s ease-out;
 }
 
-#pdf-canvas {
+.pdf-canvas-wrap::before {
+  content: "Página " attr(data-page);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #555555;
+  font-size: 14px;
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.pdf-canvas-wrap.has-canvas::before {
+  display: none;
+}
+
+.pdf-canvas-wrap canvas {
   display: block;
   max-width: none;
+  position: relative;
+  z-index: 2;
 }
+
+
 
 /* Loading & Empty state inside Reader */
 .reader-spinner-overlay {

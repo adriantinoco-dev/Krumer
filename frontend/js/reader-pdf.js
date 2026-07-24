@@ -1,17 +1,20 @@
 /* ==========================================================================
-   Krumer Personal Library - PDF Reader Module (PDF.js Integration)
+   Krumer Personal Library - PDF Reader Module (Virtualized Dual Mode)
    ========================================================================== */
 
 let pdfDoc = null;
 let pdfCurrentPage = 1;
 let pdfTotalPages = 0;
 let pdfCurrentScale = 1.0;
+let pdfMode = 'horizontal'; // 'horizontal' (página única) ou 'vertical' (rolagem contínua)
 let pdfCurrentItem = null;
 let pdfCurrentFilePath = null;
-let isRenderingPage = false;
-let pageNumPending = null;
 
-// Configurar o worker do PDF.js se o pdfjsLib estiver disponível
+let virtualObserver = null;
+let renderingPages = new Set();
+let baseAspectWidth = 600;
+let baseAspectHeight = 850;
+
 if (typeof pdfjsLib !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
     'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -19,24 +22,24 @@ if (typeof pdfjsLib !== 'undefined') {
 
 /**
  * Abre e inicializa a leitura de um arquivo PDF
- * @param {Object} item - Objeto do item/livro ou capítulo
- * @param {string} filePath - Caminho absoluto do arquivo PDF no disco
  */
 async function openPdf(item, filePath) {
   pdfCurrentItem = item;
   pdfCurrentFilePath = filePath || item.path;
   pdfCurrentScale = 1.0;
-  pageNumPending = null;
+  
+  // Restaurar o último modo de exibição definido pelo usuário (localStorage)
+  const savedMode = localStorage.getItem('krumer_pdf_view_mode');
+  pdfMode = (savedMode === 'vertical') ? 'vertical' : 'horizontal';
+  renderingPages.clear();
 
   showReaderView('pdf');
 
-  // Atualizar título na barra de navegação
   const titleEl = document.getElementById('reader-title');
   const subtitleEl = document.getElementById('reader-subtitle');
   if (titleEl) titleEl.textContent = item.title || 'Visualizador de PDF';
   if (subtitleEl) subtitleEl.textContent = item.author ? `por ${item.author}` : '';
 
-  // Exibir indicador de carregamento
   showReaderLoading(true);
 
   try {
@@ -50,7 +53,17 @@ async function openPdf(item, filePath) {
     pdfDoc = await loadingTask.promise;
     pdfTotalPages = pdfDoc.numPages;
 
-    // Tentar obter o progresso salvo anteriormente
+    // Calcular proporções reais da Página 1 para os placeholders
+    try {
+      const page1 = await pdfDoc.getPage(1);
+      const vp1 = page1.getViewport({ scale: 1.0 });
+      baseAspectWidth = Math.round(vp1.width);
+      baseAspectHeight = Math.round(vp1.height);
+    } catch (e) {
+      console.warn('Erro ao obter viewport da página 1:', e);
+    }
+
+    // Progresso salvo
     let savedPage = 1;
     try {
       const progressList = await LibraryAPI.getProgress(item.id);
@@ -61,24 +74,35 @@ async function openPdf(item, filePath) {
         }
       }
     } catch (progErr) {
-      console.warn('Progresso salvo não encontrado ou erro de API:', progErr);
+      console.warn('Progresso salvo não encontrado:', progErr);
     }
 
-    if (savedPage < 1 || savedPage > pdfTotalPages) {
-      savedPage = 1;
-    }
-
+    if (savedPage < 1 || savedPage > pdfTotalPages) savedPage = 1;
     pdfCurrentPage = savedPage;
 
-    // Configurar controles de UI
+    // Inicializar container do leitor
+    const viewer = document.getElementById('reader-container');
+    if (viewer) {
+      viewer.innerHTML = '';
+      viewer.classList.remove('horizontal', 'vertical');
+      viewer.classList.add(pdfMode);
+    }
+
+    // Criar placeholders de todas as páginas para permitir a rolagem nativa instantânea
+    criarPlaceholdersTodasPaginas();
+
+    if (pdfMode === 'vertical') {
+      initVirtualScrollObserver();
+    }
+
     setupPdfControls();
-
-    // Renderizar a primeira/salva página
     showReaderLoading(false);
-    await renderPdfPage(pdfCurrentPage);
 
-    // Adicionar escutadores globais de teclado
+    // Ir para a página inicial
+    await irParaPaginaPdf(pdfCurrentPage, { instant: true });
+
     document.addEventListener('keydown', pdfKeyHandler);
+
 
   } catch (err) {
     console.error('Erro ao abrir arquivo PDF:', err);
@@ -88,28 +112,199 @@ async function openPdf(item, filePath) {
 }
 
 /**
- * Renderiza uma página específica do PDF no elemento canvas
- * @param {number} num - Número da página (1-indexed)
+ * Cria wrappers de placeholder com dimensões exatas para todas as páginas
  */
-async function renderPdfPage(num) {
-  if (!pdfDoc) return;
+function criarPlaceholdersTodasPaginas() {
+  const viewer = document.getElementById('reader-container');
+  if (!viewer) return;
 
-  if (isRenderingPage) {
-    pageNumPending = num;
-    return;
+  viewer.innerHTML = '';
+
+  const calcW = Math.round(baseAspectWidth * pdfCurrentScale);
+  const calcH = Math.round(baseAspectHeight * pdfCurrentScale);
+
+  const fragment = document.createDocumentFragment();
+
+  for (let i = 1; i <= pdfTotalPages; i++) {
+    const wrap = document.createElement('div');
+    wrap.className = 'pdf-canvas-wrap';
+    wrap.dataset.page = i;
+    wrap.style.width = `${calcW}px`;
+    wrap.style.minHeight = `${calcH}px`;
+    fragment.appendChild(wrap);
   }
 
-  isRenderingPage = true;
-  pdfCurrentPage = num;
+  viewer.appendChild(fragment);
+}
+
+/**
+ * Atualiza dimensões dos placeholders ao alterar o zoom
+ */
+function atualizarDimensoesPlaceholders() {
+  const calcW = Math.round(baseAspectWidth * pdfCurrentScale);
+  const calcH = Math.round(baseAspectHeight * pdfCurrentScale);
+
+  const wraps = document.querySelectorAll('#reader-container .pdf-canvas-wrap');
+  wraps.forEach(wrap => {
+    wrap.style.width = `${calcW}px`;
+    wrap.style.minHeight = `${calcH}px`;
+    delete wrap.dataset.renderedScale;
+  });
+}
+
+/**
+ * Inicializa o IntersectionObserver para renderizar páginas sob demanda no modo vertical
+ */
+function initVirtualScrollObserver() {
+  if (virtualObserver) {
+    virtualObserver.disconnect();
+  }
+
+  const viewer = document.getElementById('reader-container');
+  if (!viewer) return;
+
+  const options = {
+    root: viewer,
+    rootMargin: '400px 0px 400px 0px',
+    threshold: [0.1, 0.5]
+  };
+
+  virtualObserver = new IntersectionObserver((entries) => {
+    let mostVisiblePage = pdfCurrentPage;
+    let highestRatio = 0;
+
+    entries.forEach(entry => {
+      const pageNum = Number(entry.target.dataset.page);
+
+      if (entry.isIntersecting) {
+        renderizarPaginaPdf(pageNum);
+
+        if (entry.intersectionRatio > highestRatio) {
+          highestRatio = entry.intersectionRatio;
+          mostVisiblePage = pageNum;
+        }
+      }
+    });
+
+    if (pdfMode === 'vertical' && highestRatio > 0.3 && mostVisiblePage !== pdfCurrentPage) {
+      pdfCurrentPage = mostVisiblePage;
+      updatePdfControlsState();
+      savePdfProgress();
+    }
+  }, options);
+
+  const wraps = viewer.querySelectorAll('.pdf-canvas-wrap');
+  wraps.forEach(wrap => virtualObserver.observe(wrap));
+}
+
+/**
+ * Desconecta o observer virtual
+ */
+function stopVirtualScrollObserver() {
+  if (virtualObserver) {
+    virtualObserver.disconnect();
+    virtualObserver = null;
+  }
+}
+
+/**
+ * Ir para uma página específica
+ */
+async function irParaPaginaPdf(numPagina, { instant = false } = {}) {
+  if (!pdfDoc || numPagina < 1 || numPagina > pdfTotalPages) return;
+
+  pdfCurrentPage = numPagina;
+
+  await renderizarPaginaPdf(numPagina);
+
+  if (pdfMode === 'horizontal') {
+    marcarPaginaAtual();
+  } else {
+    const wrap = document.querySelector(`#reader-container .pdf-canvas-wrap[data-page="${numPagina}"]`);
+    if (wrap) {
+      wrap.scrollIntoView({ behavior: instant ? 'auto' : 'smooth', block: 'start' });
+    }
+  }
+
+  updatePdfControlsState();
+  savePdfProgress();
+}
+
+/**
+ * Marca a página ativa no modo horizontal
+ */
+function marcarPaginaAtual() {
+  const wraps = document.querySelectorAll('#reader-container .pdf-canvas-wrap');
+  wraps.forEach(wrap => {
+    const pageNum = Number(wrap.dataset.page);
+    const isCurrent = (pageNum === pdfCurrentPage);
+    wrap.classList.toggle('current-page', isCurrent);
+  });
+}
+
+/**
+ * Alterna entre modo horizontal e vertical
+ */
+async function trocarModoPdf(novoModo) {
+  if (novoModo === pdfMode) return;
+  pdfMode = novoModo;
+
+  // Persistir preferência no localStorage
+  try {
+    localStorage.setItem('krumer_pdf_view_mode', pdfMode);
+  } catch (e) {
+    console.warn('Erro ao salvar preferência no localStorage:', e);
+  }
+
+  const viewer = document.getElementById('reader-container');
+  if (!viewer) return;
+
+  viewer.classList.remove('horizontal', 'vertical');
+  viewer.classList.add(pdfMode);
+
+  if (pdfMode === 'vertical') {
+    initVirtualScrollObserver();
+    await renderizarPaginaPdf(pdfCurrentPage);
+  } else {
+    stopVirtualScrollObserver();
+    await renderizarPaginaPdf(pdfCurrentPage);
+    marcarPaginaAtual();
+  }
+
+  updateModeToggleButton();
+  irParaPaginaPdf(pdfCurrentPage, { instant: true });
+}
+
+/**
+ * Renderiza uma página específica via PDF.js no seu wrapper correspondente
+ */
+async function renderizarPaginaPdf(num) {
+  if (!pdfDoc || num < 1 || num > pdfTotalPages) return;
+
+  const viewer = document.getElementById('reader-container');
+  if (!viewer) return;
+
+  const wrap = viewer.querySelector(`.pdf-canvas-wrap[data-page="${num}"]`);
+  if (!wrap) return;
+
+  if (wrap.dataset.renderedScale === pdfCurrentScale.toString() && wrap.querySelector('canvas')) {
+    return; // Já renderizado
+  }
+
+  if (renderingPages.has(num)) return;
+  renderingPages.add(num);
 
   try {
     const page = await pdfDoc.getPage(num);
     const viewport = page.getViewport({ scale: pdfCurrentScale });
 
-    const canvas = document.getElementById('pdf-canvas') || createPdfCanvas();
-    const ctx = canvas.getContext('2d');
+    let canvas = wrap.querySelector('canvas');
+    if (!canvas) {
+      canvas = document.createElement('canvas');
+      wrap.appendChild(canvas);
+    }
 
-    // Ajustar resolução para HiDPI / Retina se aplicável
+    const ctx = canvas.getContext('2d');
     const outputScale = window.devicePixelRatio || 1;
 
     canvas.width = Math.floor(viewport.width * outputScale);
@@ -117,53 +312,35 @@ async function renderPdfPage(num) {
     canvas.style.width = Math.floor(viewport.width) + 'px';
     canvas.style.height = Math.floor(viewport.height) + 'px';
 
+    wrap.style.width = Math.floor(viewport.width) + 'px';
+    wrap.style.minHeight = Math.floor(viewport.height) + 'px';
+
     const transform = outputScale !== 1
       ? [outputScale, 0, 0, outputScale, 0, 0]
       : null;
 
-    const renderContext = {
+    await page.render({
       canvasContext: ctx,
       transform: transform,
       viewport: viewport
-    };
+    }).promise;
 
-    await page.render(renderContext).promise;
+    wrap.dataset.renderedScale = pdfCurrentScale.toString();
+    wrap.classList.add('has-canvas');
 
-    isRenderingPage = false;
-
-    if (pageNumPending !== null) {
-      const nextNum = pageNumPending;
-      pageNumPending = null;
-      renderPdfPage(nextNum);
+    if (pdfMode === 'horizontal') {
+      marcarPaginaAtual();
     }
-
-    // Atualizar estado dos controles na UI
-    updatePdfControlsState();
-
-    // Salvar progresso de leitura no backend
-    savePdfProgress();
 
   } catch (err) {
     console.error(`Erro ao renderizar página ${num}:`, err);
-    isRenderingPage = false;
+  } finally {
+    renderingPages.delete(num);
   }
 }
 
 /**
- * Cria a estrutura do Canvas dentro do contêiner do leitor se não existir
- */
-function createPdfCanvas() {
-  const container = document.getElementById('reader-container');
-  container.innerHTML = `
-    <div class="pdf-canvas-wrap">
-      <canvas id="pdf-canvas"></canvas>
-    </div>
-  `;
-  return document.getElementById('pdf-canvas');
-}
-
-/**
- * Configura a barra de ferramentas de controle do PDF
+ * Configura os controles da toolbar
  */
 function setupPdfControls() {
   const controlsContainer = document.getElementById('reader-controls');
@@ -189,6 +366,13 @@ function setupPdfControls() {
       </button>
     </div>
 
+    <button id="pdf-mode-toggle" class="btn-mode-toggle" title="Alternar Modo de Exibição">
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+      <span id="pdf-mode-label">Rolagem Contínua</span>
+    </button>
+
     <select id="pdf-zoom-select" class="reader-select" title="Nível de Zoom">
       <option value="0.5">50%</option>
       <option value="0.75">75%</option>
@@ -201,11 +385,11 @@ function setupPdfControls() {
 
   // Event Handlers
   document.getElementById('pdf-btn-prev')?.addEventListener('click', () => {
-    if (pdfCurrentPage > 1) renderPdfPage(pdfCurrentPage - 1);
+    if (pdfCurrentPage > 1) irParaPaginaPdf(pdfCurrentPage - 1);
   });
 
   document.getElementById('pdf-btn-next')?.addEventListener('click', () => {
-    if (pdfCurrentPage < pdfTotalPages) renderPdfPage(pdfCurrentPage + 1);
+    if (pdfCurrentPage < pdfTotalPages) irParaPaginaPdf(pdfCurrentPage + 1);
   });
 
   const pageInput = document.getElementById('pdf-page-input');
@@ -213,7 +397,7 @@ function setupPdfControls() {
     pageInput.addEventListener('change', (e) => {
       const targetPage = parseInt(e.target.value, 10);
       if (targetPage >= 1 && targetPage <= pdfTotalPages) {
-        renderPdfPage(targetPage);
+        irParaPaginaPdf(targetPage);
       } else {
         e.target.value = pdfCurrentPage;
       }
@@ -226,18 +410,52 @@ function setupPdfControls() {
     });
   }
 
+  // Toggle de modo Horizontal / Vertical
+  document.getElementById('pdf-mode-toggle')?.addEventListener('click', () => {
+    const novoModo = (pdfMode === 'horizontal') ? 'vertical' : 'horizontal';
+    trocarModoPdf(novoModo);
+  });
+
+  updateModeToggleButton();
+
+  // Zoom Handler
   const zoomSelect = document.getElementById('pdf-zoom-select');
   if (zoomSelect) {
     zoomSelect.value = pdfCurrentScale.toString();
-    zoomSelect.addEventListener('change', (e) => {
+    zoomSelect.addEventListener('change', async (e) => {
       pdfCurrentScale = parseFloat(e.target.value);
-      renderPdfPage(pdfCurrentPage);
+
+      atualizarDimensoesPlaceholders();
+
+      await renderizarPaginaPdf(pdfCurrentPage);
+
+      if (pdfMode === 'vertical' && virtualObserver) {
+        // Observer cuidará de re-renderizar as páginas visíveis na nova escala
+      }
+      irParaPaginaPdf(pdfCurrentPage, { instant: true });
     });
   }
 }
 
 /**
- * Atualiza os valores e estados de habilitação dos botões
+ * Atualiza botão de alternância de modo
+ */
+function updateModeToggleButton() {
+  const labelEl = document.getElementById('pdf-mode-label');
+  const btn = document.getElementById('pdf-mode-toggle');
+  if (!labelEl || !btn) return;
+
+  if (pdfMode === 'horizontal') {
+    labelEl.textContent = 'Modo Vertical';
+    btn.title = 'Mudar para Rolagem Contínua (Vertical)';
+  } else {
+    labelEl.textContent = 'Modo Horizontal';
+    btn.title = 'Mudar para Página Única (Horizontal)';
+  }
+}
+
+/**
+ * Atualiza controles de UI
  */
 function updatePdfControlsState() {
   const pageInput = document.getElementById('pdf-page-input');
@@ -251,7 +469,7 @@ function updatePdfControlsState() {
 }
 
 /**
- * Salva o progresso atual de leitura via API
+ * Salva progresso de leitura
  */
 async function savePdfProgress() {
   if (!pdfCurrentItem || pdfTotalPages <= 0) return;
@@ -266,15 +484,14 @@ async function savePdfProgress() {
       total_pages: pdfTotalPages
     });
   } catch (err) {
-    console.warn('Erro ao salvar progresso de leitura do PDF:', err);
+    console.warn('Erro ao salvar progresso:', err);
   }
 }
 
 /**
- * Tratador de atalhos de teclado para navegação no PDF
+ * Atalhos de teclado
  */
 function pdfKeyHandler(e) {
-  // Evitar interceptar se o foco estiver num input
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
     return;
   }
@@ -282,12 +499,12 @@ function pdfKeyHandler(e) {
   if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
     if (pdfCurrentPage > 1) {
       e.preventDefault();
-      renderPdfPage(pdfCurrentPage - 1);
+      irParaPaginaPdf(pdfCurrentPage - 1);
     }
   } else if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
     if (pdfCurrentPage < pdfTotalPages) {
       e.preventDefault();
-      renderPdfPage(pdfCurrentPage + 1);
+      irParaPaginaPdf(pdfCurrentPage + 1);
     }
   } else if (e.key === 'Escape') {
     e.preventDefault();
@@ -298,10 +515,11 @@ function pdfKeyHandler(e) {
 }
 
 /**
- * Fecha a leitura do PDF e faz a limpeza de recursos
+ * Fechar leitor PDF
  */
 function closePdf() {
   document.removeEventListener('keydown', pdfKeyHandler);
+  stopVirtualScrollObserver();
 
   if (pdfDoc) {
     pdfDoc.destroy();
@@ -312,15 +530,17 @@ function closePdf() {
   pdfCurrentFilePath = null;
   pdfCurrentPage = 1;
   pdfTotalPages = 0;
-  isRenderingPage = false;
-  pageNumPending = null;
+  renderingPages.clear();
 
   const container = document.getElementById('reader-container');
-  if (container) container.innerHTML = '';
+  if (container) {
+    container.innerHTML = '';
+    container.classList.remove('horizontal', 'vertical');
+  }
 }
 
 /**
- * Exibe/oculta spinner de carregamento no leitor
+ * Loading overlay
  */
 function showReaderLoading(isLoading) {
   const container = document.getElementById('reader-container');
@@ -337,7 +557,7 @@ function showReaderLoading(isLoading) {
 }
 
 /**
- * Exibe mensagem de erro no leitor
+ * Error display
  */
 function showReaderError(msg) {
   const container = document.getElementById('reader-container');
@@ -356,3 +576,5 @@ function showReaderError(msg) {
 // Expor funções globais
 window.openPdf = openPdf;
 window.closePdf = closePdf;
+window.trocarModoPdf = trocarModoPdf;
+window.irParaPaginaPdf = irParaPaginaPdf;
