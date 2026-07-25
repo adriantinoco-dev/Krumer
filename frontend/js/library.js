@@ -389,6 +389,8 @@ class LibraryManager {
           }
         };
       }
+      // Ocultar temporariamente; será ajustado após verificar capítulos (seção 9)
+      if (readBtn) readBtn.style.display = 'inline-flex';
 
       // 7. Botão "Remover da biblioteca"
       const removeBtn = document.getElementById('details-btn-remove');
@@ -425,6 +427,9 @@ class LibraryManager {
       }
 
       if (chapters && chapters.length > 0) {
+        // Ocultar botão "Ler Agora" principal quando o livro tem capítulos
+        if (readBtn) readBtn.style.display = 'none';
+
         if (chaptersGrid) {
           chaptersGrid.innerHTML = chapters.map((chap, idx) => `
             <div class="details-chapter-card">
@@ -432,7 +437,7 @@ class LibraryManager {
                 <div class="details-chapter-title">${this.escapeHtml(chap.title)}</div>
                 <div class="details-chapter-progress">${chap.overall_progress || 0}% lido</div>
               </div>
-              <button class="btn btn-secondary btn-read-chapter" data-index="${idx}" style="padding:6px 14px; font-size:12px;">
+              <button class="btn btn-primary btn-read-chapter" data-index="${idx}">
                 Ler
               </button>
             </div>

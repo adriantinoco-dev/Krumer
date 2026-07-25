@@ -501,3 +501,65 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+// ============================================================
+// Tecla ESC — fecha a camada interativa mais externa ativa
+// ============================================================
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+
+  // 1. Leitor de PDF/EPUB aberto?
+  const readerView = document.getElementById('reader-view');
+  if (readerView && !readerView.classList.contains('hidden')) {
+    if (typeof closeReader === 'function') closeReader();
+    return;
+  }
+
+  // 2. Modal de confirmação de remoção?
+  const confirmModal = document.getElementById('confirm-remove-modal');
+  if (confirmModal && confirmModal.classList.contains('active')) {
+    confirmModal.classList.remove('active');
+    return;
+  }
+
+  // 3. Modal de edição de metadados?
+  const editModal = document.getElementById('edit-metadata-modal');
+  if (editModal && editModal.classList.contains('active')) {
+    if (window.app) window.app.libraryManager.closeEditMetadataModal();
+    return;
+  }
+
+  // 4. Modal de seleção de obras (metadados Gemini)?
+  const metaSelectModal = document.getElementById('metadata-select-modal');
+  if (metaSelectModal && metaSelectModal.classList.contains('active')) {
+    metaSelectModal.classList.remove('active');
+    return;
+  }
+
+  // 5. Modal de resultados de metadados?
+  const metaResultsModal = document.getElementById('metadata-results-modal');
+  if (metaResultsModal && metaResultsModal.classList.contains('active')) {
+    metaResultsModal.classList.remove('active');
+    return;
+  }
+
+  // 6. Modal de escanear pasta?
+  const scanModal = document.getElementById('scan-modal');
+  if (scanModal && scanModal.classList.contains('active')) {
+    if (window.app) window.app.closeScanModal();
+    return;
+  }
+
+  // 7. Menu de contexto (clique direito no card)?
+  const contextMenu = document.getElementById('book-context-menu');
+  if (contextMenu && contextMenu.classList.contains('active')) {
+    contextMenu.classList.remove('active');
+    return;
+  }
+
+  // 8. Página de detalhes do livro?
+  const detailsView = document.getElementById('book-details-view');
+  if (detailsView && detailsView.style.display !== 'none') {
+    if (window.app) window.app.libraryManager.closeBookDetails();
+    return;
+  }
+});
