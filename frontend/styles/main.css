@@ -35,7 +35,7 @@
 
   /* Sidebar Refinada Tokens */
   --sidebar-width-collapsed: 64px;
-  --sidebar-width-expanded:  220px;
+  --sidebar-width-expanded:  260px;
   --sidebar-bg:              #1c1c1e;
   --sidebar-border:          rgba(255, 255, 255, 0.06);
   --sidebar-text:            rgba(255, 255, 255, 0.50);
@@ -101,18 +101,35 @@ body {
   z-index: 50;
 
   background: var(--sidebar-bg);
-  border-right: 1px solid var(--sidebar-border);
+  border-right: none;
 
   display: flex;
   flex-direction: column;
   padding: 20px 0;
 
-  transition: width var(--transition);
+  transition: width var(--transition), background var(--transition);
   user-select: none;
 }
 
 .sidebar:hover {
   width: var(--sidebar-width-expanded);
+  background: linear-gradient(
+    to right,
+    #1c1c1e 0%,
+    #1c1c1e 160px,
+    rgba(28, 28, 30, 0.85) 210px,
+    rgba(28, 28, 30, 0) 100%
+  );
+  border-right: none;
+}
+
+/* Oculta sidebar na página de detalhes do livro */
+.sidebar--hidden {
+  transform: translateX(-100%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.20s ease;
 }
 
 /* LOGO */
@@ -224,11 +241,12 @@ body {
   height: 18px;
 }
 
-/* LABEL — aparece com fade + slide ao expandir */
+/* LABEL — aparece com fade + slide + max-width ao expandir */
 .sidebar-label {
   opacity: 0;
   transform: translateX(-6px);
-  transition: opacity 0.20s ease 0.05s, transform 0.20s ease 0.05s;
+  max-width: 0;
+  transition: opacity 0.20s ease 0.05s, transform 0.20s ease 0.05s, max-width 0.20s ease;
   pointer-events: none;
   flex-shrink: 0;
 }
@@ -236,6 +254,7 @@ body {
 .sidebar:hover .sidebar-label {
   opacity: 1;
   transform: translateX(0);
+  max-width: 160px;
 }
 
 /* Legacy nav-item compatibility */
@@ -248,7 +267,7 @@ body {
   cursor: pointer;
 }
 
-/* Main Workspace — empurrado pela sidebar */
+/* Main Workspace — overlay por cima (sidebar flutua, não empurra) */
 .main-wrapper,
 .main-content {
   flex: 1;
@@ -256,21 +275,7 @@ body {
   flex-direction: column;
   background-color: var(--bg-primary);
   overflow: hidden;
-  margin-left: var(--sidebar-width-collapsed);   /* 64px em repouso */
-  transition: margin-left var(--transition);
-}
-
-/* Acompanha a expansão no hover da sidebar */
-.sidebar:hover ~ .main-wrapper,
-.sidebar:hover ~ .main-content {
-  margin-left: var(--sidebar-width-expanded);    /* 220px ao expandir */
-}
-
-@media (max-width: 768px) {
-  .sidebar:hover ~ .main-wrapper,
-  .sidebar:hover ~ .main-content {
-    margin-left: var(--sidebar-width-collapsed);
-  }
+  margin-left: 64px;   /* apenas afasta da barra colapsada (fixo, não muda no hover) */
 }
 
 /* Header Navbar */

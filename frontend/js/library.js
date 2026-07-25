@@ -458,6 +458,10 @@ class LibraryManager {
       if (appHeader) appHeader.style.display = 'none';
       detailsView.style.display = 'flex';
 
+      // Ocultar sidebar na página de detalhes
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar) sidebar.classList.add('sidebar--hidden');
+
       // Scroll para o topo
       const scrollContainer = detailsView.querySelector('.details-content-scroll');
       if (scrollContainer) scrollContainer.scrollTop = 0;
@@ -513,6 +517,10 @@ class LibraryManager {
     if (detailsView) detailsView.style.display = 'none';
     if (libraryView) libraryView.style.display = 'flex';
     if (appHeader) appHeader.style.display = 'flex';
+
+    // Restaurar sidebar ao voltar para a biblioteca
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) sidebar.classList.remove('sidebar--hidden');
 
     // Recarrega itens para refletir quaisquer atualizações de avaliação
     this.loadItems();
