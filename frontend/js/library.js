@@ -109,8 +109,34 @@ class LibraryManager {
   /**
    * Renders streaming book card grid according to Phase 2 Specs
    */
+  /**
+   * Renders streaming book card grid according to Phase 2 Specs
+   */
   renderGrid() {
     if (!this.gridElement) return;
+
+    // Renderizar seção "Continuar Lendo" (livros em andamento: progresso > 0% e < 100%)
+    const continueContainer = document.getElementById('continue-reading-container');
+    const continueGrid = document.getElementById('continue-reading-grid');
+    const continueCount = document.getElementById('continue-reading-count');
+
+    const inProgressItems = this.items.filter(item => {
+      const prog = item.overall_progress || 0;
+      return prog > 0 && prog < 100;
+    });
+
+    if (continueContainer && continueGrid) {
+      if (inProgressItems.length > 0) {
+        continueContainer.style.display = 'block';
+        if (continueCount) {
+          continueCount.textContent = `(${inProgressItems.length} ${inProgressItems.length === 1 ? 'item' : 'itens'})`;
+        }
+        continueGrid.innerHTML = inProgressItems.map(item => this.createBookCardHTML(item)).join('');
+      } else {
+        continueContainer.style.display = 'none';
+        continueGrid.innerHTML = '';
+      }
+    }
 
     if (this.itemCountElement) {
       this.itemCountElement.textContent = `(${this.items.length} ${this.items.length === 1 ? 'item' : 'itens'})`;
@@ -192,8 +218,11 @@ class LibraryManager {
    * Attaches event listeners for card clicks and star ratings
    */
   attachCardEventListeners() {
-    // Card click event
-    this.gridElement.querySelectorAll('.book-card').forEach(card => {
+    const libraryViewport = document.querySelector('.library-viewport');
+    if (!libraryViewport) return;
+
+    // Card click event (suporta cards de continuar lendo e biblioteca geral)
+    libraryViewport.querySelectorAll('.book-card').forEach(card => {
       card.addEventListener('click', (e) => {
         // Prevent trigger if star was clicked
         if (e.target.classList.contains('star')) return;
@@ -204,7 +233,7 @@ class LibraryManager {
     });
 
     // Star rating click event on grid card
-    this.gridElement.querySelectorAll('.book-stars .star').forEach(star => {
+    libraryViewport.querySelectorAll('.book-stars .star').forEach(star => {
       star.addEventListener('click', async (e) => {
         e.stopPropagation();
         const starsContainer = star.closest('.book-stars');
@@ -217,10 +246,13 @@ class LibraryManager {
           const item = this.items.find(i => i.id === itemId);
           if (item) item.rating = newRating;
 
-          starsContainer.querySelectorAll('.star').forEach(s => {
-            const r = parseInt(s.dataset.rating, 10);
-            if (r <= newRating) s.classList.remove('empty');
-            else s.classList.add('empty');
+          // Atualizar todas as ocorrências deste card na viewport (continuar lendo e biblioteca geral)
+          document.querySelectorAll(`.book-stars[data-id="${itemId}"]`).forEach(container => {
+            container.querySelectorAll('.star').forEach(s => {
+              const r = parseInt(s.dataset.rating, 10);
+              if (r <= newRating) s.classList.remove('empty');
+              else s.classList.add('empty');
+            });
           });
 
           if (window.app) window.app.showToast(`Avaliação atualizada para ${newRating} estrelas`);

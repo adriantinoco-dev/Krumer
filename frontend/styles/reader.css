@@ -199,7 +199,6 @@
   gap: 12px;
 }
 
-
 /* Mode toggle button */
 .btn-mode-toggle {
   height: 38px;
@@ -217,9 +216,179 @@
   transition: all 0.2s;
 }
 
-.btn-mode-toggle:hover {
+.btn-mode-toggle:hover,
+.btn-mode-toggle.active {
   border-color: var(--accent, #f97316);
   color: var(--accent, #f97316);
+  background-color: var(--bg-card-hover, #262626);
+}
+
+/* Reader Settings Popover & Zoom Slider */
+.reader-settings-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.reader-settings-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 240px;
+  background-color: var(--bg-secondary, #161616);
+  border: 1px solid var(--border, #2e2e2e);
+  border-radius: var(--radius-lg, 14px);
+  padding: 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  z-index: 1000;
+  animation: popoverFadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.reader-settings-popover.hidden {
+  display: none !important;
+}
+
+@keyframes popoverFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.settings-popover-header {
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border, #2e2e2e);
+}
+
+.settings-popover-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary, #f1f1f1);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.settings-option-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-option-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary, #cccccc);
+}
+
+.zoom-value-badge {
+  background-color: rgba(249, 115, 22, 0.15);
+  color: var(--accent, #f97316);
+  border: 1px solid rgba(249, 115, 22, 0.3);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.zoom-slider-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zoom-min-label,
+.zoom-max-label {
+  font-size: 11px;
+  color: var(--text-muted, #888888);
+  font-weight: 500;
+  width: 28px;
+  text-align: center;
+}
+
+/* Custom Range Slider */
+.reader-zoom-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border-light, #3a3a3a);
+  outline: none;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.reader-zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent, #f97316);
+  box-shadow: 0 0 10px rgba(249, 115, 22, 0.4);
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.2s;
+}
+
+.reader-zoom-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  background: var(--accent-hover, #ea6a0a);
+}
+
+.reader-zoom-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent, #f97316);
+  border: none;
+  box-shadow: 0 0 10px rgba(249, 115, 22, 0.4);
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.2s;
+}
+
+.reader-zoom-slider::-moz-range-thumb:hover {
+  transform: scale(1.15);
+  background: var(--accent-hover, #ea6a0a);
+}
+
+/* Preset Buttons */
+.zoom-preset-buttons {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.btn-zoom-preset {
+  flex: 1;
+  background-color: var(--bg-card, #202020);
+  border: 1px solid var(--border, #2e2e2e);
+  color: var(--text-secondary, #cccccc);
+  border-radius: var(--radius-sm, 4px);
+  padding: 5px 0;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition, all 0.2s);
+}
+
+.btn-zoom-preset:hover {
+  background-color: var(--bg-card-hover, #262626);
+  border-color: var(--border-light, #3a3a3a);
+  color: var(--text-primary, #f1f1f1);
+}
+
+.btn-zoom-preset.active {
+  background-color: rgba(249, 115, 22, 0.15);
+  border-color: var(--accent, #f97316);
+  color: var(--accent, #f97316);
+  font-weight: 600;
 }
 
 /* Container & Canvas Scroll Area */

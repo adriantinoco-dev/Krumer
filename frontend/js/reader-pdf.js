@@ -149,6 +149,12 @@ function atualizarDimensoesPlaceholders() {
     wrap.style.width = `${calcW}px`;
     wrap.style.minHeight = `${calcH}px`;
     delete wrap.dataset.renderedScale;
+
+    const canvas = wrap.querySelector('canvas');
+    if (canvas) {
+      canvas.style.width = `${calcW}px`;
+      canvas.style.height = `${calcH}px`;
+    }
   });
 }
 
@@ -373,14 +379,37 @@ function setupPdfControls() {
       <span id="pdf-mode-label">Rolagem Contínua</span>
     </button>
 
-    <select id="pdf-zoom-select" class="reader-select" title="Nível de Zoom">
-      <option value="0.5">50%</option>
-      <option value="0.75">75%</option>
-      <option value="1.0" selected>100%</option>
-      <option value="1.25">125%</option>
-      <option value="1.5">150%</option>
-      <option value="2.0">200%</option>
-    </select>
+    <div class="reader-settings-wrapper">
+      <button id="pdf-settings-toggle" class="btn-mode-toggle" title="Configurações de Exibição">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      </button>
+
+      <div id="pdf-settings-popover" class="reader-settings-popover hidden">
+        <div class="settings-popover-header">
+          <span class="settings-popover-title">Configurações</span>
+        </div>
+        <div class="settings-option-group">
+          <div class="settings-option-label">
+            <span>Zoom</span>
+            <span id="pdf-zoom-val-badge" class="zoom-value-badge">${Math.round(pdfCurrentScale * 100)}%</span>
+          </div>
+          <div class="zoom-slider-container">
+            <span class="zoom-min-label">50%</span>
+            <input type="range" id="pdf-zoom-slider" min="50" max="200" step="5" value="${Math.round(pdfCurrentScale * 100)}" class="reader-zoom-slider">
+            <span class="zoom-max-label">200%</span>
+          </div>
+          <div class="zoom-preset-buttons">
+            <button type="button" class="btn-zoom-preset" data-zoom="50">50%</button>
+            <button type="button" class="btn-zoom-preset" data-zoom="100">100%</button>
+            <button type="button" class="btn-zoom-preset" data-zoom="150">150%</button>
+            <button type="button" class="btn-zoom-preset" data-zoom="200">200%</button>
+          </div>
+        </div>
+      </div>
+    </div>
   `;
 
   // Event Handlers
@@ -418,23 +447,51 @@ function setupPdfControls() {
 
   updateModeToggleButton();
 
-  // Zoom Handler
-  const zoomSelect = document.getElementById('pdf-zoom-select');
-  if (zoomSelect) {
-    zoomSelect.value = pdfCurrentScale.toString();
-    zoomSelect.addEventListener('change', async (e) => {
-      pdfCurrentScale = parseFloat(e.target.value);
+  // Settings Popover Toggle
+  const settingsBtn = document.getElementById('pdf-settings-toggle');
+  const popover = document.getElementById('pdf-settings-popover');
+  if (settingsBtn && popover) {
+    settingsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      popover.classList.toggle('hidden');
+      settingsBtn.classList.toggle('active', !popover.classList.contains('hidden'));
+    });
 
-      atualizarDimensoesPlaceholders();
-
-      await renderizarPaginaPdf(pdfCurrentPage);
-
-      if (pdfMode === 'vertical' && virtualObserver) {
-        // Observer cuidará de re-renderizar as páginas visíveis na nova escala
-      }
-      irParaPaginaPdf(pdfCurrentPage, { instant: true });
+    popover.addEventListener('click', (e) => {
+      e.stopPropagation();
     });
   }
+
+  // Range Slider & Presets de Zoom
+  const zoomSlider = document.getElementById('pdf-zoom-slider');
+  if (zoomSlider) {
+    // Ao arrastar o slider: redimensiona instantaneamente via CSS sem recarregar nem pular scroll
+    zoomSlider.addEventListener('input', (e) => {
+      const pctVal = parseInt(e.target.value, 10);
+      const novaEscala = pctVal / 100.0;
+      aplicarZoomPdf(novaEscala, { updateSlider: false, renderNow: false });
+    });
+
+    // Ao soltar o slider ou confirmar: renderiza PDF.js em alta qualidade
+    zoomSlider.addEventListener('change', (e) => {
+      const pctVal = parseInt(e.target.value, 10);
+      const novaEscala = pctVal / 100.0;
+      aplicarZoomPdf(novaEscala, { updateSlider: false, renderNow: true });
+    });
+  }
+
+  // Presets de Zoom (50%, 100%, 150%, 200%)
+  const presetButtons = document.querySelectorAll('.btn-zoom-preset');
+  presetButtons.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const pctVal = parseInt(e.currentTarget.dataset.zoom, 10);
+      const novaEscala = pctVal / 100.0;
+      aplicarZoomPdf(novaEscala, { updateSlider: true, renderNow: true });
+    });
+  });
+
+  // Atualizar estado visual inicial dos presets
+  atualizarPresetsZoomVisual(Math.round(pdfCurrentScale * 100));
 }
 
 /**
@@ -488,6 +545,66 @@ async function savePdfProgress() {
   }
 }
 
+let zoomDebounceTimer = null;
+
+/**
+ * Aplica um novo nível de zoom ao PDF suavemente sem recarregar a página nem resetar a posição de rolagem
+ */
+function aplicarZoomPdf(novaEscala, { updateSlider = true, renderNow = false } = {}) {
+  pdfCurrentScale = novaEscala;
+  const pctVal = Math.round(pdfCurrentScale * 100);
+
+  const badge = document.getElementById('pdf-zoom-val-badge');
+  if (badge) badge.textContent = `${pctVal}%`;
+
+  if (updateSlider) {
+    const slider = document.getElementById('pdf-zoom-slider');
+    if (slider && parseInt(slider.value, 10) !== pctVal) {
+      slider.value = pctVal;
+    }
+  }
+
+  atualizarPresetsZoomVisual(pctVal);
+  atualizarDimensoesPlaceholders();
+
+  if (zoomDebounceTimer) {
+    clearTimeout(zoomDebounceTimer);
+    zoomDebounceTimer = null;
+  }
+
+  if (renderNow) {
+    renderizarPaginaPdf(pdfCurrentPage);
+  } else {
+    // Re-renderizar PDF.js em alta definição 150ms após o usuário parar de arrastar a barra
+    zoomDebounceTimer = setTimeout(() => {
+      renderizarPaginaPdf(pdfCurrentPage);
+    }, 150);
+  }
+}
+
+/**
+ * Atualiza o destaque visual dos botões preset de zoom
+ */
+function atualizarPresetsZoomVisual(pctVal) {
+  const presetButtons = document.querySelectorAll('.btn-zoom-preset');
+  presetButtons.forEach(btn => {
+    const btnPct = parseInt(btn.dataset.zoom, 10);
+    btn.classList.toggle('active', btnPct === pctVal);
+  });
+}
+
+// Fechar popover de configurações ao clicar em qualquer lugar fora dele
+document.addEventListener('click', (e) => {
+  const popover = document.getElementById('pdf-settings-popover');
+  const btn = document.getElementById('pdf-settings-toggle');
+  if (popover && !popover.classList.contains('hidden')) {
+    if (!popover.contains(e.target) && !btn?.contains(e.target)) {
+      popover.classList.add('hidden');
+      btn?.classList.remove('active');
+    }
+  }
+});
+
 /**
  * Atalhos de teclado
  */
@@ -507,6 +624,13 @@ function pdfKeyHandler(e) {
       irParaPaginaPdf(pdfCurrentPage + 1);
     }
   } else if (e.key === 'Escape') {
+    const popover = document.getElementById('pdf-settings-popover');
+    if (popover && !popover.classList.contains('hidden')) {
+      e.preventDefault();
+      popover.classList.add('hidden');
+      document.getElementById('pdf-settings-toggle')?.classList.remove('active');
+      return;
+    }
     e.preventDefault();
     if (window.closeReader) {
       window.closeReader();
