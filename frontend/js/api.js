@@ -69,11 +69,11 @@ class LibraryAPI {
   /**
    * Triggers folder scanner on backend
    */
-  static async scanFolder(path, useFilenameAsTitle = false) {
+  static async scanFolder(path) {
     const res = await fetch(`${API_BASE_URL}/scan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path, use_filename_as_title: useFilenameAsTitle })
+      body: JSON.stringify({ path })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Falha ao escanear diretório');

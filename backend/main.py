@@ -17,7 +17,7 @@ from models import (
     ItemResponse, ItemUpdate, ProgressResponse,
     ProgressCreate, TagResponse
 )
-from scanner import scan_library_folder, SUPPORTED_EXTENSIONS, get_setting
+from scanner import scan_library_folder, SUPPORTED_EXTENSIONS
 from metadata import process_file_metadata_and_cover
 from metadata_service import (
     get_api_key,
@@ -52,10 +52,9 @@ app.add_middleware(
 
 class ScanPayload(BaseModel):
     path: str
-    use_filename_as_title: Optional[bool] = None
 
 class SettingsUpdatePayload(BaseModel):
-    use_filename_as_title: Optional[bool] = None
+    pass
 
 class ProgressUpdatePayload(BaseModel):
     file_path: str
@@ -110,16 +109,6 @@ def _enrich_item(item: Item, db: Session) -> ItemResponse:
 @app.post("/scan")
 def scan_directory_route(payload: ScanPayload, db: Session = Depends(get_db)):
     """Scans a directory on the host computer, indexing files and generating covers."""
-    if payload.use_filename_as_title is not None:
-        val_str = "true" if payload.use_filename_as_title else "false"
-        setting = db.query(Setting).filter(Setting.key == "use_filename_as_title").first()
-        if setting:
-            setting.value = val_str
-        else:
-            setting = Setting(key="use_filename_as_title", value=val_str)
-            db.add(setting)
-        db.commit()
-        
     try:
         scan_library_folder(db, payload.path)
         return {"status": "success", "message": f"Scan completed successfully for: {payload.path}"}
@@ -366,9 +355,7 @@ def get_book_cover_image(id: int, db: Session = Depends(get_db)):
         
     if not os.path.exists(item.cover_path):
         try:
-            title_setting = get_setting(db, "use_filename_as_title", "false")
-            display_title_setting = 'filename' if title_setting == 'true' else 'metadata'
-            process_file_metadata_and_cover(item.path, display_title_setting)
+            process_file_metadata_and_cover(item.path, 'filename')
         except Exception:
             raise HTTPException(status_code=404, detail="Cover file missing and auto-regeneration failed")
             
@@ -410,25 +397,15 @@ def browse_folder_native_dialog():
 @app.get("/settings")
 def get_global_settings(db: Session = Depends(get_db)):
     """Fetches key-value configuration flags."""
-    use_filename = db.query(Setting).filter(Setting.key == "use_filename_as_title").first()
     last_scanned = db.query(Setting).filter(Setting.key == "last_scanned_path").first()
     return {
-        "use_filename_as_title": (use_filename.value == "true") if use_filename else False,
+        "use_filename_as_title": True,
         "last_scanned_path": last_scanned.value if last_scanned else None
     }
 
 @app.put("/settings")
 def update_global_settings(payload: SettingsUpdatePayload, db: Session = Depends(get_db)):
     """Saves key-value configuration flags."""
-    if payload.use_filename_as_title is not None:
-        val_str = "true" if payload.use_filename_as_title else "false"
-        setting = db.query(Setting).filter(Setting.key == "use_filename_as_title").first()
-        if setting:
-            setting.value = val_str
-        else:
-            setting = Setting(key="use_filename_as_title", value=val_str)
-            db.add(setting)
-        db.commit()
     return get_global_settings(db)
 
 @app.post("/rescan")

@@ -118,7 +118,7 @@ class AppController {
       });
     }
 
-    // Scan Form Submit — lê caminho + preferência de título (popup_escanear.md §2)
+    // Scan Form Submit — lê caminho e usa nome do arquivo como título
     const scanForm = document.getElementById('scan-form');
     if (scanForm) {
       scanForm.addEventListener('submit', async (e) => {
@@ -130,15 +130,11 @@ class AppController {
           return;
         }
 
-        // Lê preferência de fonte do título (metadados ou nome do arquivo)
-        const selectedRadio = document.querySelector('input[name="title_source"]:checked');
-        const useFilenameAsTitle = selectedRadio ? selectedRadio.value === 'filename' : false;
-
         try {
           this.showToast('Iniciando escaneamento da pasta...');
           this.closeScanModal();
 
-          await LibraryAPI.scanFolder(path, useFilenameAsTitle);
+          await LibraryAPI.scanFolder(path);
           this.showToast('Escaneamento concluído com sucesso!');
           this.libraryManager.loadTags();
           this.libraryManager.loadItems();

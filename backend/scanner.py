@@ -8,11 +8,6 @@ from database import COVERS_DIR
 
 SUPPORTED_EXTENSIONS = {'.epub', '.pdf'}
 
-def get_setting(db: Session, key: str, default: str) -> str:
-    """Retrieves a setting value by key, defaulting if not found."""
-    setting = db.query(Setting).filter(Setting.key == key).first()
-    return setting.value if setting else default
-
 def scan_library_folder(db: Session, root_path: str):
     """
     Scans the given root path:
@@ -25,10 +20,6 @@ def scan_library_folder(db: Session, root_path: str):
     if not root.exists() or not root.is_dir():
         raise ValueError(f"Path {root_path} is not a valid directory")
         
-    # Get user setting for display titles ('metadata' or 'filename')
-    title_setting = get_setting(db, "use_filename_as_title", "false")
-    display_title_setting = 'filename' if title_setting == 'true' else 'metadata'
-    
     # 1. Walk directory and insert/update items
     for entry in sorted(root.iterdir()):
         if entry.is_file() and entry.suffix.lower() in SUPPORTED_EXTENSIONS:
