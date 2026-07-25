@@ -89,7 +89,13 @@
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  transition: transform 0.2s ease;
+  transition: transform 0.2s ease, opacity 0.25s ease;
+}
+
+.book-card.removing {
+  opacity: 0;
+  transform: scale(0.92);
+  pointer-events: none;
 }
 
 .book-card:hover {

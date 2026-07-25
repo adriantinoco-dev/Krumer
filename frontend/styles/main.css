@@ -32,6 +32,18 @@
   --shadow-card:  0 4px 12px rgba(0, 0, 0, 0.4);
   
   --transition:   all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Sidebar Refinada Tokens */
+  --sidebar-width-collapsed: 64px;
+  --sidebar-width-expanded:  220px;
+  --sidebar-bg:              #1c1c1e;
+  --sidebar-border:          rgba(255, 255, 255, 0.06);
+  --sidebar-text:            rgba(255, 255, 255, 0.50);
+  --sidebar-text-hover:      rgba(255, 255, 255, 0.90);
+  --sidebar-active-bg:       rgba(232, 124, 42, 0.10);
+  --sidebar-active-bar:      #e87c2a;
+  --sidebar-active-text:     rgba(232, 124, 42, 0.90);
+  --sidebar-section:         rgba(255, 255, 255, 0.20);
 }
 
 /* Reset & Base Styles */
@@ -76,132 +88,189 @@ body {
   overflow: hidden;
 }
 
-/* Sidebar Styling */
+/* ============================================================
+   SIDEBAR REFINADA V3
+   ============================================================ */
 .sidebar {
-  width: 240px;
-  background-color: var(--bg-sidebar);
-  border-right: 1px solid var(--border);
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: var(--sidebar-width-collapsed);
+  overflow: hidden;
+  z-index: 50;
+
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--sidebar-border);
+
   display: flex;
   flex-direction: column;
-  padding: 20px 16px;
+  padding: 20px 0;
+
+  transition: width var(--transition);
   user-select: none;
-  z-index: 10;
 }
 
-.brand-container {
+.sidebar:hover {
+  width: var(--sidebar-width-expanded);
+}
+
+/* LOGO */
+.sidebar-logo {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 20px;
+  padding: 4px 14px 28px 14px;
+  text-decoration: none;
+  color: var(--sidebar-active-text);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-.brand-icon {
+/* SEÇÃO (título de grupo) */
+.sidebar-section {
+  display: block;
+  padding: 0 0 6px 20px;
+  font-size: 0.60rem;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--sidebar-section);
+  white-space: nowrap;
+  overflow: hidden;
+
+  /* Invisível colapsada, aparece ao expandir */
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+.sidebar:hover .sidebar-section {
+  opacity: 1;
+}
+
+/* NAV */
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  padding: 0 8px;
+}
+
+/* ITEM */
+.sidebar-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 8px;
+  border-radius: 8px;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+
+  color: var(--sidebar-text);
+  font-size: 0.83rem;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+
+  transition: background var(--transition), color var(--transition);
+}
+
+/* Hover */
+.sidebar-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--sidebar-text-hover);
+}
+
+/* Ativo */
+.sidebar-item.active {
+  background: var(--sidebar-active-bg);
+  color: var(--sidebar-active-text);
+}
+
+/* Barra laranja fina na esquerda — indicador de ativo */
+.sidebar-item.active::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  border-radius: 0 2px 2px 0;
+  background: var(--sidebar-active-bar);
+}
+
+/* ÍCONE WRAP */
+.sidebar-icon-wrap {
   width: 32px;
   height: 32px;
-  background: linear-gradient(135deg, var(--accent), #e05600);
-  border-radius: var(--radius);
+  min-width: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  font-size: 0.95rem;
   font-weight: 700;
-  font-size: 18px;
-  box-shadow: 0 4px 10px var(--accent-glow);
+  flex-shrink: 0;
 }
 
-.brand-title {
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-  color: var(--text-primary);
+.sidebar-icon-wrap svg {
+  width: 18px;
+  height: 18px;
 }
 
-.nav-section {
-  margin-bottom: 24px;
+/* LABEL — aparece com fade + slide ao expandir */
+.sidebar-label {
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 0.20s ease 0.05s, transform 0.20s ease 0.05s;
+  pointer-events: none;
+  flex-shrink: 0;
 }
 
-.nav-section-title {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--text-muted);
-  margin-bottom: 10px;
-  padding-left: 10px;
+.sidebar:hover .sidebar-label {
+  opacity: 1;
+  transform: translateX(0);
 }
 
-.nav-list {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
+/* Legacy nav-item compatibility */
 .nav-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 500;
+  padding: 9px 8px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: var(--transition);
 }
 
-.nav-item:hover {
-  background-color: var(--bg-card-hover);
-  color: var(--text-primary);
-}
-
-.nav-item.active {
-  background-color: rgba(249, 115, 22, 0.15);
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.nav-item svg {
-  width: 18px;
-  height: 18px;
-  stroke-width: 2;
-}
-
-.tags-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 4px 6px;
-  max-height: 180px;
-  overflow-y: auto;
-}
-
-.tag-badge {
-  font-size: 11px;
-  padding: 4px 10px;
-  border-radius: 12px;
-  background-color: var(--bg-card);
-  color: var(--text-secondary);
-  border: 1px solid var(--border);
-  cursor: pointer;
-  transition: var(--transition);
-}
-
-.tag-badge:hover, .tag-badge.active {
-  border-color: var(--accent);
-  color: var(--accent);
-  background-color: rgba(249, 115, 22, 0.1);
-}
-
-/* Main Workspace */
-.main-wrapper {
+/* Main Workspace — empurrado pela sidebar */
+.main-wrapper,
+.main-content {
   flex: 1;
   display: flex;
   flex-direction: column;
   background-color: var(--bg-primary);
   overflow: hidden;
+  margin-left: var(--sidebar-width-collapsed);   /* 64px em repouso */
+  transition: margin-left var(--transition);
+}
+
+/* Acompanha a expansão no hover da sidebar */
+.sidebar:hover ~ .main-wrapper,
+.sidebar:hover ~ .main-content {
+  margin-left: var(--sidebar-width-expanded);    /* 220px ao expandir */
+}
+
+@media (max-width: 768px) {
+  .sidebar:hover ~ .main-wrapper,
+  .sidebar:hover ~ .main-content {
+    margin-left: var(--sidebar-width-collapsed);
+  }
 }
 
 /* Header Navbar */

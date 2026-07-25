@@ -29,9 +29,11 @@ class LibraryManager {
   /**
    * Loads items from backend with active filters
    */
-  async loadItems() {
+  async loadItems(silent = false) {
     try {
-      this.renderLoadingState();
+      if (!silent) {
+        this.renderLoadingState();
+      }
 
       const params = {
         sort_by: this.sortBy === 'overall_progress' ? 'title' : this.sortBy,
@@ -50,9 +52,13 @@ class LibraryManager {
 
       let fetchedItems = await LibraryAPI.getItems(params);
 
-      // In-memory filter for 'reading' category (progress > 0 && progress < 100)
+      // In-memory filter for categories
       if (this.currentCategory === 'reading') {
-        fetchedItems = fetchedItems.filter(item => item.overall_progress > 0 && item.overall_progress < 100);
+        fetchedItems = fetchedItems.filter(item => (item.overall_progress || 0) > 0 && (item.overall_progress || 0) < 100);
+      } else if (this.currentCategory === 'read') {
+        fetchedItems = fetchedItems.filter(item => (item.overall_progress || 0) >= 100);
+      } else if (this.currentCategory === 'unread') {
+        fetchedItems = fetchedItems.filter(item => (item.overall_progress || 0) < 100);
       }
 
       // In-memory sort for progress or rating if selected
@@ -66,7 +72,9 @@ class LibraryManager {
       this.renderGrid();
     } catch (err) {
       console.error(err);
-      this.renderErrorState(err.message);
+      if (!silent) {
+        this.renderErrorState(err.message);
+      }
     }
   }
 
@@ -138,7 +146,7 @@ class LibraryManager {
       });
 
     if (continueContainer && continueGrid) {
-      if (inProgressItems.length > 0) {
+      if (this.currentCategory === 'all' && inProgressItems.length > 0) {
         continueContainer.style.display = 'block';
         if (continueCount) {
           continueCount.textContent = `(${inProgressItems.length} ${inProgressItems.length === 1 ? 'item' : 'itens'})`;
@@ -149,6 +157,16 @@ class LibraryManager {
         continueContainer.style.display = 'none';
         continueGrid.innerHTML = '';
       }
+    }
+
+    const mainTitleTextEl = document.getElementById('main-title-text');
+    if (mainTitleTextEl) {
+      let titleText = 'Minha Biblioteca';
+      if (this.currentCategory === 'series') titleText = 'Séries & Mangás';
+      else if (this.currentCategory === 'read') titleText = 'Lidos';
+      else if (this.currentCategory === 'unread') titleText = 'Não Lidos';
+      else if (this.currentCategory === 'reading') titleText = 'Em Andamento';
+      mainTitleTextEl.textContent = titleText;
     }
 
     if (this.itemCountElement) {
@@ -671,7 +689,7 @@ class LibraryManager {
   }
 
   /**
-   * Marks the item as fully read (progress 100%) in the backend and updates UI
+   * Marks the item as fully read (progress 100%) in the backend with smooth, flicker-free UI updates
    */
   async _markAsRead(item) {
     try {
@@ -682,22 +700,43 @@ class LibraryManager {
         ? item.progress[0].total_pages
         : 9999;
 
-      await LibraryAPI.saveProgress(item.id, {
-        file_path: filePath,
-        progress_pct: 100.0,
-        current_page: totalPages,
-        total_pages: totalPages
-      });
-
-      // Update local state
+      // Update local item state
       item.overall_progress = 100.0;
       if (item.progress && item.progress.length > 0) {
         item.progress[0].progress_pct = 100.0;
         item.progress[0].current_page = totalPages;
       }
 
-      this.renderGrid();
-      if (window.app) window.app.showToast(`"${item.title}" marcado como lido ✓`);
+      // Smooth in-place UI update
+      const cardEl = document.querySelector(`.book-card[data-id="${item.id}"]`);
+      const shouldBeRemoved = (this.currentCategory === 'unread' || this.currentCategory === 'reading');
+
+      if (shouldBeRemoved && cardEl) {
+        cardEl.classList.add('removing');
+        this.items = this.items.filter(i => i.id !== item.id);
+        if (this.itemCountElement) {
+          this.itemCountElement.textContent = `(${this.items.length} ${this.items.length === 1 ? 'item' : 'itens'})`;
+        }
+        setTimeout(() => {
+          cardEl.remove();
+          if (this.items.length === 0) {
+            this.renderGrid();
+          }
+        }, 250);
+      } else if (cardEl) {
+        const fill = cardEl.querySelector('.cover-progress-fill');
+        if (fill) fill.style.width = '100%';
+      }
+
+      if (window.app) window.app.showToast(`"${item.title}" marcado como lido`);
+
+      // Persist to backend in the background without refreshing/rebuilding the whole grid
+      await LibraryAPI.saveProgress(item.id, {
+        file_path: filePath,
+        progress_pct: 100.0,
+        current_page: totalPages,
+        total_pages: totalPages
+      });
     } catch (err) {
       console.error('Erro ao marcar como lido:', err);
       if (window.app) window.app.showToast('Erro ao salvar progresso');
@@ -705,7 +744,7 @@ class LibraryManager {
   }
 
   /**
-   * Marks the item as unread (resets progress to 0) in the backend and updates UI
+   * Marks the item as unread (resets progress to 0) in the backend with smooth, flicker-free UI updates
    */
   async _markAsUnread(item) {
     try {
@@ -713,22 +752,43 @@ class LibraryManager {
         ? item.progress[0].file_path
         : item.path;
 
-      await LibraryAPI.saveProgress(item.id, {
-        file_path: filePath,
-        progress_pct: 0.0,
-        current_page: 0,
-        total_pages: (item.progress && item.progress.length > 0) ? item.progress[0].total_pages : null
-      });
-
-      // Update local state
+      // Update local item state
       item.overall_progress = 0.0;
       if (item.progress && item.progress.length > 0) {
         item.progress[0].progress_pct = 0.0;
         item.progress[0].current_page = 0;
       }
 
-      this.renderGrid();
+      // Smooth in-place UI update
+      const cardEl = document.querySelector(`.book-card[data-id="${item.id}"]`);
+      const shouldBeRemoved = (this.currentCategory === 'read' || this.currentCategory === 'reading');
+
+      if (shouldBeRemoved && cardEl) {
+        cardEl.classList.add('removing');
+        this.items = this.items.filter(i => i.id !== item.id);
+        if (this.itemCountElement) {
+          this.itemCountElement.textContent = `(${this.items.length} ${this.items.length === 1 ? 'item' : 'itens'})`;
+        }
+        setTimeout(() => {
+          cardEl.remove();
+          if (this.items.length === 0) {
+            this.renderGrid();
+          }
+        }, 250);
+      } else if (cardEl) {
+        const fill = cardEl.querySelector('.cover-progress-fill');
+        if (fill) fill.style.width = '0%';
+      }
+
       if (window.app) window.app.showToast(`"${item.title}" marcado como não lido`);
+
+      // Persist to backend in the background without refreshing/rebuilding the whole grid
+      await LibraryAPI.saveProgress(item.id, {
+        file_path: filePath,
+        progress_pct: 0.0,
+        current_page: 0,
+        total_pages: (item.progress && item.progress.length > 0) ? item.progress[0].total_pages : null
+      });
     } catch (err) {
       console.error('Erro ao marcar como não lido:', err);
       if (window.app) window.app.showToast('Erro ao salvar progresso');

@@ -17,9 +17,11 @@ class AppController {
   }
 
   setupNavigation() {
-    document.querySelectorAll('.nav-item[data-category]').forEach(item => {
+    const navItems = document.querySelectorAll('.sidebar-item[data-category], .nav-item[data-category]');
+    navItems.forEach(item => {
       item.addEventListener('click', (e) => {
-        document.querySelectorAll('.nav-item[data-category]').forEach(el => el.classList.remove('active'));
+        e.preventDefault();
+        navItems.forEach(el => el.classList.remove('active'));
         const navEl = e.currentTarget;
         navEl.classList.add('active');
 

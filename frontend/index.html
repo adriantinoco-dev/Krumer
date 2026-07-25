@@ -17,44 +17,67 @@
   <div id="app-root">
 
     <!-- Sidebar Navigation -->
-    <aside class="sidebar">
-      <div class="brand-container">
-        <div class="brand-icon">K</div>
-        <div class="brand-title">Krumer</div>
-      </div>
+    <aside class="sidebar" id="sidebar">
 
-      <div class="nav-section">
-        <div class="nav-section-title">Biblioteca</div>
-        <ul class="nav-list">
-          <li class="nav-item active" data-category="all">
+      <!-- Logo -->
+      <a href="#" class="sidebar-logo">
+        <div class="sidebar-icon-wrap">K</div>
+        <span class="sidebar-label">Krumer</span>
+      </a>
+
+      <nav class="sidebar-nav">
+
+        <span class="sidebar-section">Biblioteca</span>
+
+        <a href="#" class="sidebar-item active" data-category="all">
+          <div class="sidebar-icon-wrap">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round"
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z">
               </path>
             </svg>
-            <span>Minha Biblioteca</span>
-          </li>
-          <li class="nav-item" data-category="series">
+          </div>
+          <span class="sidebar-label">Minha Biblioteca</span>
+        </a>
+
+        <a href="#" class="sidebar-item" data-category="series">
+          <div class="sidebar-icon-wrap">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round"
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
               </path>
             </svg>
-            <span>Séries & Mangás</span>
-          </li>
-        </ul>
-      </div>
+          </div>
+          <span class="sidebar-label">Séries &amp; Mangás</span>
+        </a>
 
-      <div class="nav-section" style="flex:1;">
-        <div class="nav-section-title">Tags & Categorias</div>
-        <div id="tags-container" class="tags-container">
-          <span style="font-size:11px; color:var(--text-muted);">Carregando tags...</span>
-        </div>
-      </div>
+        <a href="#" class="sidebar-item" data-category="read">
+          <div class="sidebar-icon-wrap">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z">
+              </path>
+            </svg>
+          </div>
+          <span class="sidebar-label">Lidos</span>
+        </a>
+
+        <a href="#" class="sidebar-item" data-category="unread">
+          <div class="sidebar-icon-wrap">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z">
+              </path>
+            </svg>
+          </div>
+          <span class="sidebar-label">Não Lidos</span>
+        </a>
+
+      </nav>
     </aside>
 
     <!-- Main Content Area -->
-    <main class="main-wrapper">
+    <main class="main-wrapper main-content">
 
       <!-- Top Navbar Header -->
       <header class="app-header">
@@ -120,7 +143,7 @@
 
         <div class="section-header">
           <h1 class="section-title">
-            Minha Biblioteca
+            <span id="main-title-text">Minha Biblioteca</span>
             <span id="item-count" class="item-count">(0 itens)</span>
           </h1>
         </div>
