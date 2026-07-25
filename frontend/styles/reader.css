@@ -164,10 +164,12 @@
 .reader-page-input::-webkit-outer-spin-button,
 .reader-page-input::-webkit-inner-spin-button {
   -webkit-appearance: none;
+  appearance: none;
   margin: 0;
 }
 .reader-page-input {
   -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 .reader-select {
