@@ -120,10 +120,22 @@ class LibraryManager {
     const continueGrid = document.getElementById('continue-reading-grid');
     const continueCount = document.getElementById('continue-reading-count');
 
-    const inProgressItems = this.items.filter(item => {
-      const prog = item.overall_progress || 0;
-      return prog > 0 && prog < 100;
-    });
+    const inProgressItems = this.items
+      .filter(item => {
+        const prog = item.overall_progress || 0;
+        if (prog <= 0 || prog >= 100) return false;
+        // Se o item tem progresso próprio (livro/capítulo), ignorar se ainda está na 1ª página
+        if (item.progress && item.progress.length > 0) {
+          const currentPage = item.progress[0].current_page || 0;
+          if (currentPage <= 1) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const aDate = a.last_read ? new Date(a.last_read) : new Date(0);
+        const bDate = b.last_read ? new Date(b.last_read) : new Date(0);
+        return bDate - aDate;
+      });
 
     if (continueContainer && continueGrid) {
       if (inProgressItems.length > 0) {
@@ -132,6 +144,7 @@ class LibraryManager {
           continueCount.textContent = `(${inProgressItems.length} ${inProgressItems.length === 1 ? 'item' : 'itens'})`;
         }
         continueGrid.innerHTML = inProgressItems.map(item => this.createBookCardHTML(item)).join('');
+        this.attachCardEventListeners();
       } else {
         continueContainer.style.display = 'none';
         continueGrid.innerHTML = '';
@@ -215,11 +228,14 @@ class LibraryManager {
   }
 
   /**
-   * Attaches event listeners for card clicks and star ratings
+   * Attaches event listeners for card clicks, star ratings, and right-click context menu
    */
   attachCardEventListeners() {
     const libraryViewport = document.querySelector('.library-viewport');
     if (!libraryViewport) return;
+
+    // Ensure context menu exists in DOM
+    this._ensureContextMenu();
 
     // Card click event (suporta cards de continuar lendo e biblioteca geral)
     libraryViewport.querySelectorAll('.book-card').forEach(card => {
@@ -229,6 +245,14 @@ class LibraryManager {
 
         const itemId = parseInt(card.dataset.id, 10);
         this.openBookDetails(itemId);
+      });
+
+      // Right-click context menu
+      card.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const itemId = parseInt(card.dataset.id, 10);
+        const item = this.items.find(i => i.id === itemId);
+        if (item) this._showContextMenu(e, item);
       });
     });
 
@@ -549,6 +573,166 @@ class LibraryManager {
     return str.replace(/[&<>"']/g, function (m) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Context Menu (right-click on book card)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Creates the context menu element once and appends it to <body>
+   */
+  _ensureContextMenu() {
+    if (document.getElementById('book-context-menu')) return;
+    const menu = document.createElement('div');
+    menu.id = 'book-context-menu';
+    menu.className = 'book-context-menu';
+    menu.innerHTML = `
+      <div class="ctx-menu-header">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13
+               C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13
+               C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13
+               C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+        </svg>
+        <span id="ctx-menu-title">Livro</span>
+      </div>
+      <div class="ctx-menu-divider"></div>
+      <button class="ctx-menu-item" id="ctx-mark-read">
+        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        Marcar como lido
+      </button>
+      <button class="ctx-menu-item ctx-menu-item--muted" id="ctx-mark-unread">
+        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        Marcar como não lido
+      </button>
+    `;
+    document.body.appendChild(menu);
+
+    // Close on outside click
+    document.addEventListener('click', () => this._hideContextMenu());
+    document.addEventListener('contextmenu', (e) => {
+      if (!e.target.closest('.book-card')) this._hideContextMenu();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this._hideContextMenu();
+    });
+  }
+
+  /**
+   * Positions and shows the context menu for the given item
+   */
+  _showContextMenu(e, item) {
+    const menu = document.getElementById('book-context-menu');
+    if (!menu) return;
+
+    // Update header title
+    const titleEl = document.getElementById('ctx-menu-title');
+    if (titleEl) titleEl.textContent = item.title;
+
+    // Wire up buttons freshly each time
+    const btnRead   = document.getElementById('ctx-mark-read');
+    const btnUnread = document.getElementById('ctx-mark-unread');
+
+    const isRead = (item.overall_progress || 0) >= 100;
+    if (btnRead)   btnRead.style.display   = isRead ? 'none' : 'flex';
+    if (btnUnread) btnUnread.style.display = (item.overall_progress || 0) > 0 ? 'flex' : 'none';
+
+    const newBtnRead = btnRead.cloneNode(true);
+    btnRead.parentNode.replaceChild(newBtnRead, btnRead);
+    newBtnRead.addEventListener('click', () => { this._markAsRead(item); this._hideContextMenu(); });
+
+    const newBtnUnread = btnUnread.cloneNode(true);
+    btnUnread.parentNode.replaceChild(newBtnUnread, btnUnread);
+    newBtnUnread.addEventListener('click', () => { this._markAsUnread(item); this._hideContextMenu(); });
+
+    // Position menu near cursor, keeping it within viewport
+    const { innerWidth: vw, innerHeight: vh } = window;
+    const { offsetWidth: mw, offsetHeight: mh } = menu;
+    let x = e.clientX + 6;
+    let y = e.clientY + 6;
+    if (x + mw > vw) x = vw - mw - 8;
+    if (y + mh > vh) y = vh - mh - 8;
+    menu.style.left = `${x}px`;
+    menu.style.top  = `${y}px`;
+    menu.classList.add('active');
+  }
+
+  _hideContextMenu() {
+    const menu = document.getElementById('book-context-menu');
+    if (menu) menu.classList.remove('active');
+  }
+
+  /**
+   * Marks the item as fully read (progress 100%) in the backend and updates UI
+   */
+  async _markAsRead(item) {
+    try {
+      const filePath = (item.progress && item.progress.length > 0)
+        ? item.progress[0].file_path
+        : item.path;
+      const totalPages = (item.progress && item.progress.length > 0 && item.progress[0].total_pages)
+        ? item.progress[0].total_pages
+        : 9999;
+
+      await LibraryAPI.saveProgress(item.id, {
+        file_path: filePath,
+        progress_pct: 100.0,
+        current_page: totalPages,
+        total_pages: totalPages
+      });
+
+      // Update local state
+      item.overall_progress = 100.0;
+      if (item.progress && item.progress.length > 0) {
+        item.progress[0].progress_pct = 100.0;
+        item.progress[0].current_page = totalPages;
+      }
+
+      this.renderGrid();
+      if (window.app) window.app.showToast(`"${item.title}" marcado como lido ✓`);
+    } catch (err) {
+      console.error('Erro ao marcar como lido:', err);
+      if (window.app) window.app.showToast('Erro ao salvar progresso');
+    }
+  }
+
+  /**
+   * Marks the item as unread (resets progress to 0) in the backend and updates UI
+   */
+  async _markAsUnread(item) {
+    try {
+      const filePath = (item.progress && item.progress.length > 0)
+        ? item.progress[0].file_path
+        : item.path;
+
+      await LibraryAPI.saveProgress(item.id, {
+        file_path: filePath,
+        progress_pct: 0.0,
+        current_page: 0,
+        total_pages: (item.progress && item.progress.length > 0) ? item.progress[0].total_pages : null
+      });
+
+      // Update local state
+      item.overall_progress = 0.0;
+      if (item.progress && item.progress.length > 0) {
+        item.progress[0].progress_pct = 0.0;
+        item.progress[0].current_page = 0;
+      }
+
+      this.renderGrid();
+      if (window.app) window.app.showToast(`"${item.title}" marcado como não lido`);
+    } catch (err) {
+      console.error('Erro ao marcar como não lido:', err);
+      if (window.app) window.app.showToast('Erro ao salvar progresso');
+    }
   }
 }
 

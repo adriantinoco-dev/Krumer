@@ -85,7 +85,11 @@ def _enrich_item(item: Item, db: Session) -> ItemResponse:
         if len(children) > 0:
             child_ids = [c.id for c in children]
             progs = db.query(Progress).filter(Progress.item_id.in_(child_ids)).all()
-            prog_map = {p.item_id: p.progress_pct for p in progs}
+            # Capítulos ainda na 1ª página não contam para o progresso
+            prog_map = {
+                p.item_id: (p.progress_pct if (p.current_page or 0) > 1 else 0.0)
+                for p in progs
+            }
             total_pct = sum(prog_map.get(cid, 0.0) for cid in child_ids)
             res.overall_progress = round(total_pct / len(children), 1)
         else:
@@ -93,7 +97,9 @@ def _enrich_item(item: Item, db: Session) -> ItemResponse:
     else:
         res.children_count = 0
         if item.progress:
-            res.overall_progress = item.progress[0].progress_pct
+            prog = item.progress[0]
+            # Só conta o progresso se passou da 1ª página
+            res.overall_progress = prog.progress_pct if (prog.current_page or 0) > 1 else 0.0
         else:
             res.overall_progress = 0.0
     return res

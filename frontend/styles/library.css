@@ -1192,3 +1192,111 @@
   max-height: 200px;
   overflow-y: auto;
 }
+
+/* ==========================================================================
+   Book Card - Right-Click Context Menu
+   ========================================================================== */
+
+.book-context-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(22, 22, 28, 0.92);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.55),
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transform: scale(0.94) translateY(-6px);
+  opacity: 0;
+  visibility: hidden;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+              opacity 0.13s ease,
+              visibility 0s linear 0.13s;
+  pointer-events: none;
+}
+
+.book-context-menu.active {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+  visibility: visible;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+              opacity 0.13s ease,
+              visibility 0s linear 0s;
+  pointer-events: all;
+}
+
+.ctx-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 6px;
+  color: var(--text-muted, #888);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 210px;
+}
+
+.ctx-menu-header svg {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.ctx-menu-header span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ctx-menu-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.07);
+  margin: 4px 6px;
+}
+
+.ctx-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #f1f1f1);
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.ctx-menu-item:hover {
+  background: rgba(249, 115, 22, 0.15);
+  color: var(--accent, #f97316);
+}
+
+.ctx-menu-item svg {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.ctx-menu-item--muted {
+  color: var(--text-muted, #888);
+}
+
+.ctx-menu-item--muted:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
