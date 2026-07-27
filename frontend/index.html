@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="styles/main.css?v=1.5">
   <link rel="stylesheet" href="styles/library.css?v=1.5">
   <link rel="stylesheet" href="styles/reader.css?v=1.0">
+  <link rel="stylesheet" href="styles/settings.css?v=1.0">
 </head>
 
 <body>
@@ -109,6 +110,18 @@
             </svg>
           </button>
 
+          <!-- Botão circular de Configurações (Fase 1 — Chave de API) -->
+          <button id="btn-settings" class="btn-rescan" title="Configurações do aplicativo">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+              </path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z">
+              </path>
+            </svg>
+          </button>
+
           <button id="btn-obter-metadados" class="btn btn-secondary" title="Buscar metadados via Gemini">
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -129,6 +142,22 @@
 
       <!-- Main Library Grid Viewport -->
       <div class="library-viewport">
+
+        <!-- Aviso visual: chave da API Gemini não configurada (Fase 1) -->
+        <div id="api-key-warning" class="api-key-banner" style="display: none;">
+          <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
+            </path>
+          </svg>
+          <div class="api-key-banner-text">
+            <strong>Chave do Gemini não configurada.</strong>
+            <span>Configure sua chave da API para buscar metadados.</span>
+          </div>
+          <button id="api-key-banner-action" class="btn btn-primary" style="font-size:12px; padding:6px 14px;">
+            Configurar agora
+          </button>
+        </div>
 
         <!-- Continuar Lendo Section (exibida dinamicamente quando houver livros em andamento) -->
         <div id="continue-reading-container" class="continue-reading-section" style="display: none;">
@@ -522,6 +551,86 @@
     <main id="reader-container">
       <!-- Canvas / PDF viewport renderizado aqui -->
     </main>
+  </div>
+
+  <!-- Settings Modal (Fase 1 — Chave de API Gemini) -->
+  <div id="settings-modal" class="modal-backdrop">
+    <div class="modal-card" style="width: 520px;">
+      <div class="modal-header">
+        <h2 class="modal-title">Configurações</h2>
+        <button id="close-settings-modal" class="close-btn">&times;</button>
+      </div>
+
+      <!-- Status atual da chave -->
+      <div id="settings-api-status" class="settings-status" style="display:none;">
+        <span class="settings-status-dot"></span>
+        <span class="settings-status-text">Verificando…</span>
+      </div>
+
+      <form id="settings-api-key-form">
+        <div class="form-group">
+          <label class="form-label" for="settings-api-key-input">
+            Chave da API do Gemini (AI Studio)
+          </label>
+          <div class="settings-api-key-row">
+            <input type="password" id="settings-api-key-input" class="form-input"
+              placeholder="Cole aqui a sua chave do Gemini AI Studio"
+              autocomplete="off" spellcheck="false">
+            <button type="button" id="btn-toggle-api-key-visibility" class="btn btn-secondary"
+              title="Mostrar/ocultar chave" style="padding:10px 12px;">
+              <svg id="eye-icon-show" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7s-8.268-2.943-9.542-7z">
+                </path>
+              </svg>
+            </button>
+          </div>
+          <p class="settings-help-text">
+            Obtenha sua chave gratuita em
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">
+              Google AI Studio
+            </a>. Para sua segurança, a chave é armazenada localmente no seu computador.
+          </p>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px;">
+          <button type="button" id="btn-cancel-settings" class="btn btn-secondary">Cancelar</button>
+          <button type="submit" id="btn-save-api-key" class="btn btn-primary">
+            <span id="save-api-key-text">Salvar e Validar</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: chave de API não configurada (Fase 1) -->
+  <div id="api-key-required-modal" class="modal-backdrop">
+    <div class="modal-card" style="width: 420px;">
+      <div class="modal-header">
+        <h2 class="modal-title">Chave da API necessária</h2>
+        <button id="close-apikeyreq-modal" class="close-btn">&times;</button>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; text-align:center; padding:8px 0 4px;">
+        <svg width="48" height="48" fill="none" stroke="var(--accent)" viewBox="0 0 24 24" style="margin-bottom:16px;">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z">
+          </path>
+        </svg>
+        <p style="font-size:14px; line-height:1.7; color:var(--text-secondary); margin-bottom:16px;">
+          Para buscar metadados é necessário configurar uma
+          <strong style="color:var(--text-primary);">chave da API do Gemini</strong>.
+        </p>
+        <p style="font-size:12px; color:var(--text-muted); line-height:1.6; margin-bottom:20px;">
+          Sua chave fica armazenada apenas no seu computador e nunca é compartilhada.
+        </p>
+      </div>
+      <div style="display:flex; justify-content:center; gap:10px;">
+        <button type="button" id="btn-close-apikeyreq" class="btn btn-secondary">Cancelar</button>
+        <button type="button" id="btn-go-settings-apikey" class="btn btn-primary">Configurar chave da API</button>
+      </div>
+    </div>
   </div>
 
   <!-- Scripts -->

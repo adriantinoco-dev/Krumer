@@ -56,6 +56,9 @@ class ScanPayload(BaseModel):
 class SettingsUpdatePayload(BaseModel):
     pass
 
+class ApiKeyPayload(BaseModel):
+    api_key: str
+
 class ProgressUpdatePayload(BaseModel):
     file_path: str
     progress_pct: float
@@ -105,6 +108,95 @@ def _enrich_item(item: Item, db: Session) -> ItemResponse:
 
 
 # --- API Routes ---
+
+def _validate_gemini_key(api_key: str) -> None:
+    """
+    Valida a chave da API Gemini fazendo uma requisição HTTP direta ao endpoint
+    de listagem de modelos. Não depende do SDK google-genai nem de chamadas
+    de generate_content, evitando erros de interpretação de conteúdo.
+    """
+    import urllib.request
+    import urllib.error
+    import json as _json
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+    try:
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = _json.loads(resp.read().decode())
+            if "models" not in data:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Resposta inesperada da API Gemini. A chave pode ser inválida.",
+                )
+    except urllib.error.HTTPError as e:
+        if e.code in (403, 401):
+            raise HTTPException(
+                status_code=400,
+                detail="Chave do Gemini inválida ou sem permissão. Verifique o valor informado.",
+            )
+        raise HTTPException(
+            status_code=400,
+            detail=f"Erro ao validar a chave (HTTP {e.code}): {e.reason}",
+        )
+    except urllib.error.URLError:
+        raise HTTPException(
+            status_code=400,
+            detail="Não foi possível conectar à API Gemini. Verifique sua conexão de rede.",
+        )
+
+
+@app.get("/settings/api-key")
+def get_api_key_status():
+    """
+    Retorna apenas se a chave do Gemini está configurada, sem expor o valor.
+    """
+    from metadata_service import get_api_key as _get_key
+    key = _get_key()
+    return {"configured": bool(key)}
+
+
+@app.put("/settings/api-key")
+def update_api_key(payload: ApiKeyPayload):
+    """
+    Grava a chave do Gemini no arquivo .env do backend após validar via
+    chamada teste à API. Não expõe o valor gravado.
+    """
+    api_key = (payload.api_key or "").strip()
+    if not api_key:
+        raise HTTPException(status_code=400, detail="A chave da API não pode ser vazia.")
+
+    # Valida a chave antes de persistir
+    _validate_gemini_key(api_key)
+
+    from metadata_service import ENV_PATH
+
+    # (Re)escreve o arquivo .env preservando outras variáveis existentes
+    lines = []
+    found = False
+    if ENV_PATH.exists():
+        with open(ENV_PATH, "r", encoding="utf-8") as f:
+            for raw_line in f:
+                stripped = raw_line.strip()
+                if stripped.startswith("GEMINI_API_KEY="):
+                    lines.append(f"GEMINI_API_KEY={api_key}\n")
+                    found = True
+                else:
+                    lines.append(raw_line if raw_line.endswith("\n") else raw_line + "\n")
+
+    if not found:
+        if lines and lines[-1] and not lines[-1].endswith("\n"):
+            lines[-1] += "\n"
+        lines.append(f"GEMINI_API_KEY={api_key}\n")
+
+    with open(ENV_PATH, "w", encoding="utf-8") as f:
+        f.writelines(lines)
+
+    # Recarrega a variável no processo atual para uso imediato
+    os.environ["GEMINI_API_KEY"] = api_key
+
+    return {"status": "success", "message": "Chave do Gemini salva e validada com sucesso."}
+
 
 @app.post("/scan")
 def scan_directory_route(payload: ScanPayload, db: Session = Depends(get_db)):

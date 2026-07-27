@@ -40,6 +40,27 @@ class MetadataManager {
     document.getElementById('close-metadata-results-modal')?.addEventListener('click', () => this.fecharResultados());
     document.getElementById('btn-metadata-results-close')?.addEventListener('click', () => this.fecharResultados());
     document.getElementById('btn-metadata-apply')?.addEventListener('click', () => this.aplicarMetadados());
+
+    // Diálogo "chave necessária" — abre settings
+    this._setupApiKeyRequiredDialog();
+  }
+
+  _setupApiKeyRequiredDialog() {
+    const modal = document.getElementById('api-key-required-modal');
+    if (!modal) return;
+
+    const close = (e) => { if (e.target === modal) this.fecharModal('api-key-required-modal'); };
+    modal.addEventListener('click', close);
+
+    document.getElementById('close-apikeyreq-modal')?.addEventListener('click', () => this.fecharModal('api-key-required-modal'));
+    document.getElementById('btn-close-apikeyreq')?.addEventListener('click', () => this.fecharModal('api-key-required-modal'));
+
+    document.getElementById('btn-go-settings-apikey')?.addEventListener('click', () => {
+      this.fecharModal('api-key-required-modal');
+      if (window.app && window.app.openSettingsModal) {
+        window.app.openSettingsModal();
+      }
+    });
   }
 
   setProcessando(ativo) {
@@ -58,6 +79,19 @@ class MetadataManager {
 
   async abrirSelecaoLivros() {
     if (this.processando) return;
+
+    // Verifica se há chave de API configurada antes de prosseguir
+    try {
+      const status = await LibraryAPI.getApiKeyStatus();
+      if (!status.configured) {
+        this.abrirModal('api-key-required-modal');
+        return;
+      }
+    } catch (_) {
+      // Se a requisição falhar (backend offline), exibe o diálogo também
+      this.abrirModal('api-key-required-modal');
+      return;
+    }
 
     try {
       // Busca todos os itens raiz (sem parent_id) — séries já estão agrupadas pelo backend

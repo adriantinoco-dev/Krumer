@@ -221,6 +221,30 @@ class LibraryAPI {
     }
     return await res.json();
   }
+
+  /**
+   * Verifica se a chave do Gemini está configurada no backend (sem expor o valor).
+   */
+  static async getApiKeyStatus() {
+    const res = await fetch(`${API_BASE_URL}/settings/api-key`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || 'Erro ao verificar chave da API');
+    return data;
+  }
+
+  /**
+   * Salva e valida a chave do Gemini no backend (arquivo .env).
+   */
+  static async updateApiKey(apiKey) {
+    const res = await fetch(`${API_BASE_URL}/settings/api-key`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: apiKey }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || 'Erro ao salvar chave da API');
+    return data;
+  }
 }
 
 window.LibraryAPI = LibraryAPI;

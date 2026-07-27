@@ -12,8 +12,10 @@ class AppController {
     this.setupNavigation();
     this.setupSearchAndFilter();
     this.setupModals();
+    this.setupSettingsModal();
     this.metadataManager.init();
     await this.libraryManager.init();
+    await this.checkApiKeyStatus();
   }
 
   setupNavigation() {
@@ -397,6 +399,157 @@ class AppController {
     if (modal) modal.classList.add('active');
   }
 
+  // ============================================================
+  // Settings Modal (Fase 1 — Chave de API Gemini)
+  // ============================================================
+
+  async checkApiKeyStatus() {
+    const banner = document.getElementById('api-key-warning');
+    if (!banner) return;
+
+    try {
+      const { configured } = await LibraryAPI.getApiKeyStatus();
+      banner.style.display = configured ? 'none' : 'flex';
+    } catch (err) {
+      console.warn('Não foi possível verificar o status da chave da API:', err);
+      // Em caso de erro (backend offline), não mostremos o banner para
+      // não assustar o usuário indevidamente.
+      banner.style.display = 'none';
+    }
+  }
+
+  setupSettingsModal() {
+    const btnSettings = document.getElementById('btn-settings');
+    if (btnSettings) {
+      btnSettings.addEventListener('click', () => this.openSettingsModal());
+    }
+
+    const closeBtn = document.getElementById('close-settings-modal');
+    if (closeBtn) closeBtn.addEventListener('click', () => this.closeSettingsModal());
+
+    const cancelBtn = document.getElementById('btn-cancel-settings');
+    if (cancelBtn) cancelBtn.addEventListener('click', () => this.closeSettingsModal());
+
+    const modal = document.getElementById('settings-modal');
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) this.closeSettingsModal();
+      });
+    }
+
+    // Toggle visibility of the API key
+    const toggleBtn = document.getElementById('btn-toggle-api-key-visibility');
+    const keyInput = document.getElementById('settings-api-key-input');
+    if (toggleBtn && keyInput) {
+      toggleBtn.addEventListener('click', () => {
+        keyInput.type = keyInput.type === 'password' ? 'text' : 'password';
+        keyInput.focus();
+      });
+    }
+
+    // Banner "Configurar agora"
+    const bannerBtn = document.getElementById('api-key-banner-action');
+    if (bannerBtn) {
+      bannerBtn.addEventListener('click', () => this.openSettingsModal());
+    }
+
+    // Submit form
+    const form = document.getElementById('settings-api-key-form');
+    if (form) {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const input = document.getElementById('settings-api-key-input');
+        const saveBtn = document.getElementById('btn-save-api-key');
+        const saveText = document.getElementById('save-api-key-text');
+        const value = input ? input.value.trim() : '';
+
+        if (!value) {
+          this.showToast('Informe a chave da API do Gemini.');
+          if (input) {
+            input.style.borderColor = '#ef4444';
+            input.focus();
+          }
+          return;
+        }
+        if (input) input.style.borderColor = '';
+
+        if (saveBtn) saveBtn.disabled = true;
+        if (saveText) saveText.textContent = 'Validando...';
+
+        try {
+          const result = await LibraryAPI.updateApiKey(value);
+          this.showToast(result.message || 'Chave salva e validada com sucesso!');
+
+          // Limpa o campo por segurança (não guardamos no cliente)
+          if (input) input.value = '';
+
+          this._renderApiKeyStatus(true);
+          this.closeSettingsModal();
+          await this.checkApiKeyStatus();
+        } catch (err) {
+          console.error(err);
+          this.showToast(`Erro ao salvar chave: ${err.message}`);
+          this._renderApiKeyStatus(undefined, err.message);
+        } finally {
+          if (saveBtn) saveBtn.disabled = false;
+          if (saveText) saveText.textContent = 'Salvar e Validar';
+        }
+      });
+    }
+  }
+
+  async openSettingsModal() {
+    const modal = document.getElementById('settings-modal');
+    if (!modal) return;
+    modal.classList.add('active');
+
+    const input = document.getElementById('settings-api-key-input');
+    if (input) input.value = '';
+
+    await this._renderApiKeyStatus();
+    setTimeout(() => input && input.focus(), 50);
+  }
+
+  closeSettingsModal() {
+    const modal = document.getElementById('settings-modal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  async _renderApiKeyStatus(forceConfigured, errorMessage) {
+    const statusEl = document.getElementById('settings-api-status');
+    const textEl = statusEl ? statusEl.querySelector('.settings-status-text') : null;
+    if (!statusEl || !textEl) return;
+
+    statusEl.style.display = 'flex';
+    statusEl.classList.remove('is-configured', 'is-missing', 'error');
+
+    if (errorMessage) {
+      statusEl.classList.add('error');
+      textEl.textContent = `Erro: ${errorMessage}`;
+      return;
+    }
+
+    let configured = forceConfigured;
+    if (configured === undefined) {
+      try {
+        const data = await LibraryAPI.getApiKeyStatus();
+        configured = data.configured;
+      } catch (err) {
+        statusEl.classList.add('error');
+        textEl.textContent = `Não foi possível verificar o status: ${err.message}`;
+        return;
+      }
+    }
+
+    if (configured) {
+      statusEl.classList.add('is-configured');
+      textEl.textContent = 'Chave do Gemini configurada e ativa.';
+    } else {
+      statusEl.classList.add('is-missing');
+      textEl.textContent = 'Nenhuma chave do Gemini configurada ainda.';
+    }
+  }
+
   closeScanModal() {
     const modal = document.getElementById('scan-modal');
     if (modal) modal.classList.remove('active');
@@ -542,6 +695,13 @@ document.addEventListener('keydown', (e) => {
   const scanModal = document.getElementById('scan-modal');
   if (scanModal && scanModal.classList.contains('active')) {
     if (window.app) window.app.closeScanModal();
+    return;
+  }
+
+  // 6b. Modal de configurações?
+  const settingsModal = document.getElementById('settings-modal');
+  if (settingsModal && settingsModal.classList.contains('active')) {
+    if (window.app) window.app.closeSettingsModal();
     return;
   }
 

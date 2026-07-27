@@ -16,19 +16,27 @@ import metadata
 import scanner
 from scanner import scan_library_folder
 
+def _make_test_image_bytes():
+    from PIL import Image
+    import io
+    img = Image.new('RGB', (1, 1), color='red')
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    return buf.getvalue()
+
+_test_image_bytes = _make_test_image_bytes()
+
 # Mock metadata extraction to avoid requiring real binary EPUB/PDF files during tests
 def mock_get_epub_metadata(file_path):
-    # Determine mock titles based on filename
     stem = Path(file_path).stem
     if "vol" in stem.lower() or "cap" in stem.lower():
-        # Series chapter
-        return f"{stem.capitalize()} Title Metadata", "Mock Author", b"mock_cover_bytes_epub"
+        return f"{stem.capitalize()} Title Metadata", "Mock Author", _test_image_bytes
     else:
-        return "EPUB Mock Title Metadata", "EPUB Mock Author", b"mock_cover_bytes_epub"
+        return "EPUB Mock Title Metadata", "EPUB Mock Author", _test_image_bytes
 
 def mock_get_pdf_metadata(file_path):
     stem = Path(file_path).stem
-    return f"{stem.capitalize()} Title Metadata", "PDF Mock Author", 123, b"mock_cover_bytes_pdf"
+    return f"{stem.capitalize()} Title Metadata", "PDF Mock Author", 123, _test_image_bytes
 
 # Apply monkeypatching
 metadata.get_epub_metadata = mock_get_epub_metadata
