@@ -81,6 +81,52 @@ class LibraryAPI {
   }
 
   /**
+   * Escaneia uma pasta com progresso via SSE.
+   * Callbacks: onProgress(current, total, message), onDone(message), onError(message)
+   */
+  static async scanFolderWithProgress(path, { onProgress, onDone, onError }) {
+    const res = await fetch(`${API_BASE_URL}/scan/progress`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || `Falha ao escanear: ${res.statusText}`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const event = JSON.parse(line.slice(6));
+          if (event.type === 'progress' && onProgress) {
+            onProgress(event.current, event.total, event.message);
+          } else if (event.type === 'done' && onDone) {
+            onDone(event.message);
+          } else if (event.type === 'error' && onError) {
+            onError(event.message);
+          }
+        } catch (parseErr) {
+          console.warn('Evento SSE inválido:', line, parseErr);
+        }
+      }
+    }
+  }
+
+  /**
    * Fetches all registered tags
    */
   static async getTags() {
@@ -252,6 +298,16 @@ class LibraryAPI {
   static async getOnboardingStatus() {
     const res = await fetch(`${API_BASE_URL}/onboarding/status`);
     return await res.json();
+  }
+
+  /**
+   * Retorna a lista de chaves de cache (nomes de arquivo / títulos de série)
+   * que já possuem metadados buscados com sucesso.
+   */
+  static async getCachedKeys() {
+    const res = await fetch(`${API_BASE_URL}/metadata/cached-keys`);
+    const data = await res.json();
+    return data.keys || [];
   }
 }
 

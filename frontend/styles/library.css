@@ -41,8 +41,8 @@
 /* Streaming Grid Layout */
 .book-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
-  gap: 28px 22px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 24px 16px;
   flex: 1;
 }
 
@@ -973,6 +973,9 @@
 }
 
 .metadata-select-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+  gap: 20px 14px;
   max-height: 55vh;
   overflow-y: auto;
   margin-bottom: 16px;

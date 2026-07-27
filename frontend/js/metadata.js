@@ -94,9 +94,15 @@ class MetadataManager {
     }
 
     try {
-      // Busca todos os itens raiz (sem parent_id) — séries já estão agrupadas pelo backend
+      // Busca todos os itens raiz (sem parent_id)
       const allItems = await LibraryAPI.getItems({ limit: 500 });
-      this.livros = allItems; // inclui séries e livros avulsos
+
+      // Busca chaves do cache e remove obras que já tiveram metadados buscados
+      const cachedKeys = await LibraryAPI.getCachedKeys();
+      this.livros = allItems.filter(item => {
+        const key = item.type === 'series' ? item.title : item.path.split(/[/\\]/).pop();
+        return !cachedKeys.includes(key);
+      });
       this.selecionados = [];
 
       const titleEl = document.getElementById('metadata-select-title');

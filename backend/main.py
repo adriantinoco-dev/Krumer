@@ -17,7 +17,7 @@ from models import (
     ItemResponse, ItemUpdate, ProgressResponse,
     ProgressCreate, TagResponse
 )
-from scanner import scan_library_folder, SUPPORTED_EXTENSIONS
+from scanner import scan_library_folder, SUPPORTED_EXTENSIONS, count_files_in_path
 from metadata import process_file_metadata_and_cover
 from metadata_service import (
     get_api_key,
@@ -228,6 +228,65 @@ def scan_directory_route(payload: ScanPayload, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Scan failed: {str(e)}")
+
+
+@app.post("/scan/progress")
+def scan_directory_with_progress(payload: ScanPayload, db: Session = Depends(get_db)):
+    """
+    Escaneia uma pasta emitindo progresso via SSE, similar ao fluxo de
+    busca de metadados. Útil para feedback visual durante escaneamentos longos.
+    """
+    import threading
+    import queue
+
+    path = payload.path
+    if not path:
+        raise HTTPException(status_code=400, detail="Caminho não informado.")
+
+    total = count_files_in_path(path)
+    q = queue.Queue()
+
+    def scan_worker():
+        try:
+            def on_progress(current, total, message):
+                q.put_nowait(("progress", current, total, message))
+
+            from database import SessionLocal
+            scan_db = SessionLocal()
+            try:
+                scan_library_folder(scan_db, path, progress_callback=on_progress)
+            finally:
+                scan_db.close()
+
+            q.put_nowait(("done", f"Escaneamento concluído para: {path}"))
+        except Exception as e:
+            q.put_nowait(("error", str(e)))
+
+    thread = threading.Thread(target=scan_worker, daemon=True)
+    thread.start()
+
+    def event_stream():
+        yield f"data: {json.dumps({'type': 'progress', 'current': 0, 'total': total, 'message': 'Iniciando escaneamento...'}, ensure_ascii=False)}\n\n"
+        while True:
+            try:
+                msg = q.get(timeout=1)
+                if msg[0] == "progress":
+                    yield f"data: {json.dumps({'type': 'progress', 'current': msg[1], 'total': msg[2], 'message': msg[3]}, ensure_ascii=False)}\n\n"
+                elif msg[0] == "done":
+                    yield f"data: {json.dumps({'type': 'done', 'message': msg[1]}, ensure_ascii=False)}\n\n"
+                    break
+                elif msg[0] == "error":
+                    yield f"data: {json.dumps({'type': 'error', 'message': msg[1]}, ensure_ascii=False)}\n\n"
+                    break
+            except queue.Empty:
+                if not thread.is_alive():
+                    break
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 @app.get("/tags", response_model=List[TagResponse])
 def get_all_tags(db: Session = Depends(get_db)):
@@ -642,6 +701,23 @@ def apply_metadata(payload: MetadataApplyPayload, db: Session = Depends(get_db))
 
     return [_enrich_item(item, db) for item in updated_items]
 
+
+@app.get("/metadata/cached-keys")
+def get_cached_metadata_keys():
+    """
+    Retorna todas as chaves (nomes de arquivo/títulos de série) que já
+    possuem metadados em cache com status 'found'. O frontend usa esta
+    lista para ocultar obras que já foram buscadas.
+    """
+    from metadata_service import CACHE_PATH, _load_json_file
+    cache = _load_json_file(CACHE_PATH)
+    keys = []
+    for key, entry in cache.items():
+        if isinstance(entry, dict) and entry.get("status") == "found":
+            md = entry.get("metadados")
+            if md and isinstance(md, dict) and md.get("nome_da_obra"):
+                keys.append(key)
+    return {"keys": keys}
 
 
 # Run direct script

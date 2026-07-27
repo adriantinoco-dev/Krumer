@@ -721,24 +721,34 @@ class LibraryManager {
       }
 
       // Smooth in-place UI update
-      const cardEl = document.querySelector(`.book-card[data-id="${item.id}"]`);
+      const mainCardEl = document.querySelector(`#book-grid .book-card[data-id="${item.id}"]`);
+      const crCardEl = document.querySelector(`#continue-reading-grid .book-card[data-id="${item.id}"]`);
       const shouldBeRemoved = (this.currentCategory === 'unread' || this.currentCategory === 'reading');
 
-      if (shouldBeRemoved && cardEl) {
-        cardEl.classList.add('removing');
+      if (shouldBeRemoved && mainCardEl) {
+        mainCardEl.classList.add('removing');
         this.items = this.items.filter(i => i.id !== item.id);
         if (this.itemCountElement) {
           this.itemCountElement.textContent = `(${this.items.length} ${this.items.length === 1 ? 'item' : 'itens'})`;
         }
         setTimeout(() => {
-          cardEl.remove();
+          mainCardEl.remove();
           if (this.items.length === 0) {
             this.renderGrid();
           }
         }, 250);
-      } else if (cardEl) {
-        const fill = cardEl.querySelector('.cover-progress-fill');
+      } else if (mainCardEl) {
+        const fill = mainCardEl.querySelector('.cover-progress-fill');
         if (fill) fill.style.width = '100%';
+      }
+
+      // Remove from "Continue Reading" section with animation
+      if (crCardEl) {
+        crCardEl.classList.add('removing');
+        setTimeout(() => {
+          crCardEl.remove();
+          this._updateContinueReadingSection();
+        }, 250);
       }
 
       if (window.app) window.app.showToast(`"${item.title}" marcado como lido`);
@@ -753,6 +763,24 @@ class LibraryManager {
     } catch (err) {
       console.error('Erro ao marcar como lido:', err);
       if (window.app) window.app.showToast('Erro ao salvar progresso');
+    }
+  }
+
+  /**
+   * Updates the "Continue Reading" section visibility after an item is removed
+   */
+  _updateContinueReadingSection() {
+    const continueGrid = document.getElementById('continue-reading-grid');
+    const continueContainer = document.getElementById('continue-reading-container');
+    const continueCount = document.getElementById('continue-reading-count');
+    if (!continueGrid || !continueContainer) return;
+
+    const remaining = continueGrid.querySelectorAll('.book-card').length;
+    if (remaining === 0) {
+      continueContainer.style.display = 'none';
+      continueGrid.innerHTML = '';
+    } else if (continueCount) {
+      continueCount.textContent = `(${remaining} ${remaining === 1 ? 'item' : 'itens'})`;
     }
   }
 
@@ -773,24 +801,34 @@ class LibraryManager {
       }
 
       // Smooth in-place UI update
-      const cardEl = document.querySelector(`.book-card[data-id="${item.id}"]`);
+      const mainCardEl = document.querySelector(`#book-grid .book-card[data-id="${item.id}"]`);
+      const crCardEl = document.querySelector(`#continue-reading-grid .book-card[data-id="${item.id}"]`);
       const shouldBeRemoved = (this.currentCategory === 'read' || this.currentCategory === 'reading');
 
-      if (shouldBeRemoved && cardEl) {
-        cardEl.classList.add('removing');
+      if (shouldBeRemoved && mainCardEl) {
+        mainCardEl.classList.add('removing');
         this.items = this.items.filter(i => i.id !== item.id);
         if (this.itemCountElement) {
           this.itemCountElement.textContent = `(${this.items.length} ${this.items.length === 1 ? 'item' : 'itens'})`;
         }
         setTimeout(() => {
-          cardEl.remove();
+          mainCardEl.remove();
           if (this.items.length === 0) {
             this.renderGrid();
           }
         }, 250);
-      } else if (cardEl) {
-        const fill = cardEl.querySelector('.cover-progress-fill');
+      } else if (mainCardEl) {
+        const fill = mainCardEl.querySelector('.cover-progress-fill');
         if (fill) fill.style.width = '0%';
+      }
+
+      // Remove from "Continue Reading" section with animation
+      if (crCardEl) {
+        crCardEl.classList.add('removing');
+        setTimeout(() => {
+          crCardEl.remove();
+          this._updateContinueReadingSection();
+        }, 250);
       }
 
       if (window.app) window.app.showToast(`"${item.title}" marcado como não lido`);

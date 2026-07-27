@@ -136,20 +136,30 @@ class AppController {
         }
 
         try {
-          this.showToast('Iniciando escaneamento da pasta...');
           this.closeScanModal();
+          this._showScanProgress();
 
-          await LibraryAPI.scanFolder(path);
-
-          if (this.isOnboarding) {
-            // Onboarding: mostrar tela de sucesso em vez do fluxo normal
-            await this.onbScanComplete();
-          } else {
-            this.showToast('Escaneamento concluído com sucesso!');
-            this.libraryManager.loadTags();
-            this.libraryManager.loadItems();
-          }
+          await LibraryAPI.scanFolderWithProgress(path, {
+            onProgress: (current, total, message) => {
+              this._updateScanProgress(current, total, message);
+            },
+            onDone: () => {
+              this._hideScanProgress();
+              if (this.isOnboarding) {
+                this.onbScanComplete();
+              } else {
+                this.showToast('Escaneamento concluído com sucesso!');
+                this.libraryManager.loadTags();
+                this.libraryManager.loadItems();
+              }
+            },
+            onError: (errMsg) => {
+              this._hideScanProgress();
+              this.showToast(`Erro: ${errMsg}`);
+            },
+          });
         } catch (err) {
+          this._hideScanProgress();
           console.error(err);
           this.showToast(`Erro ao escanear: ${err.message}`);
         }
@@ -684,6 +694,54 @@ class AppController {
   closeScanModal() {
     const modal = document.getElementById('scan-modal');
     if (modal) modal.classList.remove('active');
+  }
+
+  // ============================================================
+  // Scan Progress Toast
+  // ============================================================
+
+  _showScanProgress() {
+    let toast = document.getElementById('scan-progress-toast');
+    if (toast) return;
+
+    let container = document.querySelector('.toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.className = 'toast-container';
+      document.body.appendChild(container);
+    }
+
+    toast = document.createElement('div');
+    toast.id = 'scan-progress-toast';
+    toast.className = 'metadata-progress-toast';
+    toast.innerHTML = `
+      <span class="metadata-progress-title">Escaneando pasta...</span>
+      <div class="metadata-progress-bar-wrap">
+        <div class="metadata-progress-bar-fill" style="width: 0%"></div>
+      </div>
+      <span class="metadata-progress-pct">0%</span>
+      <span class="metadata-progress-detail">Preparando...</span>
+    `;
+    container.appendChild(toast);
+  }
+
+  _updateScanProgress(current, total, message) {
+    const toast = document.getElementById('scan-progress-toast');
+    if (!toast) return;
+
+    const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+    const fill = toast.querySelector('.metadata-progress-bar-fill');
+    const pctEl = toast.querySelector('.metadata-progress-pct');
+    const detailEl = toast.querySelector('.metadata-progress-detail');
+
+    if (fill) fill.style.width = `${pct}%`;
+    if (pctEl) pctEl.textContent = `${pct}%`;
+    if (detailEl) detailEl.textContent = message || `${current} de ${total} arquivos processados`;
+  }
+
+  _hideScanProgress() {
+    const toast = document.getElementById('scan-progress-toast');
+    if (toast) toast.remove();
   }
 
   showToast(message) {

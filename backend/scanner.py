@@ -8,18 +8,45 @@ from database import COVERS_DIR
 
 SUPPORTED_EXTENSIONS = {'.epub', '.pdf'}
 
-def scan_library_folder(db: Session, root_path: str):
+
+def count_files_in_path(root_path: str) -> int:
+    """Conta quantos arquivos suportados existem no diretório (incluindo subpastas)."""
+    root = Path(root_path)
+    total = 0
+    for entry in sorted(root.iterdir()):
+        if entry.is_file() and entry.suffix.lower() in SUPPORTED_EXTENSIONS:
+            total += 1
+        elif entry.is_dir():
+            for path in sorted(entry.rglob('*')):
+                if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS:
+                    total += 1
+    return total
+
+
+def scan_library_folder(db: Session, root_path: str, progress_callback=None):
     """
     Scans the given root path:
     - Root-level PDF/EPUB -> 'book'
     - Root-level folder containing PDF/EPUB -> 'series', and nested files -> 'chapter'
     - Saves metadata & covers.
     - Synchronizes changes and deletes orphaned entries from DB.
+    
+    `progress_callback` é opcional: `callback(current, total, message)`
     """
     root = Path(root_path)
     if not root.exists() or not root.is_dir():
         raise ValueError(f"Path {root_path} is not a valid directory")
-        
+
+    # Primeira passada: conta total de arquivos para progresso
+    total = count_files_in_path(root_path)
+    current = 0
+
+    def _report(msg):
+        nonlocal current
+        current += 1
+        if progress_callback:
+            progress_callback(min(current, total), total, msg)
+
     # 1. Walk directory and insert/update items
     for entry in sorted(root.iterdir()):
         if entry.is_file() and entry.suffix.lower() in SUPPORTED_EXTENSIONS:
@@ -53,6 +80,7 @@ def scan_library_folder(db: Session, root_path: str):
                     parent_id=None
                 )
                 db.add(new_item)
+            _report(str(entry.name))
                 
         elif entry.is_dir():
             # Series candidate
@@ -116,6 +144,7 @@ def scan_library_folder(db: Session, root_path: str):
                             parent_id=db_series.id
                         )
                         db.add(new_child)
+                        _report(str(child.name))
                         
                 # Update series cover if missing
                 if not db_series.cover_path or not os.path.exists(db_series.cover_path):
