@@ -116,8 +116,6 @@ uvicorn main:app --reload
 
 Abra `frontend/index.html` em um servidor local ou via Electron.
 
-> ⚠️ **Nunca suba o `.env` para o GitHub.** Use o `.env.example` como referência e mantenha o `.env` no `.gitignore`.
-
 ---
 
 ## 📦 Tecnologias
