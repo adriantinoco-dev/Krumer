@@ -498,7 +498,12 @@
       </div>
       <div id="metadata-select-grid" class="book-grid metadata-select-grid"></div>
       <div class="metadata-select-footer">
-        <span id="metadata-select-counter" class="contador-selecao">0 de 10 obras selecionadas</span>
+        <div class="selecao-counter-wrap">
+          <div class="selecao-progress-bar">
+            <div id="selecao-progress-fill" class="selecao-progress-fill"></div>
+          </div>
+          <span id="metadata-select-counter" class="contador-selecao">0 de 10 obras selecionadas</span>
+        </div>
         <div style="display:flex; gap:10px;">
           <button type="button" id="btn-metadata-select-cancel" class="btn btn-secondary">Cancelar</button>
           <button type="button" id="btn-metadata-fetch" class="btn btn-primary" disabled>Buscar Metadados</button>
@@ -632,6 +637,29 @@
       <div style="display:flex; justify-content:center; gap:10px;">
         <button type="button" id="btn-close-apikeyreq" class="btn btn-secondary">Cancelar</button>
         <button type="button" id="btn-go-settings-apikey" class="btn btn-primary">Configurar chave da API</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rate Limit Warning Modal -->
+  <div id="rate-limit-modal" class="modal-backdrop">
+    <div class="modal-card" style="width: 420px;">
+      <div class="modal-header">
+        <h2 class="modal-title">Limite excedido</h2>
+        <button id="close-ratelimit-modal" class="close-btn">&times;</button>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; text-align:center; padding:8px 0 4px;">
+        <svg width="48" height="48" fill="none" stroke="var(--accent)" viewBox="0 0 24 24" style="margin-bottom:16px;">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z">
+          </path>
+        </svg>
+        <p id="rate-limit-message" style="font-size:14px; line-height:1.7; color:var(--text-secondary); margin-bottom:16px;">
+          Limite de requisições à API Gemini excedido.
+        </p>
+      </div>
+      <div style="display:flex; justify-content:center; gap:10px;">
+        <button type="button" id="btn-close-ratelimit" class="btn btn-primary">OK</button>
       </div>
     </div>
   </div>

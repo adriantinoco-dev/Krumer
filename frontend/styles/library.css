@@ -994,9 +994,35 @@
   border-top: 1px solid var(--border);
 }
 
+.selecao-counter-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  max-width: 320px;
+}
+
+.selecao-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-primary);
+  border-radius: 3px;
+  overflow: hidden;
+  min-width: 60px;
+}
+
+.selecao-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.25s ease;
+}
+
 .contador-selecao {
   font-size: 12px;
   color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .book-card.metadata-select-card {

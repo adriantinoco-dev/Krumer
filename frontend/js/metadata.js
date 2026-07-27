@@ -43,6 +43,7 @@ class MetadataManager {
 
     // Diálogo "chave necessária" — abre settings
     this._setupApiKeyRequiredDialog();
+    this._setupRateLimitDialog();
   }
 
   _setupApiKeyRequiredDialog() {
@@ -61,6 +62,21 @@ class MetadataManager {
         window.app.openSettingsModal();
       }
     });
+  }
+
+  _setupRateLimitDialog() {
+    const modal = document.getElementById('rate-limit-modal');
+    if (!modal) return;
+    const close = (e) => { if (e.target === modal) this.fecharModal('rate-limit-modal'); };
+    modal.addEventListener('click', close);
+    document.getElementById('close-ratelimit-modal')?.addEventListener('click', () => this.fecharModal('rate-limit-modal'));
+    document.getElementById('btn-close-ratelimit')?.addEventListener('click', () => this.fecharModal('rate-limit-modal'));
+  }
+
+  _mostrarRateLimit(msg) {
+    const el = document.getElementById('rate-limit-message');
+    if (el) el.textContent = msg;
+    this.abrirModal('rate-limit-modal');
   }
 
   setProcessando(ativo) {
@@ -204,12 +220,16 @@ class MetadataManager {
 
   atualizarContadorSelecao() {
     const counter = document.getElementById('metadata-select-counter');
+    const fill = document.getElementById('selecao-progress-fill');
     const btn = document.getElementById('btn-metadata-fetch');
     const n = this.selecionados.length;
     const lim = this.limite;
 
     if (counter) {
       counter.textContent = `${n} de ${lim} ${lim === 1 ? 'obra selecionada' : 'obras selecionadas'}`;
+    }
+    if (fill) {
+      fill.style.width = `${(n / lim) * 100}%`;
     }
     if (btn) btn.disabled = n === 0;
   }
@@ -235,7 +255,7 @@ class MetadataManager {
         onError: (msg) => {
           this.esconderProgresso();
           this.setProcessando(false);
-          this.app.showToast(msg);
+          this._mostrarRateLimit(msg);
         },
       });
     } catch (err) {

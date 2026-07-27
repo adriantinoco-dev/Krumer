@@ -169,6 +169,8 @@ def obter_metadados_gemini(titulo_limpo: str, api_key: str | None = None) -> dic
         system_instruction=SYSTEM_INSTRUCTION,
     )
 
+    rate_limited = False
+
     for modelo in MODELOS:
         try:
             response = client.models.generate_content(
@@ -184,9 +186,19 @@ def obter_metadados_gemini(titulo_limpo: str, api_key: str | None = None) -> dic
             raise
         except Exception as e:
             err_str = str(e)
-            if any(code in err_str for code in ["404", "NOT_FOUND", "429", "RESOURCE_EXHAUSTED"]):
+            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                rate_limited = True
+                continue
+            if "404" in err_str or "NOT_FOUND" in err_str:
                 continue
             continue
+
+    if rate_limited:
+        raise MetadataServiceError(
+            "Limite de requisições à API Gemini excedido. "
+            "O plano gratuito permite aproximadamente 20 requisições por minuto. "
+            "Aguarde alguns minutos e tente novamente."
+        )
 
     return None
 
@@ -217,12 +229,14 @@ def processar_arquivo_livro(
                 metadados = cached.get("metadados")
                 status = cached.get("status")
                 if metadados is not None and status != "not_found":
-                    return {
-                        "item_id": item_id,
-                        "arquivo_original": nome_arquivo,
-                        "titulo_limpo": cached.get("titulo_limpo", cache_key),
-                        "metadados": metadados,
-                    }
+                    nome_da_obra = metadados.get("nome_da_obra") if isinstance(metadados, dict) else None
+                    if nome_da_obra:
+                        return {
+                            "item_id": item_id,
+                            "arquivo_original": nome_arquivo,
+                            "titulo_limpo": cached.get("titulo_limpo", cache_key),
+                            "metadados": metadados,
+                        }
 
     # Usa query_direta se disponível; caso contrário, limpa o nome do arquivo
     titulo_limpo = query_direta if query_direta else limpar_nome_arquivo(nome_arquivo)
@@ -238,12 +252,17 @@ def processar_arquivo_livro(
     if use_cache:
         cache = _load_json_file(CACHE_PATH)
         if metadados is not None:
-            cache[cache_key] = {
-                "status": "found",
-                "titulo_limpo": titulo_limpo,
-                "metadados": metadados,
-            }
-            _save_json_file(CACHE_PATH, cache)
+            nome_da_obra = metadados.get("nome_da_obra") if isinstance(metadados, dict) else None
+            if nome_da_obra:
+                cache[cache_key] = {
+                    "status": "found",
+                    "titulo_limpo": titulo_limpo,
+                    "metadados": metadados,
+                }
+                _save_json_file(CACHE_PATH, cache)
+            elif cache_key in cache:
+                del cache[cache_key]
+                _save_json_file(CACHE_PATH, cache)
         elif cache_key in cache:
             del cache[cache_key]
             _save_json_file(CACHE_PATH, cache)
