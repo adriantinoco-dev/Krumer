@@ -6,6 +6,7 @@ class AppController {
   constructor() {
     this.libraryManager = new LibraryManager();
     this.metadataManager = new MetadataManager(this);
+    this.isOnboarding = false;
   }
 
   async init() {
@@ -13,9 +14,11 @@ class AppController {
     this.setupSearchAndFilter();
     this.setupModals();
     this.setupSettingsModal();
+    this.setupOnboarding();
     this.metadataManager.init();
     await this.libraryManager.init();
     await this.checkApiKeyStatus();
+    await this.checkOnboarding();
   }
 
   setupNavigation() {
@@ -137,9 +140,15 @@ class AppController {
           this.closeScanModal();
 
           await LibraryAPI.scanFolder(path);
-          this.showToast('Escaneamento concluído com sucesso!');
-          this.libraryManager.loadTags();
-          this.libraryManager.loadItems();
+
+          if (this.isOnboarding) {
+            // Onboarding: mostrar tela de sucesso em vez do fluxo normal
+            await this.onbScanComplete();
+          } else {
+            this.showToast('Escaneamento concluído com sucesso!');
+            this.libraryManager.loadTags();
+            this.libraryManager.loadItems();
+          }
         } catch (err) {
           console.error(err);
           this.showToast(`Erro ao escanear: ${err.message}`);
@@ -486,6 +495,11 @@ class AppController {
           this._renderApiKeyStatus(true);
           this.closeSettingsModal();
           await this.checkApiKeyStatus();
+
+          // Se estiver no onboarding, atualiza o passo 1
+          if (this.isOnboarding) {
+            this._updateOnbStepStatus(1, true);
+          }
         } catch (err) {
           console.error(err);
           this.showToast(`Erro ao salvar chave: ${err.message}`);
@@ -547,6 +561,123 @@ class AppController {
     } else {
       statusEl.classList.add('is-missing');
       textEl.textContent = 'Nenhuma chave do Gemini configurada ainda.';
+    }
+  }
+
+  // ============================================================
+  // Onboarding (Fase 5 — Primeiro Uso)
+  // ============================================================
+
+  async checkOnboarding() {
+    try {
+      const status = await LibraryAPI.getApiKeyStatus();
+      const hasApiKey = status.configured;
+
+      const onboardingStatus = await LibraryAPI.getOnboardingStatus();
+
+      if (onboardingStatus.is_first_use) {
+        this.isOnboarding = true;
+        // Desfoca o app root ao fundo e mostra onboarding por cima
+        const appRoot = document.getElementById('app-root');
+        if (appRoot) appRoot.classList.add('app-root--blurred');
+        const overlay = document.getElementById('onboarding-overlay');
+        if (overlay) overlay.style.display = 'flex';
+
+        // Se já tem chave configurada, marca passo 1 como feito
+        if (hasApiKey) {
+          this._updateOnbStepStatus(1, true);
+        }
+      }
+    } catch (err) {
+      console.warn('Não foi possível verificar status de onboarding:', err);
+    }
+  }
+
+  setupOnboarding() {
+    // Passo 1: Configurar chave
+    const btnApiKey = document.getElementById('onb-btn-apikey');
+    if (btnApiKey) {
+      btnApiKey.addEventListener('click', () => this.openSettingsModal());
+    }
+
+    // Passo 2: Selecionar pasta (abre o modal de scan)
+    const btnScan = document.getElementById('onb-btn-scan');
+    if (btnScan) {
+      btnScan.addEventListener('click', () => this.openScanModal());
+    }
+
+    // "Começar" — encerra onboarding
+    const btnStart = document.getElementById('onb-btn-start');
+    if (btnStart) {
+      btnStart.addEventListener('click', () => this.hideOnboarding());
+    }
+
+    // "Pular" — encerra onboarding sem configurar nada
+    const btnSkip = document.getElementById('onb-btn-skip');
+    if (btnSkip) {
+      btnSkip.addEventListener('click', () => this.hideOnboarding());
+    }
+  }
+
+  hideOnboarding() {
+    this.isOnboarding = false;
+    const overlay = document.getElementById('onboarding-overlay');
+    if (overlay) overlay.style.display = 'none';
+
+    const appRoot = document.getElementById('app-root');
+    if (appRoot) appRoot.classList.remove('app-root--blurred');
+
+    // Recarrega biblioteca agora que o app está visível
+    this.libraryManager.loadTags();
+    this.libraryManager.loadItems();
+    this.checkApiKeyStatus();
+  }
+
+  _updateOnbStepStatus(step, done) {
+    const stepEl = document.getElementById(`onb-step-${step}`);
+    if (!stepEl) return;
+    if (done) {
+      stepEl.classList.add('is-done');
+    } else {
+      stepEl.classList.remove('is-done');
+    }
+
+    // Atualiza o texto de status do passo
+    const statusEl = document.getElementById(`onb-status-${step === 1 ? 'apikey' : 'scan'}`);
+    if (statusEl) {
+      if (done) {
+        statusEl.innerHTML = '<svg class="check-icon" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> Concluído';
+        statusEl.classList.add('is-visible');
+      } else {
+        statusEl.innerHTML = '';
+        statusEl.classList.remove('is-visible');
+      }
+    }
+
+    // Habilita "Começar" se passo 2 estiver concluído
+    if (step === 2 && done) {
+      const btnStart = document.getElementById('onb-btn-start');
+      if (btnStart) btnStart.disabled = false;
+    }
+  }
+
+  async onbScanComplete() {
+    // Busca contagem atualizada de itens
+    let itemsCount = 0;
+    try {
+      const data = await LibraryAPI.getOnboardingStatus();
+      itemsCount = data.items_count || 0;
+    } catch (_) {}
+
+    // Marca passo 2 como concluído
+    this._updateOnbStepStatus(2, true);
+
+    // Mostra status inline igual ao da chave de API
+    const resultEl = document.getElementById('onb-scan-result');
+    const textEl = document.getElementById('onb-scan-result-text');
+    if (resultEl && textEl) {
+      textEl.textContent = `${itemsCount} ${itemsCount === 1 ? 'livro encontrado' : 'livros encontrados'}!`;
+      resultEl.style.display = 'flex';
     }
   }
 
@@ -716,6 +847,13 @@ document.addEventListener('keydown', (e) => {
   const detailsView = document.getElementById('book-details-view');
   if (detailsView && detailsView.style.display !== 'none') {
     if (window.app) window.app.libraryManager.closeBookDetails();
+    return;
+  }
+
+  // 9. Onboarding overlay?
+  const onboardingOverlay = document.getElementById('onboarding-overlay');
+  if (onboardingOverlay && onboardingOverlay.style.display !== 'none'
+      && !document.querySelector('.modal-backdrop.active')) {
     return;
   }
 });

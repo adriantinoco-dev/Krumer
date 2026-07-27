@@ -1,0 +1,222 @@
+/* ==========================================================================
+   Krumer — Onboarding Overlay (Fase 5)
+   ========================================================================== */
+
+.onboarding-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 400;
+  background-color: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+}
+
+/* Quando onboarding está ativo, desfoca o app root ao fundo */
+#app-root.app-root--blurred {
+  filter: blur(4px);
+  pointer-events: none;
+  transition: filter 0.3s ease;
+}
+
+.onboarding-container {
+  width: 640px;
+  max-width: 92vw;
+  padding: 32px 36px 28px;
+  text-align: center;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+/* --- Hero --- */
+.onboarding-hero {
+  margin-bottom: 24px;
+}
+
+.onboarding-logo-wrap {
+  margin-bottom: 12px;
+}
+
+.onboarding-logo-img {
+  width: 60px;
+  height: 60px;
+}
+
+.onboarding-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 4px;
+}
+
+.onboarding-subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* --- Steps side by side --- */
+.onboarding-steps {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 24px;
+  text-align: left;
+}
+
+.onboarding-step {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  border-radius: var(--radius);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.onboarding-step.is-done {
+  border-color: rgba(34, 197, 94, 0.35);
+  background-color: rgba(34, 197, 94, 0.04);
+}
+
+.onb-step-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.onb-step-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  min-width: 26px;
+  border-radius: 50%;
+  background-color: var(--bg-sidebar);
+  border: 1px solid var(--border-light);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.onboarding-step.is-done .onb-step-badge {
+  background-color: rgba(34, 197, 94, 0.15);
+  border-color: #22c55e;
+  color: #22c55e;
+}
+
+.onb-step-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.onb-step-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.onb-step-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.onb-action-btn {
+  font-size: 11px;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+
+.onb-step-status {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: none;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.onb-step-status.is-visible {
+  display: inline-flex;
+}
+
+.onb-step-status .check-icon {
+  color: #22c55e;
+}
+
+/* --- Action Buttons --- */
+.onboarding-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.onb-scan-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  background-color: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.40);
+  color: #86efac;
+  font-size: 13px;
+  font-weight: 500;
+  width: 100%;
+  justify-content: center;
+}
+
+.onb-scan-result-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
+  flex-shrink: 0;
+}
+
+.onb-btn-start {
+  min-width: 180px;
+  padding: 10px 28px;
+  font-size: 13px;
+  font-weight: 600;
+  justify-content: center;
+}
+
+.onb-btn-start:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.onb-btn-skip {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  padding: 10px 22px;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.onb-btn-skip:hover {
+  color: var(--text-secondary);
+}

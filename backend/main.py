@@ -198,6 +198,26 @@ def update_api_key(payload: ApiKeyPayload):
     return {"status": "success", "message": "Chave do Gemini salva e validada com sucesso."}
 
 
+@app.get("/onboarding/status")
+def get_onboarding_status(db: Session = Depends(get_db)):
+    """
+    Retorna o status de onboarding: se é primeiro uso, se há chave configurada,
+    se há pasta escaneada, e a contagem de itens na biblioteca.
+    """
+    from metadata_service import get_api_key as _get_key
+    item_count = db.query(Item).count()
+    last_scanned = db.query(Setting).filter(Setting.key == "last_scanned_path").first()
+    has_folder = bool(last_scanned and last_scanned.value)
+    has_api_key = bool(_get_key())
+
+    return {
+        "is_first_use": item_count == 0 and not has_folder,
+        "items_count": item_count,
+        "has_api_key": has_api_key,
+        "has_folder": has_folder,
+    }
+
+
 @app.post("/scan")
 def scan_directory_route(payload: ScanPayload, db: Session = Depends(get_db)):
     """Scans a directory on the host computer, indexing files and generating covers."""

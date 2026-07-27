@@ -245,6 +245,14 @@ class LibraryAPI {
     if (!res.ok) throw new Error(data.detail || 'Erro ao salvar chave da API');
     return data;
   }
+
+  /**
+   * Retorna o status de onboarding (primeiro uso, contagem de itens, etc.).
+   */
+  static async getOnboardingStatus() {
+    const res = await fetch(`${API_BASE_URL}/onboarding/status`);
+    return await res.json();
+  }
 }
 
 window.LibraryAPI = LibraryAPI;

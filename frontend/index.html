@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="styles/library.css?v=1.5">
   <link rel="stylesheet" href="styles/reader.css?v=1.0">
   <link rel="stylesheet" href="styles/settings.css?v=1.0">
+  <link rel="stylesheet" href="styles/onboarding.css?v=1.0">
 </head>
 
 <body>
@@ -633,6 +634,83 @@
         <button type="button" id="btn-go-settings-apikey" class="btn btn-primary">Configurar chave da API</button>
       </div>
     </div>
+  </div>
+
+  <!-- Onboarding Overlay (Fase 5 — Primeiro Uso) -->
+  <div id="onboarding-overlay" class="onboarding-overlay" style="display:none;">
+    <div class="onboarding-container">
+
+      <!-- Tela de boas-vindas -->
+      <div id="onboarding-welcome">
+        <div class="onboarding-hero">
+          <div class="onboarding-logo-wrap">
+            <img src="assets/Krumer-logo.svg" alt="Krumer" class="onboarding-logo-img">
+          </div>
+          <h1 class="onboarding-title">Bem-vindo ao Krumer</h1>
+          <p class="onboarding-subtitle">Sua biblioteca pessoal para EPUBs, PDFs e quadrinhos.</p>
+        </div>
+
+        <div class="onboarding-steps">
+          <!-- Passo 1: Chave da API -->
+          <div class="onboarding-step" id="onb-step-1">
+            <div class="onb-step-head">
+              <span class="onb-step-badge">1</span>
+              <h3 class="onb-step-title">Chave da API</h3>
+            </div>
+            <p class="onb-step-desc">
+              Configure sua chave do Gemini AI Studio para buscar capas e metadados automaticamente.
+            </p>
+            <div class="onb-step-actions">
+              <button id="onb-btn-apikey" class="btn btn-secondary onb-action-btn">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z">
+                  </path>
+                </svg>
+                Configurar
+              </button>
+              <span class="onb-step-status" id="onb-status-apikey"></span>
+            </div>
+          </div>
+
+          <!-- Passo 2: Selecionar pasta -->
+          <div class="onboarding-step" id="onb-step-2">
+            <div class="onb-step-head">
+              <span class="onb-step-badge">2</span>
+              <h3 class="onb-step-title">Adicionar livros</h3>
+            </div>
+            <p class="onb-step-desc">
+              Selecione uma pasta com arquivos EPUB, PDF ou CBR/CBZ para importar para sua biblioteca.
+            </p>
+            <div class="onb-step-actions">
+              <button id="onb-btn-scan" class="btn btn-primary onb-action-btn">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z">
+                  </path>
+                </svg>
+                Selecionar pasta
+              </button>
+              <span class="onb-step-status" id="onb-status-scan"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="onboarding-actions">
+          <div id="onb-scan-result" class="onb-scan-result" style="display:none;">
+            <span class="onb-scan-result-dot"></span>
+            <span id="onb-scan-result-text" class="onb-scan-result-text"></span>
+          </div>
+          <button id="onb-btn-start" class="btn btn-primary onb-btn-start" disabled>
+            Começar
+          </button>
+          <button id="onb-btn-skip" class="btn btn-secondary onb-btn-skip">
+            Pular e configurar depois
+          </button>
+        </div>
+      </div>
+
+  </div>
   </div>
 
   <!-- Scripts -->
