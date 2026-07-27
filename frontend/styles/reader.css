@@ -489,3 +489,11 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* EPUB: desativa padding padrão e centralização do PDF */
+#reader-container.epub-mode {
+  padding: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-start;
+}

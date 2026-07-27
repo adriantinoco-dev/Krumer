@@ -1,11 +1,14 @@
 import os
 import json
+import io
+import zipfile
+import mimetypes
 import datetime
 from pathlib import Path
 from typing import List, Optional
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -533,19 +536,108 @@ def get_book_cover_image(id: int, db: Session = Depends(get_db)):
     return FileResponse(item.cover_path, media_type="image/png")
 
 @app.get("/files")
-def serve_media_file(path: str):
-    """Serves the actual book/chapter media file (EPUB/PDF) supporting HTTP Range requests."""
+def serve_media_file(path: str, request: Request):
+    """Serves the actual book/chapter media file (EPUB/PDF) with HTTP Range request support."""
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="File not found")
     if not os.path.isfile(path):
         raise HTTPException(status_code=400, detail="Path is not a file")
-        
+
     suffix = Path(path).suffix.lower()
     if suffix not in SUPPORTED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Unsupported file format")
-        
+
     media_type = "application/epub+zip" if suffix == ".epub" else "application/pdf"
-    return FileResponse(path, media_type=media_type)
+    file_size = os.path.getsize(path)
+    range_header = request.headers.get("range")
+
+    if range_header:
+        try:
+            range_value = range_header.strip().replace("bytes=", "")
+            start_str, end_str = range_value.split("-")
+            start = int(start_str)
+            end = int(end_str) if end_str else file_size - 1
+        except Exception:
+            raise HTTPException(status_code=416, detail="Invalid Range header")
+
+        if start > end or end >= file_size:
+            raise HTTPException(status_code=416, detail="Range Not Satisfiable")
+
+        chunk_size = end - start + 1
+
+        def iter_file():
+            with open(path, "rb") as f:
+                f.seek(start)
+                remaining = chunk_size
+                while remaining > 0:
+                    data = f.read(min(65536, remaining))
+                    if not data:
+                        break
+                    remaining -= len(data)
+                    yield data
+
+        return StreamingResponse(
+            iter_file(),
+            status_code=206,
+            media_type=media_type,
+            headers={
+                "Content-Range": f"bytes {start}-{end}/{file_size}",
+                "Accept-Ranges": "bytes",
+                "Content-Length": str(chunk_size),
+            },
+        )
+
+    return FileResponse(
+        path,
+        media_type=media_type,
+        headers={
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(file_size),
+        },
+    )
+
+
+@app.get("/epub-resource")
+def serve_epub_resource(epub: str, resource: str):
+    """Serves a specific internal resource from an EPUB file (chapter, image, CSS, etc.)."""
+    if not os.path.exists(epub):
+        raise HTTPException(status_code=404, detail="EPUB file not found")
+    if not epub.lower().endswith(".epub"):
+        raise HTTPException(status_code=400, detail="Not an EPUB file")
+
+    try:
+        with zipfile.ZipFile(epub, "r") as zf:
+            internal_path = resource.lstrip("/")
+            try:
+                data = zf.read(internal_path)
+            except KeyError:
+                raise HTTPException(status_code=404, detail=f"Resource not found in EPUB: {internal_path}")
+
+        mime, _ = mimetypes.guess_type(internal_path)
+        if not mime:
+            ext = Path(internal_path).suffix.lower()
+            mime = {
+                ".html": "text/html",
+                ".xhtml": "application/xhtml+xml",
+                ".css": "text/css",
+                ".js": "application/javascript",
+                ".png": "image/png",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".gif": "image/gif",
+                ".svg": "image/svg+xml",
+                ".ttf": "font/ttf",
+                ".otf": "font/otf",
+                ".woff": "font/woff",
+                ".woff2": "font/woff2",
+                ".ncx": "application/x-dtbncx+xml",
+                ".opf": "application/oebps-package+xml",
+                ".xml": "application/xml",
+            }.get(ext, "application/octet-stream")
+
+        return StreamingResponse(io.BytesIO(data), media_type=mime)
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="Invalid EPUB/ZIP file")
 
 @app.get("/browse-folder")
 def browse_folder_native_dialog():

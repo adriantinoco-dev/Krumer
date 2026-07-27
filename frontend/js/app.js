@@ -791,6 +791,9 @@ function closeReader() {
   if (typeof closePdf === 'function') {
     closePdf();
   }
+  if (typeof closeEpub === 'function') {
+    closeEpub();
+  }
 
   // Recarregar biblioteca/detalhes para atualizar badges de progresso
   if (window.app && window.app.libraryManager) {
@@ -815,7 +818,11 @@ function openReader(item, filePath) {
       alert('Leitor de PDF não carregado adequadamente.');
     }
   } else if (ext === 'epub') {
-    alert(`Leitor de EPUB selecionado para "${item.title}". (EPUB.js será integrado no próximo módulo)`);
+    if (typeof openEpub === 'function') {
+      openEpub(item, pathToOpen);
+    } else {
+      alert('Leitor de EPUB não carregado adequadamente.');
+    }
   } else {
     // Fallback padrão para PDF
     if (typeof openPdf === 'function') {

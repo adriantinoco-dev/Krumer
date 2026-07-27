@@ -1,0 +1,179 @@
+/* ==========================================================================
+   Krumer Personal Library - EPUB Reader Styles
+   Complementa reader.css com estilos específicos do leitor EPUB
+   ========================================================================== */
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Área de renderização do epub.js
+   ────────────────────────────────────────────────────────────────────────── */
+
+#reader-container.epub-mode {
+  display: flex;
+  flex-direction: row;
+  padding: 0;
+  overflow: hidden;
+  background-color: #0d0d0d;
+}
+
+#epub-render-area {
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* O epub.js cria um iframe interno; garante que ele ocupe todo o espaço */
+#epub-render-area iframe {
+  border: none;
+  display: block;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Painel de sumário (TOC)
+   ────────────────────────────────────────────────────────────────────────── */
+
+#epub-toc-panel {
+  position: absolute;
+  top: 60px; /* logo abaixo do header do reader */
+  left: 0;
+  width: 280px;
+  height: calc(100vh - 60px);
+  background-color: var(--bg-secondary, #161616);
+  border-right: 1px solid var(--border, #2e2e2e);
+  overflow-y: auto;
+  z-index: 500;
+  transform: translateX(-100%);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
+}
+
+#epub-toc-panel.active {
+  transform: translateX(0);
+}
+
+/* Header do painel */
+#epub-toc-panel::before {
+  content: 'Sumário';
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted, #888);
+  padding: 16px 16px 8px;
+  border-bottom: 1px solid var(--border, #2e2e2e);
+  position: sticky;
+  top: 0;
+  background-color: var(--bg-secondary, #161616);
+  z-index: 1;
+}
+
+/* Lista de capítulos */
+.epub-toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0;
+}
+
+.epub-toc-item {
+  margin: 0;
+}
+
+.epub-toc-btn {
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 9px 16px;
+  font-size: 13px;
+  color: var(--text-secondary, #ccc);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  line-height: 1.4;
+  border-radius: 0;
+}
+
+.epub-toc-btn:hover {
+  background-color: var(--bg-card-hover, #1e1e1e);
+  color: var(--accent, #f97316);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Botões de tema
+   ────────────────────────────────────────────────────────────────────────── */
+
+.epub-theme-buttons {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.epub-theme-btn {
+  flex: 1;
+  background-color: var(--bg-card, #202020);
+  border: 1px solid var(--border, #2e2e2e);
+  color: var(--text-secondary, #ccc);
+  border-radius: var(--radius-sm, 4px);
+  padding: 6px 0;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.epub-theme-btn:hover {
+  background-color: var(--bg-card-hover, #262626);
+  border-color: var(--border-light, #3a3a3a);
+  color: var(--text-primary, #f1f1f1);
+}
+
+.epub-theme-btn.active {
+  background-color: rgba(249, 115, 22, 0.15);
+  border-color: var(--accent, #f97316);
+  color: var(--accent, #f97316);
+  font-weight: 600;
+}
+
+/* Ícone visual de amostra de tema nos botões */
+.epub-theme-btn[data-theme="light"] {
+  background-color: #f0f0f0;
+  color: #333;
+  border-color: #ccc;
+}
+.epub-theme-btn[data-theme="light"]:hover,
+.epub-theme-btn[data-theme="light"].active {
+  background-color: #e0e0e0;
+  border-color: var(--accent, #f97316);
+  color: var(--accent, #f97316);
+}
+
+.epub-theme-btn[data-theme="sepia"] {
+  background-color: #f4ede0;
+  color: #5c4a32;
+  border-color: #d4c0a0;
+}
+.epub-theme-btn[data-theme="sepia"]:hover,
+.epub-theme-btn[data-theme="sepia"].active {
+  background-color: #e8dccf;
+  border-color: var(--accent, #f97316);
+  color: var(--accent, #f97316);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Indicador de progresso na toolbar
+   ────────────────────────────────────────────────────────────────────────── */
+
+#epub-progress-label {
+  min-width: 36px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Responsividade mínima
+   ────────────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  #epub-toc-panel {
+    width: 100%;
+  }
+}
