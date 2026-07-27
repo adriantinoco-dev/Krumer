@@ -1,0 +1,15 @@
+# Variáveis de ambiente — NUNCA subir pro GitHub
+backend/.env
+.env
+
+# Cache do Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Assets (ícone e logo grandes)
+frontend/assets/
+
+# Dependências (se usar venv)
+venv/
+.venv/
