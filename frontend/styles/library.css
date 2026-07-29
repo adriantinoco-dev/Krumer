@@ -41,9 +41,22 @@
 /* Streaming Grid Layout */
 .book-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 24px 16px;
   flex: 1;
+}
+
+@media (min-width: 1600px) {
+  .book-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .book-grid {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 16px 12px;
+  }
 }
 
 /* Estado Vazio - Centralizado vertical e horizontalmente (implementacoes.md §2) */

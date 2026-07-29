@@ -7,9 +7,6 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Assets (ícone e logo grandes)
-frontend/assets/
-
 # Dependências (se usar venv)
 venv/
 .venv/
