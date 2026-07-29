@@ -45,6 +45,14 @@
   --sidebar-active-bar:      #e87c2a;
   --sidebar-active-text:     rgba(232, 124, 42, 0.90);
   --sidebar-section:         rgba(255, 255, 255, 0.20);
+
+  /* Hero vignette — valor RGB sem alpha, usado com rgba() no overlay */
+  --hero-vignette: 17, 17, 17;
+
+  /* Tokens fixos para texto sobre o hero banner (sempre escuro/borrado) */
+  --hero-text-primary:   rgba(255, 255, 255, 0.95);
+  --hero-text-secondary: rgba(255, 255, 255, 0.68);
+  --hero-text-muted:     rgba(255, 255, 255, 0.48);
 }
 
 /* Reset & Base Styles */
@@ -74,7 +82,7 @@ body {
   background: var(--bg-primary);
 }
 ::-webkit-scrollbar-thumb {
-  background: #333333;
+  background: var(--border-light);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
@@ -116,10 +124,10 @@ body {
   width: var(--sidebar-width-expanded);
   background: linear-gradient(
     to right,
-    #1c1c1e 0%,
-    #1c1c1e 160px,
-    rgba(28, 28, 30, 0.85) 210px,
-    rgba(28, 28, 30, 0) 100%
+    var(--sidebar-bg) 0%,
+    var(--sidebar-bg) 160px,
+    color-mix(in srgb, var(--sidebar-bg) 85%, transparent) 210px,
+    transparent 100%
   );
   border-right: none;
 }
@@ -485,4 +493,71 @@ body {
 .btn-rescan.spinning #rescan-icon,
 #rescan-icon.spin {
   animation: spin 0.8s linear infinite;
+}
+
+/* ============================================================
+   THEME OVERRIDES — Tema Claro e Sépia
+   ============================================================ */
+
+html[data-theme="light"] {
+  --bg-primary:    #ffffff;
+  --bg-secondary:  #f5f5f5;
+  --bg-sidebar:    #f0f0f0;
+  --bg-card:       #ffffff;
+  --bg-card-hover: #ececec;
+  --bg-modal:      #ffffff;
+
+  --text-primary:   #1a1a1a;
+  --text-secondary: #4a4a4a;
+  --text-muted:     #777777;
+
+  --border:       #e0e0e0;
+  --border-light: #d0d0d0;
+
+  --sidebar-bg:         #f7f7f7;
+  --sidebar-border:     rgba(0, 0, 0, 0.08);
+  --sidebar-text:       rgba(0, 0, 0, 0.55);
+  --sidebar-text-hover: rgba(0, 0, 0, 0.90);
+
+  --hero-vignette: 245, 245, 245;
+}
+
+html[data-theme="sepia"] {
+  --bg-primary:    #f4ecd8;
+  --bg-secondary:  #ece2c8;
+  --bg-sidebar:    #e8ddc0;
+  --bg-card:       #f0e6cc;
+  --bg-card-hover: #e6dab8;
+  --bg-modal:      #f4ecd8;
+
+  --text-primary:   #3b2f1e;
+  --text-secondary: #5c4c33;
+  --text-muted:     #8a7a5c;
+
+  --border:       #d8c9a3;
+  --border-light: #cbb98d;
+
+  --sidebar-bg:         #ece1c4;
+  --sidebar-border:     rgba(59, 47, 30, 0.12);
+  --sidebar-text:       rgba(59, 47, 30, 0.60);
+  --sidebar-text-hover: rgba(59, 47, 30, 0.90);
+
+  /* Vinheta clara (tom do próprio --bg-primary do tema), igual à
+     abordagem usada no tema Light — evita o "borrão preto" no
+     hero banner da página de detalhes. */
+  --hero-vignette: 244, 236, 216;
+}
+
+/* ============================================================
+   Theme-specific overrides for settings status text
+   ============================================================ */
+
+html[data-theme="light"] .settings-status.is-configured,
+html[data-theme="sepia"] .settings-status.is-configured {
+  color: #15803d;
+}
+
+html[data-theme="light"] .settings-status.error,
+html[data-theme="sepia"] .settings-status.error {
+  color: #b91c1c;
 }

@@ -10,6 +10,7 @@ class AppController {
   }
 
   async init() {
+    this.loadSavedTheme();
     this.setupNavigation();
     this.setupSearchAndFilter();
     this.setupModals();
@@ -472,6 +473,25 @@ class AppController {
       bannerBtn.addEventListener('click', () => this.openSettingsModal());
     }
 
+    // Alternar entre os menus do modal (Geral / Temas)
+    document.querySelectorAll('.settings-menu-item').forEach(item => {
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.settings-menu-item').forEach(i => i.classList.remove('active'));
+        document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
+
+        item.classList.add('active');
+        const panelName = item.dataset.settingsPanel;
+        document.querySelector(`.settings-panel[data-panel="${panelName}"]`).classList.add('active');
+      });
+    });
+
+    // Selecionar um tema
+    document.querySelectorAll('.theme-option-card').forEach(card => {
+      card.addEventListener('click', () => {
+        this.applyTheme(card.dataset.themeValue);
+      });
+    });
+
     // Submit form
     const form = document.getElementById('settings-api-key-form');
     if (form) {
@@ -742,6 +762,28 @@ class AppController {
   _hideScanProgress() {
     const toast = document.getElementById('scan-progress-toast');
     if (toast) toast.remove();
+  }
+
+  // ============================================================
+  // Theme Management
+  // ============================================================
+
+  applyTheme(themeName) {
+    const VALID_THEMES = ['dark', 'light', 'sepia'];
+    const THEME_STORAGE_KEY = 'krumer-theme';
+    const theme = VALID_THEMES.includes(themeName) ? themeName : 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+
+    document.querySelectorAll('.theme-option-card').forEach(card => {
+      card.classList.toggle('active', card.dataset.themeValue === theme);
+    });
+  }
+
+  loadSavedTheme() {
+    const THEME_STORAGE_KEY = 'krumer-theme';
+    const saved = localStorage.getItem(THEME_STORAGE_KEY);
+    this.applyTheme(saved || 'dark');
   }
 
   showToast(message) {

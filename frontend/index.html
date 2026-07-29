@@ -562,55 +562,97 @@
     </main>
   </div>
 
-  <!-- Settings Modal (Fase 1 — Chave de API Gemini) -->
+  <!-- Settings Modal with Sidebar Menus -->
   <div id="settings-modal" class="modal-backdrop">
-    <div class="modal-card" style="width: 520px;">
+    <div class="modal-card settings-modal-card" style="width: 720px;">
       <div class="modal-header">
         <h2 class="modal-title">Configurações</h2>
         <button id="close-settings-modal" class="close-btn">&times;</button>
       </div>
 
-      <!-- Status atual da chave -->
-      <div id="settings-api-status" class="settings-status" style="display:none;">
-        <span class="settings-status-dot"></span>
-        <span class="settings-status-text">Verificando…</span>
+      <div class="settings-layout">
+        <!-- Menu lateral -->
+        <nav class="settings-sidebar">
+          <button class="settings-menu-item active" data-settings-panel="geral">Geral</button>
+          <button class="settings-menu-item" data-settings-panel="temas">Temas</button>
+        </nav>
+
+        <!-- Painéis de conteúdo -->
+        <div class="settings-content">
+
+          <!-- Painel: Geral (conteúdo atual do form de API key) -->
+          <section class="settings-panel active" data-panel="geral">
+            <!-- Status atual da chave -->
+            <div id="settings-api-status" class="settings-status" style="display:none;">
+              <span class="settings-status-dot"></span>
+              <span class="settings-status-text">Verificando…</span>
+            </div>
+
+            <form id="settings-api-key-form">
+              <div class="form-group">
+                <label class="form-label" for="settings-api-key-input">
+                  Chave da API do Gemini (AI Studio)
+                </label>
+                <div class="settings-api-key-row">
+                  <input type="password" id="settings-api-key-input" class="form-input"
+                    placeholder="Cole aqui a sua chave do Gemini AI Studio"
+                    autocomplete="off" spellcheck="false">
+                  <button type="button" id="btn-toggle-api-key-visibility" class="btn btn-secondary"
+                    title="Mostrar/ocultar chave" style="padding:10px 12px;">
+                    <svg id="eye-icon-show" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7s-8.268-2.943-9.542-7z">
+                      </path>
+                    </svg>
+                  </button>
+                </div>
+                <p class="settings-help-text">
+                  Obtenha sua chave gratuita em
+                  <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">
+                    Google AI Studio
+                  </a>. Para sua segurança, a chave é armazenada localmente no seu computador.
+                </p>
+              </div>
+
+              <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px;">
+                <button type="button" id="btn-cancel-settings" class="btn btn-secondary">Cancelar</button>
+                <button type="submit" id="btn-save-api-key" class="btn btn-primary">
+                  <span id="save-api-key-text">Salvar e Validar</span>
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <!-- Painel: Temas (NOVO) -->
+          <section class="settings-panel" data-panel="temas">
+            <h3 class="settings-panel-title">Tema do aplicativo</h3>
+            <p class="settings-help-text" style="margin-bottom:16px;">
+              Escolha a aparência do Krumer. A troca é aplicada imediatamente.
+            </p>
+
+            <div class="theme-options">
+              <button class="theme-option-card active" data-theme-value="dark">
+                <span class="theme-swatch theme-swatch-dark"></span>
+                <span class="theme-option-name">Dark</span>
+                <span class="theme-option-tag">Padrão</span>
+              </button>
+
+              <button class="theme-option-card" data-theme-value="light">
+                <span class="theme-swatch theme-swatch-light"></span>
+                <span class="theme-option-name">Claro</span>
+              </button>
+
+              <button class="theme-option-card" data-theme-value="sepia">
+                <span class="theme-swatch theme-swatch-sepia"></span>
+                <span class="theme-option-name">Sépia</span>
+              </button>
+            </div>
+          </section>
+
+        </div>
       </div>
-
-      <form id="settings-api-key-form">
-        <div class="form-group">
-          <label class="form-label" for="settings-api-key-input">
-            Chave da API do Gemini (AI Studio)
-          </label>
-          <div class="settings-api-key-row">
-            <input type="password" id="settings-api-key-input" class="form-input"
-              placeholder="Cole aqui a sua chave do Gemini AI Studio"
-              autocomplete="off" spellcheck="false">
-            <button type="button" id="btn-toggle-api-key-visibility" class="btn btn-secondary"
-              title="Mostrar/ocultar chave" style="padding:10px 12px;">
-              <svg id="eye-icon-show" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7s-8.268-2.943-9.542-7z">
-                </path>
-              </svg>
-            </button>
-          </div>
-          <p class="settings-help-text">
-            Obtenha sua chave gratuita em
-            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer">
-              Google AI Studio
-            </a>. Para sua segurança, a chave é armazenada localmente no seu computador.
-          </p>
-        </div>
-
-        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:24px;">
-          <button type="button" id="btn-cancel-settings" class="btn btn-secondary">Cancelar</button>
-          <button type="submit" id="btn-save-api-key" class="btn btn-primary">
-            <span id="save-api-key-text">Salvar e Validar</span>
-          </button>
-        </div>
-      </form>
     </div>
   </div>
 
