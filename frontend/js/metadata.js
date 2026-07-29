@@ -119,6 +119,13 @@ class MetadataManager {
         const key = item.type === 'series' ? item.title : item.path.split(/[/\\]/).pop();
         return !cachedKeys.includes(key);
       });
+
+      // Remove obras que já possuem sinopse e autor preenchidos
+      this.livros = this.livros.filter(item => {
+        const temSinopse = item.description && item.description.trim().length > 0;
+        const temAutor = item.author && item.author.trim().length > 0;
+        return !(temSinopse && temAutor);
+      });
       this.selecionados = [];
 
       const titleEl = document.getElementById('metadata-select-title');
