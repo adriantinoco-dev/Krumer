@@ -448,6 +448,17 @@ function setupEpubControls() {
     };
   }
 
+  // Exit fullscreen (stay in reader)
+  const fsExitBtn = document.getElementById('btn-exit-fullscreen');
+  if (fsExitBtn) {
+    fsExitBtn.addEventListener('click', () => {
+      epubIsFullscreen = false;
+      document.body.classList.remove('reader-fullscreen');
+      const fsBar = document.getElementById('reader-fullscreen-bar');
+      if (fsBar) fsBar.style.display = 'none';
+    });
+  }
+
   // Settings popover
   const settingsBtn = document.getElementById('epub-settings-toggle');
   const popover = document.getElementById('epub-settings-popover');

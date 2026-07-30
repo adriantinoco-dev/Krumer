@@ -590,7 +590,19 @@
   <!-- PDF & EPUB Reader View Overlay -->
   <div id="reader-view" class="hidden">
     <div id="reader-fullscreen-bar" style="display:none;">
-      <button id="btn-back-fullscreen">← <span data-i18n="reader.fullscreen.back">Voltar</span></button>
+      <div class="fs-left">
+        <button id="btn-back-fullscreen">
+          <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          <span data-i18n="reader.fullscreen.back">Voltar</span>
+        </button>
+        <button id="btn-exit-fullscreen" class="btn-fs-exit" title="Sair da tela cheia">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 4v4H4M16 4v4h4M8 20v-4H4M16 20v-4h4"/>
+          </svg>
+        </button>
+      </div>
       <span id="fullscreen-progress-label">0%</span>
     </div>
     <header id="reader-header">

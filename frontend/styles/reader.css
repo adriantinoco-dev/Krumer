@@ -557,3 +557,28 @@ body.reader-fullscreen #reader-container.vertical {
   color: var(--text-muted, #888888);
   font-weight: 600;
 }
+
+.fs-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-fs-exit {
+  background-color: var(--bg-card, #202020);
+  color: var(--text-primary, #f1f1f1);
+  border: 1px solid var(--border, #2e2e2e);
+  border-radius: var(--radius-sm, 4px);
+  padding: 6px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.btn-fs-exit:hover {
+  border-color: var(--accent, #f97316);
+  color: var(--accent, #f97316);
+  background-color: var(--bg-card-hover, #262626);
+}

@@ -479,6 +479,17 @@ function setupPdfControls() {
     };
   }
 
+  // Exit fullscreen (stay in reader)
+  const fsExitBtn = document.getElementById('btn-exit-fullscreen');
+  if (fsExitBtn) {
+    fsExitBtn.addEventListener('click', () => {
+      pdfIsFullscreen = false;
+      document.body.classList.remove('reader-fullscreen');
+      const fsBar = document.getElementById('reader-fullscreen-bar');
+      if (fsBar) fsBar.style.display = 'none';
+    });
+  }
+
   // Settings Popover Toggle
   const settingsBtn = document.getElementById('pdf-settings-toggle');
   const popover = document.getElementById('pdf-settings-popover');
