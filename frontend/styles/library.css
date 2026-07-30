@@ -783,11 +783,12 @@
 }
 
 .details-meta-badge.accent {
-  background-color: rgba(249, 115, 22, 0.28);
-  color: var(--accent);
-  border-color: rgba(249, 115, 22, 0.55);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.20);
-  font-weight: 600;
+  background-color: rgba(249, 115, 22, 0.85);
+  color: #fff;
+  border-color: rgba(249, 115, 22, 1);
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.4);
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .details-rating-block {
