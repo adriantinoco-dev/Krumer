@@ -5,25 +5,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
-  /* Color Palette */
-  --bg-primary:   #111111;
-  --bg-secondary: #161616;
-  --bg-sidebar:   #181818;
-  --bg-card:      #202020;
-  --bg-card-hover:#262626;
-  --bg-modal:     #1e1e1e;
-  
+  /* Neutral Layout & Design Tokens */
   --accent:       #f97316;  /* Orange */
   --accent-text:  #ff9041;
   --accent-hover: #ea6a0a;
   --accent-glow:  rgba(249, 115, 22, 0.25);
   
-  --text-primary: #f1f1f1;
-  --text-secondary: #cccccc;
-  --text-muted:   #888888;
-  
-  --border:       #2e2e2e;
-  --border-light: #3a3a3a;
   --radius-sm:    4px;
   --radius:       8px;
   --radius-lg:    14px;
@@ -34,20 +21,12 @@
   
   --transition:   all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* Sidebar Refinada Tokens */
+  /* Sidebar Layout Tokens */
   --sidebar-width-collapsed: 64px;
   --sidebar-width-expanded:  260px;
-  --sidebar-bg:              #1c1c1e;
-  --sidebar-border:          rgba(255, 255, 255, 0.06);
-  --sidebar-text:            rgba(255, 255, 255, 0.50);
-  --sidebar-text-hover:      rgba(255, 255, 255, 0.90);
   --sidebar-active-bg:       rgba(232, 124, 42, 0.10);
   --sidebar-active-bar:      #e87c2a;
   --sidebar-active-text:     rgba(232, 124, 42, 0.90);
-  --sidebar-section:         rgba(255, 255, 255, 0.20);
-
-  /* Hero vignette — valor RGB sem alpha, usado com rgba() no overlay */
-  --hero-vignette: 17, 17, 17;
 
   /* Tokens fixos para texto sobre o hero banner (sempre escuro/borrado) */
   --hero-text-primary:   rgba(255, 255, 255, 0.95);
@@ -496,8 +475,32 @@ body {
 }
 
 /* ============================================================
-   THEME OVERRIDES — Tema Claro e Sépia
+   THEMES — Dark, Light e Sépia
    ============================================================ */
+
+html[data-theme="dark"] {
+  --bg-primary:    #111111;
+  --bg-secondary:  #161616;
+  --bg-sidebar:    #181818;
+  --bg-card:       #202020;
+  --bg-card-hover: #262626;
+  --bg-modal:      #1e1e1e;
+
+  --text-primary:   #f1f1f1;
+  --text-secondary: #cccccc;
+  --text-muted:     #888888;
+
+  --border:       #2e2e2e;
+  --border-light: #3a3a3a;
+
+  --sidebar-bg:         #1c1c1e;
+  --sidebar-border:     rgba(255, 255, 255, 0.06);
+  --sidebar-text:       rgba(255, 255, 255, 0.50);
+  --sidebar-text-hover: rgba(255, 255, 255, 0.90);
+  --sidebar-section:    rgba(255, 255, 255, 0.20);
+
+  --hero-vignette: 17, 17, 17;
+}
 
 html[data-theme="light"] {
   --bg-primary:    #ffffff;
@@ -518,6 +521,7 @@ html[data-theme="light"] {
   --sidebar-border:     rgba(0, 0, 0, 0.08);
   --sidebar-text:       rgba(0, 0, 0, 0.55);
   --sidebar-text-hover: rgba(0, 0, 0, 0.90);
+  --sidebar-section:    rgba(0, 0, 0, 0.35);
 
   --hero-vignette: 245, 245, 245;
 }
@@ -541,6 +545,7 @@ html[data-theme="sepia"] {
   --sidebar-border:     rgba(59, 47, 30, 0.12);
   --sidebar-text:       rgba(59, 47, 30, 0.60);
   --sidebar-text-hover: rgba(59, 47, 30, 0.90);
+  --sidebar-section:    rgba(59, 47, 30, 0.40);
 
   /* Vinheta clara (tom do próprio --bg-primary do tema), igual à
      abordagem usada no tema Light — evita o "borrão preto" no

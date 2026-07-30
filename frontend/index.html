@@ -6,6 +6,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Krumer — Biblioteca Pessoal de Livros e HQs</title>
 
+  <!-- Early inline theme execution to avoid FOUC -->
+  <script>
+    (function () {
+      var THEME_KEY = 'krumer-theme';
+      var VALID = ['dark', 'light', 'sepia'];
+      var saved = localStorage.getItem(THEME_KEY);
+      var theme = VALID.indexOf(saved) > -1 ? saved : 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+
   <!-- Stylesheets -->
   <link rel="stylesheet" href="styles/main.css?v=1.5">
   <link rel="stylesheet" href="styles/library.css?v=1.5">
