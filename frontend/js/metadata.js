@@ -113,15 +113,8 @@ class MetadataManager {
       // Busca todos os itens raiz (sem parent_id)
       const allItems = await LibraryAPI.getItems({ limit: 500 });
 
-      // Busca chaves do cache e remove obras que já tiveram metadados buscados
-      const cachedKeys = await LibraryAPI.getCachedKeys();
-      this.livros = allItems.filter(item => {
-        const key = item.type === 'series' ? item.title : item.path.split(/[/\\]/).pop();
-        return !cachedKeys.includes(key);
-      });
-
       // Remove obras que já possuem sinopse e autor preenchidos
-      this.livros = this.livros.filter(item => {
+      this.livros = allItems.filter(item => {
         const temSinopse = item.description && item.description.trim().length > 0;
         const temAutor = item.author && item.author.trim().length > 0;
         return !(temSinopse && temAutor);
