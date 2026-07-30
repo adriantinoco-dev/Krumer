@@ -33,13 +33,16 @@
     "directories": {
       "output": "dist"
     },
+    "extraResources": [
+      {
+        "from": "resources/",
+        "to": "resources/"
+      }
+    ],
     "files": [
       "frontend/**/*",
-      "backend/**/*",
       "main.js",
-      "preload.js",
-      "!**/backend/.venv/**/*",
-      "!**/backend/__pycache__/**/*"
+      "preload.js"
     ],
     "win": {
       "target": [

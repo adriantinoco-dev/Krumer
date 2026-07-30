@@ -826,5 +826,11 @@ def get_cached_metadata_keys():
 
 # Run direct script
 if __name__ == "__main__":
+    import sys
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8765, reload=True)
+
+    if getattr(sys, 'frozen', False):
+        uvicorn.run(app, host="127.0.0.1", port=8765, log_level="info")
+    else:
+        uvicorn.run("main:app", host="127.0.0.1", port=8765, reload=True)
+

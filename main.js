@@ -14,6 +14,30 @@ autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
 
 /**
+ * Procura o executável do backend compilado (.exe).
+ */
+function getBackendExecutablePath() {
+  const isWin = process.platform === 'win32';
+  const exeName = isWin ? 'krumer-backend.exe' : 'krumer-backend';
+  
+  const isDev = !app.isPackaged;
+  const devExe = path.join(__dirname, 'resources', exeName);
+  const prodExe = path.join(process.resourcesPath, 'resources', exeName);
+  const prodExeRoot = path.join(process.resourcesPath, exeName);
+
+  if (isDev && fs.existsSync(devExe)) {
+    return devExe;
+  }
+  if (!isDev && fs.existsSync(prodExe)) {
+    return prodExe;
+  }
+  if (!isDev && fs.existsSync(prodExeRoot)) {
+    return prodExeRoot;
+  }
+  return null;
+}
+
+/**
  * Procura o executável Python adequado (virtualenv do projeto ou do sistema).
  */
 function getPythonExecutable() {
@@ -32,16 +56,26 @@ function getPythonExecutable() {
  * Inicia o servidor backend FastAPI em Python como processo filho.
  */
 function startPythonBackend() {
-  const pythonBin = getPythonExecutable();
-  const scriptPath = path.join(__dirname, 'backend', 'main.py');
-  const backendDir = path.join(__dirname, 'backend');
+  const exePath = getBackendExecutablePath();
 
-  console.log(`Iniciando backend Python com: ${pythonBin} ${scriptPath}`);
+  if (exePath) {
+    console.log(`Iniciando backend empacotado (.exe): ${exePath}`);
+    pyProcess = spawn(exePath, [], {
+      cwd: path.dirname(exePath),
+      env: { ...process.env, PYTHONUNBUFFERED: '1' }
+    });
+  } else {
+    const pythonBin = getPythonExecutable();
+    const scriptPath = path.join(__dirname, 'backend', 'main.py');
+    const backendDir = path.join(__dirname, 'backend');
 
-  pyProcess = spawn(pythonBin, [scriptPath], {
-    cwd: backendDir,
-    env: { ...process.env, PYTHONUNBUFFERED: '1' }
-  });
+    console.log(`Iniciando backend Python via script: ${pythonBin} ${scriptPath}`);
+
+    pyProcess = spawn(pythonBin, [scriptPath], {
+      cwd: backendDir,
+      env: { ...process.env, PYTHONUNBUFFERED: '1' }
+    });
+  }
 
   pyProcess.stdout.on('data', (data) => {
     console.log(`[Backend stdout]: ${data}`);

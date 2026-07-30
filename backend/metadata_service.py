@@ -11,14 +11,17 @@ import datetime
 from pathlib import Path
 from typing import Generator
 
-ENV_PATH = Path(__file__).parent / ".env"
+from database import LIBRARIAN_DIR
+
+ENV_PATH = LIBRARIAN_DIR / ".env"
+LOCAL_ENV_PATH = Path(__file__).parent / ".env"
 
 try:
     from dotenv import load_dotenv
+    if LOCAL_ENV_PATH.exists():
+        load_dotenv(dotenv_path=LOCAL_ENV_PATH, override=True)
     if ENV_PATH.exists():
         load_dotenv(dotenv_path=ENV_PATH, override=True)
-    else:
-        load_dotenv()
 except ImportError:
     pass
 
@@ -28,8 +31,6 @@ try:
 except ImportError:
     genai = None
     types = None
-
-from database import LIBRARIAN_DIR
 
 CACHE_PATH = LIBRARIAN_DIR / "metadados_cache.json"
 DAILY_COUNT_PATH = LIBRARIAN_DIR / "metadata_daily_count.json"
