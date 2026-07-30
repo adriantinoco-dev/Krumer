@@ -586,6 +586,12 @@ function epubKeyHandler(e) {
 
     e.preventDefault();
     if (window.closeReader) window.closeReader();
+  } else if (e.key === 'f' || e.key === 'F') {
+    e.preventDefault();
+    epubIsFullscreen = !epubIsFullscreen;
+    document.body.classList.toggle('reader-fullscreen', epubIsFullscreen);
+    const fsBar = document.getElementById('reader-fullscreen-bar');
+    if (fsBar) fsBar.style.display = epubIsFullscreen ? 'flex' : 'none';
   }
 }
 

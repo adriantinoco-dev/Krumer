@@ -700,6 +700,13 @@ function pdfKeyHandler(e) {
     if (window.closeReader) {
       window.closeReader();
     }
+  } else if (e.key === 'f' || e.key === 'F') {
+    e.preventDefault();
+    pdfIsFullscreen = !pdfIsFullscreen;
+    document.body.classList.toggle('reader-fullscreen', pdfIsFullscreen);
+    const fsBar = document.getElementById('reader-fullscreen-bar');
+    if (fsBar) fsBar.style.display = pdfIsFullscreen ? 'flex' : 'none';
+    _syncPdfFullscreenProgressLabel();
   }
 }
 

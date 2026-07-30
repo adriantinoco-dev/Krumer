@@ -691,7 +691,14 @@ class LibraryManager {
    * Creates the context menu element once and appends it to <body>
    */
   _ensureContextMenu() {
-    if (document.getElementById('book-context-menu')) return;
+    const existing = document.getElementById('book-context-menu');
+    if (existing) {
+      const readLabel = existing.querySelector('#ctx-mark-read .ctx-label');
+      if (readLabel) readLabel.textContent = I18N.t('details.mark_read');
+      const unreadLabel = existing.querySelector('#ctx-mark-unread .ctx-label');
+      if (unreadLabel) unreadLabel.textContent = I18N.t('details.mark_unread');
+      return;
+    }
     const menu = document.createElement('div');
     menu.id = 'book-context-menu';
     menu.className = 'book-context-menu';
@@ -712,14 +719,14 @@ class LibraryManager {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
-        ${I18N.t('details.mark_read')}
+        <span class="ctx-label">${I18N.t('details.mark_read')}</span>
       </button>
       <button class="ctx-menu-item ctx-menu-item--muted" id="ctx-mark-unread">
         <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
-        ${I18N.t('details.mark_unread')}
+        <span class="ctx-label">${I18N.t('details.mark_unread')}</span>
       </button>
     `;
     document.body.appendChild(menu);
