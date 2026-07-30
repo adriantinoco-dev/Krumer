@@ -204,8 +204,19 @@ def process_file_metadata_and_cover(file_path: str, display_title_setting: str) 
     if cover_bytes:
         try:
             image = Image.open(io.BytesIO(cover_bytes))
-            # Resize cover if too large, maintaining ratio
-            image.thumbnail((300, 450))
+            # Crop to 3:4 aspect ratio and resize to exact dimensions
+            target_w, target_h = 450, 600
+            img_ratio = image.width / image.height
+            target_ratio = target_w / target_h
+            if img_ratio > target_ratio:
+                new_w = int(image.height * target_ratio)
+                left = (image.width - new_w) // 2
+                image = image.crop((left, 0, left + new_w, image.height))
+            else:
+                new_h = int(image.width / target_ratio)
+                top = (image.height - new_h) // 2
+                image = image.crop((0, top, image.width, top + new_h))
+            image = image.resize((target_w, target_h), Image.LANCZOS)
             image.save(cover_path, format="PNG")
         except Exception as e:
             print(f"Could not save cover image for {file_path}, generating placeholder. Error: {e}")

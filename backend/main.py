@@ -418,7 +418,19 @@ async def upload_custom_book_cover(id: int, file: UploadFile = File(...), db: Se
         
     try:
         image = Image.open(io.BytesIO(contents))
-        image.thumbnail((400, 600))
+        # Crop to 3:4 aspect ratio and resize to exact dimensions
+        target_w, target_h = 450, 600
+        img_ratio = image.width / image.height
+        target_ratio = target_w / target_h
+        if img_ratio > target_ratio:
+            new_w = int(image.height * target_ratio)
+            left = (image.width - new_w) // 2
+            image = image.crop((left, 0, left + new_w, image.height))
+        else:
+            new_h = int(image.width / target_ratio)
+            top = (image.height - new_h) // 2
+            image = image.crop((0, top, image.width, top + new_h))
+        image = image.resize((target_w, target_h), Image.LANCZOS)
         
         cover_hash = hashlib.sha256(item.path.encode('utf-8')).hexdigest()
         cover_path = COVERS_DIR / f"{cover_hash}.png"
