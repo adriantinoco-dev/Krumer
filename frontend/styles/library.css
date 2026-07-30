@@ -2,12 +2,26 @@
    Krumer Personal Library - Grid & Component Stylesheet (Phase 2 Spec)
    ========================================================================== */
 
-:root {--book-aspect-ratio:  3 / 4;}
+:root {
+  /* Layout Tokens — spec v2 (dimensões apenas, sem cor) */
+  --cover-aspect-ratio: 3 / 4;
+  /* largura / altura fixa da capa */
+  --grid-min-card-width: 160px;
+  --grid-gap: 24px;
 
-.book-cover-wrap,
-.cover-fallback,
-.detail-cover {
-  aspect-ratio: var(--book-aspect-ratio);
+  --font-size-title-lg: 2.5rem;
+  --font-size-body: 1rem;
+  --font-size-label: 0.8rem;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  /* --radius-lg herdado do main.css (14px) — não sobrescrito */
+  --radius-xl: 20px;
+  /* bordas extra-arredondadas da spec v2 */
+  --spacing-unit: 8px;
+
+  /* Mantido por retrocompatibilidade */
+  --book-aspect-ratio: var(--cover-aspect-ratio);
 }
 
 /* Main Viewport Container */
@@ -49,21 +63,18 @@
 /* Streaming Grid Layout */
 .book-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 24px 16px;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(min(var(--grid-min-card-width), 100% / 7), 1fr)
+  );
+  gap: var(--grid-gap);
   flex: 1;
-}
-
-@media (min-width: 2000px) {
-  .book-grid {
-    grid-template-columns:repeat(auto-fill, minmax(160px, 1fr));
-  }
 }
 
 @media (max-width: 480px) {
   .book-grid {
     grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-    gap: 16px 12px;
+    gap: 16px;
   }
 }
 
@@ -126,7 +137,8 @@
 .book-cover-wrap {
   position: relative;
   width: 100%;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: var(--cover-aspect-ratio);
+  /* fixo — não depende das dimensões reais da imagem */
   border-radius: var(--radius);
   overflow: hidden;
   background-color: var(--bg-card);
@@ -142,7 +154,9 @@
 .book-cover {
   width: 100%;
   height: 100%;
+  /* garante que preenche o wrapper de aspect-ratio fixo */
   object-fit: cover;
+  /* recorta mantendo proporção, nunca distorce */
   object-position: center top;
   display: block;
   border-radius: var(--radius);
@@ -152,12 +166,13 @@
 /* Fallback cover icon if image fails */
 .cover-fallback {
   width: 100%;
-  aspect-ratio: 9 / 16;
+  height: 100%;
+  /* herda altura do .book-cover-wrap (aspect-ratio fixo) */
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1f1f23, #2a2a30);
+  background: linear-gradient(135deg, var(--bg-card), var(--bg-card-hover));
   color: var(--text-muted);
   padding: 12px;
   text-align: center;
@@ -182,16 +197,9 @@
   overflow: hidden;
 }
 
-/* Subtle Gradient overlay at bottom */
+/* Gradient overlay at bottom — removido a pedido do usuário */
 .cover-gradient {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 70px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.88), transparent);
-  border-radius: 0 0 var(--radius) var(--radius);
-  pointer-events: none;
+  display: none;
 }
 
 /* Series Badge - Top Right Corner */
@@ -547,7 +555,8 @@
   flex-direction: column;
   background-color: var(--bg-primary);
   overflow: hidden;
-  z-index: 40; /* abaixo da sidebar (50) mas acima do resto */
+  z-index: 40;
+  /* abaixo da sidebar (50) mas acima do resto */
 }
 
 /* Container do Hero Banner — Wrapper com overflow hidden para eliminar bordas/halos de blur */
@@ -698,7 +707,8 @@
   padding: 10px 48px 60px;
   display: flex;
   flex-direction: column;
-  gap: 32px;              /* Espaço entre bloco superior e card de sinopse */
+  gap: 32px;
+  /* Espaço entre bloco superior e card de sinopse */
 }
 
 /* Seção Superior — Detalhes do Livro */
@@ -709,19 +719,31 @@
   margin-top: 10px;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
   .details-upper-section {
     flex-direction: column;
     align-items: center;
     text-align: center;
   }
+
+  .details-cover-wrap {
+    width: 200px;
+  }
+
+  :root {
+    --grid-min-card-width: 140px;
+    --grid-gap: 16px;
+  }
 }
 
 .details-cover-wrap {
-  width: 230px;
-  height: auto;
+  width: 280px;
+  /* spec v2: capa grande na tela de detalhes */
+  aspect-ratio: var(--cover-aspect-ratio);
+  /* proporção fixa independente da imagem */
   flex-shrink: 0;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
+  /* spec v2: 20px */
   overflow: hidden;
   background-color: var(--bg-card);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75);
@@ -731,9 +753,11 @@
 
 .details-cover-img {
   width: 100%;
-  height: auto;
+  height: 100%;
+  /* preenche o wrapper de aspect-ratio fixo */
+  object-fit: cover;
+  object-position: center top;
   display: block;
-  border-radius: var(--radius-lg);
 }
 
 .details-info-container {
@@ -745,7 +769,8 @@
 }
 
 .details-title {
-  font-size: 34px;
+  font-size: var(--font-size-title-lg);
+  /* spec v2: 2.5rem */
   font-weight: 800;
   color: var(--hero-text-primary);
   line-height: 1.25;
@@ -849,27 +874,33 @@
 .details-synopsis-wrap {
   width: 100%;
   box-sizing: border-box;
-  padding: 24px 28px;
+  padding: 28px 32px;
   background-color: var(--bg-card);
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  /* destaque visual da seção */
   backdrop-filter: blur(8px);
 }
 
 .details-synopsis-title {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.8px;
-  margin-bottom: 8px;
+  letter-spacing: 2px;
+  margin-bottom: 14px;
 }
 
 .details-synopsis-text {
-  font-size: 14px;
-  line-height: 1.65;
+  font-size: 15.5px;
+  /* maior que 14px original — mais confortável de ler */
+  font-weight: 400;
+  line-height: 1.85;
+  /* espaçamento entre linhas generoso */
   color: var(--text-primary);
   white-space: pre-line;
+  letter-spacing: 0.01em;
 }
 
 
@@ -1301,8 +1332,8 @@
   opacity: 0;
   visibility: hidden;
   transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
-              opacity 0.13s ease,
-              visibility 0s linear 0.13s;
+    opacity 0.13s ease,
+    visibility 0s linear 0.13s;
   pointer-events: none;
 }
 
@@ -1311,8 +1342,8 @@
   opacity: 1;
   visibility: visible;
   transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
-              opacity 0.13s ease,
-              visibility 0s linear 0s;
+    opacity 0.13s ease,
+    visibility 0s linear 0s;
   pointer-events: all;
 }
 

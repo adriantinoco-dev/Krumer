@@ -13,7 +13,9 @@
   
   --radius-sm:    4px;
   --radius:       8px;
+  --radius-md:    12px;  /* spec v2 */
   --radius-lg:    14px;
+  --radius-xl:    20px;  /* spec v2: bordas extra-arredondadas */
   
   --font-main:    'Inter', system-ui, -apple-system, sans-serif;
   --shadow-main:  0 10px 30px rgba(0, 0, 0, 0.5);
@@ -295,7 +297,7 @@ body {
 .search-input {
   width: 100%;
   padding: 10px 14px 10px 42px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-xl);  /* spec v2: pill style para o campo de busca */
   background-color: var(--bg-card);
   border: 1px solid var(--border);
   color: var(--text-primary);
@@ -345,7 +347,7 @@ body {
   align-items: center;
   gap: 8px;
   padding: 10px 18px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);  /* spec v2: --radius-md = 12px */
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;

@@ -13,3 +13,6 @@ venv/
 
 # Cache do Node
 node_modules/
+
+# Build
+dist/
