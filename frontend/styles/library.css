@@ -1040,7 +1040,7 @@
 .selecao-progress-bar {
   flex: 1;
   height: 6px;
-  background: var(--bg-primary);
+  background: var(--border);
   border-radius: 3px;
   overflow: hidden;
   min-width: 60px;
