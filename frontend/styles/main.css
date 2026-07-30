@@ -494,6 +494,7 @@ html[data-theme="dark"] {
 
   --border:       #2e2e2e;
   --border-light: #3a3a3a;
+  --star-empty:   #6b6b6b;
 
   --sidebar-bg:         #1c1c1e;
   --sidebar-border:     rgba(255, 255, 255, 0.06);
@@ -518,6 +519,7 @@ html[data-theme="light"] {
 
   --border:       #e0e0e0;
   --border-light: #d0d0d0;
+  --star-empty:   #b0b0b0;
 
   --sidebar-bg:         #f7f7f7;
   --sidebar-border:     rgba(0, 0, 0, 0.08);
@@ -542,6 +544,7 @@ html[data-theme="sepia"] {
 
   --border:       #d8c9a3;
   --border-light: #cbb98d;
+  --star-empty:   #a89060;
 
   --sidebar-bg:         #ece1c4;
   --sidebar-border:     rgba(59, 47, 30, 0.12);
