@@ -1,0 +1,60 @@
+{
+  "name": "krumer",
+  "version": "1.0.0",
+  "description": "Gerenciador de biblioteca pessoal para leitura de livros e quadrinhos",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win",
+    "pack": "electron-builder --dir"
+  },
+  "keywords": [
+    "library",
+    "epub",
+    "pdf",
+    "reader",
+    "electron"
+  ],
+  "author": "adriantinoco-dev",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "electron-updater": "^6.2.1"
+  },
+  "build": {
+    "appId": "com.krumer.app",
+    "productName": "Krumer",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "frontend/**/*",
+      "backend/**/*",
+      "main.js",
+      "preload.js",
+      "!**/backend/.venv/**/*",
+      "!**/backend/__pycache__/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "frontend/assets/Krumer-icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Krumer"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "adriantinoco-dev",
+      "repo": "Krumer"
+    }
+  }
+}
