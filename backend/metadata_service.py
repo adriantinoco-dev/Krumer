@@ -45,6 +45,19 @@ TOKENS_PARA_REMOVER = [
 SYSTEM_INSTRUCTION = """Você é um assistente especializado em metadados de livros e graphic novels.
 Suas respostas devem conter APENAS a estrutura JSON especificada."""
 
+SYNOPSIS_LANG_MAP = {
+    "pt-br": "português do Brasil",
+    "en": "English",
+    "es": "español",
+    "fr": "français",
+    "de": "Deutsch",
+    "it": "italiano",
+    "ja": "japonês",
+    "zh": "chinês simplificado",
+    "ko": "coreano",
+    "ru": "russo",
+}
+
 PROMPT_TEMPLATE = """Com base no título "{titulo_limpo}", busque e retorne as seguintes informações em JSON:
 
 {{
@@ -58,7 +71,7 @@ Regras:
 - Retorne APENAS o JSON, sem texto adicional de introdução ou formatação externa.
 - Se houver mais de um autor (ex: roteirista e ilustrador), liste ambos no campo "autor".
 - Se não encontrar algum campo, deixe como null.
-- A sinopse deve ser completa, em português."""
+- A sinopse deve ser completa, em {lang_name}."""
 
 MODELOS = [
     "gemini-2.5-flash",
@@ -150,7 +163,7 @@ def _increment_daily_count() -> None:
     _save_json_file(DAILY_COUNT_PATH, data)
 
 
-def obter_metadados_gemini(titulo_limpo: str, api_key: str | None = None) -> dict | None:
+def obter_metadados_gemini(titulo_limpo: str, api_key: str | None = None, language: str = "pt-br") -> dict | None:
     """Consulta o Gemini para obter metadados em JSON."""
     if genai is None or types is None:
         raise MetadataServiceError(
@@ -163,7 +176,8 @@ def obter_metadados_gemini(titulo_limpo: str, api_key: str | None = None) -> dic
 
     _check_daily_limit()
 
-    prompt = PROMPT_TEMPLATE.format(titulo_limpo=titulo_limpo)
+    lang_name = SYNOPSIS_LANG_MAP.get(language, "português do Brasil")
+    prompt = PROMPT_TEMPLATE.format(titulo_limpo=titulo_limpo, lang_name=lang_name)
     client = genai.Client(api_key=key)
     config = types.GenerateContentConfig(
         response_mime_type="application/json",
@@ -210,6 +224,7 @@ def processar_arquivo_livro(
     api_key: str | None = None,
     use_cache: bool = True,
     query_direta: str | None = None,
+    language: str = "pt-br",
 ) -> dict:
     """
     Processa um livro ou obra agrupada e busca metadados via Gemini.
@@ -229,7 +244,8 @@ def processar_arquivo_livro(
             if isinstance(cached, dict):
                 metadados = cached.get("metadados")
                 status = cached.get("status")
-                if metadados is not None and status != "not_found":
+                cached_lang = cached.get("language")
+                if metadados is not None and status != "not_found" and cached_lang == language:
                     nome_da_obra = metadados.get("nome_da_obra") if isinstance(metadados, dict) else None
                     if nome_da_obra:
                         return {
@@ -241,7 +257,7 @@ def processar_arquivo_livro(
 
     # Usa query_direta se disponível; caso contrário, limpa o nome do arquivo
     titulo_limpo = query_direta if query_direta else limpar_nome_arquivo(nome_arquivo)
-    metadados = obter_metadados_gemini(titulo_limpo, api_key=api_key)
+    metadados = obter_metadados_gemini(titulo_limpo, api_key=api_key, language=language)
 
     resultado = {
         "item_id": item_id,
@@ -258,6 +274,7 @@ def processar_arquivo_livro(
                 cache[cache_key] = {
                     "status": "found",
                     "titulo_limpo": titulo_limpo,
+                    "language": language,
                     "metadados": metadados,
                 }
                 _save_json_file(CACHE_PATH, cache)
@@ -274,6 +291,7 @@ def processar_arquivo_livro(
 def processar_lote_com_progresso(
     itens: list[dict],
     api_key: str | None = None,
+    language: str = "pt-br",
 ) -> Generator[tuple[int, int, dict], None, None]:
     """
     Processa uma lista de itens (máx. 10) e emite progresso após cada item.
@@ -289,7 +307,9 @@ def processar_lote_com_progresso(
             item["nome_arquivo"],
             item_id=item["item_id"],
             api_key=api_key,
+            use_cache=True,
             query_direta=item.get("query_direta"),
+            language=language,
         )
         yield index, total, resultado
 

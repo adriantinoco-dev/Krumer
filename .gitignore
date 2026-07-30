@@ -20,3 +20,6 @@ build/
 
 # Resources
 resources/
+
+# OpenCode
+.opencodeignore

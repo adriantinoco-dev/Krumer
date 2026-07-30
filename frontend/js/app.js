@@ -10,6 +10,7 @@ class AppController {
   }
 
   async init() {
+    I18N.init();
     this.loadSavedTheme();
     this.setupNavigation();
     this.setupSearchAndFilter();
@@ -53,26 +54,48 @@ class AppController {
       });
     }
 
-    const sortSelect = document.getElementById('sort-select');
-    if (sortSelect) {
-      sortSelect.addEventListener('change', (e) => {
-        const val = e.target.value;
-        if (val === 'added_desc') {
+    // Toggle do popup de ordenação
+    const sortBtn = document.getElementById('btn-sort-popup');
+    const sortPopup = document.getElementById('sort-popup');
+
+    sortBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sortPopup?.classList.toggle('hidden');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (sortPopup && !sortPopup.classList.contains('hidden')) {
+        if (!sortPopup.contains(e.target) && !sortBtn?.contains(e.target)) {
+          sortPopup.classList.add('hidden');
+        }
+      }
+    });
+
+    // Opções de ordenação do popup
+    document.querySelectorAll('.sort-popup-option').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.sort-popup-option').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const sort = btn.dataset.sort;
+
+        if (sort === 'added_desc') {
           this.libraryManager.sortBy = 'added_at';
           this.libraryManager.sortOrder = 'desc';
-        } else if (val === 'rating_desc') {
+        } else if (sort === 'rating_desc') {
           this.libraryManager.sortBy = 'rating';
           this.libraryManager.sortOrder = 'desc';
-        } else if (val === 'progress_desc') {
+        } else if (sort === 'progress_desc') {
           this.libraryManager.sortBy = 'overall_progress';
           this.libraryManager.sortOrder = 'desc';
         } else {
           this.libraryManager.sortBy = 'title';
           this.libraryManager.sortOrder = 'asc';
         }
+
         this.libraryManager.loadItems();
+        sortPopup?.classList.add('hidden');
       });
-    }
+    });
   }
 
   setupModals() {
@@ -95,7 +118,7 @@ class AppController {
           const result = await LibraryAPI.browseFolder();
           if (result && result.status === 'success' && result.path) {
             pathInput.value = result.path;
-            this.showToast(`Pasta selecionada: ${result.path}`);
+            this.showToast(I18N.t('toast.folder_selected', result.path));
             return;
           }
         } catch (err) {
@@ -117,7 +140,7 @@ class AppController {
             const lastSlash = Math.max(fullPath.lastIndexOf('/'), fullPath.lastIndexOf('\\'));
             if (lastSlash > 0) {
               pathInput.value = fullPath.substring(0, lastSlash);
-              this.showToast(`Pasta selecionada: ${pathInput.value}`);
+              this.showToast(I18N.t('toast.folder_selected', pathInput.value));
             }
           }
         }
@@ -132,7 +155,7 @@ class AppController {
         const path = pathInput ? pathInput.value.trim() : '';
 
         if (!path) {
-          this.showToast('Por favor informe um caminho válido de pasta.');
+          this.showToast(I18N.t('toast.invalid_path'));
           return;
         }
 
@@ -149,20 +172,20 @@ class AppController {
               if (this.isOnboarding) {
                 this.onbScanComplete();
               } else {
-                this.showToast('Escaneamento concluído com sucesso!');
+                this.showToast(I18N.t('toast.scan_complete'));
                 this.libraryManager.loadTags();
                 this.libraryManager.loadItems();
               }
             },
             onError: (errMsg) => {
               this._hideScanProgress();
-              this.showToast(`Erro: ${errMsg}`);
+              this.showToast(I18N.t('toast.scan_error_prefix', errMsg));
             },
           });
         } catch (err) {
           this._hideScanProgress();
           console.error(err);
-          this.showToast(`Erro ao escanear: ${err.message}`);
+          this.showToast(I18N.t('toast.scan_error', err.message));
         }
       });
     }
@@ -201,13 +224,18 @@ class AppController {
     const btnCancelRemove = document.getElementById('btn-cancel-remove');
     const btnConfirmRemove = document.getElementById('btn-confirm-remove');
     const confirmTitleEl = document.getElementById('confirm-remove-title');
+    const confirmTextEl = document.getElementById('confirm-remove-text');
 
     if (btnRemoveItem) {
       btnRemoveItem.addEventListener('click', () => {
         const selectedItem = this.libraryManager.selectedItem;
         if (!selectedItem) return;
         
-        if (confirmTitleEl) confirmTitleEl.textContent = selectedItem.title;
+        if (confirmTextEl) {
+          confirmTextEl.innerHTML = I18N.t('modal.remove.text', `<strong id="confirm-remove-title" style="color:var(--text-primary);">${selectedItem.title}</strong>`);
+        } else if (confirmTitleEl) {
+          confirmTitleEl.textContent = selectedItem.title;
+        }
         if (confirmModal) confirmModal.classList.add('active');
       });
     }
@@ -227,15 +255,15 @@ class AppController {
         try {
           btnConfirmRemove.disabled = true;
           const result = await LibraryAPI.deleteItem(selectedItem.id);
-          this.showToast(result.message || 'Item removido da biblioteca.');
-          
+          this.showToast(I18N.t('toast.item_removed'));
+
           closeConfirmModalFn();
-          
+
           // Fecha a página de detalhes se estiver aberta
           this.libraryManager.closeBookDetails();
         } catch (err) {
           console.error(err);
-          this.showToast(`Erro ao remover item: ${err.message}`);
+          this.showToast(I18N.t('toast.remove_error', err.message));
         } finally {
           btnConfirmRemove.disabled = false;
         }
@@ -251,21 +279,22 @@ class AppController {
         // Inicia animação de rotação
         rescanBtn.disabled = true;
         if (rescanIcon) rescanIcon.classList.add('spin');
-        this.showToast('Reescaneando biblioteca...');
+        this.showToast(I18N.t('toast.rescanning'));
 
         try {
           const result = await LibraryAPI.rescanFolder();
-          this.showToast(result.message || 'Reescaneamento concluído com sucesso!');
+          const toastMsg = result.path ? I18N.t('toast.rescan_complete_path', result.path) : I18N.t('toast.rescan_complete');
+          this.showToast(toastMsg);
           await this.libraryManager.loadTags();
           await this.libraryManager.loadItems();
         } catch (err) {
           console.error(err);
           // Se nenhuma pasta foi configurada, abre o modal de escanear
           if (err.message && err.message.includes('anteriormente')) {
-            this.showToast('Nenhuma pasta configurada. Escaneie uma pasta primeiro.');
+            this.showToast(I18N.t('toast.rescan_none'));
             this.openScanModal();
           } else {
-            this.showToast(`Erro ao reescanear: ${err.message}`);
+            this.showToast(I18N.t('toast.rescan_error', err.message));
           }
         } finally {
           // Para animação de rotação
@@ -353,7 +382,7 @@ class AppController {
             titleInput.style.borderColor = '#ef4444';
             titleInput.focus();
           }
-          this.showToast('O campo Título é obrigatório.');
+          this.showToast(I18N.t('toast.title_required'));
           return;
         }
         if (titleInput) titleInput.style.borderColor = '';
@@ -374,7 +403,7 @@ class AppController {
         const submitBtn  = document.getElementById('btn-submit-edit');
         const submitText = document.getElementById('edit-submit-text');
         if (submitBtn)  submitBtn.disabled = true;
-        if (submitText) submitText.textContent = 'Salvando...';
+        if (submitText) submitText.textContent = I18N.t('settings.api_key_saving');
 
         try {
           // 1. Save text metadata
@@ -397,17 +426,17 @@ class AppController {
           }
 
           this.libraryManager.closeEditMetadataModal();
-          this.showToast('Metadados salvos com sucesso!');
+          this.showToast(I18N.t('toast.metadata_saved'));
 
           // 3. Reload the details page to reflect all changes instantly
           await this.libraryManager.openBookDetails(item.id);
 
         } catch (err) {
           console.error('Erro ao salvar metadados:', err);
-          this.showToast(`Erro ao salvar: ${err.message}`);
+          this.showToast(I18N.t('toast.save_error', err.message));
         } finally {
           if (submitBtn)  submitBtn.disabled = false;
-          if (submitText) submitText.textContent = 'Salvar Alterações';
+          if (submitText) submitText.textContent = I18N.t('modal.edit.save');
         }
       });
     }
@@ -473,6 +502,36 @@ class AppController {
       bannerBtn.addEventListener('click', () => this.openSettingsModal());
     }
 
+    // === Custom Language Picker ===
+    this._initLangPicker();
+
+    // Botão Aplicar idioma
+    const applyLangBtn = document.getElementById('btn-apply-language');
+    if (applyLangBtn) {
+      applyLangBtn.addEventListener('click', async () => {
+        const hiddenInput = document.getElementById('settings-language-select');
+        const language = hiddenInput ? hiddenInput.value : 'pt-br';
+        const labelEl = document.getElementById('lang-picker-label');
+        const label = labelEl ? labelEl.textContent : language;
+
+        // Close the picker dropdown
+        const wrap = document.getElementById('lang-picker-wrap');
+        if (wrap) wrap.classList.remove('open');
+        const trigger = document.getElementById('lang-picker-trigger');
+        if (trigger) trigger.setAttribute('aria-expanded', 'false');
+
+        try {
+          await LibraryAPI.updateSettings({ language });
+          localStorage.setItem('krumer_language', language);
+          I18N.setLang(language);
+          this.showToast(I18N.t('settings.lang_toast', label));
+        } catch (err) {
+          console.error(err);
+          this.showToast(I18N.t('toast.lang_error', err.message));
+        }
+      });
+    }
+
     // Alternar entre os menus do modal (Geral / Temas)
     document.querySelectorAll('.settings-menu-item').forEach(item => {
       item.addEventListener('click', () => {
@@ -502,8 +561,23 @@ class AppController {
         const saveText = document.getElementById('save-api-key-text');
         const value = input ? input.value.trim() : '';
 
-        if (!value) {
-          this.showToast('Informe a chave da API do Gemini.');
+        // Obter idioma selecionado e anterior
+        const select = document.getElementById('settings-language-select');
+        const language = select ? select.value : 'pt-br';
+        const prevLanguage = localStorage.getItem('krumer_language') || 'pt-br';
+        const isLangChanged = language !== prevLanguage;
+
+        // Se o valor estiver vazio, verificar se a chave já está configurada
+        let hasApiKey = false;
+        try {
+          const status = await LibraryAPI.getApiKeyStatus();
+          hasApiKey = status.configured;
+        } catch (err) {
+          console.warn('Erro ao obter status da chave:', err);
+        }
+
+        if (!value && !hasApiKey) {
+          this.showToast(I18N.t('settings.api_key_required'));
           if (input) {
             input.style.borderColor = '#ef4444';
             input.focus();
@@ -513,30 +587,37 @@ class AppController {
         if (input) input.style.borderColor = '';
 
         if (saveBtn) saveBtn.disabled = true;
-        if (saveText) saveText.textContent = 'Validando...';
+        if (saveText) saveText.textContent = I18N.t('settings.api_key_saving');
 
         try {
-          const result = await LibraryAPI.updateApiKey(value);
-          this.showToast(result.message || 'Chave salva e validada com sucesso!');
-
-          // Limpa o campo por segurança (não guardamos no cliente)
-          if (input) input.value = '';
-
-          this._renderApiKeyStatus(true);
-          this.closeSettingsModal();
-          await this.checkApiKeyStatus();
-
-          // Se estiver no onboarding, atualiza o passo 1
-          if (this.isOnboarding) {
-            this._updateOnbStepStatus(1, true);
+          // 1. Salvar chave de API se fornecida
+          if (value) {
+            const result = await LibraryAPI.updateApiKey(value);
+            this.showToast(result.message || I18N.t('toast.api_key_saved'));
+            if (input) input.value = '';
+            this._renderApiKeyStatus(true);
+            await this.checkApiKeyStatus();
+            if (this.isOnboarding) {
+              this._updateOnbStepStatus(1, true);
+            }
           }
+
+          // 2. Salvar idioma se alterado
+          if (isLangChanged) {
+            await LibraryAPI.updateSettings({ language });
+            localStorage.setItem('krumer_language', language);
+            I18N.setLang(language);
+            this.showToast(I18N.t('settings.lang_toast', select.options[select.selectedIndex].text));
+          }
+
+          this.closeSettingsModal();
         } catch (err) {
           console.error(err);
-          this.showToast(`Erro ao salvar chave: ${err.message}`);
+          this.showToast(I18N.t('toast.settings_error', err.message));
           this._renderApiKeyStatus(undefined, err.message);
         } finally {
           if (saveBtn) saveBtn.disabled = false;
-          if (saveText) saveText.textContent = 'Salvar e Validar';
+          if (saveText) saveText.textContent = I18N.t('settings.api_key_save');
         }
       });
     }
@@ -551,12 +632,140 @@ class AppController {
     if (input) input.value = '';
 
     await this._renderApiKeyStatus();
+    await this._loadSettings();
     setTimeout(() => input && input.focus(), 50);
   }
 
   closeSettingsModal() {
     const modal = document.getElementById('settings-modal');
     if (modal) modal.classList.remove('active');
+  }
+
+  async _loadSettings() {
+    try {
+      const settings = await LibraryAPI.getSettings();
+      if (settings.language) {
+        const hidden = document.getElementById('settings-language-select');
+        if (hidden) hidden.value = settings.language;
+        localStorage.setItem('krumer_language', settings.language);
+        this._syncLangPicker(settings.language);
+      }
+    } catch (err) {
+      console.warn('Erro ao carregar configurações de idioma:', err);
+    }
+    // Always sync picker from localStorage on open
+    const saved = localStorage.getItem('krumer_language') || 'pt-br';
+    this._syncLangPicker(saved);
+  }
+
+  _initLangPicker() {
+    const wrap = document.getElementById('lang-picker-wrap');
+    const trigger = document.getElementById('lang-picker-trigger');
+    const dropdown = document.getElementById('lang-picker-dropdown');
+    if (!wrap || !trigger || !dropdown) return;
+
+    // Initialize to current language
+    const saved = localStorage.getItem('krumer_language') || 'pt-br';
+    this._syncLangPicker(saved);
+
+    // Toggle open/close
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = wrap.classList.toggle('open');
+      trigger.setAttribute('aria-expanded', String(isOpen));
+    });
+
+    // Select a language option
+    dropdown.querySelectorAll('.lang-option').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const lang = btn.dataset.lang;
+        const label = btn.dataset.label;
+
+        // Update hidden input
+        const hidden = document.getElementById('settings-language-select');
+        if (hidden) hidden.value = lang;
+
+        // Update trigger display
+        const labelEl = document.getElementById('lang-picker-label');
+        if (labelEl) labelEl.textContent = label;
+
+        // Mark selected
+        dropdown.querySelectorAll('.lang-option').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+      });
+    });
+
+    // Close when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!wrap.contains(e.target)) {
+        wrap.classList.remove('open');
+        trigger.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    // Close on Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && wrap.classList.contains('open')) {
+        wrap.classList.remove('open');
+        trigger.setAttribute('aria-expanded', 'false');
+        trigger.focus();
+      }
+    });
+  }
+
+  _syncLangPicker(lang) {
+    const dropdown = document.getElementById('lang-picker-dropdown');
+    const labelEl = document.getElementById('lang-picker-label');
+    const hidden = document.getElementById('settings-language-select');
+    if (!dropdown) return;
+
+    const btn = dropdown.querySelector(`.lang-option[data-lang="${lang}"]`);
+    if (btn) {
+      dropdown.querySelectorAll('.lang-option').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      if (labelEl) labelEl.textContent = btn.dataset.label;
+    }
+    if (hidden) hidden.value = lang;
+  }
+
+  _showRetranslateProgress() {
+    let toast = document.getElementById('retranslate-progress-toast');
+    if (toast) return;
+
+    let container = document.querySelector('.toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.className = 'toast-container';
+      document.body.appendChild(container);
+    }
+
+    toast = document.createElement('div');
+    toast.id = 'retranslate-progress-toast';
+    toast.className = 'metadata-progress-toast';
+    toast.style.position = 'fixed';
+    toast.style.bottom = '20px';
+    toast.style.right = '20px';
+    toast.style.zIndex = '9999';
+    toast.innerHTML = `
+      <span class="metadata-progress-title">${I18N.t('progress.translating')}</span>
+      <div class="metadata-progress-bar-wrap" style="position:relative; width: 100%; height: 8px; background: var(--bg-secondary); border-radius: 4px; overflow:hidden; margin: 4px 0;">
+        <div class="metadata-progress-bar-fill" style="width: 100%; height: 100%; background: var(--accent); border-radius: 4px; animation: translatePulse 1.5s infinite ease-in-out;"></div>
+      </div>
+      <span class="metadata-progress-detail">${I18N.t('progress.translating_detail')}</span>
+      <style>
+        @keyframes translatePulse {
+          0% { opacity: 0.3; transform: scaleX(0.1); transform-origin: left; }
+          50% { opacity: 1; transform: scaleX(1); transform-origin: left; }
+          100% { opacity: 0.3; transform: scaleX(0.1); transform-origin: right; }
+        }
+      </style>
+    `;
+    container.appendChild(toast);
+  }
+
+  _hideRetranslateProgress() {
+    const toast = document.getElementById('retranslate-progress-toast');
+    if (toast) toast.remove();
   }
 
   async _renderApiKeyStatus(forceConfigured, errorMessage) {
@@ -569,7 +778,7 @@ class AppController {
 
     if (errorMessage) {
       statusEl.classList.add('error');
-      textEl.textContent = `Erro: ${errorMessage}`;
+      textEl.textContent = I18N.t('settings.status_error', errorMessage);
       return;
     }
 
@@ -580,17 +789,17 @@ class AppController {
         configured = data.configured;
       } catch (err) {
         statusEl.classList.add('error');
-        textEl.textContent = `Não foi possível verificar o status: ${err.message}`;
+        textEl.textContent = I18N.t('settings.status_verify_error', err.message);
         return;
       }
     }
 
     if (configured) {
       statusEl.classList.add('is-configured');
-      textEl.textContent = 'Chave do Gemini configurada e ativa.';
+      textEl.textContent = I18N.t('settings.status_configured');
     } else {
       statusEl.classList.add('is-missing');
-      textEl.textContent = 'Nenhuma chave do Gemini configurada ainda.';
+      textEl.textContent = I18N.t('settings.status_missing');
     }
   }
 
@@ -676,7 +885,7 @@ class AppController {
     const statusEl = document.getElementById(`onb-status-${step === 1 ? 'apikey' : 'scan'}`);
     if (statusEl) {
       if (done) {
-        statusEl.innerHTML = '<svg class="check-icon" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> Concluído';
+        statusEl.innerHTML = `<svg class="check-icon" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg> ${I18N.t('onboarding.complete')}`;
         statusEl.classList.add('is-visible');
       } else {
         statusEl.innerHTML = '';
@@ -706,7 +915,7 @@ class AppController {
     const resultEl = document.getElementById('onb-scan-result');
     const textEl = document.getElementById('onb-scan-result-text');
     if (resultEl && textEl) {
-      textEl.textContent = `${itemsCount} ${itemsCount === 1 ? 'livro encontrado' : 'livros encontrados'}!`;
+      textEl.textContent = I18N.t('onboarding.scan_result', itemsCount);
       resultEl.style.display = 'flex';
     }
   }
@@ -735,12 +944,12 @@ class AppController {
     toast.id = 'scan-progress-toast';
     toast.className = 'metadata-progress-toast';
     toast.innerHTML = `
-      <span class="metadata-progress-title">Escaneando pasta...</span>
+      <span class="metadata-progress-title">${I18N.t('progress.scanning')}</span>
       <div class="metadata-progress-bar-wrap">
         <div class="metadata-progress-bar-fill" style="width: 0%"></div>
       </div>
       <span class="metadata-progress-pct">0%</span>
-      <span class="metadata-progress-detail">Preparando...</span>
+      <span class="metadata-progress-detail">${I18N.t('progress.preparing')}</span>
     `;
     container.appendChild(toast);
   }
@@ -756,7 +965,7 @@ class AppController {
 
     if (fill) fill.style.width = `${pct}%`;
     if (pctEl) pctEl.textContent = `${pct}%`;
-    if (detailEl) detailEl.textContent = message || `${current} de ${total} arquivos processados`;
+    if (detailEl) detailEl.textContent = message || I18N.t('progress.files_processed', current, total);
   }
 
   _hideScanProgress() {
@@ -825,7 +1034,12 @@ function showReaderView(type) {
 function closeReader() {
   const appRoot = document.getElementById('app-root');
   const readerView = document.getElementById('reader-view');
-  
+
+  // Garantir que fullscreen seja desligado ao fechar o leitor
+  document.body.classList.remove('reader-fullscreen');
+  const fsBar = document.getElementById('reader-fullscreen-bar');
+  if (fsBar) fsBar.style.display = 'none';
+
   if (readerView) readerView.classList.add('hidden');
   if (appRoot) appRoot.style.display = 'flex';
 
@@ -840,8 +1054,8 @@ function closeReader() {
   // Recarregar biblioteca/detalhes para atualizar badges de progresso
   if (window.app && window.app.libraryManager) {
     window.app.libraryManager.loadItems();
-    if (window.app.libraryManager.currentItem) {
-      window.app.libraryManager.openBookDetails(window.app.libraryManager.currentItem.id);
+    if (window.app.libraryManager.selectedItem) {
+      window.app.libraryManager.openBookDetails(window.app.libraryManager.selectedItem.id);
     }
   }
 }

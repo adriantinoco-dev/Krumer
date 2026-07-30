@@ -263,3 +263,130 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+
+/* ============================================================
+   Custom Language Picker — simplified
+   ============================================================ */
+
+/* Row: dropdown trigger + apply button side by side */
+.lang-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* The dropdown wrapper is positioned relative */
+.lang-picker-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Trigger button — looks like a form input */
+.lang-picker-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  border: 1.5px solid var(--border);
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.16s, background-color 0.16s;
+  font-family: inherit;
+}
+
+.lang-picker-trigger:hover {
+  border-color: var(--border-light);
+  background-color: var(--bg-card-hover);
+}
+
+.lang-picker-wrap.open .lang-picker-trigger {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.lang-picker-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lang-picker-chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lang-picker-wrap.open .lang-picker-chevron {
+  transform: rotate(180deg);
+}
+
+/* Dropdown list */
+.lang-picker-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition:
+    opacity 0.18s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lang-picker-wrap.open .lang-picker-dropdown {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: all;
+}
+
+/* Individual option — full-width text row */
+.lang-option {
+  display: block;
+  width: 100%;
+  padding: 8px 14px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s, color 0.12s;
+}
+
+.lang-option:hover {
+  background-color: var(--bg-card-hover);
+  color: var(--text-primary);
+}
+
+.lang-option.selected {
+  background-color: var(--accent-glow);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+/* Apply button keeps compact size */
+.lang-apply-btn {
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: 13px;
+  padding: 9px 16px;
+}

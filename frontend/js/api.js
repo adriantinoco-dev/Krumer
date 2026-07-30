@@ -18,7 +18,7 @@ class LibraryAPI {
     if (params.order) query.append('order', params.order);
 
     const res = await fetch(`${API_BASE_URL}/items?${query.toString()}`);
-    if (!res.ok) throw new Error(`Falha ao buscar itens da biblioteca: ${res.statusText}`);
+    if (!res.ok) throw new Error(I18N.t('api.error_fetch_items', res.statusText));
     return await res.json();
   }
 
@@ -27,7 +27,7 @@ class LibraryAPI {
    */
   static async getItem(id) {
     const res = await fetch(`${API_BASE_URL}/items/${id}`);
-    if (!res.ok) throw new Error(`Item não encontrado: ${res.statusText}`);
+    if (!res.ok) throw new Error(I18N.t('api.error_item_not_found', res.statusText));
     return await res.json();
   }
 
@@ -40,7 +40,7 @@ class LibraryAPI {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-    if (!res.ok) throw new Error(`Erro ao atualizar item: ${res.statusText}`);
+    if (!res.ok) throw new Error(I18N.t('api.error_update_item', res.statusText));
     return await res.json();
   }
 
@@ -49,7 +49,7 @@ class LibraryAPI {
    */
   static async getProgress(id) {
     const res = await fetch(`${API_BASE_URL}/items/${id}/progress`);
-    if (!res.ok) throw new Error(`Erro ao obter progresso: ${res.statusText}`);
+    if (!res.ok) throw new Error(I18N.t('api.error_get_progress', res.statusText));
     return await res.json();
   }
 
@@ -62,7 +62,7 @@ class LibraryAPI {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(progressData)
     });
-    if (!res.ok) throw new Error(`Erro ao salvar progresso: ${res.statusText}`);
+    if (!res.ok) throw new Error(I18N.t('api.error_save_progress', res.statusText));
     return await res.json();
   }
 
@@ -76,7 +76,7 @@ class LibraryAPI {
       body: JSON.stringify({ path })
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Falha ao escanear diretório');
+    if (!res.ok) throw new Error(data.detail || I18N.t('api.error_scan_failed'));
     return data;
   }
 
@@ -93,7 +93,7 @@ class LibraryAPI {
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.detail || `Falha ao escanear: ${res.statusText}`);
+      throw new Error(errData.detail || I18N.t('api.error_scan_status', res.statusText));
     }
 
     const reader = res.body.getReader();
@@ -141,7 +141,7 @@ class LibraryAPI {
   static async rescanFolder() {
     const res = await fetch(`${API_BASE_URL}/rescan`, { method: 'POST' });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Falha ao reescanear diretório');
+    if (!res.ok) throw new Error(data.detail || I18N.t('api.error_rescan_failed'));
     return data;
   }
 
@@ -151,7 +151,7 @@ class LibraryAPI {
   static async deleteItem(id) {
     const res = await fetch(`${API_BASE_URL}/items/${id}`, { method: 'DELETE' });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Erro ao remover item');
+    if (!res.ok) throw new Error(data.detail || I18N.t('api.error_remove_item'));
     return data;
   }
 
@@ -164,7 +164,7 @@ class LibraryAPI {
     }
     const res = await fetch(`${API_BASE_URL}/browse-folder`);
     const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Erro ao abrir janela de arquivos');
+    if (!res.ok) throw new Error(data.detail || I18N.t('api.error_browse_folder'));
     return data;
   }
 
@@ -181,7 +181,7 @@ class LibraryAPI {
     });
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Erro ao fazer upload da capa');
+      throw new Error(errData.detail || I18N.t('api.error_upload_cover'));
     }
     return await res.json();
   }
@@ -213,7 +213,7 @@ class LibraryAPI {
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.detail || `Falha ao buscar metadados: ${res.statusText}`);
+      throw new Error(errData.detail || I18N.t('api.error_fetch_metadata', res.statusText));
     }
 
     const reader = res.body.getReader();
@@ -266,7 +266,7 @@ class LibraryAPI {
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.detail || 'Erro ao aplicar metadados');
+      throw new Error(errData.detail || I18N.t('api.error_apply_metadata'));
     }
     return await res.json();
   }
@@ -277,7 +277,7 @@ class LibraryAPI {
   static async getApiKeyStatus() {
     const res = await fetch(`${API_BASE_URL}/settings/api-key`);
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.detail || 'Erro ao verificar chave da API');
+    if (!res.ok) throw new Error(data.detail || I18N.t('api.error_check_api_key'));
     return data;
   }
 
@@ -291,7 +291,7 @@ class LibraryAPI {
       body: JSON.stringify({ api_key: apiKey }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.detail || 'Erro ao salvar chave da API');
+    if (!res.ok) throw new Error(data.detail || I18N.t('api.error_save_api_key'));
     return data;
   }
 
@@ -311,6 +311,56 @@ class LibraryAPI {
     const res = await fetch(`${API_BASE_URL}/metadata/cached-keys`);
     const data = await res.json();
     return data.keys || [];
+  }
+
+  /**
+   * Atualiza o status de leitura manual de um item (lido/não lido)
+   */
+  static async updateItemReadStatus(id, isRead) {
+    const res = await fetch(`${API_BASE_URL}/items/${id}/read`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_read: isRead })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || I18N.t('api.error_read_status'));
+    return data;
+  }
+
+  /**
+   * Obtém as configurações globais do backend
+   */
+  static async getSettings() {
+    const res = await fetch(`${API_BASE_URL}/settings`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || I18N.t('api.error_get_settings'));
+    return data;
+  }
+
+  /**
+   * Atualiza as configurações globais do backend
+   */
+  static async updateSettings(settings) {
+    const res = await fetch(`${API_BASE_URL}/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || I18N.t('api.error_update_settings'));
+    return data;
+  }
+
+  /**
+   * Solicita a retradução de todas as descrições da biblioteca
+   */
+  static async retranslateDescriptions() {
+    const res = await fetch(`${API_BASE_URL}/items/retranslate-descriptions`, {
+      method: 'POST'
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || I18N.t('api.error_retranslate'));
+    return data;
   }
 }
 

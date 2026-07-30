@@ -497,3 +497,63 @@
   align-items: stretch;
   justify-content: flex-start;
 }
+
+/* ==========================================================================
+   Reader Fullscreen Mode Overrides & Bar Styles
+   ========================================================================== */
+
+body.reader-fullscreen #reader-header {
+  display: none !important;
+}
+
+#reader-fullscreen-bar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background-color: transparent;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 10000;
+  box-sizing: border-box;
+}
+
+body.reader-fullscreen #reader-fullscreen-bar {
+  display: flex !important;
+}
+
+body.reader-fullscreen #reader-container.epub-mode {
+  padding-top: 50px;
+}
+
+body.reader-fullscreen #reader-container.vertical {
+  padding-top: 50px;
+}
+
+#btn-back-fullscreen {
+  background-color: var(--bg-card, #202020);
+  color: var(--text-primary, #f1f1f1);
+  border: 1px solid var(--border, #2e2e2e);
+  border-radius: var(--radius-sm, 4px);
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+#btn-back-fullscreen:hover {
+  border-color: var(--accent, #f97316);
+  color: var(--accent, #f97316);
+  background-color: var(--bg-card-hover, #262626);
+}
+
+#fullscreen-progress-label {
+  font-size: 13px;
+  color: var(--text-muted, #888888);
+  font-weight: 600;
+}

@@ -9,6 +9,7 @@ let pdfCurrentScale = 1.0;
 let pdfMode = 'horizontal'; // 'horizontal' (página única) ou 'vertical' (rolagem contínua)
 let pdfCurrentItem = null;
 let pdfCurrentFilePath = null;
+let pdfIsFullscreen = false;
 
 let virtualObserver = null;
 let renderingPages = new Set();
@@ -33,12 +34,18 @@ async function openPdf(item, filePath) {
   pdfMode = (savedMode === 'vertical') ? 'vertical' : 'horizontal';
   renderingPages.clear();
 
+  // Limpar estado de fullscreen ao abrir novo documento
+  pdfIsFullscreen = false;
+  document.body.classList.remove('reader-fullscreen');
+  const fsBarInit = document.getElementById('reader-fullscreen-bar');
+  if (fsBarInit) fsBarInit.style.display = 'none';
+
   showReaderView('pdf');
 
   const titleEl = document.getElementById('reader-title');
   const subtitleEl = document.getElementById('reader-subtitle');
-  if (titleEl) titleEl.textContent = item.title || 'Visualizador de PDF';
-  if (subtitleEl) subtitleEl.textContent = item.author ? `por ${item.author}` : '';
+  if (titleEl) titleEl.textContent = item.title || I18N.t('reader.pdf.loading');
+  if (subtitleEl) subtitleEl.textContent = item.author ? `${I18N.t('details.author_prefix')} ${item.author}` : '';
 
   showReaderLoading(true);
 
@@ -107,7 +114,7 @@ async function openPdf(item, filePath) {
   } catch (err) {
     console.error('Erro ao abrir arquivo PDF:', err);
     showReaderLoading(false);
-    showReaderError(`Não foi possível abrir o arquivo PDF: ${err.message}`);
+    showReaderError(I18N.t('reader.pdf.open_error', err.message));
   }
 }
 
@@ -354,7 +361,7 @@ function setupPdfControls() {
 
   controlsContainer.innerHTML = `
     <div class="reader-controls-group">
-      <button id="pdf-btn-prev" class="btn-reader-ctrl" title="Página Anterior (Seta Esquerda)">
+      <button id="pdf-btn-prev" class="btn-reader-ctrl" title="${I18N.t('reader.pdf.prev')}">
         <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
@@ -365,22 +372,30 @@ function setupPdfControls() {
         <span id="pdf-total-label">/ ${pdfTotalPages}</span>
       </div>
 
-      <button id="pdf-btn-next" class="btn-reader-ctrl" title="Próxima Página (Seta Direita)">
+      <button id="pdf-btn-next" class="btn-reader-ctrl" title="${I18N.t('reader.pdf.next')}">
         <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
         </svg>
       </button>
     </div>
 
-    <button id="pdf-mode-toggle" class="btn-mode-toggle" title="Alternar Modo de Exibição">
+    <button id="pdf-mode-toggle" class="btn-mode-toggle" title="${I18N.t('reader.pdf.mode_toggle')}">
       <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
       </svg>
-      <span id="pdf-mode-label">Rolagem Contínua</span>
+      <span id="pdf-mode-label">${I18N.t('reader.pdf.scroll_continuous')}</span>
+    </button>
+
+    <!-- Botão Tela Cheia -->
+    <button id="btn-fullscreen" class="btn-mode-toggle" title="${I18N.t('reader.fullscreen')}">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"></path>
+      </svg>
+      <span>${I18N.t('reader.fullscreen')}</span>
     </button>
 
     <div class="reader-settings-wrapper">
-      <button id="pdf-settings-toggle" class="btn-mode-toggle" title="Configurações de Exibição">
+      <button id="pdf-settings-toggle" class="btn-mode-toggle" title="${I18N.t('reader.settings')}">
         <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -389,11 +404,11 @@ function setupPdfControls() {
 
       <div id="pdf-settings-popover" class="reader-settings-popover hidden">
         <div class="settings-popover-header">
-          <span class="settings-popover-title">Configurações</span>
+          <span class="settings-popover-title">${I18N.t('reader.epub.settings_title')}</span>
         </div>
         <div class="settings-option-group">
           <div class="settings-option-label">
-            <span>Zoom</span>
+            <span>${I18N.t('reader.pdf.settings_zoom')}</span>
             <span id="pdf-zoom-val-badge" class="zoom-value-badge">${Math.round(pdfCurrentScale * 100)}%</span>
           </div>
           <div class="zoom-slider-container">
@@ -446,6 +461,23 @@ function setupPdfControls() {
   });
 
   updateModeToggleButton();
+
+  // Fullscreen toggle
+  document.getElementById('btn-fullscreen')?.addEventListener('click', () => {
+    pdfIsFullscreen = !pdfIsFullscreen;
+    document.body.classList.toggle('reader-fullscreen', pdfIsFullscreen);
+    const fsBar = document.getElementById('reader-fullscreen-bar');
+    if (fsBar) fsBar.style.display = pdfIsFullscreen ? 'flex' : 'none';
+    _syncPdfFullscreenProgressLabel();
+  });
+
+  // Fullscreen back button
+  const fsBackBtn = document.getElementById('btn-back-fullscreen');
+  if (fsBackBtn) {
+    fsBackBtn.onclick = () => {
+      if (typeof closeReader === 'function') closeReader();
+    };
+  }
 
   // Settings Popover Toggle
   const settingsBtn = document.getElementById('pdf-settings-toggle');
@@ -503,11 +535,11 @@ function updateModeToggleButton() {
   if (!labelEl || !btn) return;
 
   if (pdfMode === 'horizontal') {
-    labelEl.textContent = 'Modo Vertical';
-    btn.title = 'Mudar para Rolagem Contínua (Vertical)';
+    labelEl.textContent = I18N.t('reader.pdf.vertical');
+    btn.title = I18N.t('reader.pdf.mode_toggle');
   } else {
-    labelEl.textContent = 'Modo Horizontal';
-    btn.title = 'Mudar para Página Única (Horizontal)';
+    labelEl.textContent = I18N.t('reader.pdf.horizontal');
+    btn.title = I18N.t('reader.pdf.mode_toggle');
   }
 }
 
@@ -523,6 +555,28 @@ function updatePdfControlsState() {
 
   const btnNext = document.getElementById('pdf-btn-next');
   if (btnNext) btnNext.disabled = (pdfCurrentPage >= pdfTotalPages);
+
+  _syncPdfFullscreenProgressLabel();
+}
+
+/**
+ * Sincroniza o label de progresso exibido no reader-fullscreen-bar (PDF)
+ */
+function _syncPdfFullscreenProgressLabel() {
+  if (!pdfTotalPages) return;
+  const pct = Math.round((pdfCurrentPage / pdfTotalPages) * 100);
+  const fsLabel = document.getElementById('fullscreen-progress-label');
+  if (fsLabel) fsLabel.textContent = I18N.t('reader.pdf.page_progress', pct, pdfCurrentPage, pdfTotalPages);
+}
+
+/**
+ * Reseta o estado de fullscreen do leitor PDF
+ */
+function resetPdfFullscreen() {
+  pdfIsFullscreen = false;
+  document.body.classList.remove('reader-fullscreen');
+  const fsBar = document.getElementById('reader-fullscreen-bar');
+  if (fsBar) fsBar.style.display = 'none';
 }
 
 /**
@@ -674,7 +728,7 @@ function showReaderLoading(isLoading) {
     container.innerHTML = `
       <div class="reader-spinner-overlay">
         <div class="reader-spinner"></div>
-        <span>Carregando documento...</span>
+        <span>${I18N.t('reader.pdf.loading')}</span>
       </div>
     `;
   }

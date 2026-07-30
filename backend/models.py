@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Table
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Table, Boolean
 from sqlalchemy.orm import relationship
 import datetime
 from pydantic import BaseModel, ConfigDict
@@ -32,6 +32,7 @@ class Item(Base):
     parent_id = Column(Integer, ForeignKey('items.id', ondelete='CASCADE'), nullable=True)
     added_at = Column(DateTime, default=datetime.datetime.utcnow)
     last_read = Column(DateTime, nullable=True)
+    is_read = Column(Boolean, default=False, nullable=False)
     
     # Relationships
     children = relationship("Item", back_populates="parent", cascade="all, delete-orphan")
@@ -112,6 +113,7 @@ class ItemBase(BaseModel):
     rating: Optional[int] = None
     parent_id: Optional[int] = None
     last_read: Optional[datetime.datetime] = None
+    is_read: bool = False
 
 class ItemCreate(ItemBase):
     pass
@@ -124,6 +126,7 @@ class ItemUpdate(BaseModel):
     description: Optional[str] = None
     rating: Optional[int] = None
     tags: Optional[List[str]] = None
+    is_read: Optional[bool] = None
 
 class ItemResponse(ItemBase):
     id: int

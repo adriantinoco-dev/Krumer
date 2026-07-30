@@ -455,6 +455,8 @@ body {
   cursor: pointer;
   transition: var(--transition);
   flex-shrink: 0;
+  padding: 0;
+  line-height: 0;
 }
 
 .btn-rescan:hover {

@@ -1421,3 +1421,108 @@ html[data-theme="dark"] .contador-ok {
   background: rgba(239, 68, 68, 0.12);
   color: #ef4444;
 }
+
+/* ==========================================================================
+   Chapter Read/Unread Icon & Custom Sort Popup
+   ========================================================================== */
+
+.details-chapter-card {
+  position: relative;
+  padding-left: 54px !important;
+}
+
+.btn-mark-read-chapter {
+  position: absolute;
+  left: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted, #888);
+  transition: color 0.15s ease, transform 0.15s ease;
+  z-index: 2;
+}
+
+.btn-mark-read-chapter:hover {
+  color: var(--accent, #f97316);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.btn-mark-read-chapter.is-read {
+  color: var(--accent, #f97316);
+}
+
+.sort-popup-wrap {
+  position: relative;
+}
+
+.sort-popup {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--bg-secondary, #161616);
+  border: 1px solid var(--border, #2e2e2e);
+  border-radius: 12px;
+  padding: 8px;
+  min-width: 240px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sort-popup.hidden {
+  display: none !important;
+}
+
+.sort-popup-header {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted, #888);
+  padding: 6px 10px 8px;
+}
+
+.sort-popup-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #f1f1f1);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sort-popup-option:hover {
+  background: var(--bg-card-hover, #262626);
+  color: var(--accent, #f97316);
+}
+
+.sort-popup-option.active {
+  background: rgba(249, 115, 22, 0.15);
+  color: var(--accent, #f97316);
+  font-weight: 600;
+}
+
+.sort-option-icon {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  opacity: 0.8;
+}

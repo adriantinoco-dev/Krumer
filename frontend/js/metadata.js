@@ -113,24 +113,19 @@ class MetadataManager {
       // Busca todos os itens raiz (sem parent_id)
       const allItems = await LibraryAPI.getItems({ limit: 500 });
 
-      // Remove obras que já possuem sinopse e autor preenchidos
-      this.livros = allItems.filter(item => {
-        const temSinopse = item.description && item.description.trim().length > 0;
-        const temAutor = item.author && item.author.trim().length > 0;
-        return !(temSinopse && temAutor);
-      });
+      this.livros = allItems;
       this.selecionados = [];
 
       const titleEl = document.getElementById('metadata-select-title');
       if (titleEl) {
-        titleEl.textContent = 'Selecionar Obras (máx 10)';
+        titleEl.textContent = I18N.t('metadata.select_title');
       }
 
       this.renderGradeSelecao();
       this.atualizarContadorSelecao();
       this.abrirModal('metadata-select-modal');
     } catch (err) {
-      this.app.showToast(`Erro ao carregar obras: ${err.message}`);
+      this.app.showToast(I18N.t('toast.metadata_load_error', err.message));
     }
   }
 
@@ -140,8 +135,8 @@ class MetadataManager {
 
     if (this.livros.length === 0) {
       grid.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1;">
-        <div class="empty-title">Nenhuma obra disponível</div>
-        <div class="empty-desc">Escaneie uma pasta para adicionar livros à biblioteca.</div>
+        <div class="empty-title">${I18N.t('metadata.empty_title')}</div>
+        <div class="empty-desc">${I18N.t('metadata.empty_desc')}</div>
       </div>`;
       return;
     }
@@ -152,7 +147,7 @@ class MetadataManager {
       const coverUrl = livro.cover_path ? LibraryAPI.getCoverUrl(livro.id) : '';
       const isSeries = livro.type === 'series';
       const badgeText = isSeries
-        ? `${livro.children_count || 0} ${livro.children_count === 1 ? 'vol' : 'vols'}`
+        ? `${I18N.t('series.vol', livro.children_count || 0)}`
         : '';
 
       return `
@@ -226,7 +221,7 @@ class MetadataManager {
     const lim = this.limite;
 
     if (counter) {
-      counter.textContent = `${n} de ${lim} ${lim === 1 ? 'obra selecionada' : 'obras selecionadas'}`;
+      counter.textContent = I18N.t('modal.metadata.counter', n, lim);
     }
     if (fill) {
       fill.style.width = `${(n / lim) * 100}%`;
@@ -282,12 +277,12 @@ class MetadataManager {
 
     const pct = total > 0 ? Math.round((atual / total) * 100) : 0;
     toast.innerHTML = `
-      <span class="metadata-progress-title">Buscando metadados...</span>
+      <span class="metadata-progress-title">${I18N.t('progress.fetching_metadata')}</span>
       <div class="metadata-progress-bar-wrap">
         <div class="metadata-progress-bar-fill" style="width: ${pct}%"></div>
       </div>
       <span class="metadata-progress-pct">${pct}%</span>
-      <span class="metadata-progress-detail">${atual} de ${total} livros processados</span>
+      <span class="metadata-progress-detail">${I18N.t('progress.items_processed', atual, total)}</span>
     `;
   }
 
@@ -325,8 +320,8 @@ class MetadataManager {
 
     if (contadores) {
       contadores.innerHTML = `
-        <span class="contador-ok">Encontrados: ${encontrados}</span>
-        <span class="contador-erro">Não encontrados: ${naoEncontrados}</span>
+        <span class="contador-ok">${I18N.t('metadata.found_label')} ${encontrados}</span>
+        <span class="contador-erro">${I18N.t('metadata.not_found_label')} ${naoEncontrados}</span>
       `;
     }
 
@@ -346,7 +341,7 @@ class MetadataManager {
 
     const item = this.resultadoSelecionado;
     if (!item || !item.metadados) {
-      previa.innerHTML = `<div class="coluna-previa vazio">Nenhum metadado encontrado para este item.</div>`;
+      previa.innerHTML = `<div class="coluna-previa vazio">${I18N.t('metadata.preview_empty')}</div>`;
       return;
     }
 
@@ -363,11 +358,11 @@ class MetadataManager {
           </div>
         ` : ''}
         <h2>${escapeHtml(paraTitleCase(nome_da_obra))}</h2>
-        <p><strong>Autor:</strong> ${escapeHtml(autor || 'Não identificado')}</p>
-        <p><strong>Lançamento:</strong> ${escapeHtml(data_de_lancamento || 'Não identificado')}</p>
+        <p><strong>${I18N.t('metadata.preview_author')}</strong> ${escapeHtml(autor || I18N.t('metadata.preview_not_identified'))}</p>
+        <p><strong>${I18N.t('metadata.preview_launch')}</strong> ${escapeHtml(data_de_lancamento || I18N.t('metadata.preview_not_identified'))}</p>
         <div class="sinopse">
-          <strong>Sinopse:</strong>
-          <p>${escapeHtml(sinopse || 'Sinopse não disponível.')}</p>
+          <strong>${I18N.t('metadata.preview_synopsis')}</strong>
+          <p>${escapeHtml(sinopse || I18N.t('metadata.preview_synopsis_unavailable'))}</p>
         </div>
       </div>
     `;
@@ -382,27 +377,27 @@ class MetadataManager {
   async aplicarMetadados() {
     const comMetadados = this.resultados.filter(r => r.metadados);
     if (comMetadados.length === 0) {
-      this.app.showToast('Nenhum metadado encontrado para aplicar.');
+      this.app.showToast(I18N.t('toast.metadata_no_results'));
       return;
     }
 
     const btn = document.getElementById('btn-metadata-apply');
     if (btn) {
       btn.disabled = true;
-      btn.textContent = 'Aplicando...';
+      btn.textContent = I18N.t('metadata.applying');
     }
 
     try {
       await LibraryAPI.applyMetadata(this.resultados);
       this.fecharResultados();
       await this.app.libraryManager.loadItems();
-      this.app.showToast(`Metadados aplicados em ${comMetadados.length} livro(s)!`);
+      this.app.showToast(I18N.t('toast.saved', comMetadados.length));
     } catch (err) {
-      this.app.showToast(`Erro ao aplicar: ${err.message}`);
+      this.app.showToast(I18N.t('toast.metadata_apply_error', err.message));
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = 'Aplicar Metadados';
+        btn.textContent = I18N.t('modal.metadata.apply');
       }
     }
   }

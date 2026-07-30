@@ -12,6 +12,7 @@ from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File, Re
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from pydantic import BaseModel
 
 from database import Base, engine, get_db, COVERS_DIR
@@ -33,6 +34,16 @@ from metadata_service import (
 async def lifespan(app: FastAPI):
     # Initialize SQLite database tables on startup
     Base.metadata.create_all(bind=engine)
+
+    # Migrations inline — adiciona colunas novas em bancos de dados existentes
+    with engine.connect() as conn:
+        # Verificar e adicionar coluna is_read (v2)
+        try:
+            conn.execute(text("ALTER TABLE items ADD COLUMN is_read BOOLEAN NOT NULL DEFAULT 0"))
+            conn.commit()
+        except Exception:
+            pass  # Coluna já existe — ignorar
+
     yield
 
 app = FastAPI(
@@ -57,7 +68,7 @@ class ScanPayload(BaseModel):
     path: str
 
 class SettingsUpdatePayload(BaseModel):
-    pass
+    language: Optional[str] = None
 
 class ApiKeyPayload(BaseModel):
     api_key: str
@@ -384,6 +395,9 @@ def update_item_metadata(id: int, payload: ItemUpdate, db: Session = Depends(get
             raise HTTPException(status_code=400, detail="Rating must be between 0 and 5")
         item.rating = payload.rating if payload.rating > 0 else None
         
+    if payload.is_read is not None:
+        item.is_read = payload.is_read
+
     if payload.tags is not None:
         item.tags = []
         for tag_name in payload.tags:
@@ -400,6 +414,45 @@ def update_item_metadata(id: int, payload: ItemUpdate, db: Session = Depends(get
     db.commit()
     db.refresh(item)
     return item
+
+class ItemReadPayload(BaseModel):
+    is_read: bool
+
+@app.patch("/items/{id}/read", response_model=ItemResponse)
+def update_item_read_status(id: int, payload: ItemReadPayload, db: Session = Depends(get_db)):
+    item = db.query(Item).filter(Item.id == id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    item.is_read = payload.is_read
+
+    # Update progress when marking as read/unread
+    file_path = item.path
+    existing = db.query(Progress).filter(Progress.item_id == id).first()
+    if payload.is_read:
+        total = existing.total_pages if existing and existing.total_pages else 9999
+        if existing:
+            existing.progress_pct = 100.0
+            existing.current_page = total
+            existing.updated_at = datetime.datetime.utcnow()
+        else:
+            db.add(Progress(item_id=id, file_path=file_path, progress_pct=100.0, current_page=total, total_pages=total))
+    else:
+        if existing:
+            existing.progress_pct = 0.0
+            existing.current_page = 0
+            existing.updated_at = datetime.datetime.utcnow()
+        else:
+            db.add(Progress(item_id=id, file_path=file_path, progress_pct=0.0, current_page=0))
+
+    item.last_read = datetime.datetime.utcnow()
+    if item.parent_id:
+        parent = db.query(Item).filter(Item.id == item.parent_id).first()
+        if parent:
+            parent.last_read = datetime.datetime.utcnow()
+
+    db.commit()
+    db.refresh(item)
+    return _enrich_item(item, db)
 
 @app.post("/items/{id}/cover", response_model=ItemResponse)
 async def upload_custom_book_cover(id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
@@ -673,14 +726,23 @@ def browse_folder_native_dialog():
 def get_global_settings(db: Session = Depends(get_db)):
     """Fetches key-value configuration flags."""
     last_scanned = db.query(Setting).filter(Setting.key == "last_scanned_path").first()
+    lang_setting = db.query(Setting).filter(Setting.key == "language").first()
     return {
         "use_filename_as_title": True,
-        "last_scanned_path": last_scanned.value if last_scanned else None
+        "last_scanned_path": last_scanned.value if last_scanned else None,
+        "language": lang_setting.value if lang_setting else "pt-br"
     }
 
 @app.put("/settings")
 def update_global_settings(payload: SettingsUpdatePayload, db: Session = Depends(get_db)):
     """Saves key-value configuration flags."""
+    if payload.language is not None:
+        lang = db.query(Setting).filter(Setting.key == "language").first()
+        if lang:
+            lang.value = payload.language
+        else:
+            db.add(Setting(key="language", value=payload.language))
+        db.commit()
     return get_global_settings(db)
 
 @app.post("/rescan")
@@ -735,6 +797,9 @@ def fetch_metadata_stream(payload: MetadataFetchPayload, db: Session = Depends(g
     id_order = {item_id: idx for idx, item_id in enumerate(payload.item_ids)}
     items.sort(key=lambda i: id_order[i.id])
 
+    lang_setting = db.query(Setting).filter(Setting.key == "language").first()
+    language = lang_setting.value if lang_setting else "pt-br"
+
     lote = []
     for item in items:
         if item.type == "series":
@@ -753,7 +818,7 @@ def fetch_metadata_stream(payload: MetadataFetchPayload, db: Session = Depends(g
 
     def event_stream():
         try:
-            for atual, total, resultado in processar_lote_com_progresso(lote):
+            for atual, total, resultado in processar_lote_com_progresso(lote, language=language):
                 yield f"data: {json.dumps({'type': 'progress', 'atual': atual, 'total': total}, ensure_ascii=False)}\n\n"
                 yield f"data: {json.dumps({'type': 'result', 'data': resultado}, ensure_ascii=False)}\n\n"
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
@@ -804,6 +869,41 @@ def apply_metadata(payload: MetadataApplyPayload, db: Session = Depends(get_db))
         db.refresh(item)
 
     return [_enrich_item(item, db) for item in updated_items]
+
+
+@app.post("/items/retranslate-descriptions")
+def retranslate_descriptions(db: Session = Depends(get_db)):
+    """
+    Retraduz as sinopses de todos os itens no banco de dados para o idioma configurado.
+    """
+    lang_setting = db.query(Setting).filter(Setting.key == "language").first()
+    language = lang_setting.value if lang_setting else "pt-br"
+
+    items = db.query(Item).filter(Item.description.isnot(None), Item.description != "").all()
+    updated_count = 0
+
+    from metadata_service import processar_arquivo_livro
+    for item in items:
+        # Se for uma série, o título já está limpo, usamos query_direta
+        query_direta = item.title if item.type == "series" else None
+        nome_arquivo = item.title if item.type == "series" else os.path.basename(item.path)
+
+        try:
+            res = processar_arquivo_livro(
+                nome_arquivo=nome_arquivo,
+                item_id=item.id,
+                use_cache=False,  # Ignora o cache para forçar retradução
+                query_direta=query_direta,
+                language=language
+            )
+            if res and res.get("metadados") and res["metadados"].get("sinopse"):
+                item.description = res["metadados"]["sinopse"]
+                updated_count += 1
+        except Exception as e:
+            print(f"Erro ao retraduzir item {item.id}: {e}")
+
+    db.commit()
+    return {"updated": updated_count}
 
 
 @app.get("/metadata/cached-keys")

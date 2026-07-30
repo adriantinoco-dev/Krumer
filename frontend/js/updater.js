@@ -34,11 +34,11 @@ class AppUpdater {
       <div id="krumer-update-modal" class="update-modal-backdrop hidden">
         <div class="update-modal-card">
           <div class="update-modal-header">
-            <h3 id="update-modal-title">🔄 Atualização do Krumer</h3>
-            <button id="update-modal-close" class="update-modal-close-btn" title="Fechar">&times;</button>
+            <h3 id="update-modal-title">🔄 ${I18N.t('update.title')}</h3>
+            <button id="update-modal-close" class="update-modal-close-btn" title="${I18N.t('update.btn_close')}">&times;</button>
           </div>
           <div class="update-modal-body">
-            <p id="update-modal-status">Verificando novas versões...</p>
+            <p id="update-modal-status">${I18N.t('update.checking')}</p>
             
             <div id="update-progress-container" class="update-progress-container hidden">
               <div class="update-progress-bar-bg">
@@ -51,8 +51,8 @@ class AppUpdater {
             </div>
           </div>
           <div class="update-modal-footer">
-            <button id="update-modal-cancel" class="btn btn-secondary hidden">Cancelar</button>
-            <button id="update-modal-action" class="btn btn-primary hidden">Baixar Agora</button>
+            <button id="update-modal-cancel" class="btn btn-secondary hidden">${I18N.t('update.btn_cancel')}</button>
+            <button id="update-modal-action" class="btn btn-primary hidden">${I18N.t('update.btn_download')}</button>
           </div>
         </div>
       </div>
@@ -108,13 +108,13 @@ class AppUpdater {
   }
 
   showUpdateAvailable(version) {
-    this.titleEl.textContent = '🚀 Nova Versão Disponível';
-    this.statusEl.textContent = `Nova versão ${version ? 'v' + version : ''} disponível. Deseja baixar agora?`;
+    this.titleEl.textContent = '🚀 ' + I18N.t('update.title_available');
+    this.statusEl.textContent = I18N.t('update.available', version ? 'v' + version : '');
     
     this.progressContainerEl.classList.add('hidden');
     this.cancelBtnEl.classList.add('hidden');
     
-    this.actionBtnEl.textContent = 'Baixar Agora';
+    this.actionBtnEl.textContent = I18N.t('update.btn_download');
     this.actionBtnEl.classList.remove('hidden');
     this.actionBtnEl.onclick = () => this.startDownload();
 
@@ -123,7 +123,7 @@ class AppUpdater {
 
   async startDownload() {
     this.isDownloading = true;
-    this.statusEl.textContent = 'Iniciando download da atualização...';
+    this.statusEl.textContent = I18N.t('update.download_starting');
     
     this.progressContainerEl.classList.remove('hidden');
     this.progressBarEl.style.width = '0%';
@@ -136,7 +136,7 @@ class AppUpdater {
     try {
       await window.electronAPI.startDownload();
     } catch (err) {
-      this.showUpdateError('Falha ao iniciar o download: ' + (err.message || err));
+      this.showUpdateError(I18N.t('update.download_error', err.message || err));
     }
   }
 
@@ -147,17 +147,17 @@ class AppUpdater {
     const speedBytes = progressObj.bytesPerSecond || 0;
     const speedMb = (speedBytes / (1024 * 1024)).toFixed(1);
 
-    this.statusEl.textContent = `Baixando atualização... ${percent}%`;
+    this.statusEl.textContent = I18N.t('update.downloading', percent);
     this.progressBarEl.style.width = `${percent}%`;
     this.progressTextEl.textContent = `${percent}%`;
-    this.speedTextEl.textContent = `${speedMb} MB/s`;
+    this.speedTextEl.textContent = I18N.t('update.speed', speedMb);
   }
 
   async handleCancel() {
     if (this.isDownloading) {
       await window.electronAPI.cancelDownload();
       this.isDownloading = false;
-      this.statusEl.textContent = 'Download cancelado.';
+      this.statusEl.textContent = I18N.t('update.download_canceled');
       this.progressContainerEl.classList.add('hidden');
       this.cancelBtnEl.classList.add('hidden');
     } else {
@@ -167,13 +167,13 @@ class AppUpdater {
 
   showUpdateDownloaded(info) {
     this.isDownloading = false;
-    this.titleEl.textContent = '✅ Atualização Pronta';
-    this.statusEl.textContent = 'Atualização concluída com sucesso. Reiniciar o Krumer agora para aplicar?';
+    this.titleEl.textContent = '✅ ' + I18N.t('update.title_downloaded');
+    this.statusEl.textContent = I18N.t('update.download_done');
 
     this.progressContainerEl.classList.add('hidden');
     this.cancelBtnEl.classList.add('hidden');
 
-    this.actionBtnEl.textContent = 'Reiniciar Agora';
+    this.actionBtnEl.textContent = I18N.t('update.btn_restart');
     this.actionBtnEl.classList.remove('hidden');
     this.actionBtnEl.onclick = () => {
       window.electronAPI.restartAndInstall();
@@ -184,13 +184,13 @@ class AppUpdater {
 
   showUpdateError(errorMsg) {
     this.isDownloading = false;
-    this.titleEl.textContent = '⚠️ Erro na Atualização';
-    this.statusEl.textContent = `Não foi possível atualizar: ${errorMsg || 'Sem conexão com a internet ou release corrompida.'}`;
+    this.titleEl.textContent = '⚠️ ' + I18N.t('update.title_error');
+    this.statusEl.textContent = I18N.t('update.error', errorMsg || I18N.t('update.error_no_connection'));
 
     this.progressContainerEl.classList.add('hidden');
     this.cancelBtnEl.classList.add('hidden');
 
-    this.actionBtnEl.textContent = 'Entendido';
+    this.actionBtnEl.textContent = I18N.t('update.btn_ok');
     this.actionBtnEl.classList.remove('hidden');
     this.actionBtnEl.onclick = () => this.hideModal();
 

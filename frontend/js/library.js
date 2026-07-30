@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    Krumer Personal Library - Grid & State Manager (Phase 2 Spec)
    ========================================================================== */
 
@@ -87,7 +87,7 @@ class LibraryManager {
       if (!this.tagsContainer) return;
 
       if (tags.length === 0) {
-        this.tagsContainer.innerHTML = `<span style="font-size:11px; color:var(--text-muted);">Nenhuma tag</span>`;
+        this.tagsContainer.innerHTML = `<span style="font-size:11px; color:var(--text-muted);">${I18N.t('sidebar.tags.empty')}</span>`;
         return;
       }
 
@@ -149,7 +149,7 @@ class LibraryManager {
       if (this.currentCategory === 'all' && inProgressItems.length > 0) {
         continueContainer.style.display = 'block';
         if (continueCount) {
-          continueCount.textContent = `(${inProgressItems.length} ${inProgressItems.length === 1 ? 'item' : 'itens'})`;
+          continueCount.textContent = I18N.t('continue.count', inProgressItems.length);
         }
         continueGrid.innerHTML = inProgressItems.map(item => this.createBookCardHTML(item)).join('');
         this.attachCardEventListeners();
@@ -161,16 +161,16 @@ class LibraryManager {
 
     const mainTitleTextEl = document.getElementById('main-title-text');
     if (mainTitleTextEl) {
-      let titleText = 'Minha Biblioteca';
-      if (this.currentCategory === 'series') titleText = 'Séries & Mangás';
-      else if (this.currentCategory === 'read') titleText = 'Lidos';
-      else if (this.currentCategory === 'unread') titleText = 'Não Lidos';
-      else if (this.currentCategory === 'reading') titleText = 'Em Andamento';
+      let titleText = I18N.t('main.title.all');
+      if (this.currentCategory === 'series') titleText = I18N.t('main.title.series');
+      else if (this.currentCategory === 'read') titleText = I18N.t('main.title.read');
+      else if (this.currentCategory === 'unread') titleText = I18N.t('main.title.unread');
+      else if (this.currentCategory === 'reading') titleText = I18N.t('main.title.reading');
       mainTitleTextEl.textContent = titleText;
     }
 
     if (this.itemCountElement) {
-      this.itemCountElement.textContent = `(${this.items.length} ${this.items.length === 1 ? 'item' : 'itens'})`;
+      this.itemCountElement.textContent = I18N.t('main.item_count_simple', this.items.length);
     }
 
     if (this.items.length === 0) {
@@ -179,9 +179,9 @@ class LibraryManager {
           <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
           </svg>
-          <div class="empty-title">Nenhum livro encontrado</div>
-          <div class="empty-desc">Escaneie uma pasta no seu computador para adicionar livros ou quadrinhos à sua biblioteca.</div>
-          <button class="btn btn-primary" onclick="app.openScanModal()">Escanear Pasta</button>
+          <div class="empty-title">${I18N.t('empty.title')}</div>
+          <div class="empty-desc">${I18N.t('empty.desc')}</div>
+          <button class="btn btn-primary" onclick="app.openScanModal()">${I18N.t('empty.scan')}</button>
         </div>
       `;
       return;
@@ -201,7 +201,8 @@ class LibraryManager {
     const rating = item.rating || 0;
 
     // Series badge text (e.g. "4 vols" or "12 caps")
-    const badgeText = isSeries ? `${item.children_count || 0} ${item.children_count === 1 ? 'vol' : 'vols'}` : '';
+    const badgeText = isSeries ? I18N.t('series.vol', item.children_count || 0) : '';
+    const authorText = item.author || (isSeries ? I18N.t('series.author_fallback') : I18N.t('author.unknown'));
 
     return `
       <div class="book-card" data-id="${item.id}" data-type="${item.type}">
@@ -234,7 +235,7 @@ class LibraryManager {
         </div>
 
         <div class="book-title" title="${this.escapeHtml(item.title)}">${this.escapeHtml(item.title)}</div>
-        <div class="book-meta">${this.escapeHtml(item.author || (isSeries ? 'Série' : 'Autor desconhecido'))}</div>
+        <div class="book-meta">${this.escapeHtml(authorText)}</div>
 
         <div class="book-stars" data-id="${item.id}">
           ${[1, 2, 3, 4, 5].map(starNum => `
@@ -299,7 +300,7 @@ class LibraryManager {
           });
 
           if (window.app) window.app.showToast(
-            newRating > 0 ? `Avaliação atualizada para ${newRating} estrelas` : 'Avaliação removida'
+            newRating > 0 ? I18N.t('details.rating_updated', newRating) : I18N.t('details.rating_removed')
           );
         } catch (err) {
           console.error(err);
@@ -359,7 +360,7 @@ class LibraryManager {
       // 4. Metadados Secundários (Ano, Editora, Progresso)
       const yearEl = document.getElementById('details-meta-year');
       if (item.year) {
-        yearEl.textContent = `Ano: ${item.year}`;
+        yearEl.textContent = I18N.t('details.year_prefix', item.year);
         yearEl.style.display = 'inline-block';
       } else {
         yearEl.style.display = 'none';
@@ -367,7 +368,7 @@ class LibraryManager {
 
       const publisherEl = document.getElementById('details-meta-publisher');
       if (item.publisher) {
-        publisherEl.textContent = `Editora: ${item.publisher}`;
+        publisherEl.textContent = I18N.t('details.publisher_prefix', item.publisher);
         publisherEl.style.display = 'inline-block';
       } else {
         publisherEl.style.display = 'none';
@@ -375,7 +376,7 @@ class LibraryManager {
 
       const progressEl = document.getElementById('details-meta-progress');
       if (progressEl) {
-        progressEl.textContent = `${item.overall_progress || 0}% lido`;
+        progressEl.textContent = I18N.t('details.progress', item.overall_progress || 0);
       }
 
       // 5. Avaliação por Estrelas (1 a 5, editável e persistida)
@@ -435,16 +436,86 @@ class LibraryManager {
 
         if (chaptersGrid) {
           chaptersGrid.innerHTML = chapters.map((chap, idx) => `
-            <div class="details-chapter-card">
+            <div class="details-chapter-card" data-id="${chap.id}">
+              <button class="btn-mark-read-chapter ${chap.is_read ? 'is-read' : ''}" data-id="${chap.id}" title="${chap.is_read ? I18N.t('details.mark_unread') : I18N.t('details.mark_read')}">
+                ${chap.is_read 
+                  ? `<svg class="icon-read" width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                       <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"></path>
+                     </svg>`
+                  : `<svg class="icon-unread" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                       <circle cx="12" cy="12" r="10"></circle>
+                     </svg>`
+                }
+              </button>
               <div class="details-chapter-info">
                 <div class="details-chapter-title">${this.escapeHtml(chap.title)}</div>
-                <div class="details-chapter-progress">${chap.overall_progress || 0}% lido</div>
+                <div class="details-chapter-progress">${I18N.t('details.chapter_progress', chap.overall_progress || 0)}</div>
               </div>
               <button class="btn btn-primary btn-read-chapter" data-index="${idx}">
-                Ler
+                ${I18N.t('details.read_chapter')}
               </button>
             </div>
           `).join('');
+
+          chaptersGrid.querySelectorAll('.btn-mark-read-chapter').forEach((btn) => {
+            btn.addEventListener('click', async (e) => {
+              e.stopPropagation();
+              const chapId = parseInt(btn.dataset.id, 10);
+              const chap = chapters.find(c => c.id === chapId);
+              if (!chap) return;
+
+              const nextState = !chap.is_read;
+              const chapterCard = btn.closest('.details-chapter-card');
+              const progressEl = chapterCard ? chapterCard.querySelector('.details-chapter-progress') : null;
+              
+              // Otimistic local update
+              chap.is_read = nextState;
+              chap.overall_progress = nextState ? 100.0 : 0.0;
+              btn.classList.toggle('is-read', nextState);
+              btn.title = nextState ? I18N.t('details.mark_unread') : I18N.t('details.mark_read');
+              btn.innerHTML = nextState
+                ? `<svg class="icon-read" width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"></path>
+                   </svg>`
+                : `<svg class="icon-unread" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                     <circle cx="12" cy="12" r="10"></circle>
+                   </svg>`;
+              if (progressEl) progressEl.textContent = I18N.t('details.chapter_progress', chap.overall_progress);
+
+              // Recalcula progresso geral da série
+              const totalPct = chapters.reduce((sum, c) => sum + (c.overall_progress || 0), 0);
+              const seriesAvg = chapters.length > 0 ? Math.round(totalPct / chapters.length) : 0;
+              const progressDetailEl = document.getElementById('details-meta-progress');
+              if (progressDetailEl) progressDetailEl.textContent = I18N.t('details.progress', seriesAvg);
+              if (this.selectedItem) this.selectedItem.overall_progress = seriesAvg;
+
+              try {
+                await LibraryAPI.updateItemReadStatus(chapId, nextState);
+                if (window.app) window.app.showToast(nextState ? I18N.t('chapter.toast.read') : I18N.t('chapter.toast.unread'));
+              } catch (err) {
+                console.error(err);
+                // Revert on error
+                chap.is_read = !nextState;
+                chap.overall_progress = nextState ? 0.0 : 100.0;
+                btn.classList.toggle('is-read', !nextState);
+                btn.title = !nextState ? I18N.t('details.mark_unread') : I18N.t('details.mark_read');
+                btn.innerHTML = !nextState
+                  ? `<svg class="icon-read" width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                       <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"></path>
+                     </svg>`
+                  : `<svg class="icon-unread" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                       <circle cx="12" cy="12" r="10"></circle>
+                     </svg>`;
+                if (progressEl) progressEl.textContent = I18N.t('details.chapter_progress', chap.overall_progress);
+                // Recalcula progresso geral da série novamente após reverter
+                const totalPctRevert = chapters.reduce((sum, c) => sum + (c.overall_progress || 0), 0);
+                const seriesAvgRevert = chapters.length > 0 ? Math.round(totalPctRevert / chapters.length) : 0;
+                if (progressDetailEl) progressDetailEl.textContent = I18N.t('details.progress', seriesAvgRevert);
+                if (this.selectedItem) this.selectedItem.overall_progress = seriesAvgRevert;
+                if (window.app) window.app.showToast(I18N.t('toast.chapter_error'));
+              }
+            });
+          });
 
           chaptersGrid.querySelectorAll('.btn-read-chapter').forEach((btn) => {
             btn.addEventListener('click', () => {
@@ -476,7 +547,7 @@ class LibraryManager {
 
     } catch (err) {
       console.error('Erro ao abrir página de detalhes:', err);
-      if (window.app) window.app.showToast(`Erro ao carregar detalhes: ${err.message}`);
+      if (window.app) window.app.showToast(I18N.t('toast.detail_error', err.message));
     }
   }
 
@@ -503,17 +574,17 @@ class LibraryManager {
           this.selectedItem.rating = newRating;
           this.renderDetailsStars(newRating);
           if (window.app) window.app.showToast(
-            newRating > 0 ? `Avaliação salva: ${newRating} estrelas` : 'Avaliação removida'
+            newRating > 0 ? I18N.t('details.rating_updated', newRating) : I18N.t('details.rating_removed')
           );
         } catch (err) {
           console.error(err);
-          if (window.app) window.app.showToast(`Erro ao salvar avaliação: ${err.message}`);
+          if (window.app) window.app.showToast(I18N.t('toast.rating_error', err.message));
         }
       };
     });
 
     if (ratingTextEl) {
-      ratingTextEl.textContent = currentRating > 0 ? `(${currentRating}/5 estrelas)` : '(sem nota)';
+      ratingTextEl.textContent = currentRating > 0 ? I18N.t('details.rating_stars', currentRating) : I18N.t('details.rating_none');
     }
   }
 
@@ -564,7 +635,7 @@ class LibraryManager {
     const filenameLabel = f('edit-cover-filename');
     const preview = f('edit-cover-preview');
     if (fileInput) fileInput.value = '';
-    if (filenameLabel) filenameLabel.textContent = 'Nenhuma nova imagem selecionada';
+    if (filenameLabel) filenameLabel.textContent = I18N.t('modal.edit.cover_none');
     if (preview) {
       if (item.cover_path) {
         preview.src = LibraryAPI.getCoverUrl(item.id);
@@ -591,7 +662,7 @@ class LibraryManager {
     if (!this.gridElement) return;
     this.gridElement.innerHTML = `
       <div style="grid-column: 1 / -1; padding: 60px; text-align: center; color: var(--text-muted);">
-        Carregando biblioteca...
+        ${I18N.t('loading.library')}
       </div>
     `;
   }
@@ -600,7 +671,7 @@ class LibraryManager {
     if (!this.gridElement) return;
     this.gridElement.innerHTML = `
       <div style="grid-column: 1 / -1; padding: 60px; text-align: center; color: #ef4444;">
-        Erro ao carregar dados do servidor: ${this.escapeHtml(message)}
+        ${I18N.t('toast.load_error', this.escapeHtml(message))}
       </div>
     `;
   }
@@ -633,7 +704,7 @@ class LibraryManager {
                C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13
                C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
         </svg>
-        <span id="ctx-menu-title">Livro</span>
+        <span id="ctx-menu-title">${I18N.t('details.read')}</span>
       </div>
       <div class="ctx-menu-divider"></div>
       <button class="ctx-menu-item" id="ctx-mark-read">
@@ -641,14 +712,14 @@ class LibraryManager {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
-        Marcar como lido
+        ${I18N.t('details.mark_read')}
       </button>
       <button class="ctx-menu-item ctx-menu-item--muted" id="ctx-mark-unread">
         <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
-        Marcar como não lido
+        ${I18N.t('details.mark_unread')}
       </button>
     `;
     document.body.appendChild(menu);
@@ -735,7 +806,7 @@ class LibraryManager {
         mainCardEl.classList.add('removing');
         this.items = this.items.filter(i => i.id !== item.id);
         if (this.itemCountElement) {
-          this.itemCountElement.textContent = `(${this.items.length} ${this.items.length === 1 ? 'item' : 'itens'})`;
+          this.itemCountElement.textContent = I18N.t('main.item_count_simple', this.items.length);
         }
         setTimeout(() => {
           mainCardEl.remove();
@@ -757,7 +828,7 @@ class LibraryManager {
         }, 250);
       }
 
-      if (window.app) window.app.showToast(`"${item.title}" marcado como lido`);
+      if (window.app) window.app.showToast(I18N.t('toast.read', item.title));
 
       // Persist to backend in the background without refreshing/rebuilding the whole grid
       await LibraryAPI.saveProgress(item.id, {
@@ -768,7 +839,7 @@ class LibraryManager {
       });
     } catch (err) {
       console.error('Erro ao marcar como lido:', err);
-      if (window.app) window.app.showToast('Erro ao salvar progresso');
+      if (window.app) window.app.showToast(I18N.t('toast.progress_error'));
     }
   }
 
@@ -786,7 +857,7 @@ class LibraryManager {
       continueContainer.style.display = 'none';
       continueGrid.innerHTML = '';
     } else if (continueCount) {
-      continueCount.textContent = `(${remaining} ${remaining === 1 ? 'item' : 'itens'})`;
+      continueCount.textContent = I18N.t('continue.count', remaining);
     }
   }
 
@@ -815,7 +886,7 @@ class LibraryManager {
         mainCardEl.classList.add('removing');
         this.items = this.items.filter(i => i.id !== item.id);
         if (this.itemCountElement) {
-          this.itemCountElement.textContent = `(${this.items.length} ${this.items.length === 1 ? 'item' : 'itens'})`;
+          this.itemCountElement.textContent = I18N.t('main.item_count_simple', this.items.length);
         }
         setTimeout(() => {
           mainCardEl.remove();
@@ -837,7 +908,7 @@ class LibraryManager {
         }, 250);
       }
 
-      if (window.app) window.app.showToast(`"${item.title}" marcado como não lido`);
+      if (window.app) window.app.showToast(I18N.t('toast.unread', item.title));
 
       // Persist to backend in the background without refreshing/rebuilding the whole grid
       await LibraryAPI.saveProgress(item.id, {
@@ -848,7 +919,7 @@ class LibraryManager {
       });
     } catch (err) {
       console.error('Erro ao marcar como não lido:', err);
-      if (window.app) window.app.showToast('Erro ao salvar progresso');
+      if (window.app) window.app.showToast(I18N.t('toast.progress_error'));
     }
   }
 }

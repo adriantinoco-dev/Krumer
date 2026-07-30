@@ -13,6 +13,7 @@ let epubCurrentLocationIndex = 0;
 let epubToc = [];
 let epubTheme = 'dark';
 let epubFontSize = 100; // percentual
+let epubIsFullscreen = false;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Inicialização
@@ -30,13 +31,17 @@ async function openEpub(item, filePath) {
   // Restaurar preferências salvas
   epubTheme = localStorage.getItem('krumer_epub_theme') || 'dark';
   epubFontSize = parseInt(localStorage.getItem('krumer_epub_font_size') || '100', 10);
+  epubIsFullscreen = false;
+  document.body.classList.remove('reader-fullscreen');
+  const fsBar = document.getElementById('reader-fullscreen-bar');
+  if (fsBar) fsBar.style.display = 'none';
 
   showReaderView('epub');
 
   const titleEl = document.getElementById('reader-title');
   const subtitleEl = document.getElementById('reader-subtitle');
-  if (titleEl) titleEl.textContent = item.title || 'Leitor de EPUB';
-  if (subtitleEl) subtitleEl.textContent = item.author ? `por ${item.author}` : '';
+  if (titleEl) titleEl.textContent = item.title || I18N.t('reader.epub.fallback_title');
+  if (subtitleEl) subtitleEl.textContent = item.author ? `${I18N.t('details.author_prefix')} ${item.author}` : '';
 
   showReaderLoading(true);
 
@@ -52,7 +57,7 @@ async function openEpub(item, filePath) {
     // Carrega o EPUB como ArrayBuffer para que o epub.js resolva
     // os recursos internos via JSZip, sem depender de URLs externas
     const response = await fetch(fileUrl);
-    if (!response.ok) throw new Error(`Erro ao baixar EPUB: ${response.status}`);
+    if (!response.ok) throw new Error(I18N.t('reader.epub.download_error', response.status));
     const arrayBuffer = await response.arrayBuffer();
 
     epubBook = ePub(arrayBuffer);
@@ -135,7 +140,7 @@ async function openEpub(item, filePath) {
   } catch (err) {
     console.error('Erro ao abrir arquivo EPUB:', err);
     showReaderLoading(false);
-    showReaderError(`Não foi possível abrir o arquivo EPUB: ${err.message}`);
+    showReaderError(I18N.t('reader.epub.open_error', err.message));
   }
 }
 
@@ -284,7 +289,7 @@ function _openTocPanel() {
   panel.innerHTML = '';
 
   if (!epubToc || epubToc.length === 0) {
-    panel.innerHTML = '<p style="padding:16px; color:var(--text-muted); font-size:13px;">Sumário não disponível.</p>';
+    panel.innerHTML = `<p style="padding:16px; color:var(--text-muted); font-size:13px;">${I18N.t('reader.epub.toc_unavailable')}</p>`;
     panel.classList.add('active');
     return;
   }
@@ -323,8 +328,6 @@ function _openTocPanel() {
 function _closeTocPanel() {
   const panel = document.getElementById('epub-toc-panel');
   if (panel) panel.classList.remove('active');
-  const btn = document.getElementById('epub-toc-toggle');
-  if (btn) btn.classList.remove('active');
 }
 
 function _toggleTocPanel() {
@@ -334,8 +337,6 @@ function _toggleTocPanel() {
     _closeTocPanel();
   } else {
     _openTocPanel();
-    const btn = document.getElementById('epub-toc-toggle');
-    if (btn) btn.classList.add('active');
   }
 }
 
@@ -349,7 +350,7 @@ function setupEpubControls() {
 
   controlsContainer.innerHTML = `
     <div class="reader-controls-group">
-      <button id="epub-btn-prev" class="btn-reader-ctrl" title="Página Anterior (Seta Esquerda)">
+      <button id="epub-btn-prev" class="btn-reader-ctrl" title="${I18N.t('reader.epub.prev')}">
         <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
@@ -359,25 +360,24 @@ function setupEpubControls() {
         <span id="epub-progress-label" style="font-size:12px; color:var(--text-muted);">0%</span>
       </div>
 
-      <button id="epub-btn-next" class="btn-reader-ctrl" title="Próxima Página (Seta Direita)">
+      <button id="epub-btn-next" class="btn-reader-ctrl" title="${I18N.t('reader.epub.next')}">
         <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
         </svg>
       </button>
     </div>
 
-    <!-- Botão Sumário -->
-    <button id="epub-toc-toggle" class="btn-mode-toggle" title="Sumário / Capítulos">
-      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M4 6h16M4 10h16M4 14h10" />
+    <!-- Botão Tela Cheia -->
+    <button id="btn-fullscreen" class="btn-mode-toggle" title="${I18N.t('reader.fullscreen')}">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"></path>
       </svg>
-      <span>Sumário</span>
+      <span>${I18N.t('reader.fullscreen')}</span>
     </button>
 
     <!-- Configurações (tema + fonte) -->
     <div class="reader-settings-wrapper">
-      <button id="epub-settings-toggle" class="btn-mode-toggle" title="Configurações de Exibição">
+      <button id="epub-settings-toggle" class="btn-mode-toggle" title="${I18N.t('reader.settings')}">
         <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -388,25 +388,25 @@ function setupEpubControls() {
 
       <div id="epub-settings-popover" class="reader-settings-popover hidden">
         <div class="settings-popover-header">
-          <span class="settings-popover-title">Configurações</span>
+          <span class="settings-popover-title">${I18N.t('reader.epub.settings_title')}</span>
         </div>
 
         <!-- Tema -->
         <div class="settings-option-group">
           <div class="settings-option-label">
-            <span>Tema</span>
+            <span>${I18N.t('reader.epub.settings_theme')}</span>
           </div>
           <div class="epub-theme-buttons">
-            <button type="button" class="epub-theme-btn ${epubTheme === 'dark' ? 'active' : ''}" data-theme="dark">Escuro</button>
-            <button type="button" class="epub-theme-btn ${epubTheme === 'light' ? 'active' : ''}" data-theme="light">Claro</button>
-            <button type="button" class="epub-theme-btn ${epubTheme === 'sepia' ? 'active' : ''}" data-theme="sepia">Sépia</button>
+            <button type="button" class="epub-theme-btn ${epubTheme === 'dark' ? 'active' : ''}" data-theme="dark">${I18N.t('reader.epub.settings_theme_dark')}</button>
+            <button type="button" class="epub-theme-btn ${epubTheme === 'light' ? 'active' : ''}" data-theme="light">${I18N.t('reader.epub.settings_theme_light')}</button>
+            <button type="button" class="epub-theme-btn ${epubTheme === 'sepia' ? 'active' : ''}" data-theme="sepia">${I18N.t('reader.epub.settings_theme_sepia')}</button>
           </div>
         </div>
 
         <!-- Tamanho de fonte -->
         <div class="settings-option-group" style="margin-top:14px;">
           <div class="settings-option-label">
-            <span>Tamanho da fonte</span>
+            <span>${I18N.t('reader.epub.settings_font_size')}</span>
             <span id="epub-font-size-badge" class="zoom-value-badge">${epubFontSize}%</span>
           </div>
           <div class="zoom-slider-container">
@@ -430,8 +430,23 @@ function setupEpubControls() {
   document.getElementById('epub-btn-prev')?.addEventListener('click', () => epubPrev());
   document.getElementById('epub-btn-next')?.addEventListener('click', () => epubNext());
 
-  // Sumário
-  document.getElementById('epub-toc-toggle')?.addEventListener('click', () => _toggleTocPanel());
+  // Fullscreen toggle logic
+  document.getElementById('btn-fullscreen')?.addEventListener('click', () => {
+    epubIsFullscreen = !epubIsFullscreen;
+    document.body.classList.toggle('reader-fullscreen', epubIsFullscreen);
+    const fsBar = document.getElementById('reader-fullscreen-bar');
+    if (fsBar) {
+      fsBar.style.display = epubIsFullscreen ? 'flex' : 'none';
+    }
+  });
+
+  // Fullscreen back button
+  const fsBackBtn = document.getElementById('btn-back-fullscreen');
+  if (fsBackBtn) {
+    fsBackBtn.onclick = () => {
+      if (typeof closeReader === 'function') closeReader();
+    };
+  }
 
   // Settings popover
   const settingsBtn = document.getElementById('epub-settings-toggle');
@@ -480,9 +495,8 @@ function _onOutsideClickEpub(e) {
   }
 
   const tocPanel = document.getElementById('epub-toc-panel');
-  const tocBtn = document.getElementById('epub-toc-toggle');
   if (tocPanel && tocPanel.classList.contains('active')) {
-    if (!tocPanel.contains(e.target) && !tocBtn?.contains(e.target)) {
+    if (!tocPanel.contains(e.target)) {
       _closeTocPanel();
     }
   }
@@ -499,6 +513,9 @@ function updateEpubControlsState() {
 
   const label = document.getElementById('epub-progress-label');
   if (label) label.textContent = `${pct}%`;
+
+  const fsLabel = document.getElementById('fullscreen-progress-label');
+  if (fsLabel) fsLabel.textContent = `${pct}%`;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -568,6 +585,11 @@ function epubKeyHandler(e) {
 function closeEpub() {
   document.removeEventListener('keydown', epubKeyHandler);
   document.removeEventListener('click', _onOutsideClickEpub);
+
+  epubIsFullscreen = false;
+  document.body.classList.remove('reader-fullscreen');
+  const fsBar = document.getElementById('reader-fullscreen-bar');
+  if (fsBar) fsBar.style.display = 'none';
 
   if (epubRendition) {
     epubRendition.destroy();
