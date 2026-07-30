@@ -357,7 +357,11 @@ class MetadataManager {
 
     previa.innerHTML = `
       <div class="coluna-previa">
-        ${coverUrl ? `<img class="metadata-preview-cover" src="${coverUrl}" alt="${escapeHtml(nome_da_obra || '')}">` : ''}
+        ${coverUrl ? `
+          <div class="metadata-preview-cover-wrap">
+            <img class="metadata-preview-cover" src="${coverUrl}" alt="${escapeHtml(nome_da_obra || '')}">
+          </div>
+        ` : ''}
         <h2>${escapeHtml(paraTitleCase(nome_da_obra))}</h2>
         <p><strong>Autor:</strong> ${escapeHtml(autor || 'Não identificado')}</p>
         <p><strong>Lançamento:</strong> ${escapeHtml(data_de_lancamento || 'Não identificado')}</p>

@@ -1248,12 +1248,20 @@
   padding: 20px;
 }
 
-.metadata-preview-cover {
+.metadata-preview-cover-wrap {
   width: 120px;
-  aspect-ratio: var(--book-aspect-ratio);
+  aspect-ratio: 3 / 4;
   border-radius: var(--radius);
-  object-fit: cover;
+  overflow: hidden;
   box-shadow: var(--shadow-card);
+}
+
+.metadata-preview-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  display: block;
 }
 
 .coluna-previa .sinopse {
