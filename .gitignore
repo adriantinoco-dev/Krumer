@@ -10,3 +10,6 @@ __pycache__/
 # Dependências (se usar venv)
 venv/
 .venv/
+
+# Cache do Node
+node_modules/
