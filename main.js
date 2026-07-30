@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const { autoUpdater, CancellationToken } = require('electron-updater');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -153,12 +153,25 @@ async function createWindow() {
     minHeight: 600,
     icon: iconPath,
     title: 'Krumer',
+    show: false, // evita flash antes de maximizar
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true
     }
+  });
+
+  // Inicia sempre maximizado
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.maximize();
+    mainWindow.show();
+  });
+
+  // Abre links externos no navegador padrão do sistema (não dentro do Electron)
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: 'deny' };
   });
 
   mainWindow.setMenuBarVisibility(false);
