@@ -41,6 +41,7 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  font-weight: 700 !important;
 }
 
 body {
@@ -141,8 +142,8 @@ body {
 .sidebar-section {
   display: block;
   padding: 0 0 6px 20px;
-  font-size: 0.60rem;
-  font-weight: 600;
+  font-size: 0.68rem;
+  font-weight: 800;
   letter-spacing: 0.10em;
   text-transform: uppercase;
   color: var(--sidebar-section);
@@ -182,7 +183,7 @@ body {
 
   color: var(--sidebar-text);
   font-size: 0.83rem;
-  font-weight: 400;
+  font-weight: 700;
   letter-spacing: 0.01em;
 
   transition: background var(--transition), color var(--transition);
@@ -302,8 +303,13 @@ body {
   border: 1px solid var(--border);
   color: var(--text-primary);
   font-size: 13px;
+  font-weight: 700;
   outline: none;
   transition: var(--transition);
+}
+
+.search-input::placeholder {
+  font-weight: 700;
 }
 
 .search-input:focus {
@@ -323,6 +329,7 @@ body {
   gap: 8px;
   font-size: 12px;
   color: var(--text-muted);
+  font-weight: 700;
 }
 
 .sort-select {
@@ -332,6 +339,7 @@ body {
   border-radius: var(--radius);
   padding: 8px 12px;
   font-size: 12px;
+  font-weight: 700;
   outline: none;
   cursor: pointer;
   transition: var(--transition);
@@ -500,7 +508,7 @@ html[data-theme="dark"] {
   --sidebar-border:     rgba(255, 255, 255, 0.06);
   --sidebar-text:       rgba(255, 255, 255, 0.50);
   --sidebar-text-hover: rgba(255, 255, 255, 0.90);
-  --sidebar-section:    rgba(255, 255, 255, 0.20);
+  --sidebar-section:    rgba(255, 255, 255, 0.50);
 
   --hero-vignette: 17, 17, 17;
 }
@@ -525,7 +533,7 @@ html[data-theme="light"] {
   --sidebar-border:     rgba(0, 0, 0, 0.08);
   --sidebar-text:       rgba(0, 0, 0, 0.55);
   --sidebar-text-hover: rgba(0, 0, 0, 0.90);
-  --sidebar-section:    rgba(0, 0, 0, 0.35);
+  --sidebar-section:    rgba(0, 0, 0, 0.60);
 
   --hero-vignette: 245, 245, 245;
 }
@@ -550,7 +558,7 @@ html[data-theme="sepia"] {
   --sidebar-border:     rgba(59, 47, 30, 0.12);
   --sidebar-text:       rgba(59, 47, 30, 0.60);
   --sidebar-text-hover: rgba(59, 47, 30, 0.90);
-  --sidebar-section:    rgba(59, 47, 30, 0.40);
+  --sidebar-section:    rgba(59, 47, 30, 0.65);
 
   /* Vinheta clara (tom do próprio --bg-primary do tema), igual à
      abordagem usada no tema Light — evita o "borrão preto" no
