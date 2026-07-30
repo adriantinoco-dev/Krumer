@@ -32,7 +32,7 @@ class LibraryAPI {
   }
 
   /**
-   * Updates metadata, rating (1-5) or tags for an item
+   * Updates metadata, rating (0=clear, 1-5) or tags for an item
    */
   static async updateItem(id, data) {
     const res = await fetch(`${API_BASE_URL}/items/${id}`, {

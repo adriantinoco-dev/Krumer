@@ -380,9 +380,9 @@ def update_item_metadata(id: int, payload: ItemUpdate, db: Session = Depends(get
         item.description = _clean(payload.description)
         
     if payload.rating is not None:
-        if payload.rating < 1 or payload.rating > 5:
-            raise HTTPException(status_code=400, detail="Rating must be between 1 and 5")
-        item.rating = payload.rating
+        if payload.rating < 0 or payload.rating > 5:
+            raise HTTPException(status_code=400, detail="Rating must be between 0 and 5")
+        item.rating = payload.rating if payload.rating > 0 else None
         
     if payload.tags is not None:
         item.tags = []

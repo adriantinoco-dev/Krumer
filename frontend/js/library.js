@@ -280,15 +280,16 @@ class LibraryManager {
         e.stopPropagation();
         const starsContainer = star.closest('.book-stars');
         const itemId = parseInt(starsContainer.dataset.id, 10);
-        const newRating = parseInt(star.dataset.rating, 10);
+        const clickedRating = parseInt(star.dataset.rating, 10);
 
         try {
-          await LibraryAPI.updateItem(itemId, { rating: newRating });
-          // Update item state locally and re-render stars
           const item = this.items.find(i => i.id === itemId);
+          const currentRating = item ? (item.rating || 0) : 0;
+          const newRating = clickedRating === currentRating ? 0 : clickedRating;
+
+          await LibraryAPI.updateItem(itemId, { rating: newRating });
           if (item) item.rating = newRating;
 
-          // Atualizar todas as ocorrências deste card na viewport (continuar lendo e biblioteca geral)
           document.querySelectorAll(`.book-stars[data-id="${itemId}"]`).forEach(container => {
             container.querySelectorAll('.star').forEach(s => {
               const r = parseInt(s.dataset.rating, 10);
@@ -297,7 +298,9 @@ class LibraryManager {
             });
           });
 
-          if (window.app) window.app.showToast(`Avaliação atualizada para ${newRating} estrelas`);
+          if (window.app) window.app.showToast(
+            newRating > 0 ? `Avaliação atualizada para ${newRating} estrelas` : 'Avaliação removida'
+          );
         } catch (err) {
           console.error(err);
         }
@@ -492,13 +495,16 @@ class LibraryManager {
 
       star.onclick = async () => {
         if (!this.selectedItem) return;
-        const newRating = r;
+        const currentRating = this.selectedItem.rating || 0;
+        const newRating = r === currentRating ? 0 : r;
 
         try {
           await LibraryAPI.updateItem(this.selectedItem.id, { rating: newRating });
           this.selectedItem.rating = newRating;
           this.renderDetailsStars(newRating);
-          if (window.app) window.app.showToast(`Avaliação salva: ${newRating} estrelas`);
+          if (window.app) window.app.showToast(
+            newRating > 0 ? `Avaliação salva: ${newRating} estrelas` : 'Avaliação removida'
+          );
         } catch (err) {
           console.error(err);
           if (window.app) window.app.showToast(`Erro ao salvar avaliação: ${err.message}`);
