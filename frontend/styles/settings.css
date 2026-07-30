@@ -383,10 +383,4 @@
   font-weight: 600;
 }
 
-/* Apply button keeps compact size */
-.lang-apply-btn {
-  white-space: nowrap;
-  flex-shrink: 0;
-  font-size: 13px;
-  padding: 9px 16px;
-}
+

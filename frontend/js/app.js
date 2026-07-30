@@ -505,33 +505,6 @@ class AppController {
     // === Custom Language Picker ===
     this._initLangPicker();
 
-    // Botão Aplicar idioma
-    const applyLangBtn = document.getElementById('btn-apply-language');
-    if (applyLangBtn) {
-      applyLangBtn.addEventListener('click', async () => {
-        const hiddenInput = document.getElementById('settings-language-select');
-        const language = hiddenInput ? hiddenInput.value : 'pt-br';
-        const labelEl = document.getElementById('lang-picker-label');
-        const label = labelEl ? labelEl.textContent : language;
-
-        // Close the picker dropdown
-        const wrap = document.getElementById('lang-picker-wrap');
-        if (wrap) wrap.classList.remove('open');
-        const trigger = document.getElementById('lang-picker-trigger');
-        if (trigger) trigger.setAttribute('aria-expanded', 'false');
-
-        try {
-          await LibraryAPI.updateSettings({ language });
-          localStorage.setItem('krumer_language', language);
-          I18N.setLang(language);
-          this.showToast(I18N.t('settings.lang_toast', label));
-        } catch (err) {
-          console.error(err);
-          this.showToast(I18N.t('toast.lang_error', err.message));
-        }
-      });
-    }
-
     // Alternar entre os menus do modal (Geral / Temas)
     document.querySelectorAll('.settings-menu-item').forEach(item => {
       item.addEventListener('click', () => {
@@ -677,7 +650,7 @@ class AppController {
 
     // Select a language option
     dropdown.querySelectorAll('.lang-option').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const lang = btn.dataset.lang;
         const label = btn.dataset.label;
 
@@ -692,6 +665,21 @@ class AppController {
         // Mark selected
         dropdown.querySelectorAll('.lang-option').forEach(b => b.classList.remove('selected'));
         btn.classList.add('selected');
+
+        // Close the dropdown
+        wrap.classList.remove('open');
+        trigger.setAttribute('aria-expanded', 'false');
+
+        // Apply the language immediately
+        try {
+          await LibraryAPI.updateSettings({ language: lang });
+          localStorage.setItem('krumer_language', lang);
+          I18N.setLang(lang);
+          this.showToast(I18N.t('settings.lang_toast', label));
+        } catch (err) {
+          console.error(err);
+          this.showToast(I18N.t('toast.lang_error', err.message));
+        }
       });
     });
 
