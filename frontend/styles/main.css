@@ -104,13 +104,7 @@ body {
 
 .sidebar:hover {
   width: var(--sidebar-width-expanded);
-  background: linear-gradient(
-    to right,
-    var(--sidebar-bg) 0%,
-    var(--sidebar-bg) 160px,
-    color-mix(in srgb, var(--sidebar-bg) 85%, transparent) 210px,
-    transparent 100%
-  );
+  background: var(--sidebar-bg);
   border-right: none;
 }
 
