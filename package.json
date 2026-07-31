@@ -16,7 +16,10 @@
     "reader",
     "electron"
   ],
-  "author": "adriantinoco-dev",
+  "author": {
+    "name": "adriantinoco-dev",
+    "email": "contato.adriantinoco@gmail.com"
+  },
   "license": "MIT",
   "devDependencies": {
     "electron": "^43.2.0",
