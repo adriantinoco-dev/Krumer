@@ -16,6 +16,7 @@ class LibraryAPI {
     if (params.tag) query.append('tag', params.tag);
     if (params.sort_by) query.append('sort_by', params.sort_by);
     if (params.order) query.append('order', params.order);
+    if (params.exclude_language) query.append('exclude_language', params.exclude_language);
 
     const res = await fetch(`${API_BASE_URL}/items?${query.toString()}`);
     if (!res.ok) throw new Error(I18N.t('api.error_fetch_items', res.statusText));

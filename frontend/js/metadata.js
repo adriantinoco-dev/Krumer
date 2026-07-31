@@ -111,7 +111,8 @@ class MetadataManager {
 
     try {
       // Busca todos os itens raiz (sem parent_id)
-      const allItems = await LibraryAPI.getItems({ limit: 500 });
+      const currentLang = I18N.getLang();
+      const allItems = await LibraryAPI.getItems({ limit: 500, exclude_language: currentLang });
 
       this.livros = allItems;
       this.selecionados = [];

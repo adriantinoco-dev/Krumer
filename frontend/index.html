@@ -656,22 +656,17 @@
         <!-- Menu lateral -->
         <nav class="settings-sidebar">
           <button class="settings-menu-item active" data-settings-panel="geral"><span data-i18n="settings.general">Geral</span></button>
+          <button class="settings-menu-item" data-settings-panel="api-key"><span data-i18n="settings.api_key_topic">Chave da API</span></button>
           <button class="settings-menu-item" data-settings-panel="temas"><span data-i18n="settings.themes">Temas</span></button>
         </nav>
 
         <!-- Painéis de conteúdo -->
         <div class="settings-content">
 
-          <!-- Painel: Geral (conteúdo atual do form de API key) -->
+          <!-- Painel: Geral -->
           <section class="settings-panel active" data-panel="geral">
-            <!-- Status atual da chave -->
-            <div id="settings-api-status" class="settings-status" style="display:none;">
-              <span class="settings-status-dot"></span>
-              <span class="settings-status-text">Verificando…</span>
-            </div>
-
             <div class="form-group" style="margin-bottom: 24px;">
-              <label class="form-label" data-i18n="settings.language_label">Idioma da interface e sinopses</label>
+              <label class="form-label" data-i18n="settings.language_label">Idioma da interface e sinopses  </label>
 
               <!-- Custom Language Picker -->
               <div class="lang-picker-row">
@@ -703,6 +698,15 @@
               <p class="settings-help-text" data-i18n="settings.language_help">
                 Define o idioma das sinopses buscadas via IA e das já salvas na biblioteca.
               </p>
+            </div>
+          </section>
+
+          <!-- Painel: Chave da API -->
+          <section class="settings-panel" data-panel="api-key">
+            <!-- Status atual da chave -->
+            <div id="settings-api-status" class="settings-status" style="display:none;">
+              <span class="settings-status-dot"></span>
+              <span class="settings-status-text">Verificando…</span>
             </div>
 
             <form id="settings-api-key-form">

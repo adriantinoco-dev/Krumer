@@ -369,6 +369,7 @@ def get_items(
     order: str = "asc",
     skip: int = 0,
     limit: int = 100,
+    exclude_language: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """Lists items in the library. Returns root items by default unless parent_id/type is provided."""
@@ -398,6 +399,20 @@ def get_items(
         query = query.order_by(sort_attr.asc())
         
     items = query.offset(skip).limit(limit).all()
+
+    if exclude_language:
+        from metadata_service import CACHE_PATH, _load_json_file
+        cache = _load_json_file(CACHE_PATH)
+        filtered = []
+        for item in items:
+            if item.author and item.description:
+                cache_key = os.path.basename(item.path) if item.type != "series" else item.title
+                cached = cache.get(cache_key)
+                if cached and isinstance(cached, dict) and cached.get("language") == exclude_language:
+                    continue
+            filtered.append(item)
+        items = filtered
+
     return [_enrich_item(item, db) for item in items]
 
 @app.get("/items/{id}", response_model=ItemResponse)
