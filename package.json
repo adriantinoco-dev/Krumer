@@ -34,6 +34,7 @@
   "build": {
     "appId": "com.krumer.app",
     "productName": "Krumer",
+    "artifactName": "${productName}-${os}-v${version}.${ext}",
     "directories": {
       "output": "dist"
     },
