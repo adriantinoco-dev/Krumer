@@ -1,0 +1,56 @@
+name: Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            npm_script: build
+            backend_bin: resources/krumer-backend.exe
+          - os: ubuntu-latest
+            npm_script: build:linux
+            backend_bin: resources/krumer-backend
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Instalar dependências do Python
+        run: pip install -r backend/requirements.txt pyinstaller
+
+      - name: Buildar backend com PyInstaller
+        run: pyinstaller krumer-backend.spec --noconfirm
+
+      - name: Copiar backend para resources/
+        shell: bash
+        run: cp dist/krumer-backend* resources/
+
+      - name: Instalar dependências do Node
+        run: npm install
+
+      - name: Buildar app
+        run: npm run ${{ matrix.npm_script }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

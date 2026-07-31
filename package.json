@@ -6,6 +6,7 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --win",
+    "build:linux": "electron-builder --linux",
     "pack": "electron-builder --dir"
   },
   "keywords": [
@@ -49,6 +50,14 @@
         "nsis"
       ],
       "icon": "frontend/assets/Krumer-icon.ico"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "frontend/assets/Krumer-icon.png",
+      "category": "Office"
     },
     "nsis": {
       "oneClick": false,
