@@ -30,12 +30,19 @@
 | | |
 |---|---|
 | 📂 **Escaneamento automático** | Aponte uma pasta e o Krumer detecta livros e séries sozinho |
-| 🤖 **Metadados com IA** | Busca título, autor, editora e descrição via Google Gemini |
-| 📖 **Leitor embutido** | Lê PDF e EPUB direto no app — sem precisar de outro programa |
+| 🔄 **Reescaneamento rápido** | Botão dedicado para reescanear a última pasta configurada sem rediálogos |
+| 🤖 **Metadados com IA** | Busca título, autor, editora e sinopse via Google Gemini (2.5 Flash / 2.0 Flash) |
+| 📖 **Leitor de PDF** | Modos horizontal (página única) e vertical (rolagem contínua), com tela cheia |
+| 📗 **Leitor de EPUB** | Suporte a temas (escuro, claro e sépia), tamanho de fonte e tela cheia |
 | 🗂️ **Organização inteligente** | Arquivos soltos viram *livros*, pastas com capítulos viram *séries* |
-| 🔖 **Progresso de leitura** | Salva página atual e percentual por item automaticamente |
-| 🏷️ **Tags e avaliações** | Classifique e avalie seus livros de 1 a 5 estrelas |
-| 🖼️ **Capas automáticas** | Extrai a capa de cada livro na varredura da biblioteca |
+| 🔖 **Progresso de leitura** | Salva página atual, percentual e posição CFI (EPUB) por item automaticamente |
+| 📋 **Listas personalizadas** | Crie listas customizadas e uma lista de favoritos padrão |
+| 🏷️ **Tags e avaliações** | Classifique com tags e avalie seus livros de 1 a 5 estrelas |
+| 🖼️ **Capas automáticas** | Extrai a capa de cada livro durante a varredura da biblioteca |
+| 🌍 **Sinopses multilíngues** | Traduza sinopses para 10 idiomas diretamente nas configurações |
+| 🎨 **Temas visuais** | Interface em modo escuro, claro ou sépia |
+| 🔍 **Busca e ordenação** | Pesquise por título ou autor, ordene por nome, data, avaliação ou progresso |
+| 🔔 **Atualizações automáticas** | O app verifica novas versões diariamente e atualiza com barra de progresso |
 
 ---
 
@@ -64,6 +71,16 @@ O Krumer usa o **Google Gemini** para buscar metadados automaticamente. Essa fun
 
 ---
 
+## 🌍 Idiomas de sinopse suportados
+
+Nas configurações, você pode escolher o idioma em que as sinopses serão buscadas e exibidas:
+
+`Português (BR)` · `English` · `Español` · `Français` · `Deutsch` · `Italiano` · `日本語` · `中文` · `한국어` · `Русский`
+
+Ao trocar o idioma, o Krumer pode retraduzir automaticamente todas as sinopses já salvas.
+
+---
+
 ## 📁 Como organizar sua biblioteca
 
 O Krumer interpreta a estrutura de pastas automaticamente:
@@ -82,6 +99,20 @@ Minha Biblioteca/
 
 ---
 
+## 📖 Modos de leitura
+
+### PDF
+- **Horizontal** — exibe uma página por vez, navegação com setas ou teclado
+- **Vertical** — rolagem contínua, ideal para mangás e quadrinhos
+- **Tela cheia** — maximiza a área de leitura ocultando a interface
+
+### EPUB
+- **Temas** — escuro, claro ou sépia aplicados diretamente no conteúdo do livro
+- **Tamanho de fonte** ajustável durante a leitura
+- **Tela cheia** — maximiza a área de leitura ocultando a interface
+
+---
+
 ## 🛠️ Para desenvolvedores
 
 Se quiser rodar o projeto a partir do código-fonte:
@@ -89,6 +120,7 @@ Se quiser rodar o projeto a partir do código-fonte:
 ### Pré-requisitos
 
 - Python 3.10+
+- Node.js (para o Electron)
 - pip
 
 ### Configuração do backend
@@ -124,10 +156,13 @@ Abra `frontend/index.html` em um servidor local ou via Electron.
 
 | Camada | Tecnologia |
 |--------|------------|
+| Desktop | Electron |
 | Backend | Python · FastAPI · SQLAlchemy · SQLite |
-| Leitura de arquivos | PyMuPDF (PDF) · EbookLib (EPUB) |
-| Metadados com IA | Google Gemini API |
-| Frontend | HTML · CSS · JavaScript |
+| Leitura de PDF | PyMuPDF (fitz) · PDF.js |
+| Leitura de EPUB | EbookLib · epub.js |
+| Metadados com IA | Google Gemini API (2.5 Flash / 2.0 Flash) |
+| Frontend | HTML · CSS · JavaScript (vanilla) |
+| Atualizações | electron-updater |
 
 </div>
 
@@ -135,10 +170,11 @@ Abra `frontend/index.html` em um servidor local ou via Electron.
 
 ## 🗺️ Roadmap
 
-- [ ] Suporte a CBZ / CBR (quadrinhos)
+- [ ] Suporte a CBZ / CBR (quadrinhos em formato de arquivo compactado)
 - [ ] Sincronização de progresso entre dispositivos
-- [ ] Temas claros / personalizáveis
+- [ ] Suporte a mais temas visuais
 - [ ] Exportar biblioteca como CSV / JSON
+- [ ] Versão mobile via Capacitor
 
 ---
 
