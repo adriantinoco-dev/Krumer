@@ -1008,7 +1008,7 @@ class AppController {
       toast.style.transform = 'translateX(100%)';
       toast.style.transition = 'all 0.3s ease';
       setTimeout(() => toast.remove(), 300);
-    }, 4000);
+    }, 1500);
   }
 }
 

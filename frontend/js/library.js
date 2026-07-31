@@ -16,6 +16,7 @@ class LibraryManager {
     this.itemCountElement = document.getElementById('item-count');
     this.tagsContainer = document.getElementById('tags-container');
     this.lists = [];
+    this.favoritedIds = new Set();
 
     this.selectedItem = null;
   }
@@ -85,6 +86,20 @@ class LibraryManager {
       }
 
       this.items = fetchedItems;
+
+      // Carregar IDs dos favoritos para exibir estrela na capa
+      try {
+        const favList = this.lists.find(l => l.is_default);
+        if (favList) {
+          const favItems = await LibraryAPI.getListItems(favList.id);
+          this.favoritedIds = new Set(favItems.map(i => i.id));
+        } else {
+          this.favoritedIds = new Set();
+        }
+      } catch (e) {
+        this.favoritedIds = new Set();
+      }
+
       this.renderGrid();
     } catch (err) {
       console.error(err);
@@ -259,6 +274,14 @@ class LibraryManager {
               <div class="series-dot"></div>
               <div class="series-dot"></div>
               ${badgeText}
+            </div>
+          ` : ''}
+
+          ${this.favoritedIds.has(item.id) ? `
+            <div class="fav-badge">
+              <svg fill="currentColor" viewBox="0 0 24 24" width="14" height="14">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
             </div>
           ` : ''}
 
@@ -922,6 +945,10 @@ class LibraryManager {
     try {
       await LibraryAPI.addItemsToList(listId, [itemId]);
       const list = this.lists.find(l => l.id === listId);
+      if (list && list.is_default) {
+        this.favoritedIds.add(itemId);
+        this._toggleFavBadge(itemId, true);
+      }
       if (window.app) window.app.showToast(I18N.t('toast.list_added', list ? list.name : ''));
     } catch (err) {
       console.error(err);
@@ -933,6 +960,10 @@ class LibraryManager {
     try {
       await LibraryAPI.removeItemFromList(listId, itemId);
       const list = this.lists.find(l => l.id === listId);
+      if (list && list.is_default) {
+        this.favoritedIds.delete(itemId);
+        this._toggleFavBadge(itemId, false);
+      }
       if (window.app) window.app.showToast(I18N.t('toast.list_removed', list ? list.name : ''));
       if (this.currentListId === listId) {
         this.items = this.items.filter(i => i.id !== itemId);
@@ -942,6 +973,29 @@ class LibraryManager {
       console.error(err);
       if (window.app) window.app.showToast(I18N.t('api.error_lists'));
     }
+  }
+
+  _toggleFavBadge(itemId, show) {
+    const cards = document.querySelectorAll(`.book-card[data-id="${itemId}"]`);
+    cards.forEach(card => {
+      const wrap = card.querySelector('.book-cover-wrap');
+      if (!wrap) return;
+      let badge = wrap.querySelector('.fav-badge');
+      if (show && !badge) {
+        badge = document.createElement('div');
+        badge.className = 'fav-badge';
+        badge.innerHTML = `<svg fill="currentColor" viewBox="0 0 24 24" width="14" height="14"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+        const gradient = wrap.querySelector('.cover-gradient');
+        if (gradient) {
+          wrap.insertBefore(badge, gradient);
+        } else {
+          wrap.appendChild(badge);
+        }
+      } else if (!show && badge) {
+        badge.classList.add('fav-badge--removing');
+        setTimeout(() => badge.remove(), 250);
+      }
+    });
   }
 
   _selectLibraryCategory(category) {
@@ -1077,17 +1131,26 @@ class LibraryManager {
     btnUnread.parentNode.replaceChild(newBtnUnread, btnUnread);
     newBtnUnread.addEventListener('click', () => { this._markAsUnread(item); this._hideContextMenu(); });
 
-    // Wire up "Add to favorites" button
+    // Wire up favorites button (toggle add/remove)
     const favBtn = document.getElementById('ctx-fav');
     const favLabel = document.getElementById('ctx-fav-label');
     const favList = this.lists.find(l => l.is_default);
     if (favBtn) {
       if (favList) {
         favBtn.style.display = '';
+        const isFav = this.favoritedIds.has(item.id);
         const newFavBtn = favBtn.cloneNode(true);
         favBtn.parentNode.replaceChild(newFavBtn, favBtn);
+        newFavBtn.classList.toggle('ctx-menu-item--fav', !isFav);
+        newFavBtn.classList.toggle('ctx-menu-item--danger', isFav);
+        const label = newFavBtn.querySelector('.ctx-label');
+        if (label) label.textContent = isFav ? I18N.t('context.remove_from_favorites') : I18N.t('context.add_to_favorites');
         newFavBtn.addEventListener('click', () => {
-          this._addItemToList(item.id, favList.id);
+          if (isFav) {
+            this._removeItemFromList(item.id, favList.id);
+          } else {
+            this._addItemToList(item.id, favList.id);
+          }
           this._hideContextMenu();
         });
       } else {
@@ -1110,10 +1173,16 @@ class LibraryManager {
       });
     }
 
-    // Right-click on a list item shows "Remove from list" if viewing that list
-    if (this.currentListId) {
+    // Limpar qualquer "Remover da lista" residual
+    menu.querySelectorAll('#ctx-remove-from-list, .ctx-divider-remove').forEach(el => el.remove());
+
+    // Adicionar "Remover da lista" apenas se estiver visualizando uma lista
+    if (this.currentListId && listContainer) {
+      const divider = document.createElement('div');
+      divider.className = 'ctx-menu-divider ctx-divider-remove';
       const removeBtn = document.createElement('button');
       removeBtn.className = 'ctx-menu-item ctx-menu-item--danger';
+      removeBtn.id = 'ctx-remove-from-list';
       removeBtn.innerHTML = `
         <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -1125,27 +1194,8 @@ class LibraryManager {
         this._removeItemFromList(item.id, this.currentListId);
         this._hideContextMenu();
       });
-      if (!menu.querySelector('#ctx-remove-from-list')) {
-        removeBtn.id = 'ctx-remove-from-list';
-        const divider = document.createElement('div');
-        divider.className = 'ctx-menu-divider';
-        listContainer.parentNode.insertBefore(divider, listContainer.nextSibling);
-        listContainer.parentNode.insertBefore(removeBtn, listContainer.nextSibling);
-      } else {
-        const existing = menu.querySelector('#ctx-remove-from-list');
-        existing.parentNode.replaceChild(removeBtn, existing);
-      }
-    } else {
-      const existing = menu.querySelector('#ctx-remove-from-list');
-      if (existing) existing.remove();
-      const prevDivider = menu.querySelector('.ctx-menu-divider:last-of-type');
-      if (prevDivider && prevDivider.classList.contains('ctx-menu-divider') && !prevDivider.id) {
-        // Remove the divider before the remove button if it exists
-        const nextSib = prevDivider.nextElementSibling;
-        if (nextSib && nextSib.id === 'ctx-remove-from-list') {
-          prevDivider.remove();
-        }
-      }
+      listContainer.parentNode.insertBefore(divider, listContainer.nextSibling);
+      listContainer.parentNode.insertBefore(removeBtn, divider.nextSibling);
     }
 
     // Position menu near cursor, keeping it within viewport
