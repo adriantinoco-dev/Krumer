@@ -23,3 +23,8 @@ resources/
 
 # OpenCode
 .opencodeignore
+
+#dev
+dev-app-update.yml
+dev-update-server.js
+implementacoes_v2.md
