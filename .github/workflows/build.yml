@@ -45,7 +45,7 @@ jobs:
 
       - name: Copiar backend para resources/
         shell: bash
-        run: cp dist/krumer-backend* resources/
+        run: mkdir -p resources && cp dist/krumer-backend* resources/
 
       - name: Instalar dependências do Node
         run: npm install
