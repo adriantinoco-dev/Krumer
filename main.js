@@ -13,6 +13,15 @@ let cancellationToken = null;
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
 
+// Em dev, usa servidor de atualização local para testes
+if (!app.isPackaged) {
+  autoUpdater.setFeedURL({
+    provider: 'generic',
+    url: 'http://localhost:5000/update/',
+    channel: 'latest'
+  });
+}
+
 /**
  * Procura o executável do backend compilado (.exe).
  */

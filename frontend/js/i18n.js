@@ -288,7 +288,7 @@ const I18N = {
       'banner.api_key_desc': 'Configure sua chave da API para buscar metadados.',
       'banner.api_key_btn': 'Configurar agora',
       'update.title': 'Atualização do Krumer',
-      'update.title_available': 'Nova Versão Disponível',
+      'update.title_available': 'Atualização Disponível',
       'update.title_downloaded': 'Atualização Pronta',
       'update.title_error': 'Erro na Atualização',
       'update.checking': 'Verificando novas versões...',

@@ -34,7 +34,7 @@ class AppUpdater {
       <div id="krumer-update-modal" class="update-modal-backdrop hidden">
         <div class="update-modal-card">
           <div class="update-modal-header">
-            <h3 id="update-modal-title">🔄 ${I18N.t('update.title')}</h3>
+            <h3 id="update-modal-title">${I18N.t('update.title')}</h3>
             <button id="update-modal-close" class="update-modal-close-btn" title="${I18N.t('update.btn_close')}">&times;</button>
           </div>
           <div class="update-modal-body">
@@ -108,7 +108,7 @@ class AppUpdater {
   }
 
   showUpdateAvailable(version) {
-    this.titleEl.textContent = '🚀 ' + I18N.t('update.title_available');
+    this.titleEl.textContent = I18N.t('update.title_available');
     this.statusEl.textContent = I18N.t('update.available', version ? 'v' + version : '');
     
     this.progressContainerEl.classList.add('hidden');
@@ -167,7 +167,7 @@ class AppUpdater {
 
   showUpdateDownloaded(info) {
     this.isDownloading = false;
-    this.titleEl.textContent = '✅ ' + I18N.t('update.title_downloaded');
+    this.titleEl.textContent = I18N.t('update.title_downloaded');
     this.statusEl.textContent = I18N.t('update.download_done');
 
     this.progressContainerEl.classList.add('hidden');
@@ -184,7 +184,7 @@ class AppUpdater {
 
   showUpdateError(errorMsg) {
     this.isDownloading = false;
-    this.titleEl.textContent = '⚠️ ' + I18N.t('update.title_error');
+    this.titleEl.textContent = I18N.t('update.title_error');
     this.statusEl.textContent = I18N.t('update.error', errorMsg || I18N.t('update.error_no_connection'));
 
     this.progressContainerEl.classList.add('hidden');
