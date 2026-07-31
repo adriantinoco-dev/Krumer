@@ -69,6 +69,27 @@ class Setting(Base):
     value = Column(String, nullable=True)
 
 
+# Many-to-many association table for UserList and Items
+list_items = Table(
+    'list_items',
+    Base.metadata,
+    Column('list_id', Integer, ForeignKey('user_lists.id', ondelete='CASCADE'), primary_key=True),
+    Column('item_id', Integer, ForeignKey('items.id', ondelete='CASCADE'), primary_key=True),
+    Column('added_at', DateTime, default=datetime.datetime.utcnow)
+)
+
+class UserList(Base):
+    __tablename__ = 'user_lists'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String, nullable=False)
+    sort_order = Column(Integer, default=0)
+    is_default = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    
+    items = relationship("Item", secondary=list_items, lazy="selectin")
+
+
 # --- Pydantic Schemas ---
 
 class TagBase(BaseModel):
@@ -144,3 +165,23 @@ class SettingBase(BaseModel):
 
 class SettingResponse(SettingBase):
     model_config = ConfigDict(from_attributes=True)
+
+class UserListCreate(BaseModel):
+    name: str
+
+class UserListUpdate(BaseModel):
+    name: Optional[str] = None
+    sort_order: Optional[int] = None
+
+class UserListResponse(BaseModel):
+    id: int
+    name: str
+    sort_order: int
+    is_default: bool = False
+    created_at: datetime.datetime
+    item_count: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
+class ListItemsPayload(BaseModel):
+    item_ids: List[int]

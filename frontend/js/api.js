@@ -362,6 +362,72 @@ class LibraryAPI {
     if (!res.ok) throw new Error(data.detail || I18N.t('api.error_retranslate'));
     return data;
   }
+
+  // ─── Custom Lists ──────────────────────────────────────────────────────────
+
+  static async getLists() {
+    const res = await fetch(`${API_BASE_URL}/lists`);
+    if (!res.ok) throw new Error('Failed to fetch lists');
+    return await res.json();
+  }
+
+  static async createList(name) {
+    const res = await fetch(`${API_BASE_URL}/lists`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || 'Failed to create list');
+    return data;
+  }
+
+  static async updateList(id, data) {
+    const res = await fetch(`${API_BASE_URL}/lists/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const resp = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(resp.detail || 'Failed to update list');
+    return resp;
+  }
+
+  static async deleteList(id) {
+    const res = await fetch(`${API_BASE_URL}/lists/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete list');
+    return await res.json();
+  }
+
+  static async getListItems(listId) {
+    const res = await fetch(`${API_BASE_URL}/lists/${listId}/items`);
+    if (!res.ok) throw new Error('Failed to fetch list items');
+    return await res.json();
+  }
+
+  static async addItemsToList(listId, itemIds) {
+    const res = await fetch(`${API_BASE_URL}/lists/${listId}/items`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_ids: itemIds })
+    });
+    if (!res.ok) throw new Error('Failed to add items to list');
+    return await res.json();
+  }
+
+  static async removeItemFromList(listId, itemId) {
+    const res = await fetch(`${API_BASE_URL}/lists/${listId}/items/${itemId}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) throw new Error('Failed to remove item from list');
+    return await res.json();
+  }
+
+  static async getItemLists(itemId) {
+    const res = await fetch(`${API_BASE_URL}/items/${itemId}/lists`);
+    if (!res.ok) throw new Error('Failed to fetch item lists');
+    return await res.json();
+  }
 }
 
 window.LibraryAPI = LibraryAPI;

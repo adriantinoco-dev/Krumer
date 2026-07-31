@@ -17,9 +17,10 @@ from pydantic import BaseModel
 
 from database import Base, engine, get_db, COVERS_DIR
 from models import (
-    Item, Progress, Tag, Setting,
+    Item, Progress, Tag, Setting, UserList, list_items,
     ItemResponse, ItemUpdate, ProgressResponse,
-    ProgressCreate, TagResponse
+    ProgressCreate, TagResponse,
+    UserListCreate, UserListUpdate, UserListResponse, ListItemsPayload
 )
 from scanner import scan_library_folder, SUPPORTED_EXTENSIONS, count_files_in_path
 from metadata import process_file_metadata_and_cover
@@ -43,6 +44,57 @@ async def lifespan(app: FastAPI):
             conn.commit()
         except Exception:
             pass  # Coluna já existe — ignorar
+
+        # Migração — tabela user_lists
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS user_lists (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    sort_order INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+            conn.commit()
+        except Exception:
+            pass
+
+        # Migração — tabela list_items (associação)
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS list_items (
+                    list_id INTEGER NOT NULL REFERENCES user_lists(id) ON DELETE CASCADE,
+                    item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+                    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (list_id, item_id)
+                )
+            """))
+            conn.commit()
+        except Exception:
+            pass
+
+        # Migração — coluna is_default em user_lists
+        try:
+            conn.execute(text("ALTER TABLE user_lists ADD COLUMN is_default BOOLEAN NOT NULL DEFAULT 0"))
+            conn.commit()
+        except Exception:
+            pass
+
+        # Seed — lista padrão "Favoritos"
+        try:
+            with Session(bind=engine) as session:
+                existing = session.query(UserList).filter(UserList.name == "Favoritos").first()
+                if not existing:
+                    session.add(UserList(name="Favoritos", sort_order=-1, is_default=True))
+                    session.commit()
+                else:
+                    # Garantir que listas "Favoritos" existentes tenham a flag
+                    if not existing.is_default:
+                        existing.is_default = True
+                        existing.sort_order = -1
+                        session.commit()
+        except Exception:
+            pass
 
     yield
 
@@ -744,6 +796,113 @@ def update_global_settings(payload: SettingsUpdatePayload, db: Session = Depends
             db.add(Setting(key="language", value=payload.language))
         db.commit()
     return get_global_settings(db)
+
+# ─── Custom Lists ──────────────────────────────────────────────────────────────
+
+@app.get("/lists", response_model=List[UserListResponse])
+def get_all_lists(db: Session = Depends(get_db)):
+    """Returns all custom reading lists with item counts."""
+    lists = db.query(UserList).order_by(UserList.sort_order.asc(), UserList.name.asc()).all()
+    result = []
+    for lst in lists:
+        count = db.query(list_items).filter(list_items.c.list_id == lst.id).count()
+        resp = UserListResponse.model_validate(lst)
+        resp.item_count = count
+        result.append(resp)
+    return result
+
+@app.post("/lists", response_model=UserListResponse)
+def create_list(payload: UserListCreate, db: Session = Depends(get_db)):
+    """Creates a new custom reading list."""
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="List name cannot be empty.")
+    max_order = db.query(db.query(UserList).order_by(UserList.sort_order.desc()).exists())
+    lst = UserList(name=name)
+    db.add(lst)
+    db.commit()
+    db.refresh(lst)
+    resp = UserListResponse.model_validate(lst)
+    resp.item_count = 0
+    return resp
+
+@app.put("/lists/{list_id}", response_model=UserListResponse)
+def update_list(list_id: int, payload: UserListUpdate, db: Session = Depends(get_db)):
+    """Updates a custom reading list (name, sort_order)."""
+    lst = db.query(UserList).filter(UserList.id == list_id).first()
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found.")
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="List name cannot be empty.")
+        lst.name = name
+    if payload.sort_order is not None:
+        lst.sort_order = payload.sort_order
+    db.commit()
+    db.refresh(lst)
+    count = db.query(list_items).filter(list_items.c.list_id == lst.id).count()
+    resp = UserListResponse.model_validate(lst)
+    resp.item_count = count
+    return resp
+
+@app.delete("/lists/{list_id}")
+def delete_list(list_id: int, db: Session = Depends(get_db)):
+    """Deletes a custom reading list. Items are not affected."""
+    lst = db.query(UserList).filter(UserList.id == list_id).first()
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found.")
+    if lst.is_default:
+        raise HTTPException(status_code=400, detail="Cannot delete the default Favoritos list.")
+    db.query(list_items).filter(list_items.c.list_id == list_id).delete()
+    db.delete(lst)
+    db.commit()
+    return {"status": "deleted"}
+
+@app.get("/lists/{list_id}/items", response_model=List[ItemResponse])
+def get_list_items(list_id: int, db: Session = Depends(get_db)):
+    """Returns all items in a custom reading list."""
+    lst = db.query(UserList).filter(UserList.id == list_id).first()
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found.")
+    items = db.query(Item).join(list_items).filter(list_items.c.list_id == list_id).all()
+    return [_enrich_item(item, db) for item in items]
+
+@app.post("/lists/{list_id}/items")
+def add_items_to_list(list_id: int, payload: ListItemsPayload, db: Session = Depends(get_db)):
+    """Adds one or more items to a custom reading list."""
+    lst = db.query(UserList).filter(UserList.id == list_id).first()
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found.")
+    for item_id in payload.item_ids:
+        existing = db.query(list_items).filter(
+            list_items.c.list_id == list_id,
+            list_items.c.item_id == item_id
+        ).first()
+        if not existing:
+            db.execute(list_items.insert().values(list_id=list_id, item_id=item_id))
+    db.commit()
+    return {"status": "added"}
+
+@app.delete("/lists/{list_id}/items/{item_id}")
+def remove_item_from_list(list_id: int, item_id: int, db: Session = Depends(get_db)):
+    """Removes an item from a custom reading list."""
+    lst = db.query(UserList).filter(UserList.id == list_id).first()
+    if not lst:
+        raise HTTPException(status_code=404, detail="List not found.")
+    db.execute(list_items.delete().where(
+        list_items.c.list_id == list_id,
+        list_items.c.item_id == item_id
+    ))
+    db.commit()
+    return {"status": "removed"}
+
+@app.get("/items/{item_id}/lists", response_model=List[int])
+def get_item_lists(item_id: int, db: Session = Depends(get_db)):
+    """Returns the list IDs that a given item belongs to."""
+    rows = db.query(list_items).filter(list_items.c.item_id == item_id).all()
+    return [row.list_id for row in rows]
+
 
 @app.post("/rescan")
 def rescan_directory_route(db: Session = Depends(get_db)):

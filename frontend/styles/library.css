@@ -1526,3 +1526,79 @@ html[data-theme="dark"] .contador-ok {
   color: inherit;
   opacity: 0.8;
 }
+
+/* ==========================================================================
+   Custom Lists (sidebar + context menu)
+   ========================================================================== */
+
+.sidebar-lists-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 8px;
+  flex: 0 0 auto;
+  margin-top: 6px;
+}
+
+.sidebar-lists-section .sidebar-section {
+  display: block;
+  padding: 0 0 6px 20px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--sidebar-section);
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+.sidebar:hover .sidebar-lists-section .sidebar-section {
+  opacity: 1;
+}
+
+#sidebar-lists-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-add-list {
+  opacity: 0.6;
+  transition: opacity var(--transition);
+}
+
+.sidebar-add-list:hover {
+  opacity: 1;
+}
+
+.ctx-list-name {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-muted, #888);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.ctx-menu-item--danger {
+  color: #ef4444;
+}
+
+.ctx-menu-item--danger:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.ctx-menu-item--danger svg {
+  opacity: 0.85;
+}
+
+.ctx-menu-item--fav {
+  color: #eab308;
+}
+
+.ctx-menu-item--fav:hover {
+  background: rgba(234, 179, 8, 0.15);
+  color: #facc15;
+}

@@ -6,6 +6,7 @@ class LibraryManager {
   constructor() {
     this.items = [];
     this.currentCategory = 'all';
+    this.currentListId = null;
     this.currentTag = null;
     this.searchQuery = '';
     this.sortBy = 'title';
@@ -14,6 +15,7 @@ class LibraryManager {
     this.gridElement = document.getElementById('book-grid');
     this.itemCountElement = document.getElementById('item-count');
     this.tagsContainer = document.getElementById('tags-container');
+    this.lists = [];
 
     this.selectedItem = null;
   }
@@ -22,6 +24,9 @@ class LibraryManager {
    * Initializes library data loading
    */
   async init() {
+    this._setupSidebarLists();
+    this._setupListModals();
+    await this.loadLists();
     await this.loadTags();
     await this.loadItems();
   }
@@ -59,6 +64,17 @@ class LibraryManager {
         fetchedItems = fetchedItems.filter(item => (item.overall_progress || 0) >= 100);
       } else if (this.currentCategory === 'unread') {
         fetchedItems = fetchedItems.filter(item => (item.overall_progress || 0) < 100);
+      }
+
+      // In-memory filter for custom list
+      if (this.currentListId) {
+        try {
+          const listItemIds = await LibraryAPI.getListItems(this.currentListId);
+          const idSet = new Set(listItemIds.map(li => li.id));
+          fetchedItems = fetchedItems.filter(item => idSet.has(item.id));
+        } catch (e) {
+          console.warn('Erro ao filtrar por lista:', e);
+        }
       }
 
       // In-memory sort for progress or rating if selected
@@ -166,6 +182,10 @@ class LibraryManager {
       else if (this.currentCategory === 'read') titleText = I18N.t('main.title.read');
       else if (this.currentCategory === 'unread') titleText = I18N.t('main.title.unread');
       else if (this.currentCategory === 'reading') titleText = I18N.t('main.title.reading');
+      else if (this.currentListId) {
+        const list = this.lists.find(l => l.id === this.currentListId);
+        if (list) titleText = list.name;
+      }
       mainTitleTextEl.textContent = titleText;
     }
 
@@ -174,7 +194,21 @@ class LibraryManager {
     }
 
     if (this.items.length === 0) {
-      this.gridElement.innerHTML = `
+      // Empty state customizado para listas
+      const favList = this.currentListId && this.lists.find(l => l.id === this.currentListId && l.is_default);
+      if (favList) {
+        this.gridElement.innerHTML = `
+        <div class="empty-state">
+          <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="48" height="48">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+          </svg>
+          <div class="empty-title">${I18N.t('empty.favorites_title')}</div>
+          <div class="empty-desc">${I18N.t('empty.favorites_desc')}</div>
+        </div>
+        `;
+      } else {
+        this.gridElement.innerHTML = `
         <div class="empty-state">
           <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
@@ -183,7 +217,8 @@ class LibraryManager {
           <div class="empty-desc">${I18N.t('empty.desc')}</div>
           <button class="btn btn-primary" onclick="app.openScanModal()">${I18N.t('empty.scan')}</button>
         </div>
-      `;
+        `;
+      }
       return;
     }
 
@@ -684,6 +719,244 @@ class LibraryManager {
   }
 
   // ---------------------------------------------------------------------------
+  // Custom Lists
+  // ---------------------------------------------------------------------------
+
+  async loadLists() {
+    try {
+      this.lists = await LibraryAPI.getLists();
+      this._renderListsInSidebar();
+    } catch (err) {
+      console.error('Erro ao carregar listas:', err);
+    }
+  }
+
+  _renderListsInSidebar() {
+    const container = document.getElementById('sidebar-lists-container');
+    if (!container) return;
+    const section = document.getElementById('sidebar-lists-section');
+    if (section) {
+      section.style.display = '';
+    }
+    container.style.display = this.lists.length > 0 ? '' : 'none';
+    container.innerHTML = this.lists.map(list => {
+      const isFav = list.is_default;
+      const displayName = isFav ? I18N.t('sidebar.favorites') : list.name;
+      return `
+      <a href="#" class="sidebar-item${this.currentListId === list.id ? ' active' : ''}" data-list-id="${list.id}">
+        <div class="sidebar-icon-wrap">
+          ${isFav ? `
+          <svg fill="currentColor" viewBox="0 0 24 24" width="18" height="18">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+          </svg>
+          ` : `
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+          </svg>
+          `}
+        </div>
+        <span class="sidebar-label">${this.escapeHtml(displayName)}</span>
+      </a>`;
+    }).join('');
+  }
+
+  _setupSidebarLists() {
+    const container = document.getElementById('sidebar-lists-container');
+    if (!container) return;
+    container.addEventListener('click', (e) => {
+      const item = e.target.closest('[data-list-id]');
+      if (!item) return;
+      e.preventDefault();
+      this._selectList(parseInt(item.dataset.listId, 10));
+    });
+
+    container.addEventListener('contextmenu', (e) => {
+      const item = e.target.closest('[data-list-id]');
+      if (!item) return;
+      e.preventDefault();
+      const listId = parseInt(item.dataset.listId, 10);
+      const list = this.lists.find(l => l.id === listId);
+      if (!list || list.is_default) return;
+      this._openManageListModal(listId);
+    });
+
+    const btn = document.getElementById('btn-create-list');
+    if (btn) {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        this._openCreateListModal();
+      });
+    }
+  }
+
+  _selectList(listId) {
+    const allSidebarItems = document.querySelectorAll('.sidebar-item[data-list-id], .sidebar-item[data-category]');
+    allSidebarItems.forEach(el => el.classList.remove('active'));
+    const target = document.querySelector(`.sidebar-item[data-list-id="${listId}"]`);
+    if (target) target.classList.add('active');
+    this.currentListId = listId;
+    this.currentCategory = null;
+    this.currentTag = null;
+    this.loadTags();
+    this.loadItems();
+  }
+
+  _openCreateListModal() {
+    const modal = document.getElementById('create-list-modal');
+    const input = document.getElementById('create-list-input');
+    if (!modal || !input) return;
+    input.value = '';
+    modal.classList.add('active');
+    setTimeout(() => input.focus(), 100);
+  }
+
+  _openManageListModal(listId) {
+    const list = this.lists.find(l => l.id === listId);
+    if (!list) return;
+    const modal = document.getElementById('manage-list-modal');
+    const input = document.getElementById('manage-list-input');
+    const deleteBtn = document.getElementById('btn-delete-list');
+    const renameBtn = document.getElementById('btn-confirm-rename-list');
+    if (!modal || !input) return;
+
+    input.value = list.name;
+    input.dataset.listId = listId;
+    input.disabled = list.is_default;
+
+    if (list.is_default) {
+      deleteBtn.style.display = 'none';
+      renameBtn.style.display = 'none';
+    } else {
+      deleteBtn.style.display = '';
+      renameBtn.style.display = '';
+    }
+
+    deleteBtn.onclick = async () => {
+      try {
+        await LibraryAPI.deleteList(listId);
+        this.lists = this.lists.filter(l => l.id !== listId);
+        if (this.currentListId === listId) {
+          this.currentListId = null;
+          this._selectLibraryCategory('all');
+        }
+        this._renderListsInSidebar();
+        modal.classList.remove('active');
+        if (window.app) window.app.showToast(I18N.t('toast.list_deleted', list.name));
+      } catch (err) {
+        console.error(err);
+        if (window.app) window.app.showToast(I18N.t('api.error_lists'));
+      }
+    };
+
+    renameBtn.onclick = async () => {
+      const newName = input.value.trim();
+      if (!newName) return;
+      try {
+        await LibraryAPI.updateList(listId, { name: newName });
+        list.name = newName;
+        if (this.currentListId === listId) this.loadItems();
+        this._renderListsInSidebar();
+        modal.classList.remove('active');
+        if (window.app) window.app.showToast(I18N.t('toast.list_renamed', newName));
+      } catch (err) {
+        console.error(err);
+        if (window.app) window.app.showToast(I18N.t('api.error_lists'));
+      }
+    };
+
+    modal.classList.add('active');
+    setTimeout(() => input.focus(), 100);
+  }
+
+  _setupListModals() {
+    // Create list modal
+    const createModal = document.getElementById('create-list-modal');
+    const createInput = document.getElementById('create-list-input');
+    const confirmCreate = document.getElementById('btn-confirm-create-list');
+    const cancelCreate = document.getElementById('btn-cancel-create-list');
+    const closeCreate = document.getElementById('close-create-list-modal');
+
+    const closeCreateModal = () => { if (createModal) createModal.classList.remove('active'); };
+
+    if (confirmCreate) {
+      confirmCreate.addEventListener('click', async () => {
+        const name = createInput ? createInput.value.trim() : '';
+        if (!name) return;
+        try {
+          const newList = await LibraryAPI.createList(name);
+          this.lists.push(newList);
+          this._renderListsInSidebar();
+          closeCreateModal();
+          if (window.app) window.app.showToast(I18N.t('toast.list_created', name));
+        } catch (err) {
+          console.error(err);
+          if (window.app) window.app.showToast(I18N.t('api.error_lists'));
+        }
+      });
+    }
+    if (cancelCreate) cancelCreate.addEventListener('click', closeCreateModal);
+    if (closeCreate) closeCreate.addEventListener('click', closeCreateModal);
+
+    // Manage list modal
+    const manageModal = document.getElementById('manage-list-modal');
+    const cancelManage = document.getElementById('btn-cancel-manage-list');
+    const closeManage = document.getElementById('close-manage-list-modal');
+
+    const closeManageModal = () => { if (manageModal) manageModal.classList.remove('active'); };
+
+    if (cancelManage) cancelManage.addEventListener('click', closeManageModal);
+    if (closeManage) closeManage.addEventListener('click', closeManageModal);
+
+    // Close modals on backdrop click
+    [createModal, manageModal].forEach(modal => {
+      if (modal) {
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) modal.classList.remove('active');
+        });
+      }
+    });
+  }
+
+  async _addItemToList(itemId, listId) {
+    try {
+      await LibraryAPI.addItemsToList(listId, [itemId]);
+      const list = this.lists.find(l => l.id === listId);
+      if (window.app) window.app.showToast(I18N.t('toast.list_added', list ? list.name : ''));
+    } catch (err) {
+      console.error(err);
+      if (window.app) window.app.showToast(I18N.t('api.error_lists'));
+    }
+  }
+
+  async _removeItemFromList(itemId, listId) {
+    try {
+      await LibraryAPI.removeItemFromList(listId, itemId);
+      const list = this.lists.find(l => l.id === listId);
+      if (window.app) window.app.showToast(I18N.t('toast.list_removed', list ? list.name : ''));
+      if (this.currentListId === listId) {
+        this.items = this.items.filter(i => i.id !== itemId);
+        this.renderGrid();
+      }
+    } catch (err) {
+      console.error(err);
+      if (window.app) window.app.showToast(I18N.t('api.error_lists'));
+    }
+  }
+
+  _selectLibraryCategory(category) {
+    const allSidebarItems = document.querySelectorAll('.sidebar-item[data-list-id], .sidebar-item[data-category]');
+    allSidebarItems.forEach(el => el.classList.remove('active'));
+    const target = document.querySelector(`.sidebar-item[data-category="${category}"]`);
+    if (target) target.classList.add('active');
+    this.currentCategory = category;
+    this.currentListId = null;
+    this.currentTag = null;
+    this.loadTags();
+    this.loadItems();
+  }
+
+  // ---------------------------------------------------------------------------
   // Context Menu (right-click on book card)
   // ---------------------------------------------------------------------------
 
@@ -697,6 +970,9 @@ class LibraryManager {
       if (readLabel) readLabel.textContent = I18N.t('details.mark_read');
       const unreadLabel = existing.querySelector('#ctx-mark-unread .ctx-label');
       if (unreadLabel) unreadLabel.textContent = I18N.t('details.mark_unread');
+      const favLabel = existing.querySelector('#ctx-fav-label');
+      if (favLabel) favLabel.textContent = I18N.t('context.add_to_favorites');
+      this._updateContextMenuLists(existing);
       return;
     }
     const menu = document.createElement('div');
@@ -728,6 +1004,14 @@ class LibraryManager {
         </svg>
         <span class="ctx-label">${I18N.t('details.mark_unread')}</span>
       </button>
+      <button class="ctx-menu-item ctx-menu-item--fav" id="ctx-fav">
+        <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+        <span class="ctx-label" id="ctx-fav-label">${I18N.t('context.add_to_favorites')}</span>
+      </button>
+      <div class="ctx-menu-divider ctx-divider-lists"></div>
+      <div id="ctx-lists-container"></div>
     `;
     document.body.appendChild(menu);
 
@@ -739,6 +1023,31 @@ class LibraryManager {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this._hideContextMenu();
     });
+  }
+
+  _updateContextMenuLists(menu) {
+    const container = menu.querySelector('#ctx-lists-container');
+    if (!container) return;
+    const divider = menu.querySelector('.ctx-divider-lists');
+    const otherLists = this.lists.filter(l => !l.is_default);
+    if (otherLists.length === 0) {
+      container.innerHTML = '';
+      if (divider) divider.style.display = 'none';
+      return;
+    }
+    if (divider) divider.style.display = '';
+    container.innerHTML = otherLists.map(list => {
+      const displayName = list.is_default ? I18N.t('sidebar.favorites') : list.name;
+      return `
+      <button class="ctx-menu-item ctx-list-item" data-list-id="${list.id}">
+        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+        </svg>
+        <span class="ctx-label">${I18N.t('context.add_to_list')}</span>
+        <span class="ctx-list-name">${this.escapeHtml(displayName)}</span>
+      </button>`;
+    }).join('');
   }
 
   /**
@@ -767,6 +1076,77 @@ class LibraryManager {
     const newBtnUnread = btnUnread.cloneNode(true);
     btnUnread.parentNode.replaceChild(newBtnUnread, btnUnread);
     newBtnUnread.addEventListener('click', () => { this._markAsUnread(item); this._hideContextMenu(); });
+
+    // Wire up "Add to favorites" button
+    const favBtn = document.getElementById('ctx-fav');
+    const favLabel = document.getElementById('ctx-fav-label');
+    const favList = this.lists.find(l => l.is_default);
+    if (favBtn) {
+      if (favList) {
+        favBtn.style.display = '';
+        const newFavBtn = favBtn.cloneNode(true);
+        favBtn.parentNode.replaceChild(newFavBtn, favBtn);
+        newFavBtn.addEventListener('click', () => {
+          this._addItemToList(item.id, favList.id);
+          this._hideContextMenu();
+        });
+      } else {
+        favBtn.style.display = 'none';
+      }
+    }
+
+    // Update and wire up list items
+    this._updateContextMenuLists(menu);
+    const listContainer = menu.querySelector('#ctx-lists-container');
+    if (listContainer) {
+      const listBtns = listContainer.querySelectorAll('.ctx-list-item');
+      listBtns.forEach(btn => {
+        const listId = parseInt(btn.dataset.listId, 10);
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this._addItemToList(item.id, listId);
+          this._hideContextMenu();
+        });
+      });
+    }
+
+    // Right-click on a list item shows "Remove from list" if viewing that list
+    if (this.currentListId) {
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'ctx-menu-item ctx-menu-item--danger';
+      removeBtn.innerHTML = `
+        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+        </svg>
+        <span class="ctx-label">${I18N.t('context.remove_from_list')}</span>
+      `;
+      removeBtn.addEventListener('click', () => {
+        this._removeItemFromList(item.id, this.currentListId);
+        this._hideContextMenu();
+      });
+      if (!menu.querySelector('#ctx-remove-from-list')) {
+        removeBtn.id = 'ctx-remove-from-list';
+        const divider = document.createElement('div');
+        divider.className = 'ctx-menu-divider';
+        listContainer.parentNode.insertBefore(divider, listContainer.nextSibling);
+        listContainer.parentNode.insertBefore(removeBtn, listContainer.nextSibling);
+      } else {
+        const existing = menu.querySelector('#ctx-remove-from-list');
+        existing.parentNode.replaceChild(removeBtn, existing);
+      }
+    } else {
+      const existing = menu.querySelector('#ctx-remove-from-list');
+      if (existing) existing.remove();
+      const prevDivider = menu.querySelector('.ctx-menu-divider:last-of-type');
+      if (prevDivider && prevDivider.classList.contains('ctx-menu-divider') && !prevDivider.id) {
+        // Remove the divider before the remove button if it exists
+        const nextSib = prevDivider.nextElementSibling;
+        if (nextSib && nextSib.id === 'ctx-remove-from-list') {
+          prevDivider.remove();
+        }
+      }
+    }
 
     // Position menu near cursor, keeping it within viewport
     const { innerWidth: vw, innerHeight: vh } = window;

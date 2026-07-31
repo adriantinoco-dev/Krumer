@@ -28,12 +28,13 @@ class AppController {
     navItems.forEach(item => {
       item.addEventListener('click', (e) => {
         e.preventDefault();
-        navItems.forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.sidebar-item.active').forEach(el => el.classList.remove('active'));
         const navEl = e.currentTarget;
         navEl.classList.add('active');
 
         const category = navEl.dataset.category;
         this.libraryManager.currentCategory = category;
+        this.libraryManager.currentListId = null; // Clear list filter
         this.libraryManager.currentTag = null; // Clear tag filter on nav switch
         this.libraryManager.loadTags();
         this.libraryManager.loadItems();
