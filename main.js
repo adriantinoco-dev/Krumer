@@ -13,13 +13,9 @@ let cancellationToken = null;
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
 
-// Em dev, usa servidor de atualização local para testes
+// Em dev, ativa modo de atualização para testes locais
 if (!app.isPackaged) {
-  autoUpdater.setFeedURL({
-    provider: 'generic',
-    url: 'http://localhost:5000/update/',
-    channel: 'latest'
-  });
+  autoUpdater.forceDevUpdateConfig = true;
 }
 
 /**
@@ -220,9 +216,13 @@ ipcMain.handle('select-folder', async () => {
 });
 
 ipcMain.handle('check-for-updates', async () => {
+  console.log('[Update] check-for-updates chamado');
   try {
-    return await autoUpdater.checkForUpdates();
+    const result = await autoUpdater.checkForUpdates();
+    console.log('[Update] checkForUpdates resultado:', JSON.stringify(result));
+    return result;
   } catch (err) {
+    console.error('[Update] erro na verificação:', err);
     if (mainWindow) {
       mainWindow.webContents.send('update-error', err ? err.message || err.toString() : 'Erro ao checar atualizações');
     }
@@ -253,18 +253,22 @@ ipcMain.handle('restart-and-install', () => {
 
 // Eventos do electron-updater repassados para o Renderer Process
 autoUpdater.on('update-available', (info) => {
+  console.log('[Update] update-available:', JSON.stringify(info));
   if (mainWindow) mainWindow.webContents.send('update-available', info);
 });
 
 autoUpdater.on('download-progress', (progressObj) => {
+  console.log('[Update] download-progress:', progressObj.percent);
   if (mainWindow) mainWindow.webContents.send('download-progress', progressObj);
 });
 
 autoUpdater.on('update-downloaded', (info) => {
+  console.log('[Update] update-downloaded:', JSON.stringify(info));
   if (mainWindow) mainWindow.webContents.send('update-downloaded', info);
 });
 
 autoUpdater.on('error', (err) => {
+  console.error('[Update] erro do autoUpdater:', err);
   if (mainWindow) {
     mainWindow.webContents.send('update-error', err ? err.message || err.toString() : 'Falha na atualização');
   }
