@@ -77,7 +77,7 @@ Nas configurações, você pode escolher o idioma em que as sinopses serão busc
 
 `Português (BR)` · `English` · `Español` · `Français` · `Deutsch` · `Italiano` · `日本語` · `中文` · `한국어` · `Русский`
 
-Ao trocar o idioma, o Krumer pode retraduzir automaticamente todas as sinopses já salvas.
+Ao trocar o idioma, o Krumer busca os metadados referente ao seu idioma.
 
 ---
 
@@ -174,7 +174,7 @@ Abra `frontend/index.html` em um servidor local ou via Electron.
 - [ ] Sincronização de progresso entre dispositivos
 - [ ] Suporte a mais temas visuais
 - [ ] Exportar biblioteca como CSV / JSON
-- [ ] Versão mobile via Capacitor
+- [ ] Versão mobile via React Native
 
 ---
 
