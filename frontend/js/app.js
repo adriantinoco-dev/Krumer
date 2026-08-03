@@ -500,21 +500,17 @@ class AppController {
     // Banner "Configurar agora"
     const bannerBtn = document.getElementById('api-key-banner-action');
     if (bannerBtn) {
-      bannerBtn.addEventListener('click', () => this.openSettingsModal());
+      bannerBtn.addEventListener('click', () => this.openSettingsModal('api-key'));
     }
 
     // === Custom Language Picker ===
     this._initLangPicker();
 
-    // Alternar entre os menus do modal (Geral / Temas)
+    // Alternar entre os menus do modal (Geral / Temas / Chave da API)
     document.querySelectorAll('.settings-menu-item').forEach(item => {
       item.addEventListener('click', () => {
-        document.querySelectorAll('.settings-menu-item').forEach(i => i.classList.remove('active'));
-        document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
-
-        item.classList.add('active');
         const panelName = item.dataset.settingsPanel;
-        document.querySelector(`.settings-panel[data-panel="${panelName}"]`).classList.add('active');
+        this.switchSettingsPanel(panelName);
       });
     });
 
@@ -597,17 +593,34 @@ class AppController {
     }
   }
 
-  async openSettingsModal() {
+  switchSettingsPanel(panelName) {
+    const targetMenuItem = document.querySelector(`.settings-menu-item[data-settings-panel="${panelName}"]`);
+    const targetPanel = document.querySelector(`.settings-panel[data-panel="${panelName}"]`);
+
+    if (targetMenuItem && targetPanel) {
+      document.querySelectorAll('.settings-menu-item').forEach(i => i.classList.remove('active'));
+      document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
+
+      targetMenuItem.classList.add('active');
+      targetPanel.classList.add('active');
+    }
+  }
+
+  async openSettingsModal(targetPanel = 'geral') {
     const modal = document.getElementById('settings-modal');
     if (!modal) return;
     modal.classList.add('active');
+
+    this.switchSettingsPanel(targetPanel);
 
     const input = document.getElementById('settings-api-key-input');
     if (input) input.value = '';
 
     await this._renderApiKeyStatus();
     await this._loadSettings();
-    setTimeout(() => input && input.focus(), 50);
+    if (targetPanel === 'api-key') {
+      setTimeout(() => input && input.focus(), 50);
+    }
   }
 
   closeSettingsModal() {
@@ -825,7 +838,7 @@ class AppController {
     // Passo 1: Configurar chave
     const btnApiKey = document.getElementById('onb-btn-apikey');
     if (btnApiKey) {
-      btnApiKey.addEventListener('click', () => this.openSettingsModal());
+      btnApiKey.addEventListener('click', () => this.openSettingsModal('api-key'));
     }
 
     // Passo 2: Selecionar pasta (abre o modal de scan)

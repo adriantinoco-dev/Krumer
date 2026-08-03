@@ -59,7 +59,7 @@ class MetadataManager {
     document.getElementById('btn-go-settings-apikey')?.addEventListener('click', () => {
       this.fecharModal('api-key-required-modal');
       if (window.app && window.app.openSettingsModal) {
-        window.app.openSettingsModal();
+        window.app.openSettingsModal('api-key');
       }
     });
   }
