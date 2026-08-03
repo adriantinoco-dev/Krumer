@@ -1189,3 +1189,40 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 });
+
+let zoomToastTimer = null;
+
+/**
+ * Exibe um toast flutuante indicando a transição de zoom/fonte no leitor
+ */
+function showReaderZoomToast(pctVal, label = 'Zoom') {
+  let toastEl = document.getElementById('reader-zoom-toast');
+  const readerView = document.getElementById('reader-view');
+  if (!readerView) return;
+
+  if (!toastEl) {
+    toastEl = document.createElement('div');
+    toastEl.id = 'reader-zoom-toast';
+    toastEl.className = 'reader-zoom-toast';
+    readerView.appendChild(toastEl);
+  }
+
+  toastEl.textContent = `${label}: ${pctVal}%`;
+
+  toastEl.classList.remove('fade-out');
+
+  if (zoomToastTimer) {
+    clearTimeout(zoomToastTimer);
+  }
+
+  zoomToastTimer = setTimeout(() => {
+    if (toastEl) {
+      toastEl.classList.add('fade-out');
+      setTimeout(() => {
+        if (toastEl && toastEl.classList.contains('fade-out')) {
+          toastEl.remove();
+        }
+      }, 250);
+    }
+  }, 1200);
+}

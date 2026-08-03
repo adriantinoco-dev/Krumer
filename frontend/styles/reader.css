@@ -582,3 +582,21 @@ body.reader-fullscreen #reader-container.vertical {
   color: var(--accent, #f97316);
   background-color: var(--bg-card-hover, #262626);
 }
+
+/* Toast HUD de Zoom no Leitor */
+.reader-zoom-toast {
+  position: fixed;
+  top: 68px;
+  right: 20px;
+  color: var(--accent, #f97316);
+  font-size: 13px;
+  font-weight: 500;
+  z-index: 10001;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+.reader-zoom-toast.fade-out {
+  opacity: 0;
+}

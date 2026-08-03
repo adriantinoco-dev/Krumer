@@ -622,6 +622,10 @@ function aplicarZoomPdf(novaEscala, { updateSlider = true, renderNow = false } =
   const badge = document.getElementById('pdf-zoom-val-badge');
   if (badge) badge.textContent = `${pctVal}%`;
 
+  if (typeof showReaderZoomToast === 'function') {
+    showReaderZoomToast(pctVal, 'Zoom');
+  }
+
   if (updateSlider) {
     const slider = document.getElementById('pdf-zoom-slider');
     if (slider && parseInt(slider.value, 10) !== pctVal) {
@@ -676,6 +680,27 @@ document.addEventListener('click', (e) => {
 function pdfKeyHandler(e) {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
     return;
+  }
+
+  // Atalhos de Zoom (Ctrl+ / Ctrl- / Ctrl 0)
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === '+' || e.key === '=' || e.code === 'Equal' || e.code === 'NumpadAdd') {
+      e.preventDefault();
+      const novaEscala = Math.min(2.0, Math.round((pdfCurrentScale + 0.1) * 10) / 10);
+      aplicarZoomPdf(novaEscala, { updateSlider: true, renderNow: true });
+      return;
+    }
+    if (e.key === '-' || e.key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract') {
+      e.preventDefault();
+      const novaEscala = Math.max(0.5, Math.round((pdfCurrentScale - 0.1) * 10) / 10);
+      aplicarZoomPdf(novaEscala, { updateSlider: true, renderNow: true });
+      return;
+    }
+    if (e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0') {
+      e.preventDefault();
+      aplicarZoomPdf(1.0, { updateSlider: true, renderNow: true });
+      return;
+    }
   }
 
   if (e.key === 'ArrowLeft' || e.key === 'PageUp') {

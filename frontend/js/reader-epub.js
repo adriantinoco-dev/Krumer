@@ -131,7 +131,7 @@ async function openEpub(item, filePath) {
       saveEpubProgress();
     });
 
-    epubRendition.on('keyup', epubKeyHandler);
+    epubRendition.on('keydown', epubKeyHandler);
 
     showReaderLoading(false);
     setupEpubControls();
@@ -275,6 +275,10 @@ function _applyEpubFontSize(size, persist = true) {
   const slider = document.getElementById('epub-font-slider');
   if (slider && parseInt(slider.value, 10) !== epubFontSize) {
     slider.value = epubFontSize;
+  }
+
+  if (typeof showReaderZoomToast === 'function') {
+    showReaderZoomToast(epubFontSize, 'Fonte');
   }
 }
 
@@ -559,6 +563,25 @@ async function saveEpubProgress() {
 
 function epubKeyHandler(e) {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+  // Atalhos de Zoom / Tamanho de fonte (Ctrl+ / Ctrl- / Ctrl 0)
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === '+' || e.key === '=' || e.code === 'Equal' || e.code === 'NumpadAdd') {
+      e.preventDefault();
+      _applyEpubFontSize(Math.min(200, epubFontSize + 10));
+      return;
+    }
+    if (e.key === '-' || e.key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract') {
+      e.preventDefault();
+      _applyEpubFontSize(Math.max(60, epubFontSize - 10));
+      return;
+    }
+    if (e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0') {
+      e.preventDefault();
+      _applyEpubFontSize(100);
+      return;
+    }
+  }
 
   if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
     e.preventDefault();
