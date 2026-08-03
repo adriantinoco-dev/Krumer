@@ -1,4 +1,4 @@
-﻿/* ==========================================================================
+/* ==========================================================================
    Krumer Personal Library - Grid & State Manager (Phase 2 Spec)
    ========================================================================== */
 
@@ -888,6 +888,13 @@ class LibraryManager {
       }
     };
 
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (!list.is_default) renameBtn.click();
+      }
+    };
+
     modal.classList.add('active');
     setTimeout(() => input.focus(), 100);
   }
@@ -895,6 +902,7 @@ class LibraryManager {
   _setupListModals() {
     // Create list modal
     const createModal = document.getElementById('create-list-modal');
+    const createForm = document.getElementById('create-list-form');
     const createInput = document.getElementById('create-list-input');
     const confirmCreate = document.getElementById('btn-confirm-create-list');
     const cancelCreate = document.getElementById('btn-cancel-create-list');
@@ -902,31 +910,77 @@ class LibraryManager {
 
     const closeCreateModal = () => { if (createModal) createModal.classList.remove('active'); };
 
+    const handleCreateList = async () => {
+      const name = createInput ? createInput.value.trim() : '';
+      if (!name) return;
+      try {
+        const newList = await LibraryAPI.createList(name);
+        this.lists.push(newList);
+        this._renderListsInSidebar();
+        closeCreateModal();
+        if (window.app) window.app.showToast(I18N.t('toast.list_created', name));
+      } catch (err) {
+        console.error(err);
+        if (window.app) window.app.showToast(I18N.t('api.error_lists'));
+      }
+    };
+
     if (confirmCreate) {
-      confirmCreate.addEventListener('click', async () => {
-        const name = createInput ? createInput.value.trim() : '';
-        if (!name) return;
-        try {
-          const newList = await LibraryAPI.createList(name);
-          this.lists.push(newList);
-          this._renderListsInSidebar();
-          closeCreateModal();
-          if (window.app) window.app.showToast(I18N.t('toast.list_created', name));
-        } catch (err) {
-          console.error(err);
-          if (window.app) window.app.showToast(I18N.t('api.error_lists'));
+      confirmCreate.addEventListener('click', (e) => {
+        e.preventDefault();
+        handleCreateList();
+      });
+    }
+
+    if (createForm) {
+      createForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        handleCreateList();
+      });
+    }
+
+    if (createInput) {
+      createInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleCreateList();
         }
       });
     }
+
     if (cancelCreate) cancelCreate.addEventListener('click', closeCreateModal);
     if (closeCreate) closeCreate.addEventListener('click', closeCreateModal);
 
     // Manage list modal
     const manageModal = document.getElementById('manage-list-modal');
+    const manageForm = document.getElementById('manage-list-form');
+    const manageInput = document.getElementById('manage-list-input');
     const cancelManage = document.getElementById('btn-cancel-manage-list');
     const closeManage = document.getElementById('close-manage-list-modal');
 
     const closeManageModal = () => { if (manageModal) manageModal.classList.remove('active'); };
+
+    if (manageForm) {
+      manageForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const renameBtn = document.getElementById('btn-confirm-rename-list');
+        if (renameBtn && renameBtn.style.display !== 'none') {
+          renameBtn.click();
+        }
+      });
+    }
+
+    if (manageInput) {
+      manageInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const renameBtn = document.getElementById('btn-confirm-rename-list');
+          if (renameBtn && renameBtn.style.display !== 'none') {
+            renameBtn.click();
+          }
+        }
+      });
+    }
 
     if (cancelManage) cancelManage.addEventListener('click', closeManageModal);
     if (closeManage) closeManage.addEventListener('click', closeManageModal);

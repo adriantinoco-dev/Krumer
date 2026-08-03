@@ -53,6 +53,15 @@ class AppController {
           this.libraryManager.loadItems();
         }, 300);
       });
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          clearTimeout(timeout);
+          this.libraryManager.searchQuery = searchInput.value.trim();
+          this.libraryManager.loadItems();
+          searchInput.blur();
+        }
+      });
     }
 
     // Toggle do popup de ordenação

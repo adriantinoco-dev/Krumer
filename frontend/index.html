@@ -833,41 +833,45 @@
   <!-- Modal: Criar Lista -->
   <div id="create-list-modal" class="modal-backdrop">
     <div class="modal-card" style="width: 400px;">
-      <div class="modal-header">
-        <h2 class="modal-title" data-i18n="modal.list.create_title">Nova lista</h2>
-        <button id="close-create-list-modal" class="close-btn">&times;</button>
-      </div>
-      <div style="padding:16px;">
-        <label class="form-label" data-i18n="modal.list.name_label">Nome da lista</label>
-        <input type="text" id="create-list-input" class="form-input"
-          placeholder="Ex: Favoritos, Quero ler..." data-i18n="modal.list.name_placeholder">
-      </div>
-      <div class="modal-actions" style="padding:0 16px 16px; display:flex; justify-content:flex-end; gap:8px;">
-        <button type="button" id="btn-cancel-create-list" class="btn btn-secondary" data-i18n="modal.list.cancel">Cancelar</button>
-        <button type="button" id="btn-confirm-create-list" class="btn btn-primary" data-i18n="modal.list.create_btn">Criar</button>
-      </div>
+      <form id="create-list-form">
+        <div class="modal-header">
+          <h2 class="modal-title" data-i18n="modal.list.create_title">Nova lista</h2>
+          <button type="button" id="close-create-list-modal" class="close-btn">&times;</button>
+        </div>
+        <div style="padding:16px;">
+          <label class="form-label" data-i18n="modal.list.name_label">Nome da lista</label>
+          <input type="text" id="create-list-input" class="form-input"
+            placeholder="Ex: Favoritos, Quero ler..." data-i18n="modal.list.name_placeholder" autocomplete="off">
+        </div>
+        <div class="modal-actions" style="padding:0 16px 16px; display:flex; justify-content:flex-end; gap:8px;">
+          <button type="button" id="btn-cancel-create-list" class="btn btn-secondary" data-i18n="modal.list.cancel">Cancelar</button>
+          <button type="submit" id="btn-confirm-create-list" class="btn btn-primary" data-i18n="modal.list.create_btn">Criar</button>
+        </div>
+      </form>
     </div>
   </div>
 
   <!-- Modal: Gerenciar Lista -->
   <div id="manage-list-modal" class="modal-backdrop">
     <div class="modal-card" style="width: 400px;">
-      <div class="modal-header">
-        <h2 class="modal-title" data-i18n="modal.list.manage_title">Gerenciar lista</h2>
-        <button id="close-manage-list-modal" class="close-btn">&times;</button>
-      </div>
-      <div style="padding:16px;">
-        <label class="form-label" data-i18n="modal.list.rename_label">Renomear lista</label>
-        <input type="text" id="manage-list-input" class="form-input"
-          data-i18n="modal.list.name_placeholder">
-      </div>
-      <div class="modal-actions" style="padding:0 16px 16px; display:flex; justify-content:space-between; gap:8px;">
-        <button type="button" id="btn-delete-list" class="btn btn-danger" data-i18n="modal.list.delete_confirm">Excluir lista</button>
-        <div style="display:flex; gap:8px;">
-          <button type="button" id="btn-cancel-manage-list" class="btn btn-secondary" data-i18n="modal.list.cancel">Cancelar</button>
-          <button type="button" id="btn-confirm-rename-list" class="btn btn-primary" data-i18n="modal.list.rename">Renomear</button>
+      <form id="manage-list-form">
+        <div class="modal-header">
+          <h2 class="modal-title" data-i18n="modal.list.manage_title">Gerenciar lista</h2>
+          <button type="button" id="close-manage-list-modal" class="close-btn">&times;</button>
         </div>
-      </div>
+        <div style="padding:16px;">
+          <label class="form-label" data-i18n="modal.list.rename_label">Renomear lista</label>
+          <input type="text" id="manage-list-input" class="form-input"
+            data-i18n="modal.list.name_placeholder" autocomplete="off">
+        </div>
+        <div class="modal-actions" style="padding:0 16px 16px; display:flex; justify-content:space-between; gap:8px;">
+          <button type="button" id="btn-delete-list" class="btn btn-danger" data-i18n="modal.list.delete_confirm">Excluir lista</button>
+          <div style="display:flex; gap:8px;">
+            <button type="button" id="btn-cancel-manage-list" class="btn btn-secondary" data-i18n="modal.list.cancel">Cancelar</button>
+            <button type="submit" id="btn-confirm-rename-list" class="btn btn-primary" data-i18n="modal.list.rename">Renomear</button>
+          </div>
+        </div>
+      </form>
     </div>
   </div>
 
