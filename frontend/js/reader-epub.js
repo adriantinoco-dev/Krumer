@@ -525,12 +525,13 @@ function updateEpubControlsState() {
   if (!epubBook || !epubBook.locations || epubTotalLocations === 0) return;
 
   const pct = Math.round((epubCurrentLocationIndex / epubTotalLocations) * 100);
+  const pageText = `Pág. ${epubCurrentLocationIndex + 1} / ${epubTotalLocations} · ${pct}%`;
 
   const label = document.getElementById('epub-progress-label');
-  if (label) label.textContent = `${pct}%`;
+  if (label) label.textContent = pageText;
 
   const fsLabel = document.getElementById('fullscreen-progress-label');
-  if (fsLabel) fsLabel.textContent = `${pct}%`;
+  if (fsLabel) fsLabel.textContent = pageText;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

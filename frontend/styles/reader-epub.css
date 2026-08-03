@@ -163,7 +163,8 @@
    ────────────────────────────────────────────────────────────────────────── */
 
 #epub-progress-label {
-  min-width: 36px;
+  min-width: fit-content;
+  white-space: nowrap;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }

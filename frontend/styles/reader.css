@@ -556,6 +556,8 @@ body.reader-fullscreen #reader-container.vertical {
   font-size: 13px;
   color: var(--text-muted, #888888);
   font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .fs-left {
