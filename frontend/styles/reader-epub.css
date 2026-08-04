@@ -134,6 +134,18 @@
 }
 
 /* Ícone visual de amostra de tema nos botões */
+.epub-theme-btn[data-theme="dark"] {
+  background-color: #202020;
+  color: #cccccc;
+  border-color: #2e2e2e;
+}
+.epub-theme-btn[data-theme="dark"]:hover,
+.epub-theme-btn[data-theme="dark"].active {
+  background-color: #262626;
+  border-color: var(--accent, #f97316);
+  color: var(--accent, #f97316);
+}
+
 .epub-theme-btn[data-theme="light"] {
   background-color: #f0f0f0;
   color: #333;
