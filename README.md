@@ -172,7 +172,6 @@ Abra `frontend/index.html` em um servidor local ou via Electron.
 
 - [ ] Suporte a CBZ / CBR (quadrinhos em formato de arquivo compactado)
 - [ ] Sincronização de progresso entre dispositivos
-- [ ] Suporte a mais temas visuais
 - [ ] Exportar biblioteca como CSV / JSON
 - [ ] Versão mobile via React Native
 
