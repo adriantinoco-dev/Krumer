@@ -1,6 +1,6 @@
 {
   "name": "krumer",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Gerenciador de biblioteca pessoal para leitura de livros e quadrinhos",
   "main": "main.js",
   "scripts": {
