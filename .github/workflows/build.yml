@@ -20,6 +20,9 @@ jobs:
           - os: ubuntu-latest
             npm_script: build:linux
             backend_bin: resources/krumer-backend
+          - os: macos-latest
+            npm_script: build:mac
+            backend_bin: resources/krumer-backend
 
     runs-on: ${{ matrix.os }}
 

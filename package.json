@@ -7,6 +7,7 @@
     "start": "electron .",
     "build": "electron-builder --win",
     "build:linux": "electron-builder --linux",
+    "build:mac": "electron-builder --mac",
     "pack": "electron-builder --dir"
   },
   "keywords": [
@@ -62,6 +63,13 @@
       ],
       "icon": "frontend/assets/Krumer-icon.png",
       "category": "Office"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "frontend/assets/Krumer-icon.png",
+      "category": "public.app-category.productivity"
     },
     "nsis": {
       "oneClick": false,
