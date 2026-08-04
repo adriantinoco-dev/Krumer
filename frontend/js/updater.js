@@ -24,7 +24,7 @@ class AppUpdater {
 
     this.createDomElements();
     this.registerListeners();
-    this.checkDailyUpdate();
+    this.checkOnStartup();
   }
 
   createDomElements() {
@@ -95,15 +95,13 @@ class AppUpdater {
     });
   }
 
-  checkDailyUpdate() {
-    const LAST_CHECK_KEY = 'krumer_last_update_check';
-    const lastCheck = localStorage.getItem(LAST_CHECK_KEY);
-    const now = Date.now();
-    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-
-    if (!lastCheck || (now - parseInt(lastCheck, 10)) > ONE_DAY_MS) {
-      localStorage.setItem(LAST_CHECK_KEY, now.toString());
+  checkOnStartup() {
+    if (navigator.onLine) {
       window.electronAPI.checkForUpdates();
+    } else {
+      window.addEventListener('online', () => {
+        window.electronAPI.checkForUpdates();
+      }, { once: true });
     }
   }
 
