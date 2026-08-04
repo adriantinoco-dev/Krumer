@@ -507,6 +507,12 @@ html[data-theme="dark"] {
   --sidebar-section:    rgba(255, 255, 255, 0.50);
 
   --hero-vignette: 17, 17, 17;
+
+  --scan-result-text:    #86efac;
+  --scan-result-bg:      rgba(34, 197, 94, 0.15);
+  --scan-result-border:  rgba(34, 197, 94, 0.50);
+  --scan-result-dot:     #22c55e;
+  --scan-result-glow:    rgba(34, 197, 94, 0.6);
 }
 
 html[data-theme="light"] {
@@ -532,6 +538,12 @@ html[data-theme="light"] {
   --sidebar-section:    rgba(0, 0, 0, 0.60);
 
   --hero-vignette: 245, 245, 245;
+
+  --scan-result-text:    #15803d;
+  --scan-result-bg:      rgba(34, 197, 94, 0.10);
+  --scan-result-border:  rgba(34, 197, 94, 0.40);
+  --scan-result-dot:     #16a34a;
+  --scan-result-glow:    rgba(22, 163, 74, 0.5);
 }
 
 html[data-theme="sepia"] {
@@ -560,6 +572,12 @@ html[data-theme="sepia"] {
      abordagem usada no tema Light — evita o "borrão preto" no
      hero banner da página de detalhes. */
   --hero-vignette: 244, 236, 216;
+
+  --scan-result-text:    #166534;
+  --scan-result-bg:      rgba(34, 197, 94, 0.12);
+  --scan-result-border:  rgba(34, 197, 94, 0.45);
+  --scan-result-dot:     #15803d;
+  --scan-result-glow:    rgba(21, 128, 61, 0.5);
 }
 
 /* ============================================================
