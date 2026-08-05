@@ -68,7 +68,7 @@
       "target": [
         "dmg"
       ],
-      "icon": "frontend/assets/Krumer-icon.png",
+      "icon": "frontend/assets/Krumer-icns.png",
       "category": "public.app-category.productivity"
     },
     "nsis": {
