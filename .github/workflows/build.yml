@@ -57,3 +57,31 @@ jobs:
         run: npm run ${{ matrix.npm_script }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artefatos (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Krumer-Windows
+          path: |
+            dist/*.exe
+          retention-days: 30
+
+      - name: Upload artefatos (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Krumer-Linux
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+          retention-days: 30
+
+      - name: Upload artefatos (macOS)
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Krumer-macOS
+          path: |
+            dist/*.dmg
+          retention-days: 30
