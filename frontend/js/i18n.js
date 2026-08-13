@@ -132,6 +132,31 @@ const I18N = {
       'settings.lang_zh': '中文 (简体)',
       'settings.lang_ko': '한국어',
       'settings.lang_ru': 'Русский',
+      'settings.shortcuts': 'Atalhos',
+      'settings.shortcuts_title': 'Atalhos de Teclado',
+      'settings.shortcuts_help': 'Lista de atalhos de teclado disponíveis para navegar e controlar o aplicativo.',
+      'shortcuts.or': ' ou ',
+      'shortcuts.context.general': 'Geral',
+      'shortcuts.context.library': 'Biblioteca',
+      'shortcuts.context.reading': 'Leitura',
+      'shortcuts.action.close': 'Fechar modais, menus, leitor ou detalhes',
+      'shortcuts.action.open_details': 'Abrir detalhes do livro',
+      'shortcuts.action.context_menu': 'Abrir menu de contexto do livro',
+      'shortcuts.action.prev_page': 'Ir para a página anterior',
+      'shortcuts.action.next_page': 'Ir para a próxima página',
+      'shortcuts.action.zoom_in': 'Aumentar zoom / tamanho da fonte',
+      'shortcuts.action.zoom_out': 'Diminuir zoom / tamanho da fonte',
+      'shortcuts.action.zoom_reset': 'Resetar zoom / tamanho da fonte',
+      'shortcuts.action.fullscreen': 'Alternar tela cheia',
+      'shortcuts.key.escape': 'Esc',
+      'shortcuts.key.arrowleft': '←',
+      'shortcuts.key.arrowright': '→',
+      'shortcuts.key.pageup': 'PgUp',
+      'shortcuts.key.pagedown': 'PgDn',
+      'shortcuts.key.space': 'Espaço',
+      'shortcuts.key.clickleft': 'Clique Esquerdo',
+      'shortcuts.key.clickright': 'Clique Direito',
+      'shortcuts.key.ctrl': 'Ctrl',
       'modal.scan.title': 'Escanear Pasta de Livros',
       'modal.scan.path_label': 'Caminho do diretório raiz',
       'modal.scan.path_placeholder': 'Ex: C:\\MeusLivros ou /home/usuario/livros',
@@ -154,6 +179,7 @@ const I18N = {
       'modal.edit.synopsis_placeholder': 'Descrição ou resumo descritivo do livro...',
       'modal.edit.cover_label': 'Capa do Livro',
       'modal.edit.cover_btn': 'Substituir Imagem da Capa',
+      'modal.edit.cover_restore': 'Restaurar Capa Original',
       'modal.edit.cover_none': 'Nenhuma nova imagem selecionada',
       'modal.edit.cancel': 'Cancelar',
       'modal.edit.save': 'Salvar Alterações',
@@ -242,6 +268,9 @@ const I18N = {
       'toast.list_deleted': 'Lista "{0}" excluída.',
       'toast.list_added': 'Adicionado à lista "{0}"',
       'toast.list_removed': 'Removido da lista "{0}"',
+      'toast.cover_restored': 'Capa original restaurada com sucesso!',
+      'toast.cover_restore_error': 'Erro ao restaurar capa: {0}',
+      'toast.cover_no_original': 'Este livro não possui capa original embutida.',
       'progress.scanning': 'Escaneando pasta...',
       'progress.preparing': 'Preparando...',
       'progress.files_processed': '{0} de {1} arquivos processados',
@@ -436,6 +465,31 @@ const I18N = {
       'settings.lang_zh': '中文 (简体)',
       'settings.lang_ko': '한국어',
       'settings.lang_ru': 'Русский',
+      'settings.shortcuts': 'Shortcuts',
+      'settings.shortcuts_title': 'Keyboard Shortcuts',
+      'settings.shortcuts_help': 'List of keyboard shortcuts available to navigate and control the application.',
+      'shortcuts.or': ' or ',
+      'shortcuts.context.general': 'General',
+      'shortcuts.context.library': 'Library',
+      'shortcuts.context.reading': 'Reading',
+      'shortcuts.action.close': 'Close modals, menus, reader, or details',
+      'shortcuts.action.open_details': 'Open book details',
+      'shortcuts.action.context_menu': 'Open book context menu',
+      'shortcuts.action.prev_page': 'Go to previous page',
+      'shortcuts.action.next_page': 'Go to next page',
+      'shortcuts.action.zoom_in': 'Zoom in / Increase font size',
+      'shortcuts.action.zoom_out': 'Zoom out / Decrease font size',
+      'shortcuts.action.zoom_reset': 'Reset zoom / font size',
+      'shortcuts.action.fullscreen': 'Toggle fullscreen',
+      'shortcuts.key.escape': 'Esc',
+      'shortcuts.key.arrowleft': '←',
+      'shortcuts.key.arrowright': '→',
+      'shortcuts.key.pageup': 'PgUp',
+      'shortcuts.key.pagedown': 'PgDn',
+      'shortcuts.key.space': 'Space',
+      'shortcuts.key.clickleft': 'Left Click',
+      'shortcuts.key.clickright': 'Right Click',
+      'shortcuts.key.ctrl': 'Ctrl',
       'modal.scan.title': 'Scan Book Folder',
       'modal.scan.path_label': 'Root directory path',
       'modal.scan.path_placeholder': 'e.g. C:\\MyBooks or /home/user/books',
@@ -458,6 +512,7 @@ const I18N = {
       'modal.edit.synopsis_placeholder': 'Description or summary of the book...',
       'modal.edit.cover_label': 'Book Cover',
       'modal.edit.cover_btn': 'Replace Cover Image',
+      'modal.edit.cover_restore': 'Restore Original Cover',
       'modal.edit.cover_none': 'No new image selected',
       'modal.edit.cancel': 'Cancel',
       'modal.edit.save': 'Save Changes',
@@ -546,6 +601,9 @@ const I18N = {
       'toast.list_deleted': 'List "{0}" deleted.',
       'toast.list_added': 'Added to list "{0}"',
       'toast.list_removed': 'Removed from list "{0}"',
+      'toast.cover_restored': 'Original cover restored successfully!',
+      'toast.cover_restore_error': 'Error restoring cover: {0}',
+      'toast.cover_no_original': 'This book has no embedded original cover.',
       'progress.scanning': 'Scanning folder...',
       'progress.preparing': 'Preparing...',
       'progress.files_processed': '{0} of {1} files processed',
@@ -610,6 +668,10 @@ const I18N = {
       'update.btn_close': 'Close',
       'update.download_error': 'Failed to start download: {0}',
       'update.speed': '{0} MB/s',
+      'modal.edit.cover_restore': 'Restaurar portada original',
+      'toast.cover_restored': '¡Portada original restaurada con éxito!',
+      'toast.cover_restore_error': 'Error al restaurar portada: {0}',
+      'toast.cover_no_original': 'Este libro no tiene portada original integrada.',
     },
 
     es: {
@@ -1218,6 +1280,10 @@ const I18N = {
       'update.btn_close': 'Fermer',
       'update.download_error': 'Échec du lancement du téléchargement : {0}',
       'update.speed': '{0} Mo/s',
+      'modal.edit.cover_restore': 'Restaurer la couverture d\'origine',
+      'toast.cover_restored': 'Couverture d\'origine restaurée avec succès !',
+      'toast.cover_restore_error': 'Erreur lors de la restauration de la couverture : {0}',
+      'toast.cover_no_original': 'Ce livre ne possède pas de couverture d\'origine intégrée.',
     },
 
     de: {
@@ -1522,6 +1588,10 @@ const I18N = {
       'update.btn_close': 'Schließen',
       'update.download_error': 'Download konnte nicht gestartet werden: {0}',
       'update.speed': '{0} MB/s',
+      'modal.edit.cover_restore': 'Original-Cover wiederherstellen',
+      'toast.cover_restored': 'Original-Cover erfolgreich wiederhergestellt!',
+      'toast.cover_restore_error': 'Fehler beim Wiederherstellen des Covers: {0}',
+      'toast.cover_no_original': 'Dieses Buch besitzt kein eingebettetes Original-Cover.',
     },
 
     it: {
@@ -1826,6 +1896,10 @@ const I18N = {
       'update.btn_close': 'Chiudi',
       'update.download_error': 'Avvio download fallito: {0}',
       'update.speed': '{0} MB/s',
+      'modal.edit.cover_restore': 'Ripristina copertina originale',
+      'toast.cover_restored': 'Copertina originale ripristinata con successo!',
+      'toast.cover_restore_error': 'Errore nel ripristino della copertina: {0}',
+      'toast.cover_no_original': 'Questo libro non ha una copertina originale incorporata.',
     },
 
     ja: {
@@ -2130,6 +2204,10 @@ const I18N = {
       'update.btn_close': '閉じる',
       'update.download_error': 'ダウンロードの開始に失敗: {0}',
       'update.speed': '{0} MB/s',
+      'modal.edit.cover_restore': 'オリジナルの表紙を復元',
+      'toast.cover_restored': 'オリジナルの表紙が正常に復元されました！',
+      'toast.cover_restore_error': '表紙の復元エラー: {0}',
+      'toast.cover_no_original': 'この本には埋め込みのオリジナル表紙がありません。',
     },
 
     zh: {
@@ -2434,6 +2512,10 @@ const I18N = {
       'update.btn_close': '关闭',
       'update.download_error': '开始下载失败：{0}',
       'update.speed': '{0} MB/s',
+      'modal.edit.cover_restore': '恢复原始封面',
+      'toast.cover_restored': '原始封面恢复成功！',
+      'toast.cover_restore_error': '恢复封面时出错：{0}',
+      'toast.cover_no_original': '这本书没有嵌入的原始封面。',
     },
 
     ko: {
@@ -2738,6 +2820,10 @@ const I18N = {
       'update.btn_close': '닫기',
       'update.download_error': '다운로드 시작 실패: {0}',
       'update.speed': '{0} MB/s',
+      'modal.edit.cover_restore': '원본 표지 복원',
+      'toast.cover_restored': '원본 표지가 성공적으로 복원되었습니다!',
+      'toast.cover_restore_error': '표지 복원 오류: {0}',
+      'toast.cover_no_original': '이 책에는 원본 표지가 포함되어 있지 않습니다.',
     },
 
     ru: {
@@ -3042,6 +3128,10 @@ const I18N = {
       'update.btn_close': 'Закрыть',
       'update.download_error': 'Не удалось запустить загрузку: {0}',
       'update.speed': '{0} MB/s',
+      'modal.edit.cover_restore': 'Восстановить оригинальную обложку',
+      'toast.cover_restored': 'Оригинальная обложка успешно восстановлена!',
+      'toast.cover_restore_error': 'Ошибка при восстановлении обложки: {0}',
+      'toast.cover_no_original': 'В этой книге нет встроенной оригинальной обложки.',
     },
 
   },
@@ -3113,6 +3203,12 @@ const I18N = {
       }
       if (typeof window.app._renderApiKeyStatus === 'function') {
         window.app._renderApiKeyStatus();
+      }
+      if (typeof window.app.renderShortcuts === 'function') {
+        const atalhosPanel = document.querySelector('.settings-panel[data-panel="atalhos"]');
+        if (atalhosPanel && atalhosPanel.classList.contains('active')) {
+          window.app.renderShortcuts();
+        }
       }
     }
   },

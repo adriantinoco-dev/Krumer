@@ -11,10 +11,11 @@ sys.path.append(str(Path(__file__).parent))
 
 import database
 import models
-from models import Item, Progress, Setting, Tag
+from models import Item, Progress, Setting, Tag, ArchivedItem
 import metadata
 import scanner
 from scanner import scan_library_folder
+from archive import archive_item, try_restore_item
 
 def _make_test_image_bytes():
     from PIL import Image
@@ -159,6 +160,71 @@ class TestLibrarianBackend(unittest.TestCase):
         
         deleted_prog = self.db.query(Progress).filter(Progress.item_id == book.id).first()
         self.assertIsNone(deleted_prog)
+
+    def test_move_out_and_back_restores_everything(self):
+        """Item removed from disk and re-added keeps metadata, tags and progress."""
+        scan_library_folder(self.db, str(self.test_dir))
+
+        file_path = self.test_dir / "livro_avulso_1.epub"
+        book = self.db.query(Item).filter(Item.path == str(file_path)).first()
+        self.assertIsNotNone(book)
+
+        # Editar metadados
+        book.title = "O Conto da AIA"
+        book.author = "Margaret Atwood"
+        book.description = "Sinopse restaurada."
+        book.year = 1985
+        book.rating = 5
+        book.tags = [self.db.query(Tag).filter(Tag.name == "ficcao").first() or Tag(name="ficcao")]
+        self.db.add(Progress(
+            item_id=book.id,
+            file_path=book.path,
+            progress_pct=45.5,
+            current_page=50,
+            total_pages=110,
+        ))
+        self.db.flush()
+        self.db.commit()
+
+        archived_count = self.db.query(ArchivedItem).count()
+        self.assertEqual(archived_count, 0)
+
+        # Simular a saída do arquivo da pasta
+        backup_dir = self.test_dir / "backup_temp"
+        backup_dir.mkdir(exist_ok=True)
+        moved = shutil.move(str(file_path), str(backup_dir / file_path.name))
+        self.assertTrue(os.path.exists(moved))
+
+        scan_library_folder(self.db, str(self.test_dir))
+        removed = self.db.query(Item).filter(Item.path == str(file_path)).first()
+        self.assertIsNone(removed)
+        archived_count = self.db.query(ArchivedItem).count()
+        self.assertGreater(archived_count, 0)
+
+        # Simular o retorno do arquivo à pasta
+        shutil.move(moved, str(file_path))
+        self.assertTrue(os.path.exists(file_path))
+
+        scan_library_folder(self.db, str(self.test_dir))
+        restored = self.db.query(Item).filter(Item.path == str(file_path)).first()
+        self.assertIsNotNone(restored)
+        self.assertEqual(restored.title, "O Conto da AIA")
+        self.assertEqual(restored.author, "Margaret Atwood")
+        self.assertEqual(restored.description, "Sinopse restaurada.")
+        self.assertEqual(restored.year, 1985)
+        self.assertEqual(restored.rating, 5)
+        self.assertEqual([t.name for t in restored.tags], ["ficcao"])
+
+        prog = self.db.query(Progress).filter(Progress.item_id == restored.id).first()
+        self.assertIsNotNone(prog)
+        self.assertEqual(prog.progress_pct, 45.5)
+        self.assertEqual(prog.current_page, 50)
+
+        # Snapshot consumido após restauração
+        consumed = self.db.query(ArchivedItem).filter(
+            ArchivedItem.fingerprint == f"file|livro_avulso_1|{book.file_size}"
+        ).first()
+        self.assertIsNone(consumed)
 
 
 if __name__ == "__main__":

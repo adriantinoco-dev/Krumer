@@ -23,6 +23,7 @@ from models import (
     UserListCreate, UserListUpdate, UserListResponse, ListItemsPayload
 )
 from scanner import scan_library_folder, SUPPORTED_EXTENSIONS, count_files_in_path
+from archive import archive_item, try_restore_item
 from metadata import process_file_metadata_and_cover
 from metadata_service import (
     get_api_key,
@@ -44,6 +45,35 @@ async def lifespan(app: FastAPI):
             conn.commit()
         except Exception:
             pass  # Coluna já existe — ignorar
+
+        # Verificar e adicionar coluna cover_original_path (v3)
+        try:
+            conn.execute(text("ALTER TABLE items ADD COLUMN cover_original_path TEXT"))
+            conn.commit()
+        except Exception:
+            pass  # Coluna já existe — ignorar
+
+        # Verificar e adicionar coluna file_size (v4 - arquivo morto de metadados)
+        try:
+            conn.execute(text("ALTER TABLE items ADD COLUMN file_size INTEGER"))
+            conn.commit()
+        except Exception:
+            pass  # Coluna já existe — ignorar
+
+        # Migração — tabela archived_items (arquivo morto de metadados)
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS archived_items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    fingerprint TEXT NOT NULL UNIQUE,
+                    item_type TEXT NOT NULL,
+                    snapshot TEXT,
+                    archived_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+            conn.commit()
+        except Exception:
+            pass
 
         # Migração — tabela user_lists
         try:
@@ -95,6 +125,93 @@ async def lifespan(app: FastAPI):
                         session.commit()
         except Exception:
             pass
+
+        # Backfill file_size for existing items whose files still exist
+        try:
+            with Session(bind=engine) as session:
+                items_missing_size = session.query(Item).filter(Item.file_size == None).all()
+                for item in items_missing_size:
+                    if item.type != "series" and os.path.exists(item.path):
+                        try:
+                            item.file_size = os.path.getsize(item.path)
+                        except OSError:
+                            pass
+                session.commit()
+        except Exception:
+            pass
+
+        # Backfill cover_original_path for existing files
+        try:
+            with Session(bind=engine) as session:
+                items_to_migrate = session.query(Item).filter(
+                    Item.cover_original_path == None,
+                    Item.type.in_(["book", "chapter"])
+                ).all()
+                if items_to_migrate:
+                    import hashlib
+                    from PIL import Image
+                    from metadata import get_epub_metadata, get_pdf_metadata
+                    
+                    for item in items_to_migrate:
+                        if not os.path.exists(item.path):
+                            continue
+                        cover_hash = hashlib.sha256(item.path.encode('utf-8')).hexdigest()
+                        orig_path = COVERS_DIR / f"{cover_hash}_original.png"
+
+                        # Se a capa de exibição (ou o arquivo original) for idêntica à
+                        # extração original, aponta cover_path para a mesma imagem para
+                        # que o estado do botão "Restaurar capa original" fique correto.
+                        display_path = Path(item.cover_path) if item.cover_path else None
+                        original_saved = False
+
+                        if orig_path.exists():
+                            item.cover_original_path = str(orig_path)
+                            original_saved = True
+                        else:
+                            suffix = Path(item.path).suffix.lower()
+                            cover_bytes = None
+                            if suffix == '.epub':
+                                _, _, cover_bytes = get_epub_metadata(item.path)
+                            elif suffix == '.pdf':
+                                _, _, _, cover_bytes = get_pdf_metadata(item.path)
+
+                            if cover_bytes:
+                                try:
+                                    image = Image.open(io.BytesIO(cover_bytes))
+                                    target_w, target_h = 450, 600
+                                    img_ratio = image.width / image.height
+                                    target_ratio = target_w / target_h
+                                    if img_ratio > target_ratio:
+                                        new_w = int(image.height * target_ratio)
+                                        left = (image.width - new_w) // 2
+                                        image = image.crop((left, 0, left + new_w, image.height))
+                                    else:
+                                        new_h = int(image.width / target_ratio)
+                                        top = (image.height - new_h) // 2
+                                        image = image.crop((0, top, image.width, top + new_h))
+                                    image = image.resize((target_w, target_h), Image.LANCZOS)
+                                    image.save(orig_path, format="PNG")
+                                    item.cover_original_path = str(orig_path)
+                                    original_saved = True
+                                except Exception:
+                                    pass
+
+                        if original_saved and display_path is not None:
+                            if not display_path.exists():
+                                item.cover_path = str(orig_path)
+                            else:
+                                try:
+                                    with open(str(display_path), "rb") as fp:
+                                        cur_md5 = hashlib.md5(fp.read()).hexdigest()
+                                    with open(str(orig_path), "rb") as fp:
+                                        orig_md5 = hashlib.md5(fp.read()).hexdigest()
+                                    if cur_md5 == orig_md5:
+                                        item.cover_path = str(orig_path)
+                                except Exception:
+                                    pass
+                    session.commit()
+        except Exception as e:
+            print(f"Error in cover_original_path backfill: {e}")
 
     yield
 
@@ -565,6 +682,240 @@ async def upload_custom_book_cover(id: int, file: UploadFile = File(...), db: Se
 
 
 
+@app.post("/items/{id}/restore-cover", response_model=ItemResponse)
+def restore_original_book_cover(id: int, db: Session = Depends(get_db)):
+    """Restores the original cover image for a library item."""
+    item = db.query(Item).filter(Item.id == id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    # Séries não têm arquivo próprio: usa o primeiro capítulo para extrair a capa original
+    target_item = item
+    if item.type == "series":
+        first_child = db.query(Item).filter(
+            Item.parent_id == item.id
+        ).order_by(Item.path.asc()).first()
+        if first_child:
+            target_item = first_child
+        else:
+            raise HTTPException(status_code=400, detail="Esta série não possui capítulos.")
+
+    # Try to extract if not present
+    if not item.cover_original_path or not os.path.exists(item.cover_original_path):
+        import hashlib
+        from PIL import Image
+        from metadata import get_epub_metadata, get_pdf_metadata
+        
+        cover_hash = hashlib.sha256(item.path.encode('utf-8')).hexdigest()
+        cover_original_path = COVERS_DIR / f"{cover_hash}_original.png"
+        
+        suffix = Path(target_item.path).suffix.lower()
+        cover_bytes = None
+        if suffix == '.epub':
+            _, _, cover_bytes = get_epub_metadata(target_item.path)
+        elif suffix == '.pdf':
+            _, _, _, cover_bytes = get_pdf_metadata(target_item.path)
+            
+        if cover_bytes:
+            try:
+                image = Image.open(io.BytesIO(cover_bytes))
+                target_w, target_h = 450, 600
+                img_ratio = image.width / image.height
+                target_ratio = target_w / target_h
+                if img_ratio > target_ratio:
+                    new_w = int(image.height * target_ratio)
+                    left = (image.width - new_w) // 2
+                    image = image.crop((left, 0, left + new_w, image.height))
+                else:
+                    new_h = int(image.width / target_ratio)
+                    top = (image.height - new_h) // 2
+                    image = image.crop((0, top, image.width, top + new_h))
+                image = image.resize((target_w, target_h), Image.LANCZOS)
+                image.save(cover_original_path, format="PNG")
+                item.cover_original_path = str(cover_original_path)
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Failed to process original cover: {str(e)}")
+        else:
+            raise HTTPException(status_code=400, detail="Original cover could not be extracted from this file.")
+
+    item.cover_path = item.cover_original_path
+    db.commit()
+    db.refresh(item)
+    return _enrich_item(item, db)
+
+
+# Lock for incremental scanning
+is_scanning_locked = False
+
+class IncrementalScanResponse(BaseModel):
+    status: str
+    added: List[ItemResponse] = []
+    removed: List[int] = []
+
+@app.post("/scan/incremental", response_model=IncrementalScanResponse)
+def scan_incremental_route(db: Session = Depends(get_db)):
+    """Incremental library scanning. Compares disk state with database state."""
+    global is_scanning_locked
+    if is_scanning_locked:
+        return IncrementalScanResponse(status="locked")
+        
+    last_path_setting = db.query(Setting).filter(Setting.key == "last_scanned_path").first()
+    if not last_path_setting or not last_path_setting.value:
+        return IncrementalScanResponse(status="no_folder")
+        
+    root_path = last_path_setting.value
+    root = Path(root_path)
+    if not root.exists() or not root.is_dir():
+        return IncrementalScanResponse(status="error")
+
+    is_scanning_locked = True
+    try:
+        db_items = db.query(Item).all()
+        db_item_map = {item.path: item for item in db_items}
+        
+        disk_files = []
+        for entry in sorted(root.iterdir()):
+            if entry.is_file() and entry.suffix.lower() in SUPPORTED_EXTENSIONS:
+                disk_files.append((str(entry), "book", None))
+            elif entry.is_dir():
+                child_files = []
+                for path in sorted(entry.rglob('*')):
+                    if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS:
+                        child_files.append(path)
+                if child_files:
+                    disk_files.append((str(entry), "series", None))
+                    for child in child_files:
+                        disk_files.append((str(child), "chapter", str(entry)))
+
+        # Atualiza file_size dos itens que ainda existem no disco
+        for path, _, _ in disk_files:
+            if path in db_item_map:
+                try:
+                    db_item_map[path].file_size = os.path.getsize(path)
+                except OSError:
+                    pass
+                        
+        disk_paths = {df[0] for df in disk_files}
+        db_paths = set(db_item_map.keys())
+        
+        added_paths = disk_paths - db_paths
+        removed_paths = db_paths - disk_paths
+        
+        if not added_paths and not removed_paths:
+            return IncrementalScanResponse(status="no_change")
+            
+        # Process removals
+        removed_ids = []
+        for path in removed_paths:
+            item = db_item_map[path]
+            removed_ids.append(item.id)
+            if item.type == "series":
+                # Archiva a série antes de remover (os filhos serão archivados por path)
+                archive_item(db, item)
+            else:
+                archive_item(db, item)
+            db.delete(item)
+        db.flush()
+        
+        # Process additions
+        added_items = []
+        series_path_to_id = {}
+        series_objects = {}
+        
+        # First pass: find existing or added series
+        for path, type_str, parent_path in disk_files:
+            if type_str == "series":
+                if path in db_item_map:
+                    series_path_to_id[path] = db_item_map[path].id
+                    series_objects[path] = db_item_map[path]
+                else:
+                    new_series = Item(
+                        title=Path(path).name,
+                        metadata_title=Path(path).name,
+                        filename_title=Path(path).name,
+                        type="series",
+                        path=path,
+                        parent_id=None
+                    )
+                    db.add(new_series)
+                    db.flush()
+                    try_restore_item(db, new_series)
+                    series_path_to_id[path] = new_series.id
+                    series_objects[path] = new_series
+                    added_items.append(new_series)
+                    
+        # Second pass: process books and chapters
+        for path, type_str, parent_path in disk_files:
+            if type_str == "series":
+                continue
+                
+            if path in added_paths:
+                import hashlib
+                from metadata import process_file_metadata_and_cover
+                
+                filename_title = Path(path).stem
+                cover_hash = hashlib.sha256(path.encode('utf-8')).hexdigest()
+                cover_path = str(COVERS_DIR / f"{cover_hash}.png")
+                
+                parent_id = None
+                if type_str == "chapter" and parent_path in series_path_to_id:
+                    parent_id = series_path_to_id[parent_path]
+                    
+                display_title, metadata_title, author, total_pages, cover_orig = process_file_metadata_and_cover(path, 'filename')
+                
+                new_item = Item(
+                    title=filename_title,
+                    metadata_title=filename_title,
+                    filename_title=filename_title,
+                    type=type_str,
+                    path=path,
+                    file_size=os.path.getsize(path) if os.path.exists(path) else None,
+                    cover_path=cover_orig or cover_path,
+                    cover_original_path=cover_orig,
+                    author=None,
+                    description=None,
+                    year=None,
+                    publisher=None,
+                    parent_id=parent_id
+                )
+                db.add(new_item)
+                db.flush()
+                try_restore_item(db, new_item)
+                added_items.append(new_item)
+                
+        # Update series cover if needed
+        for path, type_str, parent_path in disk_files:
+            if type_str == "series" and path in series_objects:
+                series = series_objects[path]
+                if not series.cover_path or not os.path.exists(series.cover_path):
+                    first_child = db.query(Item).filter(Item.parent_id == series.id).first()
+                    if first_child:
+                        series.cover_path = first_child.cover_path
+                        
+        # Cleanup empty series
+        series_items = db.query(Item).filter(Item.type == "series").all()
+        for series in series_items:
+            children_count = db.query(Item).filter(Item.parent_id == series.id).count()
+            if children_count == 0:
+                db.delete(series)
+                
+        db.commit()
+        
+        enriched_added = [_enrich_item(item, db) for item in added_items]
+        
+        return IncrementalScanResponse(
+            status="success",
+            added=enriched_added,
+            removed=removed_ids
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Incremental scan failed: {str(e)}")
+    finally:
+        is_scanning_locked = False
+
+
+
 @app.delete("/items/{id}")
 def remove_item_from_library(id: int, db: Session = Depends(get_db)):
     """
@@ -581,8 +932,12 @@ def remove_item_from_library(id: int, db: Session = Depends(get_db)):
         # Remove progresso de todos os capítulos filhos
         children = db.query(Item).filter(Item.parent_id == id).all()
         for child in children:
+            archive_item(db, child)
             db.query(Progress).filter(Progress.item_id == child.id).delete()
             db.delete(child)
+
+    # Guarda metadados antes de remover para restauração futura
+    archive_item(db, item)
 
     # Remove o progresso do próprio item
     db.query(Progress).filter(Progress.item_id == id).delete()

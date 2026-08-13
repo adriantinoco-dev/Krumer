@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from models import Item, Progress, Tag, Setting
 from metadata import process_file_metadata_and_cover
 from database import COVERS_DIR
+from archive import archive_item, try_restore_item
 
 SUPPORTED_EXTENSIONS = {'.epub', '.pdf'}
 
@@ -60,19 +61,26 @@ def scan_library_folder(db: Session, root_path: str, progress_callback=None):
                 # Existing item: Preserve all scraped/edited metadata (title, author, description, year, publisher, cover)
                 db_item.filename_title = filename_title
                 db_item.parent_id = None
+                db_item.file_size = entry.stat().st_size if entry.exists() else db_item.file_size
                 if not db_item.cover_path or not os.path.exists(db_item.cover_path):
-                    process_file_metadata_and_cover(str(entry), 'filename')
-                    db_item.cover_path = cover_path
+                    _, _, _, _, cover_orig = process_file_metadata_and_cover(str(entry), 'filename')
+                    # Fresh extraction: point the display cover at the original cover
+                    # file so the "Restaurar capa original" state is accurate.
+                    db_item.cover_path = cover_orig or cover_path
+                    if cover_orig:
+                        db_item.cover_original_path = cover_orig
             else:
                 # New item found: Extract cover, use filename strictly as display title
-                process_file_metadata_and_cover(str(entry), 'filename')
+                _, _, _, _, cover_orig = process_file_metadata_and_cover(str(entry), 'filename')
                 new_item = Item(
                     title=filename_title,
                     metadata_title=filename_title,
                     filename_title=filename_title,
                     type="book",
                     path=str(entry),
-                    cover_path=cover_path,
+                    file_size=entry.stat().st_size if entry.exists() else None,
+                    cover_path=cover_orig or cover_path,
+                    cover_original_path=cover_orig,
                     author=None,
                     description=None,
                     year=None,
@@ -80,6 +88,8 @@ def scan_library_folder(db: Session, root_path: str, progress_callback=None):
                     parent_id=None
                 )
                 db.add(new_item)
+                db.flush()  # Garante item.id antes de restaurar metadados
+                try_restore_item(db, new_item)
             _report(str(entry.name))
                 
         elif entry.is_dir():
@@ -104,6 +114,7 @@ def scan_library_folder(db: Session, root_path: str, progress_callback=None):
                     )
                     db.add(db_series)
                     db.flush()  # Retrieve series ID
+                    try_restore_item(db, db_series)
                 else:
                     db_series.filename_title = entry.name
                     db_series.parent_id = None
@@ -116,27 +127,31 @@ def scan_library_folder(db: Session, root_path: str, progress_callback=None):
                     cover_hash = hashlib.sha256(str(child).encode('utf-8')).hexdigest()
                     cover_path = str(COVERS_DIR / f"{cover_hash}.png")
                     
-                    if idx == 0:
-                        first_child_cover = cover_path
-                        
                     db_child = db.query(Item).filter(Item.path == str(child)).first()
                     if db_child:
                         # Existing chapter: Preserve all existing metadata
                         db_child.filename_title = child_filename
                         db_child.parent_id = db_series.id
+                        db_child.file_size = child.stat().st_size if child.exists() else db_child.file_size
                         if not db_child.cover_path or not os.path.exists(db_child.cover_path):
-                            process_file_metadata_and_cover(str(child), 'filename')
-                            db_child.cover_path = cover_path
+                            _, _, _, _, cover_orig = process_file_metadata_and_cover(str(child), 'filename')
+                            db_child.cover_path = cover_orig or cover_path
+                            if cover_orig:
+                                db_child.cover_original_path = cover_orig
+                        if idx == 0:
+                            first_child_cover = db_child.cover_path
                     else:
                         # New chapter: use filename strictly as display title
-                        process_file_metadata_and_cover(str(child), 'filename')
+                        _, _, _, _, cover_orig = process_file_metadata_and_cover(str(child), 'filename')
                         new_child = Item(
                             title=child_filename,
                             metadata_title=child_filename,
                             filename_title=child_filename,
                             type="chapter",
                             path=str(child),
-                            cover_path=cover_path,
+                            file_size=child.stat().st_size if child.exists() else None,
+                            cover_path=cover_orig or cover_path,
+                            cover_original_path=cover_orig,
                             author=None,
                             description=None,
                             year=None,
@@ -144,6 +159,10 @@ def scan_library_folder(db: Session, root_path: str, progress_callback=None):
                             parent_id=db_series.id
                         )
                         db.add(new_child)
+                        db.flush()  # Garante new_child.id antes de restaurar metadados
+                        try_restore_item(db, new_child)
+                        if idx == 0:
+                            first_child_cover = new_child.cover_path
                         _report(str(child.name))
                         
                 # Update series cover if missing
@@ -156,6 +175,7 @@ def scan_library_folder(db: Session, root_path: str, progress_callback=None):
     all_items = db.query(Item).all()
     for item in all_items:
         if not os.path.exists(item.path):
+            archive_item(db, item)  # Guarda metadados antes de remover
             db.delete(item)
             
     db.flush()
@@ -165,6 +185,7 @@ def scan_library_folder(db: Session, root_path: str, progress_callback=None):
     for series in series_items:
         children_count = db.query(Item).filter(Item.parent_id == series.id).count()
         if children_count == 0:
+            archive_item(db, series)
             db.delete(series)
 
     # 4. Persist the last scanned path for the Rescan button

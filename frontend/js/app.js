@@ -1,6 +1,30 @@
-/* ==========================================================================
-   Krumer Personal Library - App Controller & Entry Point
-   ========================================================================== */
+const shortcutsMap = [
+  {
+    context: 'shortcuts.context.general',
+    shortcuts: [
+      { action: 'shortcuts.action.close', keys: [['shortcuts.key.escape']] }
+    ]
+  },
+  {
+    context: 'shortcuts.context.library',
+    shortcuts: [
+      { action: 'shortcuts.action.open_details', keys: [['shortcuts.key.clickleft']] },
+      { action: 'shortcuts.action.context_menu', keys: [['shortcuts.key.clickright']] }
+    ]
+  },
+  {
+    context: 'shortcuts.context.reading',
+    shortcuts: [
+      { action: 'shortcuts.action.prev_page', keys: [['shortcuts.key.arrowleft'], ['shortcuts.key.pageup']] },
+      { action: 'shortcuts.action.next_page', keys: [['shortcuts.key.arrowright'], ['shortcuts.key.pagedown'], ['shortcuts.key.space']] },
+      { action: 'shortcuts.action.zoom_in', keys: [['shortcuts.key.ctrl', '+'], ['shortcuts.key.ctrl', '=']] },
+      { action: 'shortcuts.action.zoom_out', keys: [['shortcuts.key.ctrl', '-']] },
+      { action: 'shortcuts.action.zoom_reset', keys: [['shortcuts.key.ctrl', '0']] },
+      { action: 'shortcuts.action.fullscreen', keys: [['F']] }
+    ]
+  }
+];
+window.shortcutsMap = shortcutsMap;
 
 class AppController {
   constructor() {
@@ -21,6 +45,7 @@ class AppController {
     await this.libraryManager.init();
     await this.checkApiKeyStatus();
     await this.checkOnboarding();
+    this.startRealtimeWatcher();
   }
 
   setupNavigation() {
@@ -38,6 +63,9 @@ class AppController {
         this.libraryManager.currentTag = null; // Clear tag filter on nav switch
         this.libraryManager.loadTags();
         this.libraryManager.loadItems();
+
+        // F4: Auto-rescan on category switch (silent, background)
+        this.triggerAutoRescan();
       });
     });
   }
@@ -281,39 +309,6 @@ class AppController {
     }
 
 
-    // Botão circular de Reescanear (implementacoes.md §1)
-    const rescanBtn = document.getElementById('btn-rescan');
-    const rescanIcon = document.getElementById('rescan-icon');
-    if (rescanBtn) {
-      rescanBtn.addEventListener('click', async () => {
-        // Inicia animação de rotação
-        rescanBtn.disabled = true;
-        if (rescanIcon) rescanIcon.classList.add('spin');
-        this.showToast(I18N.t('toast.rescanning'));
-
-        try {
-          const result = await LibraryAPI.rescanFolder();
-          const toastMsg = result.path ? I18N.t('toast.rescan_complete_path', result.path) : I18N.t('toast.rescan_complete');
-          this.showToast(toastMsg);
-          await this.libraryManager.loadTags();
-          await this.libraryManager.loadItems();
-        } catch (err) {
-          console.error(err);
-          // Se nenhuma pasta foi configurada, abre o modal de escanear
-          if (err.message && err.message.includes('anteriormente')) {
-            this.showToast(I18N.t('toast.rescan_none'));
-            this.openScanModal();
-          } else {
-            this.showToast(I18N.t('toast.rescan_error', err.message));
-          }
-        } finally {
-          // Para animação de rotação
-          rescanBtn.disabled = false;
-          if (rescanIcon) rescanIcon.classList.remove('spin');
-        }
-      });
-    }
-
     // === Edit Metadata Modal (editar-metadados-livro.md) ===
 
     // Open modal from "Editar Metadados" button on details page
@@ -450,12 +445,107 @@ class AppController {
         }
       });
     }
+
+    // Restore Original Cover button
+    const restoreOriginalCoverBtn = document.getElementById('btn-restore-original-cover');
+    if (restoreOriginalCoverBtn) {
+      restoreOriginalCoverBtn.addEventListener('click', async () => {
+        const item = this.libraryManager.selectedItem;
+        if (!item) return;
+
+        restoreOriginalCoverBtn.disabled = true;
+        try {
+          const updated = await LibraryAPI.restoreOriginalCover(item.id);
+          // Update selected item in memory
+          this.libraryManager.selectedItem = updated;
+
+          // Update the cover preview in the form
+          const preview = document.getElementById('edit-cover-preview');
+          if (preview) {
+            preview.src = LibraryAPI.getCoverUrl(updated.id) + '&restore=' + Date.now();
+            preview.style.display = 'block';
+          }
+
+          // Hide restore button (cover is now the original)
+          restoreOriginalCoverBtn.style.display = 'none';
+
+          this.showToast(I18N.t('toast.cover_restored'));
+        } catch (err) {
+          console.error('Erro ao restaurar capa:', err);
+          const detail = err.message || '';
+          if (detail.includes('no embedded') || detail.includes('n\u00e3o possui')) {
+            this.showToast(I18N.t('toast.cover_no_original'));
+          } else {
+            this.showToast(I18N.t('toast.cover_restore_error', detail));
+          }
+        } finally {
+          restoreOriginalCoverBtn.disabled = false;
+        }
+      });
+    }
   }
 
 
   openScanModal() {
     const modal = document.getElementById('scan-modal');
     if (modal) modal.classList.add('active');
+  }
+
+  /**
+   * F4 — Silently runs an incremental library scan and applies the diff to the
+   * grid in real time. New books animate in; removed books animate out. The
+   * page is never fully refreshed.
+   */
+  async triggerAutoRescan() {
+    try {
+      const result = await LibraryAPI.scanIncremental();
+      if (result.status === 'success') {
+        // Apply additions/removals directly to the DOM (no full re-render)
+        await this.libraryManager.applyRealtimeChanges();
+      }
+      // 'no_change', 'locked', 'no_folder' — no action needed
+    } catch (err) {
+      // Auto-rescan failures are silent — don't toast the user
+      console.warn('Auto-rescan error (silent):', err.message);
+    }
+  }
+
+  /**
+   * Real-time library monitor. Polls the incremental scan while the library
+   * page is visible so new/removed files appear instantly on the main grid,
+   * with a light entry/exit animation — without reloading the page.
+   */
+  startRealtimeWatcher() {
+    if (this._realtimeTimer) return;
+    this._realtimeBusy = false;
+    const intervalMs = 1500;
+    this._realtimeTimer = setInterval(() => {
+      if (this._realtimeBusy) return;
+      if (!this._isLibraryPageReady()) return;
+      this._realtimeBusy = true;
+      this.triggerAutoRescan()
+        .catch(() => {})
+        .finally(() => { this._realtimeBusy = false; });
+    }, intervalMs);
+  }
+
+  /**
+   * Indicates whether the main library grid is on screen (no reader, details
+   * page or modal blocking the view).
+   */
+  _isLibraryPageReady() {
+    const readerView = document.getElementById('reader-view');
+    if (readerView && !readerView.classList.contains('hidden')) return false;
+
+    const detailsView = document.getElementById('book-details-view');
+    if (detailsView && detailsView.style.display !== 'none') return false;
+
+    if (document.querySelector('.modal-backdrop.active')) return false;
+
+    const appRoot = document.getElementById('app-root');
+    if (appRoot && appRoot.style.display === 'none') return false;
+
+    return true;
   }
 
   // ============================================================
@@ -612,7 +702,51 @@ class AppController {
 
       targetMenuItem.classList.add('active');
       targetPanel.classList.add('active');
+
+      if (panelName === 'atalhos') {
+        this.renderShortcuts();
+      }
     }
+  }
+
+  renderShortcuts() {
+    const container = document.getElementById('settings-shortcuts-container');
+    if (!container) return;
+
+    let html = '';
+    const orText = I18N.t('shortcuts.or');
+
+    for (const group of shortcutsMap) {
+      html += `
+        <div class="shortcuts-group">
+          <div class="shortcuts-group-title">${I18N.t(group.context)}</div>
+          <div class="shortcuts-list">
+      `;
+
+      for (const shortcut of group.shortcuts) {
+        const keysHtml = shortcut.keys.map(combination => {
+          return combination.map(part => {
+            const isTranslationKey = part.startsWith('shortcuts.key.');
+            const label = isTranslationKey ? I18N.t(part) : part;
+            return `<kbd>${label}</kbd>`;
+          }).join(' + ');
+        }).join(orText);
+
+        html += `
+          <div class="shortcut-row">
+            <span class="shortcut-action">${I18N.t(shortcut.action)}</span>
+            <span class="shortcut-keys">${keysHtml}</span>
+          </div>
+        `;
+      }
+
+      html += `
+          </div>
+        </div>
+      `;
+    }
+
+    container.innerHTML = html;
   }
 
   async openSettingsModal(targetPanel = 'geral') {
@@ -1068,6 +1202,11 @@ function closeReader() {
     if (window.app.libraryManager.selectedItem) {
       window.app.libraryManager.openBookDetails(window.app.libraryManager.selectedItem.id);
     }
+  }
+
+  // F4: Trigger silent incremental scan after leaving reader
+  if (window.app && typeof window.app.triggerAutoRescan === 'function') {
+    window.app.triggerAutoRescan();
   }
 }
 

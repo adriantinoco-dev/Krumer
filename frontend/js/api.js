@@ -195,6 +195,34 @@ class LibraryAPI {
   }
 
   /**
+   * Restores the original embedded cover for an item
+   */
+  static async restoreOriginalCover(id) {
+    const res = await fetch(`${API_BASE_URL}/items/${id}/restore-cover`, {
+      method: 'POST',
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || I18N.t('toast.cover_restore_error', res.statusText));
+    }
+    return await res.json();
+  }
+
+  /**
+   * Runs an incremental scan against the configured library folder
+   */
+  static async scanIncremental() {
+    const res = await fetch(`${API_BASE_URL}/scan/incremental`, {
+      method: 'POST',
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.detail || 'Incremental scan failed');
+    }
+    return await res.json();
+  }
+
+  /**
    * Gets absolute file stream URL for EPUB/PDF
    */
   static getFileUrl(filePath) {

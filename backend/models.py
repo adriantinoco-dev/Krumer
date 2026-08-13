@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Table, Boolean
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Table, Boolean, JSON
 from sqlalchemy.orm import relationship
 import datetime
 from pydantic import BaseModel, ConfigDict
@@ -23,7 +23,9 @@ class Item(Base):
     filename_title = Column(String, nullable=True)
     type = Column(String, nullable=False)  # 'book', 'series', 'comic', 'graphic_novel', 'chapter'
     path = Column(String, nullable=False, unique=True)
+    file_size = Column(Integer, nullable=True)
     cover_path = Column(String, nullable=True)
+    cover_original_path = Column(String, nullable=True)
     author = Column(String, nullable=True)
     publisher = Column(String, nullable=True)
     year = Column(Integer, nullable=True)
@@ -90,6 +92,17 @@ class UserList(Base):
     items = relationship("Item", secondary=list_items, lazy="selectin")
 
 
+class ArchivedItem(Base):
+    """Snapshot de um item removido, restaurado quando o arquivo volta à biblioteca."""
+    __tablename__ = 'archived_items'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    fingerprint = Column(String, nullable=False, unique=True)  # tipo|basename|tamanho
+    item_type = Column(String, nullable=False)
+    snapshot = Column(JSON, nullable=True)
+    archived_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
 # --- Pydantic Schemas ---
 
 class TagBase(BaseModel):
@@ -127,6 +140,7 @@ class ItemBase(BaseModel):
     type: str
     path: str
     cover_path: Optional[str] = None
+    cover_original_path: Optional[str] = None
     author: Optional[str] = None
     publisher: Optional[str] = None
     year: Optional[int] = None

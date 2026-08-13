@@ -267,6 +267,28 @@
   100% { transform: scale(0); opacity: 0; }
 }
 
+/* Novos livros detectados pelo reescaneamento em tempo real */
+.book-card--new {
+  animation: book-appear 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes book-appear {
+  0%   { opacity: 0; transform: translateY(16px) scale(0.94); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Livros removidos da pasta (desaparecem suavemente) */
+.book-card--removing {
+  animation: book-leave 0.35s ease-in forwards;
+  pointer-events: none;
+}
+
+@keyframes book-leave {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(10px) scale(0.94); }
+}
+
 /* 3px Bottom Progress Bar */
 .cover-progress {
   position: absolute;

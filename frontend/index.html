@@ -171,15 +171,6 @@
             </div>
           </div>
 
-          <!-- Botão circular de Reescanear (implementacoes.md §1) -->
-          <button id="btn-rescan" class="btn-rescan" data-i18n-title="header.rescan" title="Reescanear pastas já configuradas">
-            <svg id="rescan-icon" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
-              </path>
-            </svg>
-          </button>
-
           <!-- Botão circular de Configurações (Fase 1 — Chave de API) -->
           <button id="btn-settings" class="btn-rescan" data-i18n-title="header.settings" title="Configurações do aplicativo">
             <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -540,6 +531,15 @@
                 </svg>
                 <span data-i18n="modal.edit.cover_btn">Substituir Imagem da Capa</span>
               </button>
+              <button type="button" id="btn-restore-original-cover" class="btn btn-secondary"
+                style="font-size:12px; padding:8px 14px;">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                  </path>
+                </svg>
+                <span data-i18n="modal.edit.cover_restore">Restaurar Capa Original</span>
+              </button>
               <span id="edit-cover-filename" class="edit-cover-filename-label" data-i18n="modal.edit.cover_none">Nenhuma nova imagem selecionada</span>
             </div>
           </div>
@@ -658,6 +658,7 @@
           <button class="settings-menu-item active" data-settings-panel="geral"><span data-i18n="settings.general">Geral</span></button>
           <button class="settings-menu-item" data-settings-panel="api-key"><span data-i18n="settings.api_key_topic">Chave da API</span></button>
           <button class="settings-menu-item" data-settings-panel="temas"><span data-i18n="settings.themes">Temas</span></button>
+          <button class="settings-menu-item" data-settings-panel="atalhos"><span data-i18n="settings.shortcuts">Atalhos</span></button>
         </nav>
 
         <!-- Painéis de conteúdo -->
@@ -770,6 +771,17 @@
                 <span class="theme-swatch theme-swatch-sepia"></span>
                 <span class="theme-option-name" data-i18n="settings.theme_sepia">Sépia</span>
               </button>
+            </div>
+          </section>
+
+          <!-- Painel: Atalhos (F2) -->
+          <section class="settings-panel" data-panel="atalhos">
+            <h3 class="settings-panel-title" data-i18n="settings.shortcuts_title">Atalhos de Teclado</h3>
+            <p class="settings-help-text" style="margin-bottom:20px;" data-i18n="settings.shortcuts_help">
+              Lista de atalhos de teclado disponíveis para navegar e controlar o aplicativo.
+            </p>
+            <div id="settings-shortcuts-container" class="shortcuts-container">
+              <!-- Populated dynamically by app.js renderShortcuts() -->
             </div>
           </section>
 

@@ -164,10 +164,10 @@ def get_pdf_metadata(file_path: str) -> Tuple[Optional[str], Optional[str], int,
     return title, author, total_pages, cover_bytes
 
 
-def process_file_metadata_and_cover(file_path: str, display_title_setting: str) -> Tuple[str, Optional[str], Optional[str], Optional[int]]:
+def process_file_metadata_and_cover(file_path: str, display_title_setting: str) -> Tuple[str, Optional[str], Optional[str], Optional[int], Optional[str]]:
     """
     Processes the file to extract metadata and saves/caches its cover.
-    Returns: (display_title, metadata_title, author, total_pages)
+    Returns: (display_title, metadata_title, author, total_pages, cover_original_path)
     """
     path_obj = Path(file_path)
     extension = path_obj.suffix.lower()
@@ -200,6 +200,7 @@ def process_file_metadata_and_cover(file_path: str, display_title_setting: str) 
     # 3. Save or generate cover image
     cover_hash = hashlib.sha256(file_path.encode('utf-8')).hexdigest()
     cover_path = COVERS_DIR / f"{cover_hash}.png"
+    cover_original_path_str = None
     
     if cover_bytes:
         try:
@@ -217,7 +218,14 @@ def process_file_metadata_and_cover(file_path: str, display_title_setting: str) 
                 top = (image.height - new_h) // 2
                 image = image.crop((0, top, image.width, top + new_h))
             image = image.resize((target_w, target_h), Image.LANCZOS)
+            
+            # Save normal cover
             image.save(cover_path, format="PNG")
+            
+            # Save original cover separately
+            original_path = COVERS_DIR / f"{cover_hash}_original.png"
+            image.save(original_path, format="PNG")
+            cover_original_path_str = str(original_path)
         except Exception as e:
             print(f"Could not save cover image for {file_path}, generating placeholder. Error: {e}")
             generate_gradient_cover(display_title, str(cover_path))
@@ -225,4 +233,4 @@ def process_file_metadata_and_cover(file_path: str, display_title_setting: str) 
         # Generate placeholder cover
         generate_gradient_cover(display_title, str(cover_path))
         
-    return display_title, metadata_title, author, total_pages
+    return display_title, metadata_title, author, total_pages, cover_original_path_str

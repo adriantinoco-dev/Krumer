@@ -32,6 +32,91 @@ class LibraryManager {
     await this.loadItems();
   }
 
+  getBookCount() {
+    if (!this.items) return 0;
+    const countItem = (item) => {
+      if (item.type === 'series') {
+        if (item.children && item.children.length > 0) {
+          return item.children.reduce((sum, child) => sum + countItem(child), 0);
+        }
+        return item.children_count || 0;
+      }
+      return 1;
+    };
+    return this.items.reduce((sum, item) => sum + countItem(item), 0);
+  }
+
+  updateItemCount() {
+    if (this.itemCountElement) {
+      this.itemCountElement.textContent = I18N.t('main.item_count_simple', this.getBookCount());
+    }
+  }
+
+  /**
+   * Fetches and filters the items for the current view, refreshing the
+   * favorite IDs. Returns the final array without touching the DOM.
+   */
+  async fetchCurrentItems() {
+    const params = {
+      sort_by: this.sortBy === 'overall_progress' ? 'title' : this.sortBy,
+      order: this.sortOrder
+    };
+
+    if (this.currentCategory === 'series') {
+      params.type = 'series';
+    }
+    if (this.currentTag) {
+      params.tag = this.currentTag;
+    }
+    if (this.searchQuery) {
+      params.search = this.searchQuery;
+    }
+
+    let fetchedItems = await LibraryAPI.getItems(params);
+
+    // In-memory filter for categories
+    if (this.currentCategory === 'reading') {
+      fetchedItems = fetchedItems.filter(item => (item.overall_progress || 0) > 0 && (item.overall_progress || 0) < 100);
+    } else if (this.currentCategory === 'read') {
+      fetchedItems = fetchedItems.filter(item => (item.overall_progress || 0) >= 100);
+    } else if (this.currentCategory === 'unread') {
+      fetchedItems = fetchedItems.filter(item => (item.overall_progress || 0) < 100);
+    }
+
+    // In-memory filter for custom list
+    if (this.currentListId) {
+      try {
+        const listItemIds = await LibraryAPI.getListItems(this.currentListId);
+        const idSet = new Set(listItemIds.map(li => li.id));
+        fetchedItems = fetchedItems.filter(item => idSet.has(item.id));
+      } catch (e) {
+        console.warn('Erro ao filtrar por lista:', e);
+      }
+    }
+
+    // In-memory sort for progress or rating if selected
+    if (this.sortBy === 'overall_progress') {
+      fetchedItems.sort((a, b) => (b.overall_progress || 0) - (a.overall_progress || 0));
+    } else if (this.sortBy === 'rating') {
+      fetchedItems.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    }
+
+    // Carregar IDs dos favoritos para exibir estrela na capa
+    try {
+      const favList = this.lists.find(l => l.is_default);
+      if (favList) {
+        const favItems = await LibraryAPI.getListItems(favList.id);
+        this.favoritedIds = new Set(favItems.map(i => i.id));
+      } else {
+        this.favoritedIds = new Set();
+      }
+    } catch (e) {
+      this.favoritedIds = new Set();
+    }
+
+    return fetchedItems;
+  }
+
   /**
    * Loads items from backend with active filters
    */
@@ -41,64 +126,8 @@ class LibraryManager {
         this.renderLoadingState();
       }
 
-      const params = {
-        sort_by: this.sortBy === 'overall_progress' ? 'title' : this.sortBy,
-        order: this.sortOrder
-      };
-
-      if (this.currentCategory === 'series') {
-        params.type = 'series';
-      }
-      if (this.currentTag) {
-        params.tag = this.currentTag;
-      }
-      if (this.searchQuery) {
-        params.search = this.searchQuery;
-      }
-
-      let fetchedItems = await LibraryAPI.getItems(params);
-
-      // In-memory filter for categories
-      if (this.currentCategory === 'reading') {
-        fetchedItems = fetchedItems.filter(item => (item.overall_progress || 0) > 0 && (item.overall_progress || 0) < 100);
-      } else if (this.currentCategory === 'read') {
-        fetchedItems = fetchedItems.filter(item => (item.overall_progress || 0) >= 100);
-      } else if (this.currentCategory === 'unread') {
-        fetchedItems = fetchedItems.filter(item => (item.overall_progress || 0) < 100);
-      }
-
-      // In-memory filter for custom list
-      if (this.currentListId) {
-        try {
-          const listItemIds = await LibraryAPI.getListItems(this.currentListId);
-          const idSet = new Set(listItemIds.map(li => li.id));
-          fetchedItems = fetchedItems.filter(item => idSet.has(item.id));
-        } catch (e) {
-          console.warn('Erro ao filtrar por lista:', e);
-        }
-      }
-
-      // In-memory sort for progress or rating if selected
-      if (this.sortBy === 'overall_progress') {
-        fetchedItems.sort((a, b) => (b.overall_progress || 0) - (a.overall_progress || 0));
-      } else if (this.sortBy === 'rating') {
-        fetchedItems.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-      }
-
+      const fetchedItems = await this.fetchCurrentItems();
       this.items = fetchedItems;
-
-      // Carregar IDs dos favoritos para exibir estrela na capa
-      try {
-        const favList = this.lists.find(l => l.is_default);
-        if (favList) {
-          const favItems = await LibraryAPI.getListItems(favList.id);
-          this.favoritedIds = new Set(favItems.map(i => i.id));
-        } else {
-          this.favoritedIds = new Set();
-        }
-      } catch (e) {
-        this.favoritedIds = new Set();
-      }
 
       this.renderGrid();
     } catch (err) {
@@ -204,9 +233,7 @@ class LibraryManager {
       mainTitleTextEl.textContent = titleText;
     }
 
-    if (this.itemCountElement) {
-      this.itemCountElement.textContent = I18N.t('main.item_count_simple', this.items.length);
-    }
+    this.updateItemCount();
 
     if (this.items.length === 0) {
       // Empty state customizado para listas
@@ -305,17 +332,24 @@ class LibraryManager {
   }
 
   /**
-   * Attaches event listeners for card clicks, star ratings, and right-click context menu
+   * Attaches event listeners for card clicks, star ratings, and right-click
+   * context menu. When `scopeCards` (array of card elements) is provided, only
+   * those cards get listeners — used for incrementally-inserted cards.
    */
-  attachCardEventListeners() {
+  attachCardEventListeners(scopeCards = null) {
     const libraryViewport = document.querySelector('.library-viewport');
     if (!libraryViewport) return;
 
     // Ensure context menu exists in DOM
     this._ensureContextMenu();
 
+    let cards = scopeCards;
+    if (!cards) {
+      cards = Array.from(libraryViewport.querySelectorAll('.book-card'));
+    }
+
     // Card click event (suporta cards de continuar lendo e biblioteca geral)
-    libraryViewport.querySelectorAll('.book-card').forEach(card => {
+    cards.forEach(card => {
       card.addEventListener('click', (e) => {
         // Prevent trigger if star was clicked
         if (e.target.classList.contains('star')) return;
@@ -334,7 +368,11 @@ class LibraryManager {
     });
 
     // Star rating click event on grid card
-    libraryViewport.querySelectorAll('.book-stars .star').forEach(star => {
+    const starEls = scopeCards
+      ? cards.flatMap(card => Array.from(card.querySelectorAll('.book-stars .star')))
+      : Array.from(libraryViewport.querySelectorAll('.book-stars .star'));
+
+    starEls.forEach(star => {
       star.addEventListener('click', async (e) => {
         e.stopPropagation();
         const starsContainer = star.closest('.book-stars');
@@ -647,6 +685,95 @@ class LibraryManager {
   }
 
   /**
+   * Incremental real-time update. Applies the backend diff to the DOM without
+   * re-rendering the whole grid (no page refresh / F5):
+   *  - Removed cards animate out and are deleted from the grid.
+   *  - New cards are inserted in their sorted position and animate in.
+   * Keeps scroll position and avoids reloading cover images of untouched cards.
+   */
+  async applyRealtimeChanges() {
+    if (this._realtimeApplying) return;
+    this._realtimeApplying = true;
+    try {
+      await this._applyRealtimeChangesInner();
+    } finally {
+      this._realtimeApplying = false;
+    }
+  }
+
+  async _applyRealtimeChangesInner() {
+    const beforeIds = new Set(this.items.map(i => i.id));
+    let fetchedItems;
+    try {
+      fetchedItems = await this.fetchCurrentItems();
+    } catch (err) {
+      console.warn('Erro no update em tempo real (silencioso):', err.message);
+      return;
+    }
+
+    const afterIds = new Set(fetchedItems.map(i => i.id));
+    const removedIds = [...beforeIds].filter(id => !afterIds.has(id));
+    const newItems = fetchedItems.filter(item => !beforeIds.has(item.id));
+
+    // Nothing changed — keep the DOM untouched
+    if (removedIds.length === 0 && newItems.length === 0) return;
+
+    this.items = fetchedItems;
+
+    // 1. Removals: animate out and delete matching cards (main grid + continue grid)
+    removedIds.forEach(id => {
+      document.querySelectorAll(`.library-viewport .book-card[data-id="${id}"]`).forEach(card => {
+        card.classList.add('book-card--removing');
+        card.addEventListener('animationend', () => card.remove(), { once: true });
+      });
+    });
+
+    // 2. Additions: insert new cards at their sorted position and animate in
+    const grid = this.gridElement;
+    if (newItems.length > 0 && grid) {
+      const inserted = [];
+      const domCards = Array.from(grid.querySelectorAll('.book-card'));
+
+      newItems.forEach(item => {
+        const targetIdx = fetchedItems.findIndex(i => i.id === item.id);
+        const html = this.createBookCardHTML(item);
+        let insertBefore = null;
+        for (const card of domCards) {
+          const cardId = parseInt(card.dataset.id, 10);
+          const cardIdx = fetchedItems.findIndex(i => i.id === cardId);
+          if (cardIdx > targetIdx) { insertBefore = card; break; }
+        }
+        const newNode = document.createElement('template');
+        newNode.innerHTML = html.trim();
+        const cardNode = newNode.content.firstElementChild;
+        if (insertBefore) {
+          insertBefore.insertAdjacentElement('beforebegin', cardNode);
+        } else {
+          grid.appendChild(cardNode);
+        }
+        inserted.push(cardNode);
+      });
+
+      // Animate the newly inserted cards
+      inserted.forEach(card => {
+        card.classList.add('book-card--new');
+        card.addEventListener('animationend', () => card.classList.remove('book-card--new'), { once: true });
+      });
+
+      // Attach listeners to the new cards only
+      this.attachCardEventListeners(inserted);
+    }
+
+    // 3. Refresh counts (and heading, if available)
+    this.updateItemCount();
+
+    // If the current view became empty, fall back to the proper empty state
+    if (this.items.length === 0 && grid) {
+      this.renderGrid();
+    }
+  }
+
+  /**
    * Closes Book Details view and returns to library
    */
   closeBookDetails() {
@@ -664,6 +791,11 @@ class LibraryManager {
 
     // Recarrega itens para refletir quaisquer atualizações de avaliação
     this.loadItems();
+
+    // F4: Auto-rescan ao retornar da página de detalhes (silencioso, em background)
+    if (window.app && typeof window.app.triggerAutoRescan === 'function') {
+      window.app.triggerAutoRescan();
+    }
   }
 
   /**
@@ -692,6 +824,8 @@ class LibraryManager {
     const fileInput = f('edit-cover-file-input');
     const filenameLabel = f('edit-cover-filename');
     const preview = f('edit-cover-preview');
+    const restoreBtn = f('btn-restore-original-cover');
+
     if (fileInput) fileInput.value = '';
     if (filenameLabel) filenameLabel.textContent = I18N.t('modal.edit.cover_none');
     if (preview) {
@@ -702,6 +836,11 @@ class LibraryManager {
         preview.src = '';
         preview.style.display = 'none';
       }
+    }
+
+    // Sempre exibe o botão de restaurar capa original
+    if (restoreBtn) {
+      restoreBtn.style.display = 'inline-flex';
     }
 
     modal.classList.add('active');
@@ -823,6 +962,11 @@ class LibraryManager {
     this.currentTag = null;
     this.loadTags();
     this.loadItems();
+
+    // F4: Auto-rescan on list switch (silent, background)
+    if (window.app && typeof window.app.triggerAutoRescan === 'function') {
+      window.app.triggerAutoRescan();
+    }
   }
 
   _openCreateListModal() {
@@ -1296,9 +1440,7 @@ class LibraryManager {
       if (shouldBeRemoved && mainCardEl) {
         mainCardEl.classList.add('removing');
         this.items = this.items.filter(i => i.id !== item.id);
-        if (this.itemCountElement) {
-          this.itemCountElement.textContent = I18N.t('main.item_count_simple', this.items.length);
-        }
+        this.updateItemCount();
         setTimeout(() => {
           mainCardEl.remove();
           if (this.items.length === 0) {
@@ -1376,9 +1518,7 @@ class LibraryManager {
       if (shouldBeRemoved && mainCardEl) {
         mainCardEl.classList.add('removing');
         this.items = this.items.filter(i => i.id !== item.id);
-        if (this.itemCountElement) {
-          this.itemCountElement.textContent = I18N.t('main.item_count_simple', this.items.length);
-        }
+        this.updateItemCount();
         setTimeout(() => {
           mainCardEl.remove();
           if (this.items.length === 0) {
