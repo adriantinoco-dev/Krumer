@@ -1658,3 +1658,105 @@ html[data-theme="dark"] .contador-ok {
   background: rgba(234, 179, 8, 0.15);
   color: #facc15;
 }
+
+/* ==========================================================================
+   F6 — Title + Cover chapter view mode in the details page
+   ========================================================================== */
+
+.details-chapters-grid--cover {
+  grid-template-columns: repeat(auto-fill,
+      minmax(min(var(--grid-min-card-width), 100% / 7), 1fr));
+  gap: var(--grid-gap);
+}
+
+@media (max-width: 480px) {
+  .details-chapters-grid--cover {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 16px;
+  }
+}
+
+.details-chapter-card--cover {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0 !important;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.details-chapter-card--cover:hover .details-chapter-cover-wrap {
+  outline: 2px solid var(--accent);
+  box-shadow: 0 8px 20px rgba(249, 115, 22, 0.25);
+}
+
+.details-chapter-card--cover.is-read .details-chapter-cover {
+  opacity: 0.75;
+}
+
+.details-chapter-card--cover.is-read .cover-fallback {
+  opacity: 0.75;
+}
+
+.chapter-read-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--accent, #f97316);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.details-chapter-card--cover .details-chapter-cover-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: var(--cover-aspect-ratio);
+  overflow: hidden;
+  background: var(--bg-secondary, #1e1e1e);
+}
+
+.details-chapter-card--cover .details-chapter-cover {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.details-chapter-card--cover .cover-fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+}
+
+.details-chapter-card--cover .details-chapter-info {
+  padding: 12px 14px 0;
+}
+
+.details-chapter-card--cover .details-chapter-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.details-chapter-card--cover .btn-read-chapter {
+  margin: 12px 14px 14px;
+  justify-content: center;
+  width: calc(100% - 28px);
+  align-self: center;
+  font-size: 12px;
+}

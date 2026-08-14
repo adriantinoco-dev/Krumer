@@ -51,7 +51,7 @@ class AppUpdater {
             </div>
           </div>
           <div class="update-modal-footer">
-            <button id="update-modal-cancel" class="btn btn-secondary hidden">${I18N.t('update.btn_cancel')}</button>
+            <button id="update-modal-cancel" class="btn btn-secondary hidden" data-i18n="update.btn_cancel">${I18N.t('update.btn_cancel')}</button>
             <button id="update-modal-action" class="btn btn-primary hidden">${I18N.t('update.btn_download')}</button>
           </div>
         </div>

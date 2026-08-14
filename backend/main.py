@@ -238,6 +238,7 @@ class ScanPayload(BaseModel):
 
 class SettingsUpdatePayload(BaseModel):
     language: Optional[str] = None
+    chapter_view_mode: Optional[str] = None
 
 class ApiKeyPayload(BaseModel):
     api_key: str
@@ -1149,10 +1150,12 @@ def get_global_settings(db: Session = Depends(get_db)):
     """Fetches key-value configuration flags."""
     last_scanned = db.query(Setting).filter(Setting.key == "last_scanned_path").first()
     lang_setting = db.query(Setting).filter(Setting.key == "language").first()
+    chapter_mode = db.query(Setting).filter(Setting.key == "chapter_view_mode").first()
     return {
         "use_filename_as_title": True,
         "last_scanned_path": last_scanned.value if last_scanned else None,
-        "language": lang_setting.value if lang_setting else "pt-br"
+        "language": lang_setting.value if lang_setting else "pt-br",
+        "chapter_view_mode": chapter_mode.value if chapter_mode else "title"
     }
 
 @app.put("/settings")
@@ -1164,6 +1167,13 @@ def update_global_settings(payload: SettingsUpdatePayload, db: Session = Depends
             lang.value = payload.language
         else:
             db.add(Setting(key="language", value=payload.language))
+        db.commit()
+    if payload.chapter_view_mode is not None:
+        mode = db.query(Setting).filter(Setting.key == "chapter_view_mode").first()
+        if mode:
+            mode.value = payload.chapter_view_mode
+        else:
+            db.add(Setting(key="chapter_view_mode", value=payload.chapter_view_mode))
         db.commit()
     return get_global_settings(db)
 

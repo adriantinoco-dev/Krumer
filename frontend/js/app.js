@@ -35,6 +35,7 @@ class AppController {
 
   async init() {
     I18N.init();
+    window.chapterViewMode = 'title';
     this.loadSavedTheme();
     this.setupNavigation();
     this.setupSearchAndFilter();
@@ -43,6 +44,18 @@ class AppController {
     this.setupOnboarding();
     this.metadataManager.init();
     await this.libraryManager.init();
+    // F6: Carrega a preferência de visualização dos capítulos salva
+    try {
+      const settings = await LibraryAPI.getSettings();
+      window.chapterViewMode = (settings.chapter_view_mode === 'title+cover') ? 'title+cover' : 'title';
+    } catch (err) {
+      window.chapterViewMode = 'title';
+    }
+    // Preferência local (persistida via localStorage) tem precedência
+    const storedView = localStorage.getItem('krumer_chapter_view');
+    if (storedView === 'title' || storedView === 'title+cover') {
+      window.chapterViewMode = storedView;
+    }
     await this.checkApiKeyStatus();
     await this.checkOnboarding();
     this.startRealtimeWatcher();
@@ -620,6 +633,20 @@ class AppController {
       });
     });
 
+    // F6: Alterar modo de visualização dos capítulos
+    document.querySelectorAll('.chapter-view-option').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.dataset.chapterView;
+        if (mode !== 'title' && mode !== 'title+cover') return;
+        window.chapterViewMode = mode;
+        localStorage.setItem('krumer_chapter_view', mode);
+        this._setChapterViewActive(mode);
+        LibraryAPI.updateSettings({ chapter_view_mode: mode })
+          .then(() => this.showToast(I18N.t('settings.chapter_view_toast', I18N.t(mode === 'title' ? 'settings.chapter_view_title' : 'settings.chapter_view_cover'))))
+          .catch(() => {});
+      });
+    });
+
     // Submit form
     const form = document.getElementById('settings-api-key-form');
     if (form) {
@@ -780,12 +807,28 @@ class AppController {
         localStorage.setItem('krumer_language', settings.language);
         this._syncLangPicker(settings.language);
       }
+      window.chapterViewMode = (settings.chapter_view_mode === 'title+cover') ? 'title+cover' : 'title';
     } catch (err) {
       console.warn('Erro ao carregar configurações de idioma:', err);
+    }
+    // Preferência local (persistida via localStorage) tem precedência
+    const storedView = localStorage.getItem('krumer_chapter_view');
+    if (storedView === 'title' || storedView === 'title+cover') {
+      window.chapterViewMode = storedView;
+    } else {
+      localStorage.setItem('krumer_chapter_view', window.chapterViewMode || 'title');
     }
     // Always sync picker from localStorage on open
     const saved = localStorage.getItem('krumer_language') || 'pt-br';
     this._syncLangPicker(saved);
+    this._setChapterViewActive(window.chapterViewMode || 'title');
+  }
+
+  _setChapterViewActive(mode) {
+    const value = mode === 'title+cover' ? 'title+cover' : 'title';
+    document.querySelectorAll('.chapter-view-option').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.chapterView === value);
+    });
   }
 
   _initLangPicker() {
@@ -920,6 +963,7 @@ class AppController {
 
     statusEl.style.display = 'flex';
     statusEl.classList.remove('is-configured', 'is-missing', 'error');
+    textEl.textContent = I18N.t('settings.status_checking');
 
     if (errorMessage) {
       statusEl.classList.add('error');

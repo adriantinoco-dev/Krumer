@@ -1,13 +1,31 @@
 import os
 import hashlib
+import filecmp
 from pathlib import Path
 from sqlalchemy.orm import Session
 from models import Item, Progress, Tag, Setting
-from metadata import process_file_metadata_and_cover
+from metadata import process_file_metadata_and_cover, refresh_item_cover
 from database import COVERS_DIR
 from archive import archive_item, try_restore_item
 
 SUPPORTED_EXTENSIONS = {'.epub', '.pdf'}
+
+
+def _cover_is_auto_extracted(item) -> bool:
+    """
+    True when the item's display cover is still the image auto-extracted from the
+    file (i.e. not a user-uploaded custom cover). Auto-extracted books share the
+    exact same bytes between `cover_path` and `cover_original_path`; a personalized
+    cover differs from the stored original.
+    """
+    if not item.cover_path or not os.path.exists(item.cover_path):
+        return False
+    if not item.cover_original_path or not os.path.exists(item.cover_original_path):
+        return False
+    try:
+        return filecmp.cmp(item.cover_path, item.cover_original_path, shallow=False)
+    except Exception:
+        return False
 
 
 def count_files_in_path(root_path: str) -> int:
@@ -69,6 +87,10 @@ def scan_library_folder(db: Session, root_path: str, progress_callback=None):
                     db_item.cover_path = cover_orig or cover_path
                     if cover_orig:
                         db_item.cover_original_path = cover_orig
+                elif _cover_is_auto_extracted(db_item):
+                    # Repair covers that were extracted with a poor algorithm:
+                    # re-extract only when the current cover is not user-customized.
+                    refresh_item_cover(str(entry), db_item.cover_path, db_item.cover_original_path, filename_title)
             else:
                 # New item found: Extract cover, use filename strictly as display title
                 _, _, _, _, cover_orig = process_file_metadata_and_cover(str(entry), 'filename')
@@ -138,6 +160,9 @@ def scan_library_folder(db: Session, root_path: str, progress_callback=None):
                             db_child.cover_path = cover_orig or cover_path
                             if cover_orig:
                                 db_child.cover_original_path = cover_orig
+                        elif _cover_is_auto_extracted(db_child):
+                            # Repair covers extracted with a poor algorithm (not user-customized)
+                            refresh_item_cover(str(child), db_child.cover_path, db_child.cover_original_path, child_filename)
                         if idx == 0:
                             first_child_cover = db_child.cover_path
                     else:

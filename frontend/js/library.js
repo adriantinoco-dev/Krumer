@@ -531,85 +531,81 @@ class LibraryManager {
         if (readBtn) readBtn.style.display = 'none';
 
         if (chaptersGrid) {
-          chaptersGrid.innerHTML = chapters.map((chap, idx) => `
-            <div class="details-chapter-card" data-id="${chap.id}">
-              <button class="btn-mark-read-chapter ${chap.is_read ? 'is-read' : ''}" data-id="${chap.id}" title="${chap.is_read ? I18N.t('details.mark_unread') : I18N.t('details.mark_read')}">
-                ${chap.is_read 
-                  ? `<svg class="icon-read" width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
-                       <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"></path>
-                     </svg>`
-                  : `<svg class="icon-unread" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                       <circle cx="12" cy="12" r="10"></circle>
-                     </svg>`
-                }
-              </button>
-              <div class="details-chapter-info">
-                <div class="details-chapter-title">${this.escapeHtml(chap.title)}</div>
-                <div class="details-chapter-progress">${I18N.t('details.chapter_progress', chap.overall_progress || 0)}</div>
-              </div>
-              <button class="btn btn-primary btn-read-chapter" data-index="${idx}">
-                ${I18N.t('details.read_chapter')}
-              </button>
-            </div>
-          `).join('');
+          const chapterViewMode = (window.chapterViewMode === 'title+cover') ? 'title+cover' : 'title';
+          chaptersGrid.classList.toggle('details-chapters-grid--cover', chapterViewMode === 'title+cover');
+
+          const markBtn = (chap) => `
+            <button class="btn-mark-read-chapter ${chap.is_read ? 'is-read' : ''}" data-id="${chap.id}" title="${chap.is_read ? I18N.t('details.mark_unread') : I18N.t('details.mark_read')}">
+              ${this.markBtnIcon(chap.is_read)}
+            </button>`;
+
+          const readBadgeHtml = (chap) => `
+            <div class="chapter-read-badge" title="${I18N.t('details.mark_unread')}" style="${chap.is_read ? 'display:flex;' : 'display:none;'}">
+              <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"></path>
+              </svg>
+            </div>`;
+
+          const infoHtml = (chap) => `
+            <div class="details-chapter-info">
+              <div class="details-chapter-title">${this.escapeHtml(chap.title)}</div>
+              <div class="details-chapter-progress">${I18N.t('details.chapter_progress', chap.overall_progress || 0)}</div>
+            </div>`;
+
+          const readBtnHtml = (idx) => `
+            <button class="btn btn-primary btn-read-chapter" data-index="${idx}">
+              ${I18N.t('details.read_chapter')}
+            </button>`;
+
+          chaptersGrid.innerHTML = chapters.map((chap, idx) => {
+            if (chapterViewMode === 'title+cover') {
+              const coverUrl = chap.cover_path ? LibraryAPI.getCoverUrl(chap.id) : '';
+              return `
+                <div class="details-chapter-card details-chapter-card--cover ${chap.is_read ? 'is-read' : ''}" data-id="${chap.id}">
+                  <div class="details-chapter-cover-wrap">
+                    ${coverUrl ? `
+                      <img class="details-chapter-cover" src="${coverUrl}" alt="${this.escapeHtml(chap.title)}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    ` : ''}
+                    <div class="cover-fallback" style="${coverUrl ? 'display:none;' : 'display:flex;'}">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                      </svg>
+                      <span class="cover-fallback-title">${this.escapeHtml(chap.title)}</span>
+                    </div>
+                    ${readBadgeHtml(chap)}
+                    <div class="cover-progress">
+                      <div class="cover-progress-fill" style="width: ${chap.overall_progress || 0}%"></div>
+                    </div>
+                  </div>
+                  ${infoHtml(chap)}
+                  ${readBtnHtml(idx)}
+                </div>`;
+            }
+            return `
+              <div class="details-chapter-card" data-id="${chap.id}">
+                ${markBtn(chap)}
+                ${infoHtml(chap)}
+                ${readBtnHtml(idx)}
+              </div>`;
+          }).join('');
 
           chaptersGrid.querySelectorAll('.btn-mark-read-chapter').forEach((btn) => {
-            btn.addEventListener('click', async (e) => {
+            btn.addEventListener('click', (e) => {
               e.stopPropagation();
               const chapId = parseInt(btn.dataset.id, 10);
               const chap = chapters.find(c => c.id === chapId);
               if (!chap) return;
+              this.toggleChapterRead(chapters, chap, btn.closest('.details-chapter-card'));
+            });
+          });
 
-              const nextState = !chap.is_read;
-              const chapterCard = btn.closest('.details-chapter-card');
-              const progressEl = chapterCard ? chapterCard.querySelector('.details-chapter-progress') : null;
-              
-              // Otimistic local update
-              chap.is_read = nextState;
-              chap.overall_progress = nextState ? 100.0 : 0.0;
-              btn.classList.toggle('is-read', nextState);
-              btn.title = nextState ? I18N.t('details.mark_unread') : I18N.t('details.mark_read');
-              btn.innerHTML = nextState
-                ? `<svg class="icon-read" width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
-                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"></path>
-                   </svg>`
-                : `<svg class="icon-unread" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                     <circle cx="12" cy="12" r="10"></circle>
-                   </svg>`;
-              if (progressEl) progressEl.textContent = I18N.t('details.chapter_progress', chap.overall_progress);
-
-              // Recalcula progresso geral da série
-              const totalPct = chapters.reduce((sum, c) => sum + (c.overall_progress || 0), 0);
-              const seriesAvg = chapters.length > 0 ? Math.round(totalPct / chapters.length) : 0;
-              const progressDetailEl = document.getElementById('details-meta-progress');
-              if (progressDetailEl) progressDetailEl.textContent = I18N.t('details.progress', seriesAvg);
-              if (this.selectedItem) this.selectedItem.overall_progress = seriesAvg;
-
-              try {
-                await LibraryAPI.updateItemReadStatus(chapId, nextState);
-                if (window.app) window.app.showToast(nextState ? I18N.t('chapter.toast.read') : I18N.t('chapter.toast.unread'));
-              } catch (err) {
-                console.error(err);
-                // Revert on error
-                chap.is_read = !nextState;
-                chap.overall_progress = nextState ? 0.0 : 100.0;
-                btn.classList.toggle('is-read', !nextState);
-                btn.title = !nextState ? I18N.t('details.mark_unread') : I18N.t('details.mark_read');
-                btn.innerHTML = !nextState
-                  ? `<svg class="icon-read" width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
-                       <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"></path>
-                     </svg>`
-                  : `<svg class="icon-unread" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                       <circle cx="12" cy="12" r="10"></circle>
-                     </svg>`;
-                if (progressEl) progressEl.textContent = I18N.t('details.chapter_progress', chap.overall_progress);
-                // Recalcula progresso geral da série novamente após reverter
-                const totalPctRevert = chapters.reduce((sum, c) => sum + (c.overall_progress || 0), 0);
-                const seriesAvgRevert = chapters.length > 0 ? Math.round(totalPctRevert / chapters.length) : 0;
-                if (progressDetailEl) progressDetailEl.textContent = I18N.t('details.progress', seriesAvgRevert);
-                if (this.selectedItem) this.selectedItem.overall_progress = seriesAvgRevert;
-                if (window.app) window.app.showToast(I18N.t('toast.chapter_error'));
-              }
+          chaptersGrid.querySelectorAll('.details-chapter-card--cover').forEach((card) => {
+            card.addEventListener('click', (e) => {
+              if (e.target.closest('.btn-read-chapter')) return;
+              const chapId = parseInt(card.dataset.id, 10);
+              const chap = chapters.find(c => c.id === chapId);
+              if (!chap) return;
+              this.toggleChapterRead(chapters, chap, card);
             });
           });
 
@@ -645,6 +641,70 @@ class LibraryManager {
       console.error('Erro ao abrir página de detalhes:', err);
       if (window.app) window.app.showToast(I18N.t('toast.detail_error', err.message));
     }
+  }
+
+  markBtnIcon(read) {
+    return read
+      ? `<svg class="icon-read" width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"></path>
+         </svg>`
+      : `<svg class="icon-unread" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+           <circle cx="12" cy="12" r="10"></circle>
+         </svg>`;
+  }
+
+  calcSeriesProgress(chapters) {
+    const totalPct = chapters.reduce((sum, c) => sum + (c.overall_progress || 0), 0);
+    return chapters.length > 0 ? Math.round(totalPct / chapters.length) : 0;
+  }
+
+  toggleChapterRead(chapters, chap, scopeEl) {
+    const nextState = !chap.is_read;
+    const progressEl = scopeEl ? scopeEl.querySelector('.details-chapter-progress') : null;
+    const badgeEl = scopeEl ? scopeEl.querySelector('.chapter-read-badge') : null;
+    const markBtnEl = scopeEl ? scopeEl.querySelector('.btn-mark-read-chapter') : null;
+    const fillEl = scopeEl ? scopeEl.querySelector('.cover-progress-fill') : null;
+
+    // Atualização otimista local
+    chap.is_read = nextState;
+    chap.overall_progress = nextState ? 100.0 : 0.0;
+    if (scopeEl) scopeEl.classList.toggle('is-read', nextState);
+    if (badgeEl) badgeEl.style.display = nextState ? 'flex' : 'none';
+    if (markBtnEl) {
+      markBtnEl.classList.toggle('is-read', nextState);
+      markBtnEl.title = nextState ? I18N.t('details.mark_unread') : I18N.t('details.mark_read');
+      markBtnEl.innerHTML = this.markBtnIcon(nextState);
+    }
+    if (fillEl) fillEl.style.width = nextState ? '100%' : '0%';
+    if (progressEl) progressEl.textContent = I18N.t('details.chapter_progress', chap.overall_progress);
+
+    // Recalcula progresso geral da série
+    const progressDetailEl = document.getElementById('details-meta-progress');
+    const seriesAvg = this.calcSeriesProgress(chapters);
+    if (progressDetailEl) progressDetailEl.textContent = I18N.t('details.progress', seriesAvg);
+    if (this.selectedItem) this.selectedItem.overall_progress = seriesAvg;
+
+    LibraryAPI.updateItemReadStatus(chap.id, nextState).then(() => {
+      if (window.app) window.app.showToast(nextState ? I18N.t('chapter.toast.read') : I18N.t('chapter.toast.unread'));
+    }).catch((err) => {
+      console.error(err);
+      // Reverte em caso de erro
+      chap.is_read = !nextState;
+      chap.overall_progress = nextState ? 0.0 : 100.0;
+      if (scopeEl) scopeEl.classList.toggle('is-read', !nextState);
+      if (badgeEl) badgeEl.style.display = !nextState ? 'flex' : 'none';
+      if (markBtnEl) {
+        markBtnEl.classList.toggle('is-read', !nextState);
+        markBtnEl.title = !nextState ? I18N.t('details.mark_unread') : I18N.t('details.mark_read');
+        markBtnEl.innerHTML = this.markBtnIcon(!nextState);
+      }
+      if (fillEl) fillEl.style.width = !nextState ? '100%' : '0%';
+      if (progressEl) progressEl.textContent = I18N.t('details.chapter_progress', chap.overall_progress);
+      const seriesAvgRevert = this.calcSeriesProgress(chapters);
+      if (progressDetailEl) progressDetailEl.textContent = I18N.t('details.progress', seriesAvgRevert);
+      if (this.selectedItem) this.selectedItem.overall_progress = seriesAvgRevert;
+      if (window.app) window.app.showToast(I18N.t('toast.chapter_error'));
+    });
   }
 
   /**

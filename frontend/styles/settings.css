@@ -265,6 +265,56 @@
 }
 
 /* ============================================================
+   Chapter View Mode Toggle (F6)
+   ============================================================ */
+
+.chapter-view-options {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.chapter-view-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1;
+  padding: 14px 12px;
+  border-radius: var(--radius);
+  border: 2px solid var(--border);
+  background-color: var(--bg-card);
+  cursor: pointer;
+  transition: var(--transition);
+  text-align: center;
+}
+
+.chapter-view-option:hover {
+  border-color: var(--border-light);
+}
+
+.chapter-view-option.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.chapter-view-option svg {
+  color: var(--text-muted);
+  transition: var(--transition);
+}
+
+.chapter-view-option.active svg {
+  color: var(--accent);
+}
+
+.chapter-view-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* ============================================================
    Custom Language Picker — simplified
    ============================================================ */
 
