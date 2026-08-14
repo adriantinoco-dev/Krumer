@@ -783,6 +783,10 @@ html[data-theme="sepia"] body.has-custom-bg .continue-reading-section {
   /* Espaço entre bloco superior e card de sinopse */
 }
 
+.details-view--has-chapters .details-content-scroll {
+  gap: 18px;
+}
+
 /* Seção Superior — Detalhes do Livro */
 .details-upper-section {
   display: flex;
@@ -838,6 +842,10 @@ html[data-theme="sepia"] body.has-custom-bg .continue-reading-section {
   flex-direction: column;
   gap: 18px;
   max-width: 800px;
+}
+
+.details-view--has-chapters .details-info-container {
+  max-width: none;
 }
 
 .details-title {
@@ -943,7 +951,7 @@ html[data-theme="sepia"] body.has-custom-bg .continue-reading-section {
   font-weight: 700;
 }
 
-/* Card de sinopse — ocupa toda a largura da página */
+/* Card de sinopse */
 .details-synopsis-wrap {
   width: 100%;
   box-sizing: border-box;
@@ -956,6 +964,11 @@ html[data-theme="sepia"] body.has-custom-bg .continue-reading-section {
   backdrop-filter: blur(8px);
 }
 
+.details-view--has-chapters .details-info-container .details-synopsis-wrap {
+  margin-top: 2px;
+  padding: 22px 26px;
+}
+
 .details-synopsis-title {
   font-size: 11px;
   font-weight: 700;
@@ -963,6 +976,10 @@ html[data-theme="sepia"] body.has-custom-bg .continue-reading-section {
   text-transform: uppercase;
   letter-spacing: 2px;
   margin-bottom: 14px;
+}
+
+.details-view--has-chapters .details-synopsis-title {
+  margin-bottom: 10px;
 }
 
 .details-synopsis-text {
@@ -976,6 +993,10 @@ html[data-theme="sepia"] body.has-custom-bg .continue-reading-section {
   letter-spacing: 0.01em;
 }
 
+.details-view--has-chapters .details-synopsis-text {
+  line-height: 1.72;
+}
+
 
 /* Seção Inferior — Capítulos (Condicional) */
 .details-section-divider {
@@ -984,11 +1005,19 @@ html[data-theme="sepia"] body.has-custom-bg .continue-reading-section {
   margin: 30px 0;
 }
 
+.details-view--has-chapters .details-section-divider {
+  margin: 10px 0 18px;
+}
+
 .details-chapters-title {
   font-size: 22px;
   font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 20px;
+}
+
+.details-view--has-chapters .details-chapters-title {
+  margin-bottom: 14px;
 }
 
 .details-chapters-grid {

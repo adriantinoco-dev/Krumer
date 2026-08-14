@@ -516,6 +516,8 @@ class LibraryManager {
       // 9. Seção Inferior — Capítulos (condicional)
       const lowerSection = document.getElementById('details-lower-section');
       const chaptersGrid = document.getElementById('details-chapters-grid');
+      const detailsInfo = detailsView.querySelector('.details-info-container');
+      const actionsRow = detailsView.querySelector('.details-actions-row');
 
       let chapters = [];
       if (item.type === 'series' || item.children_count > 0) {
@@ -526,7 +528,18 @@ class LibraryManager {
         }
       }
 
-      if (chapters && chapters.length > 0) {
+      const hasChapters = chapters.length > 0;
+      detailsView.classList.toggle('details-view--has-chapters', hasChapters);
+
+      if (synopsisWrap) {
+        if (hasChapters && detailsInfo && actionsRow) {
+          detailsInfo.insertBefore(synopsisWrap, actionsRow);
+        } else if (lowerSection && lowerSection.parentNode) {
+          lowerSection.parentNode.insertBefore(synopsisWrap, lowerSection);
+        }
+      }
+
+      if (hasChapters) {
         // Ocultar botão "Ler Agora" principal quando o livro tem capítulos
         if (readBtn) readBtn.style.display = 'none';
 
@@ -578,7 +591,6 @@ class LibraryManager {
                     </div>
                   </div>
                   ${infoHtml(chap)}
-                  ${readBtnHtml(idx)}
                 </div>`;
             }
             return `
@@ -601,11 +613,18 @@ class LibraryManager {
 
           chaptersGrid.querySelectorAll('.details-chapter-card--cover').forEach((card) => {
             card.addEventListener('click', (e) => {
-              if (e.target.closest('.btn-read-chapter')) return;
               const chapId = parseInt(card.dataset.id, 10);
               const chap = chapters.find(c => c.id === chapId);
               if (!chap) return;
-              this.toggleChapterRead(chapters, chap, card);
+              if (typeof openReader === 'function') openReader(chap);
+            });
+
+            card.addEventListener('contextmenu', (e) => {
+              e.preventDefault();
+              const chapId = parseInt(card.dataset.id, 10);
+              const chap = chapters.find(c => c.id === chapId);
+              if (!chap) return;
+              this._showChapterContextMenu(e, chapters, chap, card);
             });
           });
 
@@ -1368,6 +1387,7 @@ class LibraryManager {
   _showContextMenu(e, item) {
     const menu = document.getElementById('book-context-menu');
     if (!menu) return;
+    this._hideChapterContextMenu();
 
     // Update header title
     const titleEl = document.getElementById('ctx-menu-title');
@@ -1470,6 +1490,90 @@ class LibraryManager {
 
   _hideContextMenu() {
     const menu = document.getElementById('book-context-menu');
+    if (menu) menu.classList.remove('active');
+  }
+
+  _ensureChapterContextMenu() {
+    if (document.getElementById('chapter-context-menu')) return;
+    const menu = document.createElement('div');
+    menu.id = 'chapter-context-menu';
+    menu.className = 'book-context-menu';
+    menu.innerHTML = `
+      <div class="ctx-menu-header">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+        </svg>
+        <span id="chapter-ctx-title">${I18N.t('details.chapters')}</span>
+      </div>
+      <div class="ctx-menu-divider"></div>
+      <button class="ctx-menu-item" id="chapter-ctx-mark-read">
+        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span class="ctx-label">${I18N.t('details.mark_read')}</span>
+      </button>
+      <button class="ctx-menu-item ctx-menu-item--muted" id="chapter-ctx-mark-unread">
+        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span class="ctx-label">${I18N.t('details.mark_unread')}</span>
+      </button>
+    `;
+    document.body.appendChild(menu);
+    document.addEventListener('click', () => this._hideChapterContextMenu());
+    document.addEventListener('contextmenu', (e) => {
+      if (!e.target.closest('.details-chapter-card--cover')) this._hideChapterContextMenu();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this._hideChapterContextMenu();
+    });
+  }
+
+  _showChapterContextMenu(e, chapters, chap, card) {
+    this._ensureChapterContextMenu();
+    this._hideContextMenu();
+
+    const menu = document.getElementById('chapter-context-menu');
+    if (!menu) return;
+
+    const titleEl = document.getElementById('chapter-ctx-title');
+    if (titleEl) titleEl.textContent = chap.title;
+
+    const markReadBtn = document.getElementById('chapter-ctx-mark-read');
+    const markUnreadBtn = document.getElementById('chapter-ctx-mark-unread');
+
+    const newMarkReadBtn = markReadBtn.cloneNode(true);
+    markReadBtn.parentNode.replaceChild(newMarkReadBtn, markReadBtn);
+    newMarkReadBtn.style.display = chap.is_read ? 'none' : 'flex';
+    newMarkReadBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (!chap.is_read) this.toggleChapterRead(chapters, chap, card);
+      this._hideChapterContextMenu();
+    });
+
+    const newMarkUnreadBtn = markUnreadBtn.cloneNode(true);
+    markUnreadBtn.parentNode.replaceChild(newMarkUnreadBtn, markUnreadBtn);
+    newMarkUnreadBtn.style.display = chap.is_read ? 'flex' : 'none';
+    newMarkUnreadBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (chap.is_read) this.toggleChapterRead(chapters, chap, card);
+      this._hideChapterContextMenu();
+    });
+
+    const { innerWidth: vw, innerHeight: vh } = window;
+    const { offsetWidth: mw, offsetHeight: mh } = menu;
+    let x = e.clientX + 6;
+    let y = e.clientY + 6;
+    if (x + mw > vw) x = vw - mw - 8;
+    if (y + mh > vh) y = vh - mh - 8;
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    menu.classList.add('active');
+  }
+
+  _hideChapterContextMenu() {
+    const menu = document.getElementById('chapter-context-menu');
     if (menu) menu.classList.remove('active');
   }
 
