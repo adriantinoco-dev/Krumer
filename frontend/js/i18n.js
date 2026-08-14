@@ -1,5 +1,5 @@
 const I18N = {
-  _current: 'pt-br',
+  _current: 'en',
   _data: null,
 
   _translations: {
@@ -221,6 +221,9 @@ const I18N = {
       'modal.list.delete_confirm': 'Excluir',
       'onboarding.welcome_title': 'Bem-vindo ao Krumer',
       'onboarding.welcome_sub': 'Sua biblioteca pessoal para EPUBs, PDFs e quadrinhos.',
+      'onboarding.language_title': 'Escolha seu idioma',
+      'onboarding.language_sub': 'Este será o idioma da interface do Krumer. Você pode alterá-lo depois nas Configurações.',
+      'onboarding.language_continue': 'Continuar',
       'onboarding.step1_title': 'Chave da API',
       'onboarding.step1_desc': 'Configure sua chave do Gemini AI Studio para buscar capas e metadados automaticamente.',
       'onboarding.step1_btn': 'Configurar',
@@ -560,6 +563,9 @@ const I18N = {
       'modal.list.delete_confirm': 'Delete',
       'onboarding.welcome_title': 'Welcome to Krumer',
       'onboarding.welcome_sub': 'Your personal library for EPUBs, PDFs and comics.',
+      'onboarding.language_title': 'Choose your language',
+      'onboarding.language_sub': 'This sets the Krumer interface language. You can change it anytime in Settings.',
+      'onboarding.language_continue': 'Continue',
       'onboarding.step1_title': 'API Key',
       'onboarding.step1_desc': 'Configure your Gemini AI Studio key to automatically fetch covers and metadata.',
       'onboarding.step1_btn': 'Configure',
@@ -680,10 +686,10 @@ const I18N = {
       'update.btn_close': 'Close',
       'update.download_error': 'Failed to start download: {0}',
       'update.speed': '{0} MB/s',
-      'modal.edit.cover_restore': 'Restaurar portada original',
-      'toast.cover_restored': '¡Portada original restaurada con éxito!',
-      'toast.cover_restore_error': 'Error al restaurar portada: {0}',
-      'toast.cover_no_original': 'Este libro no tiene portada original integrada.',
+      'modal.edit.cover_restore': 'Restore Original Cover',
+      'toast.cover_restored': 'Original cover restored successfully!',
+      'toast.cover_restore_error': 'Error restoring cover: {0}',
+      'toast.cover_no_original': 'This book has no embedded original cover.',
     },
 
     es: {
@@ -902,6 +908,9 @@ const I18N = {
       'modal.list.delete_confirm': 'Eliminar',
       'onboarding.welcome_title': 'Bienvenido a Krumer',
       'onboarding.welcome_sub': 'Tu biblioteca personal para EPUBs, PDFs y cómics.',
+      'onboarding.language_title': 'Elige tu idioma',
+      'onboarding.language_sub': 'Este será el idioma de la interfaz de Krumer. Puedes cambiarlo cuando quieras en la Configuración.',
+      'onboarding.language_continue': 'Continuar',
       'onboarding.step1_title': 'Clave de API',
       'onboarding.step1_desc': 'Configura tu clave de Gemini AI Studio para buscar portadas y metadatos automáticamente.',
       'onboarding.step1_btn': 'Configurar',
@@ -1237,6 +1246,9 @@ const I18N = {
       'modal.list.delete_confirm': 'Supprimer',
       'onboarding.welcome_title': 'Bienvenue sur Krumer',
       'onboarding.welcome_sub': 'Votre bibliothèque personnelle pour EPUBs, PDFs et bandes dessinées.',
+      'onboarding.language_title': 'Choisissez votre langue',
+      'onboarding.language_sub': 'Ce sera la langue de l\'interface de Krumer. Vous pourrez la modifier à tout moment dans les Paramètres.',
+      'onboarding.language_continue': 'Continuer',
       'onboarding.step1_title': 'Clé API',
       'onboarding.step1_desc': 'Configurez votre clé Gemini AI Studio pour récupérer automatiquement les couvertures et métadonnées.',
       'onboarding.step1_btn': 'Configurer',
@@ -1576,6 +1588,9 @@ const I18N = {
       'modal.list.delete_confirm': 'Löschen',
       'onboarding.welcome_title': 'Willkommen bei Krumer',
       'onboarding.welcome_sub': 'Ihre persönliche Bibliothek für EPUBs, PDFs und Comics.',
+      'onboarding.language_title': 'Wählen Sie Ihre Sprache',
+      'onboarding.language_sub': 'Dies legt die Oberflächensprache von Krumer fest. Sie können sie jederzeit in den Einstellungen ändern.',
+      'onboarding.language_continue': 'Weiter',
       'onboarding.step1_title': 'API-Schlüssel',
       'onboarding.step1_desc': 'Konfigurieren Sie Ihren Gemini AI Studio-Schlüssel, um automatisch Cover und Metadaten abzurufen.',
       'onboarding.step1_btn': 'Konfigurieren',
@@ -1915,6 +1930,9 @@ const I18N = {
       'modal.list.delete_confirm': 'Elimina',
       'onboarding.welcome_title': 'Benvenuto su Krumer',
       'onboarding.welcome_sub': 'La tua biblioteca personale per EPUB, PDF e fumetti.',
+      'onboarding.language_title': 'Scegli la tua lingua',
+      'onboarding.language_sub': 'Questa sarà la lingua dell\'interfaccia di Krumer. Potrai cambiarla in qualsiasi momento nelle Impostazioni.',
+      'onboarding.language_continue': 'Continua',
       'onboarding.step1_title': 'Chiave API',
       'onboarding.step1_desc': 'Configura la tua chiave Gemini AI Studio per recuperare automaticamente copertine e metadati.',
       'onboarding.step1_btn': 'Configura',
@@ -2254,6 +2272,9 @@ const I18N = {
       'modal.list.delete_confirm': '削除',
       'onboarding.welcome_title': 'Krumerへようこそ',
       'onboarding.welcome_sub': 'EPUB、PDF、漫画のための個人ライブラリ。',
+      'onboarding.language_title': '言語を選択',
+      'onboarding.language_sub': 'Krumer インターフェースの言語を設定します。設定からいつでも変更できます。',
+      'onboarding.language_continue': '続行',
       'onboarding.step1_title': 'APIキー',
       'onboarding.step1_desc': 'Gemini AI Studioキーを設定して、表紙とメタデータを自動取得しましょう。',
       'onboarding.step1_btn': '設定',
@@ -2593,6 +2614,9 @@ const I18N = {
       'modal.list.delete_confirm': '删除',
       'onboarding.welcome_title': '欢迎使用Krumer',
       'onboarding.welcome_sub': '您的个人图书馆，支持EPUB、PDF和漫画。',
+      'onboarding.language_title': '选择语言',
+      'onboarding.language_sub': '这将设置 Krumer 的界面语言。您可以随时在设置中更改。',
+      'onboarding.language_continue': '继续',
       'onboarding.step1_title': 'API密钥',
       'onboarding.step1_desc': '配置您的Gemini AI Studio密钥以自动获取封面和元数据。',
       'onboarding.step1_btn': '配置',
@@ -2932,6 +2956,9 @@ const I18N = {
       'modal.list.delete_confirm': '삭제',
       'onboarding.welcome_title': 'Krumer에 오신 것을 환영합니다',
       'onboarding.welcome_sub': 'EPUB, PDF 및 만화를 위한 개인 라이브러리입니다.',
+      'onboarding.language_title': '언어 선택',
+      'onboarding.language_sub': 'Krumer 인터페이스 언어를 설정합니다. 언제든지 설정에서 변경할 수 있습니다.',
+      'onboarding.language_continue': '계속',
       'onboarding.step1_title': 'API 키',
       'onboarding.step1_desc': 'Gemini AI Studio 키를 구성하여 표지와 메타데이터를 자동으로 가져오세요.',
       'onboarding.step1_btn': '구성',
@@ -3271,6 +3298,9 @@ const I18N = {
       'modal.list.delete_confirm': 'Удалить',
       'onboarding.welcome_title': 'Добро пожаловать в Krumer',
       'onboarding.welcome_sub': 'Ваша личная библиотека для EPUB, PDF и комиксов.',
+      'onboarding.language_title': 'Выберите язык',
+      'onboarding.language_sub': 'Это язык интерфейса Krumer. Вы всегда можете изменить его в настройках.',
+      'onboarding.language_continue': 'Продолжить',
       'onboarding.step1_title': 'Ключ API',
       'onboarding.step1_desc': 'Настройте ключ Gemini AI Studio для автоматического получения обложек и метаданных.',
       'onboarding.step1_btn': 'Настроить',
@@ -3397,16 +3427,55 @@ const I18N = {
   },
 
   init() {
-    const saved = localStorage.getItem('krumer_language') || 'pt-br';
+    const saved = localStorage.getItem('krumer_language') || 'en';
     this._current = saved;
     this.apply();
+  },
+
+  _resolveSelect(text, args) {
+    const re = /\{(\d+),\s*select,\s*/g;
+    let result = text;
+    let m;
+    while ((m = re.exec(result)) !== null) {
+      const idx = parseInt(m[1], 10);
+      const val = String(args[idx] ?? '');
+      const blockStart = m.index + m[0].length;
+      let depth = 1;
+      let pos = blockStart;
+      while (pos < result.length && depth > 0) {
+        if (result[pos] === '{') depth++;
+        else if (result[pos] === '}') depth--;
+        pos++;
+      }
+      const block = result.substring(blockStart, pos - 1);
+      const options = {};
+      const optRe = /(\S+)\s*\{/g;
+      let om;
+      while ((om = optRe.exec(block)) !== null) {
+        const label = om[1];
+        const txtStart = om.index + om[0].length;
+        let d2 = 1;
+        let p2 = txtStart;
+        while (p2 < block.length && d2 > 0) {
+          if (block[p2] === '{') d2++;
+          else if (block[p2] === '}') d2--;
+          p2++;
+        }
+        options[label] = block.substring(txtStart, p2 - 1);
+      }
+      const resolved = options[val] || options['other'] || val;
+      result = result.substring(0, m.index) + resolved + result.substring(pos);
+      re.lastIndex = m.index + resolved.length;
+    }
+    return result;
   },
 
   t(key, ...args) {
     const lang = this._translations[this._current] || this._translations['pt-br'];
     let text = (lang && lang[key]) || (this._translations['pt-br'] ? this._translations['pt-br'][key] : undefined) || key;
+    text = this._resolveSelect(text, args);
     args.forEach((arg, i) => {
-      text = text.replace(`{${i}}`, arg);
+      text = text.replace(new RegExp(`\\{${i}\\}`, 'g'), arg);
     });
     return text;
   },
@@ -3416,8 +3485,11 @@ const I18N = {
   },
 
   setLang(lang) {
-    this._current = lang || 'pt-br';
+    this._current = lang || 'en';
     this.apply();
+    if (typeof this.onLangChange === 'function') {
+      this.onLangChange(lang);
+    }
   },
 
   apply() {

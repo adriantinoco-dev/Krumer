@@ -1154,7 +1154,7 @@ def get_global_settings(db: Session = Depends(get_db)):
     return {
         "use_filename_as_title": True,
         "last_scanned_path": last_scanned.value if last_scanned else None,
-        "language": lang_setting.value if lang_setting else "pt-br",
+        "language": lang_setting.value if lang_setting else "en",
         "chapter_view_mode": chapter_mode.value if chapter_mode else "title"
     }
 
@@ -1337,7 +1337,7 @@ def fetch_metadata_stream(payload: MetadataFetchPayload, db: Session = Depends(g
     items.sort(key=lambda i: id_order[i.id])
 
     lang_setting = db.query(Setting).filter(Setting.key == "language").first()
-    language = lang_setting.value if lang_setting else "pt-br"
+    language = lang_setting.value if lang_setting else "en"
 
     lote = []
     for item in items:
@@ -1416,7 +1416,7 @@ def retranslate_descriptions(db: Session = Depends(get_db)):
     Retraduz as sinopses de todos os itens no banco de dados para o idioma configurado.
     """
     lang_setting = db.query(Setting).filter(Setting.key == "language").first()
-    language = lang_setting.value if lang_setting else "pt-br"
+    language = lang_setting.value if lang_setting else "en"
 
     items = db.query(Item).filter(Item.description.isnot(None), Item.description != "").all()
     updated_count = 0

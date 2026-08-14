@@ -163,7 +163,7 @@ def _increment_daily_count() -> None:
     _save_json_file(DAILY_COUNT_PATH, data)
 
 
-def obter_metadados_gemini(titulo_limpo: str, api_key: str | None = None, language: str = "pt-br") -> dict | None:
+def obter_metadados_gemini(titulo_limpo: str, api_key: str | None = None, language: str = "en") -> dict | None:
     """Consulta o Gemini para obter metadados em JSON."""
     if genai is None or types is None:
         raise MetadataServiceError(
@@ -176,7 +176,7 @@ def obter_metadados_gemini(titulo_limpo: str, api_key: str | None = None, langua
 
     _check_daily_limit()
 
-    lang_name = SYNOPSIS_LANG_MAP.get(language, "português do Brasil")
+    lang_name = SYNOPSIS_LANG_MAP.get(language, "English")
     prompt = PROMPT_TEMPLATE.format(titulo_limpo=titulo_limpo, lang_name=lang_name)
     client = genai.Client(api_key=key)
     config = types.GenerateContentConfig(
@@ -224,7 +224,7 @@ def processar_arquivo_livro(
     api_key: str | None = None,
     use_cache: bool = True,
     query_direta: str | None = None,
-    language: str = "pt-br",
+    language: str = "en",
 ) -> dict:
     """
     Processa um livro ou obra agrupada e busca metadados via Gemini.
@@ -291,7 +291,7 @@ def processar_arquivo_livro(
 def processar_lote_com_progresso(
     itens: list[dict],
     api_key: str | None = None,
-    language: str = "pt-br",
+    language: str = "en",
 ) -> Generator[tuple[int, int, dict], None, None]:
     """
     Processa uma lista de itens (máx. 10) e emite progresso após cada item.

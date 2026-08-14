@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 
 <head>
   <meta charset="UTF-8">
@@ -917,8 +917,40 @@
   <div id="onboarding-overlay" class="onboarding-overlay" style="display:none;">
     <div class="onboarding-container">
 
+      <!-- Passo 0 (F5): Seleção de idioma -->
+      <div id="onboarding-language">
+        <div class="onboarding-hero">
+          <div class="onboarding-logo-wrap">
+            <img src="assets/Krumer-logo.svg" alt="Krumer" class="onboarding-logo-img">
+          </div>
+          <h1 class="onboarding-title" data-i18n="onboarding.language_title">Choose your language</h1>
+          <p class="onboarding-subtitle" data-i18n="onboarding.language_sub">
+            This sets the Krumer interface language. You can change it anytime in Settings.
+          </p>
+        </div>
+
+        <div id="onb-language-grid" class="onb-language-grid">
+          <button type="button" class="onb-language-option" data-lang="pt-br" data-label="Português (Brasil)">Português (Brasil)</button>
+          <button type="button" class="onb-language-option selected" data-lang="en" data-label="English">English</button>
+          <button type="button" class="onb-language-option" data-lang="es" data-label="Español">Español</button>
+          <button type="button" class="onb-language-option" data-lang="fr" data-label="Français">Français</button>
+          <button type="button" class="onb-language-option" data-lang="de" data-label="Deutsch">Deutsch</button>
+          <button type="button" class="onb-language-option" data-lang="it" data-label="Italiano">Italiano</button>
+          <button type="button" class="onb-language-option" data-lang="ja" data-label="日本語">日本語</button>
+          <button type="button" class="onb-language-option" data-lang="zh" data-label="中文 (简体)">中文 (简体)</button>
+          <button type="button" class="onb-language-option" data-lang="ko" data-label="한국어">한국어</button>
+          <button type="button" class="onb-language-option" data-lang="ru" data-label="Русский">Русский</button>
+        </div>
+
+        <div class="onboarding-actions">
+          <button id="onb-btn-language-continue" class="btn btn-primary onb-btn-start">
+            <span data-i18n="onboarding.language_continue">Continue</span>
+          </button>
+        </div>
+      </div>
+
       <!-- Tela de boas-vindas -->
-      <div id="onboarding-welcome">
+      <div id="onboarding-welcome" style="display:none;">
         <div class="onboarding-hero">
           <div class="onboarding-logo-wrap">
             <img src="assets/Krumer-logo.svg" alt="Krumer" class="onboarding-logo-img">

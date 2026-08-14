@@ -95,7 +95,7 @@
 ## F5 — Seleção de idioma no Onboarding
 
 **Objetivo:** Durante o fluxo de onboarding (primeiro uso), permitir que o usuário escolha o idioma do app antes de configurar a biblioteca.
-
+  
 **Comportamento esperado:**
 - Uma tela de seleção de idioma é exibida como primeiro passo do onboarding.
 - Opções disponíveis: Português (BR), English (e outros idiomas suportados).

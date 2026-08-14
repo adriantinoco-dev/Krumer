@@ -35,6 +35,7 @@ class AppController {
 
   async init() {
     I18N.init();
+    I18N.onLangChange = (lang) => this._syncLangPicker(lang);
     window.chapterViewMode = 'title';
     this.loadSavedTheme();
     this.setupNavigation();
@@ -659,8 +660,8 @@ class AppController {
 
         // Obter idioma selecionado e anterior
         const select = document.getElementById('settings-language-select');
-        const language = select ? select.value : 'pt-br';
-        const prevLanguage = localStorage.getItem('krumer_language') || 'pt-br';
+        const language = select ? select.value : 'en';
+        const prevLanguage = localStorage.getItem('krumer_language') || 'en';
         const isLangChanged = language !== prevLanguage;
 
         // Se o valor estiver vazio, verificar se a chave já está configurada
@@ -819,7 +820,7 @@ class AppController {
       localStorage.setItem('krumer_chapter_view', window.chapterViewMode || 'title');
     }
     // Always sync picker from localStorage on open
-    const saved = localStorage.getItem('krumer_language') || 'pt-br';
+    const saved = localStorage.getItem('krumer_language') || 'en';
     this._syncLangPicker(saved);
     this._setChapterViewActive(window.chapterViewMode || 'title');
   }
@@ -838,7 +839,7 @@ class AppController {
     if (!wrap || !trigger || !dropdown) return;
 
     // Initialize to current language
-    const saved = localStorage.getItem('krumer_language') || 'pt-br';
+    const saved = localStorage.getItem('krumer_language') || 'en';
     this._syncLangPicker(saved);
 
     // Toggle open/close
@@ -1011,6 +1012,9 @@ class AppController {
         const overlay = document.getElementById('onboarding-overlay');
         if (overlay) overlay.style.display = 'flex';
 
+        // F5: Passo 0 — começa pela seleção de idioma
+        this._openOnboardingLanguage();
+
         // Se já tem chave configurada, marca passo 1 como feito
         if (hasApiKey) {
           this._updateOnbStepStatus(1, true);
@@ -1022,6 +1026,40 @@ class AppController {
   }
 
   setupOnboarding() {
+    // F5: Passo 0 — Seleção de idioma
+    const langGrid = document.getElementById('onb-language-grid');
+    const langContinueBtn = document.getElementById('onb-btn-language-continue');
+    if (langGrid && langContinueBtn) {
+      const defaultLang = 'en';
+      let selectedLang = localStorage.getItem('krumer_language') || defaultLang;
+      this._syncOnboardingLangSelection(selectedLang);
+
+      langGrid.querySelectorAll('.onb-language-option').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const lang = btn.dataset.lang;
+          if (!lang) return;
+          selectedLang = lang;
+          this._syncOnboardingLangSelection(lang);
+          langContinueBtn.disabled = false;
+          try {
+            await LibraryAPI.updateSettings({ language: lang });
+          } catch (err) {
+            console.warn('Não foi possível salvar o idioma no backend:', err);
+          }
+          localStorage.setItem('krumer_language', lang);
+          // Aplica o idioma imediatamente em toda a interface (inclui onboarding)
+          I18N.setLang(lang);
+        });
+      });
+
+      langContinueBtn.addEventListener('click', () => {
+        if (selectedLang) {
+          localStorage.setItem('krumer_language', selectedLang);
+        }
+        this._openOnboardingWelcome();
+      });
+    }
+
     // Passo 1: Configurar chave
     const btnApiKey = document.getElementById('onb-btn-apikey');
     if (btnApiKey) {
@@ -1045,6 +1083,28 @@ class AppController {
     if (btnSkip) {
       btnSkip.addEventListener('click', () => this.hideOnboarding());
     }
+  }
+
+  _syncOnboardingLangSelection(lang) {
+    const grid = document.getElementById('onb-language-grid');
+    if (!grid) return;
+    grid.querySelectorAll('.onb-language-option').forEach(b => {
+      b.classList.toggle('selected', b.dataset.lang === lang);
+    });
+  }
+
+  _openOnboardingLanguage() {
+    const langScreen = document.getElementById('onboarding-language');
+    const welcomeScreen = document.getElementById('onboarding-welcome');
+    if (langScreen) langScreen.style.display = 'block';
+    if (welcomeScreen) welcomeScreen.style.display = 'none';
+  }
+
+  _openOnboardingWelcome() {
+    const langScreen = document.getElementById('onboarding-language');
+    const welcomeScreen = document.getElementById('onboarding-welcome');
+    if (langScreen) langScreen.style.display = 'none';
+    if (welcomeScreen) welcomeScreen.style.display = 'block';
   }
 
   hideOnboarding() {

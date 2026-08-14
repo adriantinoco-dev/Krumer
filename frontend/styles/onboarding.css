@@ -41,6 +41,44 @@
   margin-bottom: 24px;
 }
 
+/* --- F5: Seleção de idioma (Passo 0) --- */
+.onb-language-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 24px;
+  text-align: left;
+}
+
+.onb-language-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  border: 1.5px solid var(--border);
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease;
+}
+
+.onb-language-option:hover {
+  border-color: var(--border-light);
+  background-color: var(--bg-card-hover);
+}
+
+.onb-language-option.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+  color: var(--accent-text);
+}
+
 .onboarding-logo-wrap {
   margin-bottom: 12px;
 }
