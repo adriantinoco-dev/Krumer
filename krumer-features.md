@@ -172,7 +172,42 @@
 
 ---
 
-## F8 — Plano de fundo customizável (imagem)
+## F8 — Música Ambiente nas Configurações com atalho de controle
+
+**Objetivo:** Adicionar um sistema de música ambiente ao Krumer, com um menu nas Configurações para selecionar entre 3 trilhas predefinidas ou silêncio, além de um atalho de teclado para pausar/retomar a música.
+
+**Comportamento esperado:**
+- Seção "Música Ambiente" nas Configurações com 4 opções:
+  - Trilha 1, Trilha 2, Trilha 3 (nomes evocativos, ex: "Lareira", "Floresta", "Lo-fi").
+  - "Sem música".
+- A música selecionada toca em loop enquanto o app estiver em uso.
+- Um atalho de teclado (ex: `M`) pausa e retoma a música.
+- O atalho é listado na seção F2 (Menu de Atalhos).
+- A escolha do usuário (trilha selecionada + estado de pausa) é salva e restaurada na próxima sessão.
+- Controle de volume básico ou ao menos integração com o volume do sistema.
+- A música deve parar de tocar automaticamente ao fechar o aplicativo.
+- A musica deve continuar enquanto navega entre as paginas do app ou durante a leitura. A não ser que o usuário pause a musica.
+
+**Implementação:**
+- Incluir os 3 arquivos de áudio no bundle do Electron (pasta `assets/music/`).
+- Usar a Web Audio API ou elemento `<audio>` HTML com `loop` para reprodução.
+- Criar serviço/módulo `musicPlayer` centralizado que gerencia estado (trilha ativa, pausado/tocando).
+- Registrar atalho global via `globalShortcut` do Electron ou listener de teclado no renderer, com toggle play/pause.
+- Persistir preferência (`ambient_track`, `ambient_paused`) via `electron-store` ou equivalente.
+- Ao iniciar o app, restaurar o estado salvo (se havia música tocando, retomar; se estava pausado, manter pausado).
+- Garantir que a música pare corretamente ao fechar o app.
+
+**Critério de conclusão:**
+- [ ] Seção "Música Ambiente" presente nas Configurações.
+- [ ] 3 trilhas + opção silêncio disponíveis e funcionais.
+- [ ] Música toca em loop durante o uso do app.
+- [ ] Atalho de teclado pausa/retoma a música.
+- [ ] Atalho listado no menu de Atalhos (F2).
+- [ ] Preferência salva e restaurada entre sessões.
+
+---
+
+## F9 — Plano de fundo customizável (imagem) [Em observação]
 
 **Objetivo:** Permitir que o usuário escolha uma imagem como plano de fundo do aplicativo, configurável nas Configurações.
 
@@ -197,36 +232,3 @@
 - [ ] Overlay/opacidade garante legibilidade da interface.
 - [ ] Opção de remover o fundo personalizado.
 - [ ] Escolha persistida entre sessões.
-
----
-
-## F9 — Música Ambiente nas Configurações com atalho de controle
-
-**Objetivo:** Adicionar um sistema de música ambiente ao Krumer, com um menu nas Configurações para selecionar entre 3 trilhas predefinidas ou silêncio, além de um atalho de teclado para pausar/retomar a música.
-
-**Comportamento esperado:**
-- Seção "Música Ambiente" nas Configurações com 4 opções:
-  - Trilha 1, Trilha 2, Trilha 3 (nomes evocativos, ex: "Lareira", "Floresta", "Lo-fi").
-  - "Sem música".
-- A música selecionada toca em loop enquanto o app estiver em uso.
-- Um atalho de teclado (ex: `Space` ou `M`) pausa e retoma a música.
-- O atalho é listado na seção F2 (Menu de Atalhos).
-- A escolha do usuário (trilha selecionada + estado de pausa) é salva e restaurada na próxima sessão.
-- Controle de volume básico ou ao menos integração com o volume do sistema.
-
-**Implementação:**
-- Incluir os 3 arquivos de áudio no bundle do Electron (pasta `assets/music/`).
-- Usar a Web Audio API ou elemento `<audio>` HTML com `loop` para reprodução.
-- Criar serviço/módulo `musicPlayer` centralizado que gerencia estado (trilha ativa, pausado/tocando).
-- Registrar atalho global via `globalShortcut` do Electron ou listener de teclado no renderer, com toggle play/pause.
-- Persistir preferência (`ambient_track`, `ambient_paused`) via `electron-store` ou equivalente.
-- Ao iniciar o app, restaurar o estado salvo (se havia música tocando, retomar; se estava pausado, manter pausado).
-- Garantir que a música pare corretamente ao fechar o app.
-
-**Critério de conclusão:**
-- [ ] Seção "Música Ambiente" presente nas Configurações.
-- [ ] 3 trilhas + opção silêncio disponíveis e funcionais.
-- [ ] Música toca em loop durante o uso do app.
-- [ ] Atalho de teclado pausa/retoma a música.
-- [ ] Atalho listado no menu de Atalhos (F2).
-- [ ] Preferência salva e restaurada entre sessões.

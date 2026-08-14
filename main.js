@@ -215,6 +215,23 @@ ipcMain.handle('select-folder', async () => {
   return { status: 'cancelled', path: null };
 });
 
+ipcMain.handle('select-background-image', async () => {
+  if (!mainWindow) return { status: 'cancelled', path: null };
+
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Selecionar imagem de fundo',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Imagens', extensions: ['jpg', 'jpeg', 'png', 'webp'] }
+    ]
+  });
+
+  if (!result.canceled && result.filePaths.length > 0) {
+    return { status: 'success', path: result.filePaths[0] };
+  }
+  return { status: 'cancelled', path: null };
+});
+
 ipcMain.handle('check-for-updates', async () => {
   console.log('[Update] check-for-updates chamado');
   try {

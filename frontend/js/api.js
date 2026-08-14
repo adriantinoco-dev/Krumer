@@ -195,6 +195,40 @@ class LibraryAPI {
   }
 
   /**
+   * Absolute URL da imagem de fundo configurada (retorna string vazia se não houver).
+   */
+  static getBackgroundImageUrl() {
+    return `${API_BASE_URL}/settings/background/image?t=${Date.now()}`;
+  }
+
+  /**
+   * Define a imagem de fundo do app. Recebe o caminho original selecionado
+   * pelo usuário (via diálogo nativo); o backend copia para o diretório de dados.
+   */
+  static async setBackgroundImage(path) {
+    const res = await fetch(`${API_BASE_URL}/settings/background`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || I18N.t('api.error_background_set'));
+    return data;
+  }
+
+  /**
+   * Remove a imagem de fundo, restaurando o padrão.
+   */
+  static async removeBackgroundImage() {
+    const res = await fetch(`${API_BASE_URL}/settings/background`, {
+      method: 'DELETE',
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || I18N.t('api.error_background_remove'));
+    return data;
+  }
+
+  /**
    * Restores the original embedded cover for an item
    */
   static async restoreOriginalCover(id) {
