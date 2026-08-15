@@ -2,7 +2,6 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   selectFolder: () => ipcRenderer.invoke('select-folder'),
-  selectBackgroundImage: () => ipcRenderer.invoke('select-background-image'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   startDownload: () => ipcRenderer.invoke('start-download'),
   cancelDownload: () => ipcRenderer.invoke('cancel-download'),

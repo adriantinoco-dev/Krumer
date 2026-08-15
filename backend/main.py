@@ -4,7 +4,6 @@ import io
 import zipfile
 import mimetypes
 import datetime
-import shutil
 from pathlib import Path
 from typing import List, Optional
 from contextlib import asynccontextmanager
@@ -16,7 +15,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from pydantic import BaseModel
 
-from database import Base, engine, get_db, COVERS_DIR, BACKGROUNDS_DIR
+from database import Base, engine, get_db, COVERS_DIR
 from models import (
     Item, Progress, Tag, Setting, UserList, list_items,
     ItemResponse, ItemUpdate, ProgressResponse,
@@ -243,9 +242,6 @@ class SettingsUpdatePayload(BaseModel):
 
 class ApiKeyPayload(BaseModel):
     api_key: str
-
-class BackgroundPayload(BaseModel):
-    path: str
 
 class ProgressUpdatePayload(BaseModel):
     file_path: str
@@ -1193,13 +1189,11 @@ def get_global_settings(db: Session = Depends(get_db)):
     last_scanned = db.query(Setting).filter(Setting.key == "last_scanned_path").first()
     lang_setting = db.query(Setting).filter(Setting.key == "language").first()
     chapter_mode = db.query(Setting).filter(Setting.key == "chapter_view_mode").first()
-    bg_setting = db.query(Setting).filter(Setting.key == "background_image").first()
     return {
         "use_filename_as_title": True,
         "last_scanned_path": last_scanned.value if last_scanned else None,
         "language": lang_setting.value if lang_setting else "en",
-        "chapter_view_mode": chapter_mode.value if chapter_mode else "title",
-        "background_image": bg_setting.value if bg_setting else None
+        "chapter_view_mode": chapter_mode.value if chapter_mode else "title"
     }
 
 @app.put("/settings")
@@ -1221,85 +1215,6 @@ def update_global_settings(payload: SettingsUpdatePayload, db: Session = Depends
         db.commit()
     return get_global_settings(db)
 
-
-# F8 — Plano de fundo customizável (imagem)
-
-BACKGROUND_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
-BACKGROUND_MEDIA_TYPES = {
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".png": "image/png",
-    ".webp": "image/webp",
-}
-
-
-@app.post("/settings/background")
-def set_background_image(payload: BackgroundPayload, db: Session = Depends(get_db)):
-    """
-    Copia a imagem escolhida para o diretório de dados do app (evitando
-    dependência do caminho original) e guarda o path nas configurações.
-    """
-    src = (payload.path or "").strip()
-    if not src or not os.path.isfile(src):
-        raise HTTPException(status_code=400, detail="Caminho da imagem inválido.")
-
-    suffix = Path(src).suffix.lower()
-    if suffix not in BACKGROUND_EXTENSIONS:
-        raise HTTPException(
-            status_code=400,
-            detail="Formato de imagem não suportado. Use .jpg, .png ou .webp.",
-        )
-
-    BACKGROUNDS_DIR.mkdir(parents=True, exist_ok=True)
-    dest = BACKGROUNDS_DIR / f"background{suffix}"
-
-    # Remove imagens antigas do diretório para não acumular arquivos órfãos
-    for old in BACKGROUNDS_DIR.glob("background.*"):
-        if Path(old).resolve() != dest.resolve():
-            try:
-                old.unlink()
-            except OSError:
-                pass
-
-    try:
-        shutil.copy2(src, dest)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Falha ao copiar a imagem: {str(e)}")
-
-    setting = db.query(Setting).filter(Setting.key == "background_image").first()
-    if setting:
-        setting.value = str(dest)
-    else:
-        db.add(Setting(key="background_image", value=str(dest)))
-    db.commit()
-
-    return get_global_settings(db)
-
-
-@app.get("/settings/background/image")
-def get_background_image(db: Session = Depends(get_db)):
-    """Serve a imagem de fundo atualmente configurada, se houver."""
-    setting = db.query(Setting).filter(Setting.key == "background_image").first()
-    if not setting or not setting.value or not os.path.isfile(setting.value):
-        raise HTTPException(status_code=404, detail="Nenhuma imagem de fundo configurada.")
-    suffix = Path(setting.value).suffix.lower()
-    media_type = BACKGROUND_MEDIA_TYPES.get(suffix, "application/octet-stream")
-    return FileResponse(setting.value, media_type=media_type)
-
-
-@app.delete("/settings/background")
-def remove_background_image(db: Session = Depends(get_db)):
-    """Remove a imagem de fundo configurada e restaura o fundo padrão."""
-    setting = db.query(Setting).filter(Setting.key == "background_image").first()
-    if setting:
-        if setting.value and os.path.isfile(setting.value):
-            try:
-                os.remove(setting.value)
-            except OSError:
-                pass
-        db.delete(setting)
-        db.commit()
-    return get_global_settings(db)
 
 # ─── Custom Lists ──────────────────────────────────────────────────────────────
 

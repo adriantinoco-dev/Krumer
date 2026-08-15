@@ -33,7 +33,7 @@ Krumer/
 ├── backend/
 │   ├── main.py              # FastAPI app — todos os endpoints REST
 │   ├── models.py            # SQLAlchemy ORM + schemas Pydantic
-│   ├── database.py          # Engine SQLite, COVERS_DIR, BACKGROUNDS_DIR
+│   ├── database.py          # Engine SQLite, COVERS_DIR
 │   ├── scanner.py           # Varredura de pastas, detecção de livros e séries
 │   ├── metadata.py          # Extração de capa e metadados do arquivo
 │   ├── metadata_service.py  # Integração Gemini API
@@ -103,7 +103,6 @@ Migrations inline em `main.py` via `ALTER TABLE` com try/except.
 - Tema padrão: dark/minimalista.
 - Temas disponíveis: escuro, claro, sépia.
 - Estilo consistente com o design atual — não introduzir novos padrões visuais sem justificativa.
-- Plano de fundo customizável (F8) usa as variáveis CSS `--bg-image` e `--bg-custom-overlay` (infraestrutura backend/API existente; UI de Configurações pendente).
 
 ---
 
@@ -118,7 +117,6 @@ Status por feature (spec completa em `krumer-features.md`, roadmap em `PLANNING.
 - **F5** `[x]` Seleção de idioma no Onboarding (step 0).
 - **F6** `[x]` Modo de exibição de capítulos: "Somente Título" ou "Título + Capa" (`window.chapterViewMode`).
 - **F7** `[x]` Tela de atualização com changelog via GitHub Releases API.
-- **F8** `[ ]` Plano de fundo customizável (imagem) — [Em observação]; infraestrutura backend/API/CSS pronta, falta a UI de Configurações.
 
 ---
 
@@ -141,11 +139,12 @@ Status por feature (spec completa em `krumer-features.md`, roadmap em `PLANNING.
 - Não criar arquivos de rotas separados no backend.
 - Não adicionar dependências sem verificar se já existe solução no código atual.
 - Não substituir vanilla JS por TypeScript.
+- Não empacotar o backend Python manualmente. O npm já cuida disso ao buildar o app.
 
 ---
 
 ## Arquivos de referência
 
-- `krumer-features.md` — spec detalhada de features planejadas (F1–F8).
+- `krumer-features.md` — spec detalhada de features planejadas (F1–F7).
 - `PLANNING.md` — roadmap, status e decisões de arquitetura.
 - `CHANGELOG.md` — histórico de versões.

@@ -23,10 +23,6 @@
   
   --transition:   all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* F8 — overlay semitransparente sobre a imagem de fundo (garante legibilidade) */
-  --bg-custom-overlay: rgba(17, 17, 17, 0.82);
-  --shell-bg-alpha: 0.3;
-
   /* Sidebar Layout Tokens */
   --sidebar-width-collapsed: 64px;
   --sidebar-width-expanded:  260px;
@@ -51,13 +47,6 @@
 body {
   font-family: var(--font-main);
   background-color: var(--bg-primary);
-  background-image:
-    linear-gradient(var(--bg-custom-overlay), var(--bg-custom-overlay)),
-    var(--bg-image, none);
-  background-size: auto, cover;
-  background-position: center, center;
-  background-repeat: no-repeat, no-repeat;
-  background-attachment: fixed, fixed;
   color: var(--text-primary);
   height: 100vh;
   overflow: hidden;
@@ -117,11 +106,6 @@ body {
   width: var(--sidebar-width-expanded);
   background: var(--sidebar-bg);
   border-right: none;
-}
-
-body.has-custom-bg .sidebar,
-body.has-custom-bg .sidebar:hover {
-  background: rgba(var(--sidebar-bg-rgb), var(--shell-bg-alpha));
 }
 
 /* Oculta sidebar na página de detalhes do livro */
@@ -288,10 +272,6 @@ body.has-custom-bg .sidebar:hover {
   justify-content: space-between;
   border-bottom: 1px solid var(--border);
   background-color: var(--bg-primary);
-}
-
-body.has-custom-bg .app-header {
-  background-color: rgba(var(--bg-primary-rgb), var(--shell-bg-alpha));
 }
 
 .search-box {
@@ -569,8 +549,6 @@ html[data-theme="light"] {
   --scan-result-dot:     #16a34a;
   --scan-result-glow:    rgba(22, 163, 74, 0.5);
 
-  --bg-custom-overlay: rgba(245, 245, 245, 0.62);
-  --shell-bg-alpha: 0.18;
 }
 
 html[data-theme="sepia"] {
@@ -601,9 +579,6 @@ html[data-theme="sepia"] {
      abordagem usada no tema Light — evita o "borrão preto" no
      hero banner da página de detalhes. */
   --hero-vignette: 244, 236, 216;
-
-  --bg-custom-overlay: rgba(244, 236, 216, 0.64);
-  --shell-bg-alpha: 0.2;
 
   --scan-result-text:    #166534;
   --scan-result-bg:      rgba(34, 197, 94, 0.12);

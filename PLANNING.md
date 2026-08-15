@@ -114,6 +114,6 @@ Duas camadas coexistem:
 
 ## Notas de contexto
 
-- O arquivo `krumer-features.md` contém a spec completa de cada feature (F1–F8) com implementação detalhada e critérios de conclusão.
+- O arquivo `krumer-features.md` contém a spec completa de cada feature (F1–F7) com implementação detalhada e critérios de conclusão.
 - Releases publicadas no GitHub com CI via `.github/workflows/build.yml`.
 - `autoUpdater` verifica atualizações diariamente; download manual (não automático); instala ao fechar.
