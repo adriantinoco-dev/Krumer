@@ -269,30 +269,88 @@ class MetadataApplyPayload(BaseModel):
 
 def _enrich_item(item: Item, db: Session) -> ItemResponse:
     res = ItemResponse.model_validate(item)
-    if item.type == "series":
-        children = db.query(Item).filter(Item.parent_id == item.id).all()
+    children = db.query(Item).filter(Item.parent_id == item.id).all()
+    if children:
         res.children_count = len(children)
-        if len(children) > 0:
-            child_ids = [c.id for c in children]
-            progs = db.query(Progress).filter(Progress.item_id.in_(child_ids)).all()
-            # Capítulos ainda na 1ª página não contam para o progresso
-            prog_map = {
-                p.item_id: (p.progress_pct if (p.current_page or 0) > 1 else 0.0)
-                for p in progs
-            }
-            total_pct = sum(prog_map.get(cid, 0.0) for cid in child_ids)
-            res.overall_progress = round(total_pct / len(children), 1)
-        else:
-            res.overall_progress = 0.0
+        child_ids = [c.id for c in children]
+        progs = db.query(Progress).filter(Progress.item_id.in_(child_ids)).all()
+        prog_map = {
+            progress.item_id: progress.progress_pct if (progress.current_page or 0) > 1 else 0.0
+            for progress in progs
+        }
+        total_pct = sum(100.0 if child.is_read else prog_map.get(child.id, 0.0) for child in children)
+        res.overall_progress = round(total_pct / len(children), 1)
     else:
         res.children_count = 0
+        if item.is_read:
+            res.overall_progress = 100.0
         if item.progress:
             prog = item.progress[0]
             # Só conta o progresso se passou da 1ª página
-            res.overall_progress = prog.progress_pct if (prog.current_page or 0) > 1 else 0.0
+            res.overall_progress = 100.0 if item.is_read else (prog.progress_pct if (prog.current_page or 0) > 1 else 0.0)
         else:
-            res.overall_progress = 0.0
+            res.overall_progress = 100.0 if item.is_read else 0.0
     return res
+
+def _is_item_fully_read(item: Item) -> bool:
+    if item.is_read:
+        return True
+    if item.progress:
+        return any((progress.progress_pct or 0.0) >= 100.0 for progress in item.progress)
+    return False
+
+def _set_item_read_progress(db: Session, item: Item, is_read: bool) -> None:
+    item.is_read = is_read
+
+    existing = db.query(Progress).filter(Progress.item_id == item.id).first()
+    if is_read:
+        total = existing.total_pages if existing and existing.total_pages else 9999
+        if existing:
+            existing.progress_pct = 100.0
+            existing.current_page = total
+            existing.updated_at = datetime.datetime.utcnow()
+        else:
+            db.add(Progress(
+                item_id=item.id,
+                file_path=item.path,
+                progress_pct=100.0,
+                current_page=total,
+                total_pages=total
+            ))
+    else:
+        if existing:
+            existing.progress_pct = 0.0
+            existing.current_page = 0
+            existing.cfi = None
+            existing.updated_at = datetime.datetime.utcnow()
+        else:
+            db.add(Progress(
+                item_id=item.id,
+                file_path=item.path,
+                progress_pct=0.0,
+                current_page=0,
+                cfi=None
+            ))
+
+def _sync_parent_read_status(db: Session, parent: Item) -> None:
+    children = db.query(Item).filter(Item.parent_id == parent.id).all()
+    parent.is_read = bool(children) and all(_is_item_fully_read(child) for child in children)
+
+def _sync_read_status_after_item_change(db: Session, item: Item) -> None:
+    now = datetime.datetime.utcnow()
+    item.last_read = now
+
+    children = db.query(Item).filter(Item.parent_id == item.id).all()
+    if children:
+        for child in children:
+            _set_item_read_progress(db, child, item.is_read)
+            child.last_read = now
+
+    if item.parent_id:
+        parent = db.query(Item).filter(Item.id == item.parent_id).first()
+        if parent:
+            _sync_parent_read_status(db, parent)
+            parent.last_read = now
 
 
 # --- API Routes ---
@@ -585,7 +643,8 @@ def update_item_metadata(id: int, payload: ItemUpdate, db: Session = Depends(get
         item.rating = payload.rating if payload.rating > 0 else None
         
     if payload.is_read is not None:
-        item.is_read = payload.is_read
+        _set_item_read_progress(db, item, payload.is_read)
+        _sync_read_status_after_item_change(db, item)
 
     if payload.tags is not None:
         item.tags = []
@@ -602,7 +661,7 @@ def update_item_metadata(id: int, payload: ItemUpdate, db: Session = Depends(get
             
     db.commit()
     db.refresh(item)
-    return item
+    return _enrich_item(item, db)
 
 class ItemReadPayload(BaseModel):
     is_read: bool
@@ -612,33 +671,8 @@ def update_item_read_status(id: int, payload: ItemReadPayload, db: Session = Dep
     item = db.query(Item).filter(Item.id == id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
-    item.is_read = payload.is_read
-
-    # Update progress when marking as read/unread
-    file_path = item.path
-    existing = db.query(Progress).filter(Progress.item_id == id).first()
-    if payload.is_read:
-        total = existing.total_pages if existing and existing.total_pages else 9999
-        if existing:
-            existing.progress_pct = 100.0
-            existing.current_page = total
-            existing.updated_at = datetime.datetime.utcnow()
-        else:
-            db.add(Progress(item_id=id, file_path=file_path, progress_pct=100.0, current_page=total, total_pages=total))
-    else:
-        if existing:
-            existing.progress_pct = 0.0
-            existing.current_page = 0
-            existing.cfi = None
-            existing.updated_at = datetime.datetime.utcnow()
-        else:
-            db.add(Progress(item_id=id, file_path=file_path, progress_pct=0.0, current_page=0, cfi=None))
-
-    item.last_read = datetime.datetime.utcnow()
-    if item.parent_id:
-        parent = db.query(Item).filter(Item.id == item.parent_id).first()
-        if parent:
-            parent.last_read = datetime.datetime.utcnow()
+    _set_item_read_progress(db, item, payload.is_read)
+    _sync_read_status_after_item_change(db, item)
 
     db.commit()
     db.refresh(item)
@@ -1010,12 +1044,7 @@ def save_reading_progress(id: int, payload: ProgressUpdatePayload, db: Session =
         progress_record.cfi = None
         item.is_read = False
 
-    # Update last read timestamp
-    item.last_read = datetime.datetime.utcnow()
-    if item.parent_id:
-        parent = db.query(Item).filter(Item.id == item.parent_id).first()
-        if parent:
-            parent.last_read = datetime.datetime.utcnow()
+    _sync_read_status_after_item_change(db, item)
             
     db.commit()
     db.refresh(progress_record)
@@ -1567,4 +1596,3 @@ if __name__ == "__main__":
         uvicorn.run(app, host="127.0.0.1", port=8765, log_level="info")
     else:
         uvicorn.run("main:app", host="127.0.0.1", port=8765, reload=True)
-

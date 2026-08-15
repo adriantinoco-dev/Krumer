@@ -638,6 +638,8 @@ class LibraryManager {
               }
             });
           });
+
+          this.syncSelectedItemFromChapters(chapters);
         }
         if (lowerSection) lowerSection.style.display = 'block';
       } else {
@@ -678,56 +680,153 @@ class LibraryManager {
     return !!(chap.is_read || (chap.overall_progress || 0) >= 100);
   }
 
+  isItemReadState(item) {
+    return !!(item.is_read || (item.overall_progress || 0) >= 100);
+  }
+
+  async persistItemAndChildrenReadState(item, read) {
+    let updatedParent = await LibraryAPI.updateItemReadStatus(item.id, read);
+    const hasChildren = item.type === 'series'
+      || (item.children_count || 0) > 0
+      || (updatedParent.children_count || 0) > 0;
+
+    if (!hasChildren) {
+      return { parent: updatedParent, children: [] };
+    }
+
+    const children = await LibraryAPI.getItems({ parent_id: item.id, sort_by: 'title' });
+    const updatedChildren = await Promise.all(children.map(async child => {
+      const progress = child.progress && child.progress.length > 0
+        ? child.progress[0]
+        : null;
+      const totalPages = progress && progress.total_pages
+        ? progress.total_pages
+        : (read ? 9999 : null);
+
+      await LibraryAPI.saveProgress(child.id, {
+        file_path: progress && progress.file_path ? progress.file_path : child.path,
+        progress_pct: read ? 100.0 : 0.0,
+        current_page: read ? totalPages : 0,
+        total_pages: totalPages
+      });
+
+      const updatedChild = await LibraryAPI.updateItemReadStatus(child.id, read);
+      return Object.assign(child, updatedChild, {
+        is_read: read,
+        overall_progress: read ? 100.0 : 0.0
+      });
+    }));
+
+    updatedParent = await LibraryAPI.updateItemReadStatus(item.id, read);
+    return {
+      parent: Object.assign(updatedParent, {
+        is_read: read,
+        overall_progress: read ? 100.0 : 0.0
+      }),
+      children: updatedChildren
+    };
+  }
+
   calcSeriesProgress(chapters) {
     const totalPct = chapters.reduce((sum, c) => sum + (c.overall_progress || 0), 0);
     return chapters.length > 0 ? Math.round(totalPct / chapters.length) : 0;
   }
 
-  toggleChapterRead(chapters, chap, scopeEl) {
-    const nextState = !this.isChapterReadState(chap);
+  applyChapterReadState(chap, scopeEl, read) {
     const progressEl = scopeEl ? scopeEl.querySelector('.details-chapter-progress') : null;
     const badgeEl = scopeEl ? scopeEl.querySelector('.chapter-read-badge') : null;
     const markBtnEl = scopeEl ? scopeEl.querySelector('.btn-mark-read-chapter') : null;
     const fillEl = scopeEl ? scopeEl.querySelector('.cover-progress-fill') : null;
 
-    // Atualização otimista local
-    chap.is_read = nextState;
-    chap.overall_progress = nextState ? 100.0 : 0.0;
-    if (scopeEl) scopeEl.classList.toggle('is-read', nextState);
-    if (badgeEl) badgeEl.style.display = nextState ? 'flex' : 'none';
+    chap.is_read = read;
+    chap.overall_progress = read ? 100.0 : 0.0;
+    if (scopeEl) scopeEl.classList.toggle('is-read', read);
+    if (badgeEl) badgeEl.style.display = read ? 'flex' : 'none';
     if (markBtnEl) {
-      markBtnEl.classList.toggle('is-read', nextState);
-      markBtnEl.title = nextState ? I18N.t('details.mark_unread') : I18N.t('details.mark_read');
-      markBtnEl.innerHTML = this.markBtnIcon(nextState);
+      markBtnEl.classList.toggle('is-read', read);
+      markBtnEl.title = read ? I18N.t('details.mark_unread') : I18N.t('details.mark_read');
+      markBtnEl.innerHTML = this.markBtnIcon(read);
     }
-    if (fillEl) fillEl.style.width = nextState ? '100%' : '0%';
+    if (fillEl) fillEl.style.width = read ? '100%' : '0%';
     if (progressEl) progressEl.textContent = I18N.t('details.chapter_progress', chap.overall_progress);
+  }
 
-    // Recalcula progresso geral da série
+  syncSelectedItemFromChapters(chapters) {
     const progressDetailEl = document.getElementById('details-meta-progress');
     const seriesAvg = this.calcSeriesProgress(chapters);
     if (progressDetailEl) progressDetailEl.textContent = I18N.t('details.progress', seriesAvg);
-    if (this.selectedItem) this.selectedItem.overall_progress = seriesAvg;
+    if (this.selectedItem) {
+      this.selectedItem.overall_progress = seriesAvg;
+      this.selectedItem.is_read = chapters.length > 0 && chapters.every(chap => this.isChapterReadState(chap));
+      this.updateItemLocalReadState(this.selectedItem.id, this.selectedItem.is_read, seriesAvg);
+    }
+  }
+
+  updateItemLocalReadState(itemId, read, progressPct) {
+    const normalizedProgress = read ? 100.0 : (progressPct || 0.0);
+    const localItem = this.items.find(i => i.id === itemId);
+    if (localItem) {
+      localItem.is_read = read;
+      localItem.overall_progress = normalizedProgress;
+      if (localItem.progress && localItem.progress.length > 0) {
+        localItem.progress[0].progress_pct = normalizedProgress;
+        localItem.progress[0].current_page = read
+          ? (localItem.progress[0].total_pages || 9999)
+          : 0;
+      }
+    }
+
+    document.querySelectorAll(`.book-card[data-id="${itemId}"] .cover-progress-fill`).forEach(fill => {
+      fill.style.width = `${normalizedProgress}%`;
+    });
+  }
+
+  refreshVisibleParentChildren(read) {
+    const chaptersGrid = document.getElementById('details-chapters-grid');
+    if (!chaptersGrid || !this.selectedItem) return;
+
+    chaptersGrid.querySelectorAll('.details-chapter-card').forEach(card => {
+      card.classList.toggle('is-read', read);
+      const badge = card.querySelector('.chapter-read-badge');
+      if (badge) badge.style.display = read ? 'flex' : 'none';
+      const markBtn = card.querySelector('.btn-mark-read-chapter');
+      if (markBtn) {
+        markBtn.classList.toggle('is-read', read);
+        markBtn.title = read ? I18N.t('details.mark_unread') : I18N.t('details.mark_read');
+        markBtn.innerHTML = this.markBtnIcon(read);
+      }
+      const fill = card.querySelector('.cover-progress-fill');
+      if (fill) fill.style.width = read ? '100%' : '0%';
+      const progress = card.querySelector('.details-chapter-progress');
+      if (progress) progress.textContent = I18N.t('details.chapter_progress', read ? 100 : 0);
+    });
+
+    const progressDetailEl = document.getElementById('details-meta-progress');
+    if (progressDetailEl) progressDetailEl.textContent = I18N.t('details.progress', read ? 100 : 0);
+    this.selectedItem.is_read = read;
+    this.selectedItem.overall_progress = read ? 100.0 : 0.0;
+  }
+
+  shouldRemoveFromCurrentCategory(item, nextProgress) {
+    if (this.currentCategory === 'read') return nextProgress < 100;
+    if (this.currentCategory === 'unread') return nextProgress >= 100;
+    if (this.currentCategory === 'reading') return nextProgress <= 0 || nextProgress >= 100;
+    return false;
+  }
+
+  toggleChapterRead(chapters, chap, scopeEl) {
+    const nextState = !this.isChapterReadState(chap);
+
+    this.applyChapterReadState(chap, scopeEl, nextState);
+    this.syncSelectedItemFromChapters(chapters);
 
     LibraryAPI.updateItemReadStatus(chap.id, nextState).then(() => {
+      this.syncSelectedItemFromChapters(chapters);
       if (window.app) window.app.showToast(nextState ? I18N.t('chapter.toast.read') : I18N.t('chapter.toast.unread'));
     }).catch((err) => {
       console.error(err);
-      // Reverte em caso de erro
-      chap.is_read = !nextState;
-      chap.overall_progress = nextState ? 0.0 : 100.0;
-      if (scopeEl) scopeEl.classList.toggle('is-read', !nextState);
-      if (badgeEl) badgeEl.style.display = !nextState ? 'flex' : 'none';
-      if (markBtnEl) {
-        markBtnEl.classList.toggle('is-read', !nextState);
-        markBtnEl.title = !nextState ? I18N.t('details.mark_unread') : I18N.t('details.mark_read');
-        markBtnEl.innerHTML = this.markBtnIcon(!nextState);
-      }
-      if (fillEl) fillEl.style.width = !nextState ? '100%' : '0%';
-      if (progressEl) progressEl.textContent = I18N.t('details.chapter_progress', chap.overall_progress);
-      const seriesAvgRevert = this.calcSeriesProgress(chapters);
-      if (progressDetailEl) progressDetailEl.textContent = I18N.t('details.progress', seriesAvgRevert);
-      if (this.selectedItem) this.selectedItem.overall_progress = seriesAvgRevert;
+      this.applyChapterReadState(chap, scopeEl, !nextState);
+      this.syncSelectedItemFromChapters(chapters);
       if (window.app) window.app.showToast(I18N.t('toast.chapter_error'));
     });
   }
@@ -1403,9 +1502,9 @@ class LibraryManager {
     const btnRead   = document.getElementById('ctx-mark-read');
     const btnUnread = document.getElementById('ctx-mark-unread');
 
-    const isRead = (item.overall_progress || 0) >= 100;
+    const isRead = this.isItemReadState(item);
     if (btnRead)   btnRead.style.display   = isRead ? 'none' : 'flex';
-    if (btnUnread) btnUnread.style.display = (item.overall_progress || 0) > 0 ? 'flex' : 'none';
+    if (btnUnread) btnUnread.style.display = isRead || (item.overall_progress || 0) > 0 ? 'flex' : 'none';
 
     const newBtnRead = btnRead.cloneNode(true);
     btnRead.parentNode.replaceChild(newBtnRead, btnRead);
@@ -1587,25 +1686,23 @@ class LibraryManager {
    * Marks the item as fully read (progress 100%) in the backend with smooth, flicker-free UI updates
    */
   async _markAsRead(item) {
-    try {
-      const filePath = (item.progress && item.progress.length > 0)
-        ? item.progress[0].file_path
-        : item.path;
-      const totalPages = (item.progress && item.progress.length > 0 && item.progress[0].total_pages)
-        ? item.progress[0].total_pages
-        : 9999;
+    const previousState = {
+      is_read: item.is_read,
+      overall_progress: item.overall_progress,
+      progress: item.progress ? item.progress.map(progress => ({ ...progress })) : []
+    };
 
-      // Update local item state
-      item.overall_progress = 100.0;
-      if (item.progress && item.progress.length > 0) {
-        item.progress[0].progress_pct = 100.0;
-        item.progress[0].current_page = totalPages;
-      }
+    try {
+      const { parent: updatedItem } = await this.persistItemAndChildrenReadState(item, true);
+
+      // The write is authoritative. Some backend versions can return the
+      // aggregate progress from the session cache before children are reloaded.
+      Object.assign(item, updatedItem, { is_read: true, overall_progress: 100.0 });
 
       // Smooth in-place UI update
       const mainCardEl = document.querySelector(`#book-grid .book-card[data-id="${item.id}"]`);
       const crCardEl = document.querySelector(`#continue-reading-grid .book-card[data-id="${item.id}"]`);
-      const shouldBeRemoved = (this.currentCategory === 'unread' || this.currentCategory === 'reading');
+      const shouldBeRemoved = this.shouldRemoveFromCurrentCategory(item, 100.0);
 
       if (shouldBeRemoved && mainCardEl) {
         mainCardEl.classList.add('removing');
@@ -1631,18 +1728,23 @@ class LibraryManager {
         }, 250);
       }
 
+      this.updateItemLocalReadState(item.id, true, 100.0);
+      if (this.selectedItem && this.selectedItem.id === item.id) {
+        Object.assign(this.selectedItem, updatedItem, { is_read: true, overall_progress: 100.0 });
+        this.refreshVisibleParentChildren(true);
+        const detailsView = document.getElementById('book-details-view');
+        if (detailsView && detailsView.style.display !== 'none') {
+          await this.openBookDetails(item.id);
+        }
+      }
       if (window.app) window.app.showToast(I18N.t('toast.read', item.title));
-
-      // Persist to backend in the background without refreshing/rebuilding the whole grid
-      await LibraryAPI.saveProgress(item.id, {
-        file_path: filePath,
-        progress_pct: 100.0,
-        current_page: totalPages,
-        total_pages: totalPages
-      });
     } catch (err) {
       console.error('Erro ao marcar como lido:', err);
-      if (window.app) window.app.showToast(I18N.t('toast.progress_error'));
+      item.is_read = previousState.is_read;
+      item.overall_progress = previousState.overall_progress;
+      item.progress = previousState.progress;
+      this.updateItemLocalReadState(item.id, previousState.is_read, previousState.overall_progress);
+      if (window.app) window.app.showToast(err.message || I18N.t('toast.progress_error'));
     }
   }
 
@@ -1668,22 +1770,21 @@ class LibraryManager {
    * Marks the item as unread (resets progress to 0) in the backend with smooth, flicker-free UI updates
    */
   async _markAsUnread(item) {
-    try {
-      const filePath = (item.progress && item.progress.length > 0)
-        ? item.progress[0].file_path
-        : item.path;
+    const previousState = {
+      is_read: item.is_read,
+      overall_progress: item.overall_progress,
+      progress: item.progress ? item.progress.map(progress => ({ ...progress })) : []
+    };
 
-      // Update local item state
-      item.overall_progress = 0.0;
-      if (item.progress && item.progress.length > 0) {
-        item.progress[0].progress_pct = 0.0;
-        item.progress[0].current_page = 0;
-      }
+    try {
+      const { parent: updatedItem } = await this.persistItemAndChildrenReadState(item, false);
+
+      Object.assign(item, updatedItem, { is_read: false, overall_progress: 0.0 });
 
       // Smooth in-place UI update
       const mainCardEl = document.querySelector(`#book-grid .book-card[data-id="${item.id}"]`);
       const crCardEl = document.querySelector(`#continue-reading-grid .book-card[data-id="${item.id}"]`);
-      const shouldBeRemoved = (this.currentCategory === 'read' || this.currentCategory === 'reading');
+      const shouldBeRemoved = this.shouldRemoveFromCurrentCategory(item, 0.0);
 
       if (shouldBeRemoved && mainCardEl) {
         mainCardEl.classList.add('removing');
@@ -1709,18 +1810,23 @@ class LibraryManager {
         }, 250);
       }
 
+      this.updateItemLocalReadState(item.id, false, 0.0);
+      if (this.selectedItem && this.selectedItem.id === item.id) {
+        Object.assign(this.selectedItem, updatedItem, { is_read: false, overall_progress: 0.0 });
+        this.refreshVisibleParentChildren(false);
+        const detailsView = document.getElementById('book-details-view');
+        if (detailsView && detailsView.style.display !== 'none') {
+          await this.openBookDetails(item.id);
+        }
+      }
       if (window.app) window.app.showToast(I18N.t('toast.unread', item.title));
-
-      // Persist to backend in the background without refreshing/rebuilding the whole grid
-      await LibraryAPI.saveProgress(item.id, {
-        file_path: filePath,
-        progress_pct: 0.0,
-        current_page: 0,
-        total_pages: (item.progress && item.progress.length > 0) ? item.progress[0].total_pages : null
-      });
     } catch (err) {
       console.error('Erro ao marcar como não lido:', err);
-      if (window.app) window.app.showToast(I18N.t('toast.progress_error'));
+      item.is_read = previousState.is_read;
+      item.overall_progress = previousState.overall_progress;
+      item.progress = previousState.progress;
+      this.updateItemLocalReadState(item.id, previousState.is_read, previousState.overall_progress);
+      if (window.app) window.app.showToast(err.message || I18N.t('toast.progress_error'));
     }
   }
 }
