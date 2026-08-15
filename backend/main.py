@@ -629,9 +629,10 @@ def update_item_read_status(id: int, payload: ItemReadPayload, db: Session = Dep
         if existing:
             existing.progress_pct = 0.0
             existing.current_page = 0
+            existing.cfi = None
             existing.updated_at = datetime.datetime.utcnow()
         else:
-            db.add(Progress(item_id=id, file_path=file_path, progress_pct=0.0, current_page=0))
+            db.add(Progress(item_id=id, file_path=file_path, progress_pct=0.0, current_page=0, cfi=None))
 
     item.last_read = datetime.datetime.utcnow()
     if item.parent_id:
@@ -1001,6 +1002,14 @@ def save_reading_progress(id: int, payload: ProgressUpdatePayload, db: Session =
         )
         db.add(progress_record)
         
+    # Marcar como lido automaticamente quando o progresso atinge 100%
+    if payload.progress_pct >= 100.0:
+        item.is_read = True
+    # Sem progresso (início/desmarcado): limpar CFI para que o EPUB reabra do início
+    elif payload.progress_pct <= 0 and payload.current_page <= 0:
+        progress_record.cfi = None
+        item.is_read = False
+
     # Update last read timestamp
     item.last_read = datetime.datetime.utcnow()
     if item.parent_id:

@@ -265,7 +265,7 @@ ipcMain.handle('cancel-download', async () => {
 });
 
 ipcMain.handle('restart-and-install', () => {
-  autoUpdater.quitAndInstall(false, true);
+  autoUpdater.quitAndInstall(true, true);
 });
 
 // Eventos do electron-updater repassados para o Renderer Process

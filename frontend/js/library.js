@@ -547,13 +547,15 @@ class LibraryManager {
           const chapterViewMode = (window.chapterViewMode === 'title+cover') ? 'title+cover' : 'title';
           chaptersGrid.classList.toggle('details-chapters-grid--cover', chapterViewMode === 'title+cover');
 
+          const isChapterRead = (chap) => this.isChapterReadState(chap);
+
           const markBtn = (chap) => `
-            <button class="btn-mark-read-chapter ${chap.is_read ? 'is-read' : ''}" data-id="${chap.id}" title="${chap.is_read ? I18N.t('details.mark_unread') : I18N.t('details.mark_read')}">
-              ${this.markBtnIcon(chap.is_read)}
+            <button class="btn-mark-read-chapter ${isChapterRead(chap) ? 'is-read' : ''}" data-id="${chap.id}" title="${isChapterRead(chap) ? I18N.t('details.mark_unread') : I18N.t('details.mark_read')}">
+              ${this.markBtnIcon(isChapterRead(chap))}
             </button>`;
 
           const readBadgeHtml = (chap) => `
-            <div class="chapter-read-badge" title="${I18N.t('details.mark_unread')}" style="${chap.is_read ? 'display:flex;' : 'display:none;'}">
+            <div class="chapter-read-badge" title="${I18N.t('details.mark_unread')}" style="${isChapterRead(chap) ? 'display:flex;' : 'display:none;'}">
               <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"></path>
               </svg>
@@ -574,7 +576,7 @@ class LibraryManager {
             if (chapterViewMode === 'title+cover') {
               const coverUrl = chap.cover_path ? LibraryAPI.getCoverUrl(chap.id) : '';
               return `
-                <div class="details-chapter-card details-chapter-card--cover ${chap.is_read ? 'is-read' : ''}" data-id="${chap.id}">
+                <div class="details-chapter-card details-chapter-card--cover ${isChapterRead(chap) ? 'is-read' : ''}" data-id="${chap.id}">
                   <div class="details-chapter-cover-wrap">
                     ${coverUrl ? `
                       <img class="details-chapter-cover" src="${coverUrl}" alt="${this.escapeHtml(chap.title)}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
@@ -672,13 +674,17 @@ class LibraryManager {
          </svg>`;
   }
 
+  isChapterReadState(chap) {
+    return !!(chap.is_read || (chap.overall_progress || 0) >= 100);
+  }
+
   calcSeriesProgress(chapters) {
     const totalPct = chapters.reduce((sum, c) => sum + (c.overall_progress || 0), 0);
     return chapters.length > 0 ? Math.round(totalPct / chapters.length) : 0;
   }
 
   toggleChapterRead(chapters, chap, scopeEl) {
-    const nextState = !chap.is_read;
+    const nextState = !this.isChapterReadState(chap);
     const progressEl = scopeEl ? scopeEl.querySelector('.details-chapter-progress') : null;
     const badgeEl = scopeEl ? scopeEl.querySelector('.chapter-read-badge') : null;
     const markBtnEl = scopeEl ? scopeEl.querySelector('.btn-mark-read-chapter') : null;
@@ -1545,19 +1551,19 @@ class LibraryManager {
 
     const newMarkReadBtn = markReadBtn.cloneNode(true);
     markReadBtn.parentNode.replaceChild(newMarkReadBtn, markReadBtn);
-    newMarkReadBtn.style.display = chap.is_read ? 'none' : 'flex';
+    newMarkReadBtn.style.display = this.isChapterReadState(chap) ? 'none' : 'flex';
     newMarkReadBtn.addEventListener('click', (ev) => {
       ev.stopPropagation();
-      if (!chap.is_read) this.toggleChapterRead(chapters, chap, card);
+      if (!this.isChapterReadState(chap)) this.toggleChapterRead(chapters, chap, card);
       this._hideChapterContextMenu();
     });
 
     const newMarkUnreadBtn = markUnreadBtn.cloneNode(true);
     markUnreadBtn.parentNode.replaceChild(newMarkUnreadBtn, markUnreadBtn);
-    newMarkUnreadBtn.style.display = chap.is_read ? 'flex' : 'none';
+    newMarkUnreadBtn.style.display = this.isChapterReadState(chap) ? 'flex' : 'none';
     newMarkUnreadBtn.addEventListener('click', (ev) => {
       ev.stopPropagation();
-      if (chap.is_read) this.toggleChapterRead(chapters, chap, card);
+      if (this.isChapterReadState(chap)) this.toggleChapterRead(chapters, chap, card);
       this._hideChapterContextMenu();
     });
 

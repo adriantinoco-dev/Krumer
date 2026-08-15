@@ -96,10 +96,20 @@ async function openEpub(item, filePath) {
       epubToc = nav.toc || [];
     });
 
-    // Gerar localizações para o cálculo de progresso
+    // Gerar localizações em segundo plano, sem bloquear a abertura do livro
     epubBook.ready.then(async () => {
-      await epubBook.locations.generate(1500);
-      epubTotalLocations = epubBook.locations.total;
+      try {
+        await epubBook.locations.generate(1500);
+        epubTotalLocations = epubBook.locations.total;
+      } catch (locErr) {
+        console.warn('Erro ao gerar localizações EPUB:', locErr);
+      }
+      // Recalcular a posição atual assim que as localizações estiverem prontas
+      if (epubCurrentCfi) {
+        const idx = epubBook.locations.locationFromCfi(epubCurrentCfi);
+        epubCurrentLocationIndex = idx >= 0 ? idx : 0;
+      }
+      updateEpubControlsState();
     });
 
     // Buscar CFI salvo
@@ -108,13 +118,27 @@ async function openEpub(item, filePath) {
       const progressList = await LibraryAPI.getProgress(item.id);
       if (Array.isArray(progressList) && progressList.length > 0) {
         const match = progressList.find(p => p.file_path === epubCurrentFilePath) || progressList[0];
-        if (match && match.cfi) {
+        // Só restaura a posição se houver leitura de fato (progresso > 0).
+        // Item marcado como não lido (progresso zerado) deve abrir na primeira página.
+        if (match && match.cfi && (match.progress_pct || 0) > 0) {
           startCfi = match.cfi;
         }
       }
     } catch (progErr) {
       console.warn('Progresso EPUB não encontrado:', progErr);
     }
+
+    // Configurar eventos do rendition ANTES de exibir,
+    // para capturar a posição inicial restaurada
+    epubRendition.on('relocated', (location) => {
+      epubCurrentCfi = location.start.cfi;
+      const idx = epubBook.locations.locationFromCfi(location.start.cfi);
+      epubCurrentLocationIndex = idx >= 0 ? idx : 0;
+      updateEpubControlsState();
+      saveEpubProgress();
+    });
+
+    epubRendition.on('keydown', epubKeyHandler);
 
     // Exibir e navegar para a posição salva
     if (startCfi) {
@@ -123,18 +147,9 @@ async function openEpub(item, filePath) {
       await epubRendition.display();
     }
 
-    // Configurar eventos do rendition
-    epubRendition.on('relocated', (location) => {
-      epubCurrentCfi = location.start.cfi;
-      epubCurrentLocationIndex = epubBook.locations.locationFromCfi(location.start.cfi) || 0;
-      updateEpubControlsState();
-      saveEpubProgress();
-    });
-
-    epubRendition.on('keydown', epubKeyHandler);
-
     showReaderLoading(false);
     setupEpubControls();
+    updateEpubControlsState();
     document.addEventListener('keydown', epubKeyHandler);
 
   } catch (err) {
@@ -361,7 +376,7 @@ function setupEpubControls() {
       </button>
 
       <div class="reader-page-indicator">
-        <span id="epub-progress-label" style="font-size:12px; color:var(--text-muted);">0%</span>
+        <span id="epub-progress-label" style="font-size:12px; color:var(--text-muted);"></span>
       </div>
 
       <button id="epub-btn-next" class="btn-reader-ctrl" title="${I18N.t('reader.epub.next')}">
@@ -539,7 +554,7 @@ function updateEpubControlsState() {
 // ──────────────────────────────────────────────────────────────────────────────
 
 async function saveEpubProgress() {
-  if (!epubCurrentItem || !epubCurrentCfi) return;
+  if (!epubCurrentItem || !epubCurrentCfi || epubTotalLocations === 0) return;
 
   const pct = epubTotalLocations > 0
     ? Math.min(100, Math.round((epubCurrentLocationIndex / epubTotalLocations) * 100 * 10) / 10)

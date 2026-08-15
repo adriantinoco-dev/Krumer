@@ -2,6 +2,37 @@
    Krumer Personal Library - Auto-Update Manager (Electron Integration)
    ========================================================================== */
 
+const escapeHtmlText = (s) => String(s)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+let markedConfigured = false;
+
+function configureMarked() {
+  if (markedConfigured || typeof marked === 'undefined') return;
+  markedConfigured = true;
+
+  marked.setOptions({ gfm: true, breaks: true });
+
+  marked.use({
+    renderer: {
+      html(text) {
+        return escapeHtmlText(text);
+      },
+      link(href, title, text) {
+        const url = String(href);
+        if (/^(javascript|data|vbscript):/i.test(url.trim())) return escapeHtmlText(text);
+        const attrs = ['href="' + escapeHtmlText(url) + '"', 'target="_blank"', 'rel="noopener noreferrer"'];
+        if (title) attrs.push('title="' + escapeHtmlText(title) + '"');
+        return '<a ' + attrs.join(' ') + '>' + text + '</a>';
+      }
+    }
+  });
+}
+
 class AppUpdater {
   constructor() {
     this.modalEl = null;
@@ -11,12 +42,16 @@ class AppUpdater {
     this.progressBarEl = null;
     this.progressTextEl = null;
     this.speedTextEl = null;
+    this.changelogEl = null;
+    this.changelogTitleEl = null;
+    this.changelogContentEl = null;
     this.actionBtnEl = null;
     this.cancelBtnEl = null;
     this.closeBtnEl = null;
 
     this.currentInfo = null;
     this.isDownloading = false;
+    this.releaseNotesRequestId = 0;
   }
 
   init() {
@@ -39,7 +74,11 @@ class AppUpdater {
           </div>
           <div class="update-modal-body">
             <p id="update-modal-status">${I18N.t('update.checking')}</p>
-            
+            <div id="update-changelog" class="update-changelog hidden">
+              <h4 id="update-changelog-title">${I18N.t('update.changelog_title')}</h4>
+              <div id="update-changelog-content" class="update-changelog-content"></div>
+            </div>
+             
             <div id="update-progress-container" class="update-progress-container hidden">
               <div class="update-progress-bar-bg">
                 <div id="update-progress-bar" class="update-progress-bar-fill" style="width: 0%"></div>
@@ -67,6 +106,9 @@ class AppUpdater {
     this.progressBarEl = document.getElementById('update-progress-bar');
     this.progressTextEl = document.getElementById('update-progress-text');
     this.speedTextEl = document.getElementById('update-speed-text');
+    this.changelogEl = document.getElementById('update-changelog');
+    this.changelogTitleEl = document.getElementById('update-changelog-title');
+    this.changelogContentEl = document.getElementById('update-changelog-content');
     this.actionBtnEl = document.getElementById('update-modal-action');
     this.cancelBtnEl = document.getElementById('update-modal-cancel');
     this.closeBtnEl = document.getElementById('update-modal-close');
@@ -79,6 +121,8 @@ class AppUpdater {
     window.electronAPI.onUpdateAvailable((info) => {
       this.currentInfo = info;
       const version = info ? (info.version || '') : '';
+      if (this.wasNotified(version)) return;
+      this.markNotified(version);
       this.showUpdateAvailable(version);
     });
 
@@ -108,6 +152,7 @@ class AppUpdater {
   showUpdateAvailable(version) {
     this.titleEl.textContent = I18N.t('update.title_available');
     this.statusEl.textContent = I18N.t('update.available', version ? 'v' + version : '');
+    this.loadReleaseNotes(version);
     
     this.progressContainerEl.classList.add('hidden');
     this.cancelBtnEl.classList.add('hidden');
@@ -167,6 +212,8 @@ class AppUpdater {
     this.isDownloading = false;
     this.titleEl.textContent = I18N.t('update.title_downloaded');
     this.statusEl.textContent = I18N.t('update.download_done');
+    const version = info ? (info.version || '') : '';
+    this.loadReleaseNotes(version);
 
     this.progressContainerEl.classList.add('hidden');
     this.cancelBtnEl.classList.add('hidden');
@@ -184,6 +231,7 @@ class AppUpdater {
     this.isDownloading = false;
     this.titleEl.textContent = I18N.t('update.title_error');
     this.statusEl.textContent = I18N.t('update.error', errorMsg || I18N.t('update.error_no_connection'));
+    this.resetReleaseNotes();
 
     this.progressContainerEl.classList.add('hidden');
     this.cancelBtnEl.classList.add('hidden');
@@ -199,6 +247,86 @@ class AppUpdater {
     if (this.modalEl) {
       this.modalEl.classList.add('hidden');
     }
+    this.resetReleaseNotes();
+  }
+
+  wasNotified(version) {
+    try {
+      return localStorage.getItem('krumer-update-notified') === (version || '');
+    } catch (err) {
+      return false;
+    }
+  }
+
+  markNotified(version) {
+    try {
+      localStorage.setItem('krumer-update-notified', version || '');
+    } catch (err) {
+      // localStorage indisponível — ignora silenciosamente
+    }
+  }
+
+  resetReleaseNotes() {
+    this.releaseNotesRequestId += 1;
+    if (!this.changelogEl || !this.changelogContentEl) return;
+    this.changelogEl.classList.add('hidden');
+    this.changelogContentEl.textContent = '';
+  }
+
+  async loadReleaseNotes(version) {
+    if (!this.changelogEl || !this.changelogContentEl) return;
+
+    const requestId = this.releaseNotesRequestId + 1;
+    this.releaseNotesRequestId = requestId;
+    this.changelogTitleEl.textContent = I18N.t('update.changelog_title');
+    this.changelogContentEl.textContent = I18N.t('update.changelog_loading');
+    this.changelogEl.classList.remove('hidden');
+
+    try {
+      const release = await this.fetchRelease(version);
+      if (requestId !== this.releaseNotesRequestId) return;
+
+      const notes = release && release.body ? release.body.trim() : '';
+      this.changelogContentEl.innerHTML = notes
+        ? AppUpdater.renderMarkdown(notes)
+        : I18N.t('update.changelog_empty');
+    } catch (err) {
+      if (requestId !== this.releaseNotesRequestId) return;
+      console.warn('[Update] Falha ao carregar changelog:', err);
+      this.changelogContentEl.textContent = I18N.t('update.changelog_error');
+    }
+  }
+
+  static renderMarkdown(md) {
+    if (typeof marked === 'undefined') {
+      return String(md || '');
+    }
+    configureMarked();
+    return marked.parse(String(md || ''));
+  }
+
+  async fetchRelease(version) {
+    const cleanVersion = (version || '').toString().replace(/^v/i, '').trim();
+    const tags = cleanVersion ? [`v${cleanVersion}`, cleanVersion] : [];
+
+    for (const tag of tags) {
+      const release = await this.fetchReleaseUrl(`https://api.github.com/repos/adriantinoco-dev/Krumer/releases/tags/${encodeURIComponent(tag)}`);
+      if (release) return release;
+    }
+
+    return this.fetchReleaseUrl('https://api.github.com/repos/adriantinoco-dev/Krumer/releases/latest', true);
+  }
+
+  async fetchReleaseUrl(url, required = false) {
+    const response = await fetch(url, {
+      headers: {
+        Accept: 'application/vnd.github+json'
+      }
+    });
+
+    if (response.status === 404 && !required) return null;
+    if (!response.ok) throw new Error(`GitHub Releases API: ${response.status}`);
+    return response.json();
   }
 }
 
