@@ -77,12 +77,3 @@ jobs:
             dist/*.AppImage
             dist/*.deb
           retention-days: 30
-
-      - name: Upload artefatos (macOS)
-        if: matrix.os == 'macos-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: Krumer-macOS
-          path: |
-            dist/*.dmg
-          retention-days: 30
