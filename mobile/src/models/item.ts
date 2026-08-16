@@ -2,6 +2,18 @@ import type { Progress } from './progress';
 import type { Tag } from './tag';
 
 export type ItemType = 'book' | 'series' | 'comic' | 'graphic_novel' | 'chapter';
+export type BookFormat = 'epub' | 'pdf';
+
+export type Book = {
+  id: string;
+  title: string;
+  author: string;
+  format: BookFormat;
+  filePath: string;
+  coverPath: string | null;
+  progress: string | null;
+  addedAt: number;
+};
 
 export type Item = {
   id: number;

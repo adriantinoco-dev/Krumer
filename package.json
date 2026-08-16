@@ -8,7 +8,12 @@
     "build": "electron-builder --win",
     "build:linux": "electron-builder --linux",
     "build:mac": "electron-builder --mac",
-    "pack": "electron-builder --dir"
+    "pack": "electron-builder --dir",
+    "mobile:prepare": "node mobile/sync-vendor.mjs",
+    "mobile:add:android": "npm run mobile:prepare && cap add android",
+    "mobile:sync": "npm run mobile:prepare && cap sync android",
+    "mobile:run": "npm run mobile:prepare && cap run android",
+    "mobile:open": "cap open android"
   },
   "keywords": [
     "library",
@@ -23,11 +28,21 @@
   },
   "license": "MIT",
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
     "electron": "^43.2.0",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "typescript": "^7.0.2"
   },
   "dependencies": {
-    "electron-updater": "^6.2.1"
+    "@capacitor-community/sqlite": "^8.1.1",
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/preferences": "^8.0.1",
+    "electron-updater": "^6.2.1",
+    "epubjs": "^0.3.93",
+    "jszip": "^3.10.1",
+    "pdfjs-dist": "^6.2.108"
   },
   "overrides": {
     "brace-expansion": "^5.0.9"

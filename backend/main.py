@@ -1506,8 +1506,9 @@ def get_cached_metadata_keys():
 if __name__ == "__main__":
     import sys
     import uvicorn
+    api_host = os.getenv("KRUMER_API_HOST", "127.0.0.1")
 
     if getattr(sys, 'frozen', False):
-        uvicorn.run(app, host="127.0.0.1", port=8765, log_level="info")
+        uvicorn.run(app, host=api_host, port=8765, log_level="info")
     else:
-        uvicorn.run("main:app", host="127.0.0.1", port=8765, reload=True)
+        uvicorn.run("main:app", host=api_host, port=8765, reload=True)

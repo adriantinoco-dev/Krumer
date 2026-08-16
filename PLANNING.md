@@ -35,12 +35,12 @@
 ## Features mobile planejadas
 
 ### M1 — Base Expo Go e estrutura do app
-**Status:** `[~]`
+**Status:** `[x]`
 
 Criar a versão Android em `mobile/` usando React Native com Expo Go. O app deve manter dependências isoladas do desktop e seguir uma estrutura por domínio: API, modelos, telas, componentes, leitores, tema, i18n, storage e navegação.
 
 ### M2 — Onboarding mobile
-**Status:** `[ ]`
+**Status:** `[x]`
 
 Fluxo inicial:
 - escolher idioma;
@@ -52,7 +52,7 @@ Fluxo inicial:
 O onboarding deve seguir a identidade visual dark/minimalista do desktop, adaptada para toque e telas pequenas.
 
 ### M3 — Biblioteca mobile
-**Status:** `[ ]`
+**Status:** `[x]`
 
 Tela principal equivalente a "Minha Biblioteca" no desktop:
 - seção "Continuar lendo" no topo;
@@ -64,7 +64,7 @@ Tela principal equivalente a "Minha Biblioteca" no desktop:
 Referência futura: pode ser adicionado modo lista, mas o MVP usa grid de capas.
 
 ### M4 — Listas mobile
-**Status:** `[ ]`
+**Status:** `[x]`
 
 A aba "Listas" deve conter:
 - Séries/Mangás;
@@ -230,6 +230,8 @@ O app mobile deve trabalhar com uma pasta selecionada pelo usuário, mantendo a 
 - pastas com capítulos viram séries;
 - PDF e EPUB são formatos centrais;
 - CBZ/CBR continua no roadmap.
+
+O escaneamento inicial é executado localmente no Android via Storage Access Framework (SAF). A pasta do celular não depende de um caminho equivalente no backend desktop; o catálogo básico e as listas do MVP são persistidos no próprio aparelho.
 
 O scanner e os contratos de dados devem permanecer compatíveis com o backend sempre que possível.
 

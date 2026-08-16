@@ -28,3 +28,13 @@ resources/
 dev-app-update.yml
 dev-update-server.js
 implementacoes_v2.md
+.rn-node-modules-stale
+.gradle-user-home/
+.gradle-krumer-mobile/
+android/.gradle/
+android/local.properties
+android/**/build/
+.gradle-user-home
+.pytest_cache
+.pnpm-store
+mobile/

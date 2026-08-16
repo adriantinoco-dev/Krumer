@@ -1,15 +1,28 @@
 # Krumer Mobile
 
-Versao Android do Krumer em React Native.
+Versao Android do Krumer em React Native / Expo.
 
-Este app vive no mesmo repositorio do desktop, mas deve manter dependencias e codigo separados em `mobile/`. A integracao principal e feita pela mesma API FastAPI usada pelo Electron.
+Este app vive no mesmo repositorio do desktop, mas mantem dependencias e codigo separados em `mobile/`. A UI principal e 100% nativa React Native; WebView e usada apenas dentro do leitor EPUB.
 
-## Direcao inicial
+## Estado atual
 
-- React Native para Android.
-- Backend FastAPI como fonte da verdade.
-- UI mobile propria, reaproveitando contratos, modelos, traducoes e identidade visual do Krumer.
-- Primeiro ciclo consumindo backend em rede local ou `localhost` configuravel.
+- Onboarding em 3 passos: idioma/tema, pasta da biblioteca e chave Gemini.
+- Navegacao principal por abas: Biblioteca, Listas e Configuracoes.
+- Biblioteca com grid responsivo de capas.
+- Configuracoes agrupadas com subtelas de Geral, Tema, API Key e Sobre.
+- Scanner local de `.epub` e `.pdf` com progresso visual.
+- Extracao de capa EPUB via ZIP/OPF e thumbnail PDF via modulo nativo.
+- Leitor EPUB com WebView + epub.js e leitor PDF com `react-native-pdf`.
+
+## Desenvolvimento
+
+Algumas dependencias sao nativas (`react-native-pdf`, `react-native-pdf-thumbnail`, `react-native-webview`). Por isso, use development build:
+
+```bash
+npm install
+npx expo prebuild
+npx expo run:android
+```
 
 ## Estrutura
 
@@ -30,12 +43,9 @@ mobile/
     └── theme/            # Cores, espacamentos e tokens visuais
 ```
 
-## MVP sugerido
+## Persistencia local
 
-1. Configurar URL do backend.
-2. Listar biblioteca via `/items`.
-3. Exibir detalhes e capas.
-4. Abrir leitor PDF/EPUB.
-5. Salvar progresso de leitura.
-6. Sincronizar status lido/nao lido, listas e configuracoes.
+- Preferencias, onboarding, pasta e chave Gemini ficam no AsyncStorage.
+- A biblioteca escaneada e salva como lista de livros no AsyncStorage.
+- Capas ficam como arquivos locais; o storage guarda apenas o path.
 

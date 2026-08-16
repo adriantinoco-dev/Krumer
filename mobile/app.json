@@ -3,8 +3,15 @@
     "name": "Krumer",
     "slug": "krumer",
     "displayName": "Krumer",
+    "scheme": "krumer",
+    "orientation": "portrait",
     "android": {
-      "package": "com.adriantinoco.krumer"
+      "package": "com.adriantinoco.krumer",
+      "permissions": [
+        "READ_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO"
+      ]
     }
   }
 }
