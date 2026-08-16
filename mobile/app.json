@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "name": "Krumer",
+    "slug": "krumer",
+    "displayName": "Krumer",
+    "android": {
+      "package": "com.adriantinoco.krumer"
+    }
+  }
+}

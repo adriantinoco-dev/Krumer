@@ -148,6 +148,10 @@ uvicorn main:app --reload
 
 Abra `frontend/index.html` em um servidor local ou via Electron.
 
+### Mobile Android
+
+A versao React Native fica em `mobile/` e consome a mesma API FastAPI do backend. O esqueleto inicial ja separa cliente de API, modelos, telas, componentes, leitores, tema, i18n e preferencias locais.
+
 ---
 
 ## 📦 Tecnologias
@@ -163,6 +167,7 @@ Abra `frontend/index.html` em um servidor local ou via Electron.
 | Metadados com IA | Google Gemini API (2.5 Flash / 2.0 Flash) |
 | Frontend | HTML · CSS · JavaScript (vanilla) |
 | Atualizações | electron-updater |
+| Mobile Android | React Native |
 
 </div>
 
@@ -173,7 +178,7 @@ Abra `frontend/index.html` em um servidor local ou via Electron.
 - [ ] Suporte a CBZ / CBR (quadrinhos em formato de arquivo compactado)
 - [ ] Sincronização de progresso entre dispositivos
 - [ ] Exportar biblioteca como CSV / JSON
-- [ ] Versão mobile via React Native
+- [~] Versão mobile via React Native em `mobile/`
 
 ---
 

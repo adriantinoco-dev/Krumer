@@ -1,0 +1,12 @@
+{
+  "name": "krumer-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Versao Android do Krumer em React Native",
+  "scripts": {
+    "android": "react-native run-android",
+    "start": "react-native start",
+    "test": "jest"
+  }
+}
+
