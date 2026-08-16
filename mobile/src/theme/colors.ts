@@ -62,6 +62,12 @@ export const radii = {
   lg: 16,
 };
 
+export function coverShadow(themeName: ThemeName): string {
+  if (themeName === 'light') return '0 3px 10px rgba(0, 0, 0, 0.16)';
+  if (themeName === 'sepia') return '0 3px 10px rgba(90, 60, 30, 0.22)';
+  return '0 2px 6px rgba(0, 0, 0, 0.35)';
+}
+
 export const spacing = {
   xs: 4,
   sm: 8,

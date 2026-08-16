@@ -1,6 +1,15 @@
 import { Directory, File } from 'expo-file-system';
 import type { Book, BookFormat } from '../models/item';
-import { extractCover } from './coverExtractor';
+import { extractCover, getExistingCoverPath } from './coverExtractor';
+
+const COVER_CONCURRENCY = 3;
+const SCAN_TOTAL_MIN_MS = 2000;
+const SCAN_STEP_MIN_MS = 15;
+const SCAN_STEP_MAX_MS = 250;
+
+function delay(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
 
 export type ScanUpdate = {
   fileName: string;
@@ -10,8 +19,11 @@ export type ScanUpdate = {
 
 type ScannedFile = {
   uri: string;
-  childrenCount: number | null;
 };
+
+type ScannedEntry =
+  | { kind: 'book'; uri: string }
+  | { kind: 'collection'; uri: string; files: ScannedFile[] };
 
 function createBookId(filePath: string) {
   let hash = 0;
@@ -46,26 +58,46 @@ function getTitle(filePath: string) {
   return getFileName(filePath).replace(/\.(epub|pdf)$/i, '').replace(/[_-]+/g, ' ').trim();
 }
 
-export async function scanDirectory(directoryUri: string): Promise<ScannedFile[]> {
+function getFolderTitle(directoryUri: string) {
+  const name = safeDecodeUri(directoryUri).replace(/\/$/, '').split('/').pop() ?? directoryUri;
+  return name.replace(/[_-]+/g, ' ').trim();
+}
+
+async function collectFolderFiles(directoryUri: string): Promise<ScannedFile[]> {
   const result: ScannedFile[] = [];
   const entries = new Directory(directoryUri).list();
-  const localBookFiles: File[] = [];
 
   for (const entry of entries) {
     if (entry instanceof Directory) {
-      const nested = await scanDirectory(entry.uri);
+      const nested = await collectFolderFiles(entry.uri);
       result.push(...nested);
       continue;
     }
 
     if (entry instanceof File && getBookFormat(entry.uri)) {
-      localBookFiles.push(entry);
+      result.push({ uri: entry.uri });
     }
   }
 
-  const childrenCount = localBookFiles.length > 1 ? localBookFiles.length : null;
-  for (const file of localBookFiles) {
-    result.push({ uri: file.uri, childrenCount });
+  return result.sort((a, b) => getFileName(a.uri).localeCompare(getFileName(b.uri)));
+}
+
+async function scanDirectory(directoryUri: string): Promise<ScannedEntry[]> {
+  const result: ScannedEntry[] = [];
+  const entries = new Directory(directoryUri).list();
+
+  for (const entry of entries) {
+    if (entry instanceof Directory) {
+      const files = await collectFolderFiles(entry.uri);
+      if (files.length) {
+        result.push({ kind: 'collection', uri: entry.uri, files });
+      }
+      continue;
+    }
+
+    if (entry instanceof File && getBookFormat(entry.uri)) {
+      result.push({ kind: 'book', uri: entry.uri });
+    }
   }
 
   return result;
@@ -75,45 +107,101 @@ export async function scanLibrary(
   directoryUri: string,
   onUpdate?: (update: ScanUpdate) => void
 ): Promise<Book[]> {
-  const files = await scanDirectory(directoryUri);
+  const scanned = await scanDirectory(directoryUri);
   const books: Book[] = [];
+  const stepDelay = scanned.length
+    ? Math.min(SCAN_STEP_MAX_MS, Math.max(SCAN_STEP_MIN_MS, SCAN_TOTAL_MIN_MS / scanned.length))
+    : 0;
 
-  for (let index = 0; index < files.length; index += 1) {
-    const { uri: filePath, childrenCount } = files[index];
-    const format = getBookFormat(filePath);
-    if (!format) continue;
+  for (let index = 0; index < scanned.length; index += 1) {
+    const entry = scanned[index];
+    const fileName = getFileName(entry.uri);
 
-    const id = createBookId(filePath);
-    const fileName = getFileName(filePath);
+    if (index > 0) await delay(stepDelay);
+
     onUpdate?.({
       fileName,
-      percent: files.length ? (index / files.length) * 100 : 0,
+      percent: scanned.length ? (index / scanned.length) * 100 : 0,
       done: false,
     });
 
-    const coverPath = await extractCover(filePath, id, format);
-    books.push({
-      id,
-      title: getTitle(filePath),
-      author: '',
-      format,
-      filePath,
-      coverPath,
-      progress: null,
-      childrenCount,
-      addedAt: Date.now(),
-    });
+    if (entry.kind === 'collection') {
+      const parentId = createBookId(entry.uri);
+      const children: Book[] = entry.files.map((file) => ({
+        id: createBookId(file.uri),
+        title: getTitle(file.uri),
+        author: '',
+        format: getBookFormat(file.uri) as BookFormat,
+        filePath: file.uri,
+        coverPath: null,
+        progress: null,
+        parentId,
+        addedAt: Date.now(),
+      }));
+      const firstChild = children[0];
+
+      books.push({
+        id: parentId,
+        title: getFolderTitle(entry.uri),
+        author: '',
+        format: firstChild.format,
+        filePath: firstChild.filePath,
+        coverPath: null,
+        progress: null,
+        childrenCount: children.length,
+        children,
+        addedAt: Date.now(),
+      });
+    } else {
+      books.push({
+        id: createBookId(entry.uri),
+        title: getTitle(entry.uri),
+        author: '',
+        format: getBookFormat(entry.uri) as BookFormat,
+        filePath: entry.uri,
+        coverPath: null,
+        progress: null,
+        parentId: null,
+        addedAt: Date.now(),
+      });
+    }
 
     onUpdate?.({
       fileName,
-      percent: files.length ? ((index + 1) / files.length) * 100 : 100,
-      done: index + 1 === files.length,
+      percent: scanned.length ? ((index + 1) / scanned.length) * 100 : 100,
+      done: index + 1 === scanned.length,
     });
   }
 
-  if (!files.length) {
+  if (!scanned.length) {
     onUpdate?.({ fileName: '', percent: 100, done: true });
   }
 
   return books;
+}
+
+export async function extractCoversInBackground(
+  books: Book[],
+  onCoverReady: (bookId: string, coverPath: string) => void
+): Promise<void> {
+  const queue = books.filter((book) => !book.coverPath);
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < queue.length) {
+      const book = queue[cursor];
+      cursor += 1;
+
+      try {
+        const existingCover = await getExistingCoverPath(book.id);
+        const coverPath = existingCover ?? (await extractCover(book.filePath, book.id, book.format));
+        if (coverPath) onCoverReady(book.id, coverPath);
+      } catch {
+        // livro fica sem capa; nao quebra o fluxo
+      }
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(COVER_CONCURRENCY, queue.length) }, worker);
+  await Promise.all(workers);
 }

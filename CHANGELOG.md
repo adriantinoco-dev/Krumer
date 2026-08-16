@@ -5,17 +5,30 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
-## [1.2.0] — atual
+## [1.3.0] — atual
 
 ### Adicionado
 - F1: Contador de itens recursivo — soma todos os livros dentro de subpastas/coleções
-- F2: `shortcutsMap` centralizado em `app.js` com suporte a múltiplas combinações de tecla por ação
+- F2: Menu de Atalhos nas Configurações — nova seção que renderiza o `shortcutsMap` centralizado em `app.js`, com suporte a múltiplas combinações de tecla por ação, organizado por contexto (Geral, Biblioteca, Leitura)
 - F3: Restauração de capa original na edição de metadados via `cover_original_path`
 - F4: Rescan automático ao sair da leitura ou trocar de aba
 - F5: Seleção de idioma no onboarding (step 0)
 - F6: Toggle de modo de visualização de capítulos — "Somente Título" ou "Título + Capa"
 - F6: Preferência `krumer_chapter_view` persistida via `localStorage`
 - F7: Tela de atualização com changelog via GitHub Releases API — renderiza o `body` (Markdown) da release, com estados de loading/fallback e notificação exibida uma única vez por versão
+
+### Corrigido
+- Sincronização de status de leitura entre livros pai e filhos (séries)
+
+### Mobile (Android) — em desenvolvimento
+- Base do app Android em `mobile/` (React Native + Expo): onboarding (idioma/tema/pasta/API key), abas Biblioteca/Listas/Configurações, biblioteca com "Continuar lendo" e grid de capas, listas fixas, scanner local de PDF/EPUB, extração de capas, leitor PDF via `react-native-pdf` e EPUB via WebView + epub.js, 3 temas e i18n parcial (3 de 10 idiomas).
+- Ainda não publicado. Roadmap de paridade com o desktop v1.3.0 (PB1–PB6 + F1–F7 para Android) em `PLANNING.md`.
+
+---
+
+## [1.2.0]
+
+### Adicionado
 - Coluna `file_size` em `Item`
 - Tabela `archived_items` — snapshot JSON de itens removidos, restaurados por fingerprint (`tipo|basename|tamanho`)
 - Tabela `user_lists` e `list_items` — listas customizadas com suporte a lista padrão "Favoritos"

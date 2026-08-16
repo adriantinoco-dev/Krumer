@@ -26,6 +26,7 @@ export type TranslationKey =
   | 'library.unknownAuthor'
   | 'library.continueReading'
   | 'library.items'
+  | 'library.volumesShort'
   | 'lists.books'
   | 'lists.empty'
   | 'lists.emptyHint'
@@ -95,6 +96,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.unknownAuthor': 'Unknown author',
     'library.continueReading': 'Continue Reading',
     'library.items': 'items',
+    'library.volumesShort': "vol's",
     'lists.books': 'books',
     'lists.empty': 'No lists yet.',
     'lists.emptyHint': 'Tap + to create your first list.',
@@ -153,6 +155,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.unknownAuthor': 'Autor desconhecido',
     'library.continueReading': 'Continuar Lendo',
     'library.items': 'itens',
+    'library.volumesShort': "vol's",
     'lists.books': 'livros',
     'lists.empty': 'Nenhuma lista ainda.',
     'lists.emptyHint': 'Toque em + para criar sua primeira lista.',
@@ -211,6 +214,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.unknownAuthor': 'Autor desconocido',
     'library.continueReading': 'Seguir Leyendo',
     'library.items': 'items',
+    'library.volumesShort': "vol's",
     'lists.books': 'libros',
     'lists.empty': 'Aún no hay listas.',
     'lists.emptyHint': 'Toca + para crear tu primera lista.',

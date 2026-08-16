@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { Star } from 'lucide-react-native';
+import { VolumeBadge } from './VolumeBadge';
 import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
-import { serifFont, spacing } from '../theme';
+import { coverShadow, serifFont, spacing } from '../theme';
 
 const STAR_FILLED = '#ffda4d';
 const STAR_EMPTY = '#414141ff';
@@ -29,12 +30,13 @@ export function BookCard({ book, width, onPress }: { book: Book; width: number; 
   return (
     <Pressable onPress={onPress} style={{ paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, width }}>
       <View style={{ alignItems: 'center', marginBottom: 12, width: coverWidth }}>
-        <View
+<View
           style={{
             alignItems: 'center',
-            aspectRatio: 3 / 4,
+            aspectRatio: 5 / 7,
             backgroundColor: placeholderBackground,
             borderRadius: COVER_RADIUS,
+            boxShadow: coverShadow(theme.name),
             justifyContent: 'center',
             overflow: 'hidden',
             width: coverWidth,
@@ -65,6 +67,7 @@ export function BookCard({ book, width, onPress }: { book: Book; width: number; 
             </Text>
           )}
         </View>
+        <VolumeBadge count={book.childrenCount} />
       </View>
       <Text
         ellipsizeMode="tail"

@@ -16,9 +16,10 @@ Projeto pessoal solo desenvolvido por adriantinoco-dev.
 | Metadados com IA | Google Gemini API (2.5 Flash / 2.0 Flash) via `google-genai` |
 | Frontend | HTML · CSS · JavaScript (vanilla) |
 | Atualizações | electron-updater |
-| Mobile (Android) | React Native · Expo Go |
+| Mobile (Android) | React Native · Expo · `react-native-pdf` · `react-native-webview` |
 
-**Versão atual:** 1.2.0
+**Versão atual (desktop):** 1.3.0  
+**Versão mobile (Android):** 0.1.0 — em desenvolvimento, roadmap de paridade em `PLANNING.md`
 
 ---
 
@@ -66,11 +67,13 @@ Krumer/
     └── src/
         ├── api/
         ├── components/
+        ├── context/
         ├── i18n/
         ├── models/
         ├── navigation/
         ├── readers/
         ├── screens/
+        ├── services/         # Scanner local e extração de capas no Android
         ├── storage/
         └── theme/
 ```
@@ -138,8 +141,10 @@ Migrations inline em `main.py` via `ALTER TABLE` com try/except.
 - A aba Listas deve conter Séries/Mangás, Lidos, Não Lidos, Favoritos e listas customizadas, incluindo opção de criar listas.
 - Grid de capas é o modo visual principal. Modo lista pode ser adicionado futuramente.
 - Séries e capítulos devem manter os modos `'title'` e `'title+cover'`.
-- Leitores PDF/EPUB devem começar por WebView. Bibliotecas nativas só devem ser testadas se WebView não entregar boa experiência.
-- Busca de metadados via Gemini deve existir no mobile como no desktop.
+- Leitores já validados no mobile: **PDF via `react-native-pdf`** (biblioteca nativa) e **EPUB via WebView + epub.js**. Não trocar sem motivo claro.
+- Dependências nativas (`react-native-pdf`, `react-native-webview`, thumbnails) exigem development build: `npx expo prebuild` + `npx expo run:android`. Expo Go não cobre esses módulos.
+- Persistência local no Android via `AsyncStorage` (preferências, biblioteca escaneada, progresso e caminho de capas).
+- Busca de metadados via Gemini deve existir no mobile como no desktop (a chave já é salva no onboarding).
 - Edição de metadados no mobile deve permitir título, autor, ano, sinopse, tags, avaliação e capa. Não editar editora no mobile.
 - Implementar cache básico offline para biblioteca, capas vistas, metadados principais e preferências. Sincronização real fica para uma fase futura.
 - Firebase é decisão futura para sincronização; não introduzir Firebase no MVP.
@@ -160,23 +165,41 @@ Migrations inline em `main.py` via `ALTER TABLE` com try/except.
 
 Status por feature (spec completa em `krumer-features.md`, roadmap em `PLANNING.md`):
 
+### Desktop (Windows/Linux)
+
 - **F1** `[x]` Contador de itens recursivo (soma livros dentro de subpastas/coleções).
 - **F2** `[x]` Menu de Atalhos nas Configurações (renderiza `shortcutsMap` de `app.js`).
 - **F3** `[x]` Restaurar capa original na edição de metadados (campo `cover_original_path`).
 - **F4** `[x]` Rescan automático ao sair da leitura ou mudar de aba.
 - **F5** `[x]` Seleção de idioma no Onboarding (step 0).
 - **F6** `[x]` Modo de exibição de capítulos: "Somente Título" ou "Título + Capa" (`window.chapterViewMode`).
-- **F7** `[x]` Tela de atualização com changelog via GitHub Releases API.
-- **M1** `[~]` Base mobile React Native + Expo Go em `mobile/`.
-- **M2** `[ ]` Onboarding mobile: idioma, tema, pasta e biblioteca.
-- **M3** `[ ]` Biblioteca mobile com "Continuar lendo" e grid de capas.
-- **M4** `[ ]` Aba Listas com Séries/Mangás, Lidos, Não Lidos, Favoritos e listas customizadas.
-- **M5** `[ ]` Detalhes e edição mobile de metadados, exceto editora.
-- **M6** `[ ]` Leitores PDF/EPUB via WebView.
-- **M7** `[ ]` Busca de metadados Gemini no mobile.
-- **M8** `[ ]` 10 idiomas e 3 temas no mobile.
-- **M9** `[ ]` Cache básico offline.
-- **M10** `[ ]` Sincronização futura via Firebase.
+- **F7** `[x]` Tela de atualização com changelog via GitHub Releases API (dispara em toda inicialização enquanto houver versão nova).
+
+### Android — paridade com o desktop
+
+Objetivo: deixar o mobile (Android) praticamente idêntico em funcionalidade ao desktop v1.3.0.
+Base já implementada em `mobile/`: onboarding (idioma/tema/pasta/API key), abas Biblioteca/Listas/Configurações, biblioteca com "Continuar lendo" e grid de capas, listas fixas, scanner local PDF/EPUB, extração de capas, leitores (PDF nativo + EPUB WebView), 3 temas, i18n parcial (3 de 10 idiomas).
+
+Implementar na ordem abaixo (cada item é a versão **Android** do recurso equivalente do desktop).
+
+Base de paridade (pré-requisitos):
+
+- **PB1** `[ ]` Busca e ordenação na biblioteca (por título/autor; ordenar por nome, data, avaliação e progresso).
+- **PB2** `[ ]` Tela de detalhes do livro (capa, metadados, avaliação, progresso, capítulos/volumes, marcar lido/não lido).
+- **PB3** `[ ]` Edição de metadados (título, autor, ano, sinopse, tags, avaliação e capa — sem editora).
+- **PB4** `[ ]` Listas customizadas + favoritos (criar/renomear/excluir listas, adicionar/remover itens; Séries/Mangás, Lidos e Não Lidos são fixos e não excluíveis).
+- **PB5** `[ ]` Busca de metadados via Gemini (usando a chave já salva no onboarding).
+- **PB6** `[ ]` Sincronizar status de leitura entre livro pai e filhos (séries), como no fix do v1.3.0.
+
+Paridade F1–F7 (Android):
+
+- **F1 (Android)** `[ ]` Contador de itens recursivo (soma livros dentro de séries/subpastas na contagem).
+- **F2 (Android)** `[ ]` Menu de atalhos nas Configurações (lista atalhos/gestos por contexto: Geral, Biblioteca, Leitura).
+- **F3 (Android)** `[ ]` Restaurar capa original na edição de metadados (requer PB3).
+- **F4 (Android)** `[ ]` Rescan automático ao sair da leitura ou mudar de aba.
+- **F5 (Android)** `[~]` Idioma no onboarding — expandir de 3 para os 10 idiomas do desktop.
+- **F6 (Android)** `[ ]` Modo de visualização de capítulos: "Somente Título" ou "Título + Capa" (preferência salva localmente).
+- **F7 (Android)** `[ ]` Tela de atualização com changelog via GitHub Releases (dispara em toda inicialização enquanto houver versão nova).
 
 ---
 
@@ -201,7 +224,7 @@ Status por feature (spec completa em `krumer-features.md`, roadmap em `PLANNING.
 - Não substituir vanilla JS por TypeScript.
 - Não empacotar o backend Python manualmente. O npm já cuida disso ao buildar o app.
 - Não introduzir Firebase antes da fase de sincronização.
-- Não trocar WebView por leitor nativo no mobile sem validar primeiro a experiência inicial.
+- Não trocar os leitores já validados no mobile (PDF via `react-native-pdf`, EPUB via WebView) sem motivo claro.
 
 ---
 

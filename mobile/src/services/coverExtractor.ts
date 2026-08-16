@@ -178,6 +178,16 @@ async function ensureCoversDirectory() {
   return directory;
 }
 
+export async function getExistingCoverPath(bookId: string): Promise<string | null> {
+  const directory = `${FileSystem.documentDirectory}covers/`;
+  for (const extension of IMAGE_EXTENSIONS) {
+    const candidate = `${directory}cover_${bookId}.${extension}`;
+    const info = await FileSystem.getInfoAsync(candidate).catch(() => null);
+    if (info?.exists && Number(info.size ?? 0) > 0) return candidate;
+  }
+  return null;
+}
+
 export async function extractEpubCover(epubPath: string, bookId: string): Promise<string | null> {
   try {
     const base64 = await FileSystem.readAsStringAsync(epubPath, {

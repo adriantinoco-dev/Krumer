@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { useApp } from '../context/AppContext';
+import { VolumeBadge } from './VolumeBadge';
 import type { Book } from '../models/item';
-import { serifFont, spacing } from '../theme';
+import { coverShadow, serifFont, spacing } from '../theme';
 
 const COVER_RADIUS = 16;
 const CARD_WIDTH = 140;
-const COVER_HEIGHT = 187;
+const COVER_HEIGHT = 196;
 
 export function BookCardContinue({ book, onPress }: { book: Book; onPress: () => void }) {
   const { theme, t } = useApp();
@@ -30,6 +31,7 @@ export function BookCardContinue({ book, onPress }: { book: Book; onPress: () =>
             alignItems: 'center',
             backgroundColor: placeholderBackground,
             borderRadius: COVER_RADIUS,
+            boxShadow: coverShadow(theme.name),
             height: COVER_HEIGHT,
             justifyContent: 'center',
             overflow: 'hidden',
@@ -61,23 +63,7 @@ export function BookCardContinue({ book, onPress }: { book: Book; onPress: () =>
             </Text>
           )}
         </View>
-        {Boolean(book.childrenCount && book.childrenCount > 1) && (
-          <View
-            style={{
-              backgroundColor: theme.accent,
-              borderRadius: 12,
-              left: 8,
-              paddingHorizontal: 8,
-              paddingVertical: 4,
-              position: 'absolute',
-              top: 8,
-            }}
-          >
-            <Text style={{ color: '#ffffff', fontFamily: serifFont, fontSize: 10, fontWeight: '700' }}>
-              {book.childrenCount} vol(s)
-            </Text>
-          </View>
-        )}
+        <VolumeBadge count={book.childrenCount} />
       </View>
       <Text
         ellipsizeMode="tail"

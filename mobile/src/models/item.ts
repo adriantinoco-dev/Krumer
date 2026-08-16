@@ -14,6 +14,8 @@ export type Book = {
   rating?: number | null;
   progress: string | null;
   childrenCount?: number | null;
+  parentId?: string | null;
+  children?: Book[];
   addedAt: number;
 };
 

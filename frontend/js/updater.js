@@ -121,8 +121,6 @@ class AppUpdater {
     window.electronAPI.onUpdateAvailable((info) => {
       this.currentInfo = info;
       const version = info ? (info.version || '') : '';
-      if (this.wasNotified(version)) return;
-      this.markNotified(version);
       this.showUpdateAvailable(version);
     });
 
@@ -248,22 +246,6 @@ class AppUpdater {
       this.modalEl.classList.add('hidden');
     }
     this.resetReleaseNotes();
-  }
-
-  wasNotified(version) {
-    try {
-      return localStorage.getItem('krumer-update-notified') === (version || '');
-    } catch (err) {
-      return false;
-    }
-  }
-
-  markNotified(version) {
-    try {
-      localStorage.setItem('krumer-update-notified', version || '');
-    } catch (err) {
-      // localStorage indisponível — ignora silenciosamente
-    }
   }
 
   resetReleaseNotes() {
