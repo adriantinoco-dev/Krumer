@@ -52,7 +52,7 @@ jobs:
         run: npm install
 
       - name: Buildar app
-        run: npm run ${{ matrix.npm_script }}
+        run: npm run ${{ matrix.npm_script }} -- --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
