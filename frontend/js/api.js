@@ -23,12 +23,22 @@ class LibraryAPI {
     return await res.json();
   }
 
-  /**
-   * Retrieves single item details by ID
+/**
+   * Fetches single item details by ID
    */
   static async getItem(id) {
     const res = await fetch(`${API_BASE_URL}/items/${id}`);
     if (!res.ok) throw new Error(I18N.t('api.error_item_not_found', res.statusText));
+    return await res.json();
+  }
+
+  /**
+   * Fetches items in progress for the "Continuar Lendo" section.
+   * Includes both root books and chapter children currently being read.
+   */
+  static async getContinueReadingItems() {
+    const res = await fetch(`${API_BASE_URL}/items/continue-reading`);
+    if (!res.ok) throw new Error(I18N.t('api.error_fetch_items', res.statusText));
     return await res.json();
   }
 

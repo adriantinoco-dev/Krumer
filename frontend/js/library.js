@@ -19,6 +19,7 @@ class LibraryManager {
     this.favoritedIds = new Set();
 
     this.selectedItem = null;
+    this.continueReadingItems = [];
   }
 
   /**
@@ -183,41 +184,8 @@ class LibraryManager {
   renderGrid() {
     if (!this.gridElement) return;
 
-    // Renderizar seção "Continuar Lendo" (livros em andamento: progresso > 0% e < 100%)
-    const continueContainer = document.getElementById('continue-reading-container');
-    const continueGrid = document.getElementById('continue-reading-grid');
-    const continueCount = document.getElementById('continue-reading-count');
-
-    const inProgressItems = this.items
-      .filter(item => {
-        const prog = item.overall_progress || 0;
-        if (prog <= 0 || prog >= 100) return false;
-        // Se o item tem progresso próprio (livro/capítulo), ignorar se ainda está na 1ª página
-        if (item.progress && item.progress.length > 0) {
-          const currentPage = item.progress[0].current_page || 0;
-          if (currentPage <= 1) return false;
-        }
-        return true;
-      })
-      .sort((a, b) => {
-        const aDate = a.last_read ? new Date(a.last_read) : new Date(0);
-        const bDate = b.last_read ? new Date(b.last_read) : new Date(0);
-        return bDate - aDate;
-      });
-
-    if (continueContainer && continueGrid) {
-      if (this.currentCategory === 'all' && inProgressItems.length > 0) {
-        continueContainer.style.display = 'block';
-        if (continueCount) {
-          continueCount.textContent = I18N.t('continue.count', inProgressItems.length);
-        }
-        continueGrid.innerHTML = inProgressItems.map(item => this.createBookCardHTML(item)).join('');
-        this.attachCardEventListeners();
-      } else {
-        continueContainer.style.display = 'none';
-        continueGrid.innerHTML = '';
-      }
-    }
+    // Renderizar seção "Continuar Lendo" (livros avulsos e capítulos em andamento)
+    this._renderContinueReading();
 
     const mainTitleTextEl = document.getElementById('main-title-text');
     if (mainTitleTextEl) {
@@ -266,6 +234,52 @@ class LibraryManager {
 
     this.gridElement.innerHTML = this.items.map(item => this.createBookCardHTML(item)).join('');
     this.attachCardEventListeners();
+  }
+
+  /**
+   * Carrega e renderiza a seção "Continuar Lendo" a partir do endpoint dedicado.
+   * Exibe livros avulsos E capítulos (filhos) em andamento — nunca a série pai.
+   * Cards clicáveis retomam a leitura do arquivo diretamente.
+   */
+  async _renderContinueReading() {
+    const continueContainer = document.getElementById('continue-reading-container');
+    const continueGrid = document.getElementById('continue-reading-grid');
+    const continueCount = document.getElementById('continue-reading-count');
+    if (!continueContainer || !continueGrid) return;
+
+    if (this.currentCategory !== 'all') {
+      continueContainer.style.display = 'none';
+      continueGrid.innerHTML = '';
+      this.continueReadingItems = [];
+      return;
+    }
+
+    const fetchId = (this._continueFetchSeq = (this._continueFetchSeq || 0) + 1);
+    try {
+      const items = await LibraryAPI.getContinueReadingItems();
+      if (fetchId !== this._continueFetchSeq) return; // resposta obsoleta
+
+      this.continueReadingItems = items;
+
+      if (items.length === 0) {
+        continueContainer.style.display = 'none';
+        continueGrid.innerHTML = '';
+        return;
+      }
+
+      continueContainer.style.display = 'block';
+      if (continueCount) {
+        continueCount.textContent = I18N.t('continue.count', items.length);
+      }
+      continueGrid.innerHTML = items.map(item => this.createBookCardHTML(item)).join('');
+
+      const continueCards = Array.from(continueGrid.querySelectorAll('.book-card'));
+      this.attachCardEventListeners(continueCards);
+    } catch (err) {
+      console.warn('Erro ao carregar "Continuar Lendo":', err);
+      continueContainer.style.display = 'none';
+      continueGrid.innerHTML = '';
+    }
   }
 
   /**
@@ -350,11 +364,25 @@ class LibraryManager {
 
     // Card click event (suporta cards de continuar lendo e biblioteca geral)
     cards.forEach(card => {
+      const isContinueCard = !!card.closest('#continue-reading-grid');
+
       card.addEventListener('click', (e) => {
         // Prevent trigger if star was clicked
         if (e.target.classList.contains('star')) return;
 
         const itemId = parseInt(card.dataset.id, 10);
+
+        if (isContinueCard) {
+          // Continuar lendo: retomar a leitura do arquivo diretamente
+          const item = this.continueReadingItems.find(i => i.id === itemId);
+          if (item && item.path && typeof openReader === 'function') {
+            openReader(item);
+          } else if (item) {
+            this.openBookDetails(itemId);
+          }
+          return;
+        }
+
         this.openBookDetails(itemId);
       });
 
@@ -362,7 +390,9 @@ class LibraryManager {
       card.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         const itemId = parseInt(card.dataset.id, 10);
-        const item = this.items.find(i => i.id === itemId);
+        const item = isContinueCard
+          ? this.continueReadingItems.find(i => i.id === itemId)
+          : this.items.find(i => i.id === itemId);
         if (item) this._showContextMenu(e, item);
       });
     });
@@ -380,7 +410,7 @@ class LibraryManager {
         const clickedRating = parseInt(star.dataset.rating, 10);
 
         try {
-          const item = this.items.find(i => i.id === itemId);
+          const item = this.items.find(i => i.id === itemId) || this.continueReadingItems.find(i => i.id === itemId);
           const currentRating = item ? (item.rating || 0) : 0;
           const newRating = clickedRating === currentRating ? 0 : clickedRating;
 

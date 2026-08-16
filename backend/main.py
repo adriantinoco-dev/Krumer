@@ -591,6 +591,33 @@ def get_items(
 
     return [_enrich_item(item, db) for item in items]
 
+@app.get("/items/continue-reading", response_model=List[ItemResponse])
+def get_continue_reading_items(db: Session = Depends(get_db)):
+    """Retorna livros avulsos e capítulos (filhos de séries) em andamento,
+    ou seja, com progresso próprio entre 0% e 100% e já passados da 1ª página.
+    Séries (contêineres) ficam de fora: o item a continuar é o filho em si."""
+    rows = (
+        db.query(Item)
+        .join(Progress, Progress.item_id == Item.id)
+        .filter(
+            Item.type != "series",
+            Item.is_read == False,
+            Progress.progress_pct > 0,
+            Progress.progress_pct < 100,
+            Progress.current_page > 1,
+        )
+        .order_by(Item.last_read.desc())
+        .all()
+    )
+    seen = set()
+    unique_items = []
+    for item in rows:
+        if item.id in seen:
+            continue
+        seen.add(item.id)
+        unique_items.append(item)
+    return [_enrich_item(item, db) for item in unique_items]
+
 @app.get("/items/{id}", response_model=ItemResponse)
 def get_item_by_id(id: int, db: Session = Depends(get_db)):
     """Retrieves full details of a specific library item."""

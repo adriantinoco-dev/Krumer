@@ -278,6 +278,47 @@ class TestLibrarianBackend(unittest.TestCase):
         self.assertTrue(series.is_read)
         self.assertTrue(all(chapter.is_read for chapter in chapters))
 
+    def test_continue_reading_returns_in_progress_children_and_books(self):
+        """GET /items/continue-reading lists books and chapters in progress, not the series."""
+        scan_library_folder(self.db, str(self.test_dir))
+
+        series = self.db.query(Item).filter(Item.type == "series").first()
+        chapters = self.db.query(Item).filter(Item.parent_id == series.id).order_by(Item.title.asc()).all()
+        book = self.db.query(Item).filter(Item.type == "book").first()
+
+        # Chapter (filho) em andamento — além da 1ª página
+        main.save_reading_progress(chapters[0].id, main.ProgressUpdatePayload(
+            file_path=chapters[0].path,
+            progress_pct=40.0,
+            current_page=4,
+            total_pages=10,
+        ), db=self.db)
+
+        # Livro avulso em andamento
+        main.save_reading_progress(book.id, main.ProgressUpdatePayload(
+            file_path=book.path,
+            progress_pct=25.0,
+            current_page=3,
+            total_pages=12,
+        ), db=self.db)
+
+        result = main.get_continue_reading_items(db=self.db)
+        ids = {item.id for item in result}
+        self.assertIn(chapters[0].id, ids)
+        self.assertIn(book.id, ids)
+        self.assertNotIn(series.id, ids)
+
+        # Capítulo ainda na 1ª página não é considerado "em andamento"
+        main.save_reading_progress(chapters[1].id, main.ProgressUpdatePayload(
+            file_path=chapters[1].path,
+            progress_pct=5.0,
+            current_page=1,
+            total_pages=10,
+        ), db=self.db)
+        result = main.get_continue_reading_items(db=self.db)
+        ids = {item.id for item in result}
+        self.assertNotIn(chapters[1].id, ids)
+
     def test_move_out_and_back_restores_everything(self):
         """Item removed from disk and re-added keeps metadata, tags and progress."""
         scan_library_folder(self.db, str(self.test_dir))
