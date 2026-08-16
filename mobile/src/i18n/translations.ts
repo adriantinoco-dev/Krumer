@@ -24,6 +24,8 @@ export type TranslationKey =
   | 'library.emptyHint'
   | 'library.title'
   | 'library.unknownAuthor'
+  | 'library.continueReading'
+  | 'library.items'
   | 'lists.books'
   | 'lists.empty'
   | 'lists.emptyHint'
@@ -91,6 +93,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.emptyHint': 'Go to Settings > General to select your library folder.',
     'library.title': 'Library',
     'library.unknownAuthor': 'Unknown author',
+    'library.continueReading': 'Continue Reading',
+    'library.items': 'items',
     'lists.books': 'books',
     'lists.empty': 'No lists yet.',
     'lists.emptyHint': 'Tap + to create your first list.',
@@ -147,6 +151,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.emptyHint': 'Vá em Configurações > Geral para selecionar a pasta da sua biblioteca.',
     'library.title': 'Biblioteca',
     'library.unknownAuthor': 'Autor desconhecido',
+    'library.continueReading': 'Continuar Lendo',
+    'library.items': 'itens',
     'lists.books': 'livros',
     'lists.empty': 'Nenhuma lista ainda.',
     'lists.emptyHint': 'Toque em + para criar sua primeira lista.',
@@ -203,6 +209,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.emptyHint': 'Ve a Configuración > General para seleccionar la carpeta de tu biblioteca.',
     'library.title': 'Biblioteca',
     'library.unknownAuthor': 'Autor desconocido',
+    'library.continueReading': 'Seguir Leyendo',
+    'library.items': 'items',
     'lists.books': 'libros',
     'lists.empty': 'Aún no hay listas.',
     'lists.emptyHint': 'Toca + para crear tu primera lista.',

@@ -8,6 +8,11 @@ export type ScanUpdate = {
   done: boolean;
 };
 
+type ScannedFile = {
+  uri: string;
+  childrenCount: number | null;
+};
+
 function createBookId(filePath: string) {
   let hash = 0;
   for (let index = 0; index < filePath.length; index += 1) {
@@ -41,9 +46,10 @@ function getTitle(filePath: string) {
   return getFileName(filePath).replace(/\.(epub|pdf)$/i, '').replace(/[_-]+/g, ' ').trim();
 }
 
-export async function scanDirectory(directoryUri: string): Promise<string[]> {
-  const result: string[] = [];
+export async function scanDirectory(directoryUri: string): Promise<ScannedFile[]> {
+  const result: ScannedFile[] = [];
   const entries = new Directory(directoryUri).list();
+  const localBookFiles: File[] = [];
 
   for (const entry of entries) {
     if (entry instanceof Directory) {
@@ -53,8 +59,13 @@ export async function scanDirectory(directoryUri: string): Promise<string[]> {
     }
 
     if (entry instanceof File && getBookFormat(entry.uri)) {
-      result.push(entry.uri);
+      localBookFiles.push(entry);
     }
+  }
+
+  const childrenCount = localBookFiles.length > 1 ? localBookFiles.length : null;
+  for (const file of localBookFiles) {
+    result.push({ uri: file.uri, childrenCount });
   }
 
   return result;
@@ -68,7 +79,7 @@ export async function scanLibrary(
   const books: Book[] = [];
 
   for (let index = 0; index < files.length; index += 1) {
-    const filePath = files[index];
+    const { uri: filePath, childrenCount } = files[index];
     const format = getBookFormat(filePath);
     if (!format) continue;
 
@@ -89,6 +100,7 @@ export async function scanLibrary(
       filePath,
       coverPath,
       progress: null,
+      childrenCount,
       addedAt: Date.now(),
     });
 

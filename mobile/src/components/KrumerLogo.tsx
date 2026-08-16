@@ -5,7 +5,7 @@ import { useApp } from '../context/AppContext';
 import { serifFont, spacing } from '../theme';
 
 const logoSource = Image.resolveAssetSource(require('../../assets/Krumer-logo.svg'));
-const iconSource = require('../../assets/Krumer-icon.png');
+const iconSource = require('../../assets/Krumer-logo.png');
 
 export function KrumerLogo({
   compact = false,
@@ -19,7 +19,7 @@ export function KrumerLogo({
   size?: number;
 }) {
   const { theme } = useApp();
-  const iconSize = size ?? (compact ? 40 : 72);
+  const iconSize = size ?? (compact ? 60 : 72);
 
   return (
     <View style={{ alignItems: 'center', gap: spacing.sm }}>

@@ -13,6 +13,7 @@ export type Book = {
   coverPath: string | null;
   rating?: number | null;
   progress: string | null;
+  childrenCount?: number | null;
   addedAt: number;
 };
 
