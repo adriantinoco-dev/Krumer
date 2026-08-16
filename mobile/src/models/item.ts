@@ -11,6 +11,7 @@ export type Book = {
   format: BookFormat;
   filePath: string;
   coverPath: string | null;
+  rating?: number | null;
   progress: string | null;
   addedAt: number;
 };

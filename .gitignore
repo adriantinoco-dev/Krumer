@@ -37,4 +37,3 @@ android/**/build/
 .gradle-user-home
 .pytest_cache
 .pnpm-store
-mobile/
