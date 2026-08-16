@@ -91,10 +91,10 @@ Minha Biblioteca/
 ├── livro-avulso.pdf          →  📘 Livro
 ├── outro-livro.epub          →  📘 Livro
 │
-└── Nome da Serie/
-    ├── capitulo-01.pdf       →  📚 Série  (capítulos agrupados)
-    ├── capitulo-02.pdf
-    └── capitulo-03.epub
+└── Nome da Serie/            →  🗂️ Pasta
+    ├── 1. capitulo.pdf       →  📚 Série  (capítulos agrupados)
+    ├── 2. capitulo.pdf
+    └── 3. capitulo.epub
 ```
 
 ---
