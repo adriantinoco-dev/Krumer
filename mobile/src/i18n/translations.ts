@@ -20,9 +20,10 @@ export type TranslationKey =
   | 'general.selectFolder'
   | 'language.label'
   | 'language.select'
-  | 'library.empty'
+| 'library.empty'
   | 'library.emptyHint'
   | 'library.title'
+  | 'library.unknownAuthor'
   | 'lists.books'
   | 'lists.empty'
   | 'lists.emptyHint'
@@ -86,9 +87,10 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'general.selectFolder': 'Select folder',
     'language.label': 'Language',
     'language.select': 'Select Language',
-    'library.empty': 'No books yet.',
+'library.empty': 'No books yet.',
     'library.emptyHint': 'Go to Settings > General to select your library folder.',
     'library.title': 'Library',
+    'library.unknownAuthor': 'Unknown author',
     'lists.books': 'books',
     'lists.empty': 'No lists yet.',
     'lists.emptyHint': 'Tap + to create your first list.',
@@ -141,9 +143,10 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'general.selectFolder': 'Selecionar pasta',
     'language.label': 'Idioma',
     'language.select': 'Selecionar idioma',
-    'library.empty': 'Nenhum livro ainda.',
+'library.empty': 'Nenhum livro ainda.',
     'library.emptyHint': 'Vá em Configurações > Geral para selecionar a pasta da sua biblioteca.',
     'library.title': 'Biblioteca',
+    'library.unknownAuthor': 'Autor desconhecido',
     'lists.books': 'livros',
     'lists.empty': 'Nenhuma lista ainda.',
     'lists.emptyHint': 'Toque em + para criar sua primeira lista.',
@@ -196,9 +199,10 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'general.selectFolder': 'Seleccionar carpeta',
     'language.label': 'Idioma',
     'language.select': 'Seleccionar idioma',
-    'library.empty': 'Aún no hay libros.',
+'library.empty': 'Aún no hay libros.',
     'library.emptyHint': 'Ve a Configuración > General para seleccionar la carpeta de tu biblioteca.',
     'library.title': 'Biblioteca',
+    'library.unknownAuthor': 'Autor desconocido',
     'lists.books': 'libros',
     'lists.empty': 'Aún no hay listas.',
     'lists.emptyHint': 'Toca + para crear tu primera lista.',
