@@ -404,6 +404,11 @@
 }
 
 /* Horizontal: mostra apenas a página ativa */
+#reader-container.horizontal,
+#reader-container.vertical {
+  overflow-x: hidden;
+}
+
 #reader-container.horizontal {
   display: flex;
   justify-content: center;

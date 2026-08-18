@@ -166,6 +166,27 @@ function atualizarDimensoesPlaceholders() {
 }
 
 /**
+ * Captura a posição de rolagem relativa à página atual antes de um resize de zoom
+ */
+function capturarAncoraScroll(viewer) {
+  if (!viewer || pdfMode !== 'vertical') return null;
+  const wrap = viewer.querySelector(`.pdf-canvas-wrap[data-page="${pdfCurrentPage}"]`);
+  if (!wrap) return null;
+  return {
+    wrap: wrap,
+    diff: viewer.scrollTop - wrap.offsetTop
+  };
+}
+
+/**
+ * Restaura a posição de rolagem relativa à página atual após um resize de zoom
+ */
+function restaurarAncoraScroll(viewer, ancora) {
+  if (!viewer || !ancora || !ancora.wrap) return;
+  viewer.scrollTop = ancora.wrap.offsetTop + ancora.diff;
+}
+
+/**
  * Inicializa o IntersectionObserver para renderizar páginas sob demanda no modo vertical
  */
 function initVirtualScrollObserver() {
@@ -199,7 +220,7 @@ function initVirtualScrollObserver() {
       }
     });
 
-    if (pdfMode === 'vertical' && highestRatio > 0.3 && mostVisiblePage !== pdfCurrentPage) {
+    if (pdfMode === 'vertical' && !pdfZooming && highestRatio > 0.3 && mostVisiblePage !== pdfCurrentPage) {
       pdfCurrentPage = mostVisiblePage;
       updatePdfControlsState();
       savePdfProgress();
@@ -438,6 +459,10 @@ function setupPdfControls() {
 
   const pageInput = document.getElementById('pdf-page-input');
   if (pageInput) {
+    pageInput.addEventListener('focus', () => {
+      pageInput.select();
+    });
+
     pageInput.addEventListener('change', (e) => {
       const targetPage = parseInt(e.target.value, 10);
       if (targetPage >= 1 && targetPage <= pdfTotalPages) {
@@ -611,6 +636,7 @@ async function savePdfProgress() {
 }
 
 let zoomDebounceTimer = null;
+let pdfZooming = false;
 
 /**
  * Aplica um novo nível de zoom ao PDF suavemente sem recarregar a página nem resetar a posição de rolagem
@@ -634,19 +660,39 @@ function aplicarZoomPdf(novaEscala, { updateSlider = true, renderNow = false } =
   }
 
   atualizarPresetsZoomVisual(pctVal);
+
+  // Suprime a troca de página pelo IntersectionObserver enquanto o zoom está em curso
+  pdfZooming = true;
+  const viewer = document.getElementById('reader-container');
+  const ancora = capturarAncoraScroll(viewer);
+  if (viewer) {
+    viewer.style.overflowAnchor = 'none';
+    viewer.style.scrollBehavior = 'auto';
+  }
   atualizarDimensoesPlaceholders();
+  restaurarAncoraScroll(viewer, ancora);
 
   if (zoomDebounceTimer) {
     clearTimeout(zoomDebounceTimer);
     zoomDebounceTimer = null;
   }
 
+  const encerrarZoom = () => {
+    pdfZooming = false;
+    if (viewer) {
+      viewer.style.overflowAnchor = '';
+      viewer.style.scrollBehavior = '';
+    }
+  };
+
   if (renderNow) {
     renderizarPaginaPdf(pdfCurrentPage);
+    zoomDebounceTimer = setTimeout(encerrarZoom, 200);
   } else {
     // Re-renderizar PDF.js em alta definição 150ms após o usuário parar de arrastar a barra
     zoomDebounceTimer = setTimeout(() => {
       renderizarPaginaPdf(pdfCurrentPage);
+      encerrarZoom();
     }, 150);
   }
 }
@@ -741,6 +787,12 @@ function pdfKeyHandler(e) {
 function closePdf() {
   document.removeEventListener('keydown', pdfKeyHandler);
   stopVirtualScrollObserver();
+
+  if (zoomDebounceTimer) {
+    clearTimeout(zoomDebounceTimer);
+    zoomDebounceTimer = null;
+  }
+  pdfZooming = false;
 
   if (pdfDoc) {
     pdfDoc.destroy();
