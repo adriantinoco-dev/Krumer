@@ -164,7 +164,6 @@
   /* recorta mantendo proporção, nunca distorce */
   object-position: center top;
   display: block;
-  border-radius: var(--radius);
   background-color: var(--bg-card-hover);
 }
 
@@ -213,11 +212,39 @@
    Modelo de referência: card branco com borda preta 2px sobre bloco preto opaco.
    ========================================================================== */
 
-/* Bloco de trás: sempre escuro/alto-contraste, independente do tema.
-   No tema escuro escurece mais; no claro usa preto profundo; sépia usa marrom-escuro. */
-html[data-theme="dark"]  { --card-shadow-stack: #111111; --card-border: #111111; }
-html[data-theme="light"] { --card-shadow-stack: #000000; --card-border: #000000; }
-html[data-theme="sepia"] { --card-shadow-stack: #2a2014; --card-border: #2a2014; }
+/* Bloco de trás: no claro/sépia é preto profundo (modelo de referência).
+   No tema escuro precisa ser mais claro que o fundo (#111) para o
+   empilhamento continuar visível. */
+html[data-theme="dark"] {
+  --card-shadow-stack: #d3d3d3;
+  --card-border: #d3d3d3;
+}
+
+html[data-theme="light"] {
+  --card-shadow-stack: #000000;
+  --card-border: #000000;
+}
+
+html[data-theme="sepia"] {
+  --card-shadow-stack: #2a2014;
+  --card-border: #2a2014;
+}
+
+/* No tema dark o card 3D adota o modelo de referência: cara branca com borda
+   branca — cria contraste forte com o fundo escuro da biblioteca (só 3D; o 2D
+   permanece com o tema). */
+html[data-theme="dark"] .book-cover-front {
+  background: #ffffff;
+}
+
+html[data-theme="dark"] .book-cover-front .cover-fallback {
+  background: linear-gradient(135deg, #ffffff, #f2f2f2);
+  color: #666666;
+}
+
+html[data-theme="dark"] .book-cover-front .cover-fallback-title {
+  color: #333333;
+}
 
 .book-card--3d .book-cover-wrap {
   background: transparent;
@@ -307,9 +334,17 @@ html[data-theme="sepia"] { --card-shadow-stack: #2a2014; --card-border: #2a2014;
 }
 
 @keyframes fav-pop {
-  0% { transform: scale(0); }
-  60% { transform: scale(1.25); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(0);
+  }
+
+  60% {
+    transform: scale(1.25);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 .fav-badge--removing {
@@ -318,8 +353,15 @@ html[data-theme="sepia"] { --card-shadow-stack: #2a2014; --card-border: #2a2014;
 }
 
 @keyframes fav-out {
-  0% { transform: scale(1); opacity: 1; }
-  100% { transform: scale(0); opacity: 0; }
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(0);
+    opacity: 0;
+  }
 }
 
 /* Novos livros detectados pelo reescaneamento em tempo real */
@@ -328,9 +370,19 @@ html[data-theme="sepia"] { --card-shadow-stack: #2a2014; --card-border: #2a2014;
 }
 
 @keyframes book-appear {
-  0%   { opacity: 0; transform: translateY(16px) scale(0.94); }
-  60%  { opacity: 1; }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.94);
+  }
+
+  60% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* Livros removidos da pasta (desaparecem suavemente) */
@@ -340,8 +392,15 @@ html[data-theme="sepia"] { --card-shadow-stack: #2a2014; --card-border: #2a2014;
 }
 
 @keyframes book-leave {
-  0%   { opacity: 1; transform: translateY(0) scale(1); }
-  100% { opacity: 0; transform: translateY(10px) scale(0.94); }
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.94);
+  }
 }
 
 /* 3px Bottom Progress Bar */
@@ -1395,6 +1454,7 @@ html[data-theme="sepia"] { --card-shadow-stack: #2a2014; --card-border: #2a2014;
 .contador-ok {
   color: #199547;
 }
+
 html[data-theme="dark"] .contador-ok {
   color: #22c55e;
 }
@@ -1610,7 +1670,7 @@ html[data-theme="dark"] .contador-ok {
   border-radius: 12px;
   padding: 8px;
   min-width: 240px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   z-index: 200;
   display: flex;
   flex-direction: column;

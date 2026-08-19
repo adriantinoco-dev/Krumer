@@ -364,7 +364,9 @@
   color: var(--text-primary);
 }
 
-/* Preview do card 3D dentro do seletor — reflete o modelo de referência */
+/* Preview do card 3D dentro do seletor — reflete o modelo de referência.
+   O painel de configurações tem fundo próprio (--bg-card), então o bloco de
+   trás ganha tom próprio por tema para continuar visível (principalmente dark). */
 .card-style-preview-3d {
   position: relative;
   width: 36px;
@@ -380,6 +382,10 @@
   border-radius: 4px;
 }
 
+html[data-theme="dark"]  .card-style-preview-3d::before { background: #3a3a3a; }
+html[data-theme="light"] .card-style-preview-3d::before { background: #000000; }
+html[data-theme="sepia"] .card-style-preview-3d::before { background: #2a2014; }
+
 .card-style-preview-3d .card-style-preview-front {
   position: relative;
   z-index: 1;
@@ -389,6 +395,17 @@
   border-radius: 4px;
   background: var(--bg-card);
   box-sizing: border-box;
+}
+
+/* No tema escuro o preview reflete o card real: cara branca, borda branca e
+   bloco de trás cinza — o mockup fica legível e fiel ao modelo de referência. */
+html[data-theme="dark"] .card-style-preview-3d .card-style-preview-front {
+  background: #ffffff;
+  border-color: #ffffff;
+}
+
+html[data-theme="dark"] .card-style-preview-3d .card-style-preview-front::after {
+  background: #e0e0e0;
 }
 
 .card-style-preview-3d .card-style-preview-front::after {
