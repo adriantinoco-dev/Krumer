@@ -463,6 +463,8 @@ class LibraryManager {
       const appHeader = document.querySelector('.app-header');
       if (!detailsView) return;
 
+      detailsView.classList.toggle('book-details-viewport--3d', window.cardViewMode === '3d');
+
       // 1. Capa, Hero Backdrop e Fallback
       const heroBackdrop = document.getElementById('details-hero-backdrop');
       const coverImg = document.getElementById('details-cover-img');

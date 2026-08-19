@@ -148,12 +148,11 @@
   overflow: hidden;
   background-color: var(--bg-card);
   box-shadow: var(--shadow-card);
-  transition: outline 0.15s ease, box-shadow 0.2s ease;
+  transition: box-shadow 0.2s ease;
 }
 
 .book-card:hover .book-cover-wrap {
-  outline: 2px solid var(--accent);
-  box-shadow: 0 8px 20px rgba(249, 115, 22, 0.25);
+  box-shadow: 0 0 0 2px var(--accent), 0 8px 20px rgba(249, 115, 22, 0.25);
 }
 
 .book-cover {
@@ -259,6 +258,7 @@ html[data-theme="dark"] .book-cover-front .cover-fallback-title {
   background: var(--card-shadow-stack);
   border-radius: var(--radius);
   z-index: 0;
+  transition: box-shadow 0.2s ease;
 }
 
 .book-cover-front {
@@ -273,13 +273,15 @@ html[data-theme="dark"] .book-cover-front .cover-fallback-title {
 }
 
 .book-card--3d:hover .book-cover-wrap {
-  outline: none;
   box-shadow: none;
 }
 
+.book-card--3d:hover .book-card-stack-back {
+  box-shadow: 0 0 0 2px var(--accent), 0 8px 20px rgba(249, 115, 22, 0.25);
+}
+
 .book-card--3d:hover .book-cover-front {
-  outline: 2px solid var(--accent);
-  box-shadow: 0 8px 20px rgba(249, 115, 22, 0.25);
+  box-shadow: 0 0 0 2px var(--accent), 0 8px 20px rgba(249, 115, 22, 0.25);
 }
 
 /* Series Badge - Top Right Corner */
@@ -933,6 +935,39 @@ html[data-theme="dark"] .book-cover-front .cover-fallback-title {
   object-fit: cover;
   object-position: center top;
   display: block;
+}
+
+/* Modo 3D: capa de detalhes acompanha a visualização 2D/3D da biblioteca */
+.book-details-viewport--3d .details-cover-wrap {
+  background: transparent;
+  box-shadow: none;
+  border: none;
+  overflow: visible;
+}
+
+.book-details-viewport--3d .details-cover-wrap::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translate(5px, 5px);
+  background: var(--card-shadow-stack);
+  border-radius: var(--radius-xl);
+  z-index: 0;
+}
+
+.book-details-viewport--3d .details-cover-img {
+  position: relative;
+  z-index: 1;
+  border-radius: var(--radius-xl);
+  border: 2px solid var(--card-border);
+  background: var(--card-bg);
+}
+
+.book-details-viewport--3d .details-cover-wrap .cover-fallback {
+  position: relative;
+  z-index: 1;
+  border-radius: var(--radius-xl);
+  border: 2px solid var(--card-border);
 }
 
 .details-info-container {
