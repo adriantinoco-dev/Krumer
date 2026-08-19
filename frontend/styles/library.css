@@ -4,10 +4,17 @@
 
 :root {
   /* Layout Tokens — spec v2 (dimensões apenas, sem cor) */
-  --cover-aspect-ratio: 3 / 4;
+  /* Razão real medida do card 3D de referência (193 × 264 px) — aplicada a
+     todos os modos para a grade não pular ao trocar 2D/3D. */
+  --cover-aspect-ratio: 193 / 264;
   /* largura / altura fixa da capa */
   --grid-min-card-width: 160px;
   --grid-gap: 24px;
+
+  /* Tokens do card 3D — derivados do tema (nunca cores hardcoded) */
+  --card-bg: var(--bg-card);
+  --card-border: var(--border-light);
+  --card-shadow-stack: var(--bg-secondary);
 
   --font-size-title-lg: 2.5rem;
   --font-size-body: 1rem;
@@ -198,6 +205,54 @@
 /* Gradient overlay at bottom — removido a pedido do usuário */
 .cover-gradient {
   display: none;
+}
+
+/* ==========================================================================
+   Card 3D — visualização "capa empilhada" (somente CSS, sem perspective)
+   Camadas: bloco sólido de trás (deslocado p/ baixo e direita) + card frontal.
+   Modelo de referência: card branco com borda preta 2px sobre bloco preto opaco.
+   ========================================================================== */
+
+/* Bloco de trás: sempre escuro/alto-contraste, independente do tema.
+   No tema escuro escurece mais; no claro usa preto profundo; sépia usa marrom-escuro. */
+html[data-theme="dark"]  { --card-shadow-stack: #111111; --card-border: #111111; }
+html[data-theme="light"] { --card-shadow-stack: #000000; --card-border: #000000; }
+html[data-theme="sepia"] { --card-shadow-stack: #2a2014; --card-border: #2a2014; }
+
+.book-card--3d .book-cover-wrap {
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.book-card-stack-back {
+  position: absolute;
+  inset: 0;
+  transform: translate(5px, 5px);
+  background: var(--card-shadow-stack);
+  border-radius: var(--radius);
+  z-index: 0;
+}
+
+.book-cover-front {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius);
+  border: 2px solid var(--card-border);
+  background: var(--card-bg);
+  overflow: hidden;
+}
+
+.book-card--3d:hover .book-cover-wrap {
+  outline: none;
+  box-shadow: none;
+}
+
+.book-card--3d:hover .book-cover-front {
+  outline: 2px solid var(--accent);
+  box-shadow: 0 8px 20px rgba(249, 115, 22, 0.25);
 }
 
 /* Series Badge - Top Right Corner */

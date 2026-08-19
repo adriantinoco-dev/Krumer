@@ -239,6 +239,7 @@ class ScanPayload(BaseModel):
 class SettingsUpdatePayload(BaseModel):
     language: Optional[str] = None
     chapter_view_mode: Optional[str] = None
+    card_view_mode: Optional[str] = None
 
 class ApiKeyPayload(BaseModel):
     api_key: str
@@ -1216,11 +1217,13 @@ def get_global_settings(db: Session = Depends(get_db)):
     last_scanned = db.query(Setting).filter(Setting.key == "last_scanned_path").first()
     lang_setting = db.query(Setting).filter(Setting.key == "language").first()
     chapter_mode = db.query(Setting).filter(Setting.key == "chapter_view_mode").first()
+    card_mode = db.query(Setting).filter(Setting.key == "card_view_mode").first()
     return {
         "use_filename_as_title": True,
         "last_scanned_path": last_scanned.value if last_scanned else None,
         "language": lang_setting.value if lang_setting else "en",
-        "chapter_view_mode": chapter_mode.value if chapter_mode else "title"
+        "chapter_view_mode": chapter_mode.value if chapter_mode else "title",
+        "card_view_mode": card_mode.value if card_mode else "2d"
     }
 
 @app.put("/settings")
@@ -1239,6 +1242,13 @@ def update_global_settings(payload: SettingsUpdatePayload, db: Session = Depends
             mode.value = payload.chapter_view_mode
         else:
             db.add(Setting(key="chapter_view_mode", value=payload.chapter_view_mode))
+        db.commit()
+    if payload.card_view_mode is not None:
+        card_mode = db.query(Setting).filter(Setting.key == "card_view_mode").first()
+        if card_mode:
+            card_mode.value = payload.card_view_mode
+        else:
+            db.add(Setting(key="card_view_mode", value=payload.card_view_mode))
         db.commit()
     return get_global_settings(db)
 

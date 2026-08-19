@@ -37,6 +37,26 @@ class AppController {
     I18N.init();
     I18N.onLangChange = (lang) => this._syncLangPicker(lang);
     window.chapterViewMode = 'title';
+    window.cardViewMode = '2d';
+    // Carrega preferências salvas antes de renderizar a biblioteca
+    // (o modo de card afeta o grid já no primeiro render).
+    try {
+      const settings = await LibraryAPI.getSettings();
+      window.chapterViewMode = (settings.chapter_view_mode === 'title+cover') ? 'title+cover' : 'title';
+      window.cardViewMode = (settings.card_view_mode === '3d') ? '3d' : '2d';
+    } catch (err) {
+      window.chapterViewMode = 'title';
+      window.cardViewMode = '2d';
+    }
+    // Preferência local (persistida via localStorage) tem precedência
+    const storedView = localStorage.getItem('krumer_chapter_view');
+    if (storedView === 'title' || storedView === 'title+cover') {
+      window.chapterViewMode = storedView;
+    }
+    const storedCardView = localStorage.getItem('krumer_card_view');
+    if (storedCardView === '2d' || storedCardView === '3d') {
+      window.cardViewMode = storedCardView;
+    }
     this.loadSavedTheme();
     this.setupNavigation();
     this.setupSearchAndFilter();
@@ -45,18 +65,6 @@ class AppController {
     this.setupOnboarding();
     this.metadataManager.init();
     await this.libraryManager.init();
-    // F6: Carrega a preferência de visualização dos capítulos salva
-    try {
-      const settings = await LibraryAPI.getSettings();
-      window.chapterViewMode = (settings.chapter_view_mode === 'title+cover') ? 'title+cover' : 'title';
-    } catch (err) {
-      window.chapterViewMode = 'title';
-    }
-    // Preferência local (persistida via localStorage) tem precedência
-    const storedView = localStorage.getItem('krumer_chapter_view');
-    if (storedView === 'title' || storedView === 'title+cover') {
-      window.chapterViewMode = storedView;
-    }
     await this.checkApiKeyStatus();
     await this.checkOnboarding();
     this.startRealtimeWatcher();
@@ -648,6 +656,21 @@ class AppController {
       });
     });
 
+    // Visualização dos cards da biblioteca (2D / 3D)
+    document.querySelectorAll('.card-style-option').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.dataset.cardStyle;
+        if (mode !== '2d' && mode !== '3d') return;
+        window.cardViewMode = mode;
+        localStorage.setItem('krumer_card_view', mode);
+        this._setCardStyleActive(mode);
+        LibraryAPI.updateSettings({ card_view_mode: mode })
+          .then(() => this.showToast(I18N.t('settings.card_style_toast', I18N.t(mode === '2d' ? 'settings.card_style_2d' : 'settings.card_style_3d'))))
+          .catch(() => {});
+        this.libraryManager.loadItems();
+      });
+    });
+
     // Submit form
     const form = document.getElementById('settings-api-key-form');
     if (form) {
@@ -809,6 +832,7 @@ class AppController {
         this._syncLangPicker(settings.language);
       }
       window.chapterViewMode = (settings.chapter_view_mode === 'title+cover') ? 'title+cover' : 'title';
+      window.cardViewMode = (settings.card_view_mode === '3d') ? '3d' : '2d';
     } catch (err) {
       console.warn('Erro ao carregar configurações de idioma:', err);
     }
@@ -819,10 +843,24 @@ class AppController {
     } else {
       localStorage.setItem('krumer_chapter_view', window.chapterViewMode || 'title');
     }
+    const storedCardView = localStorage.getItem('krumer_card_view');
+    if (storedCardView === '2d' || storedCardView === '3d') {
+      window.cardViewMode = storedCardView;
+    } else {
+      localStorage.setItem('krumer_card_view', window.cardViewMode || '2d');
+    }
     // Always sync picker from localStorage on open
     const saved = localStorage.getItem('krumer_language') || 'en';
     this._syncLangPicker(saved);
     this._setChapterViewActive(window.chapterViewMode || 'title');
+    this._setCardStyleActive(window.cardViewMode || '2d');
+  }
+
+  _setCardStyleActive(mode) {
+    const value = mode === '3d' ? '3d' : '2d';
+    document.querySelectorAll('.card-style-option').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.cardStyle === value);
+    });
   }
 
   _setChapterViewActive(mode) {

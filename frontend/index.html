@@ -725,6 +725,31 @@
                 Define como os capítulos e volumes são exibidos dentro da página de detalhes.
               </p>
             </div>
+
+            <!-- Visualização dos cards da biblioteca (2D / 3D) -->
+            <div class="form-group" style="margin-bottom: 24px;">
+              <label class="form-label" data-i18n="settings.card_style_label">Visualização dos cards</label>
+
+              <div class="card-style-options" id="card-style-options">
+                <button type="button" class="card-style-option" data-card-style="2d">
+                  <svg width="36" height="50" viewBox="0 0 36 50" fill="none" aria-hidden="true">
+                    <rect x="1" y="1" width="34" height="48" rx="3" stroke="currentColor" stroke-width="2"/>
+                    <rect x="8" y="8" width="20" height="32" rx="2" fill="currentColor" opacity="0.25"/>
+                  </svg>
+                  <span class="card-style-name" data-i18n="settings.card_style_2d">2D</span>
+                </button>
+                <button type="button" class="card-style-option" data-card-style="3d">
+                  <span class="card-style-preview-3d" aria-hidden="true">
+                    <span class="card-style-preview-front"></span>
+                  </span>
+                  <span class="card-style-name" data-i18n="settings.card_style_3d">3D</span>
+                </button>
+              </div>
+
+              <p class="settings-help-text" data-i18n="settings.card_style_help">
+                Escolha entre cards planos ou com efeito de profundidade na biblioteca.
+              </p>
+            </div>
           </section>
 
           <!-- Painel: Chave da API -->

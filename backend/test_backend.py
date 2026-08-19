@@ -379,10 +379,24 @@ class TestLibrarianBackend(unittest.TestCase):
         self.assertEqual(prog.current_page, 50)
 
         # Snapshot consumido após restauração
+        # Snapshot consumido ap��s restaura����o
         consumed = self.db.query(ArchivedItem).filter(
             ArchivedItem.fingerprint == f"file|livro_avulso_1|{book.file_size}"
         ).first()
         self.assertIsNone(consumed)
+
+    def test_card_view_mode_setting_roundtrip(self):
+        """Test that card_view_mode persists via the settings API."""
+        payload = main.SettingsUpdatePayload(card_view_mode="3d")
+        result = main.update_global_settings(payload, self.db)
+        self.assertEqual(result["card_view_mode"], "3d")
+
+        fresh = main.get_global_settings(self.db)
+        self.assertEqual(fresh["card_view_mode"], "3d")
+
+        payload = main.SettingsUpdatePayload(card_view_mode="2d")
+        result = main.update_global_settings(payload, self.db)
+        self.assertEqual(result["card_view_mode"], "2d")
 
 
 if __name__ == "__main__":

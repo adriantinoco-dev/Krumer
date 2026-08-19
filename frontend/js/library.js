@@ -283,55 +283,70 @@ class LibraryManager {
   }
 
   /**
-   * Creates HTML structure for single book or series card
+   * Creates HTML structure for single book or series card.
+   * Renders the 2D or 3D cover layout based on `window.cardViewMode`.
    */
   createBookCardHTML(item) {
     const isSeries = item.type === 'series';
     const coverUrl = item.cover_path ? LibraryAPI.getCoverUrl(item.id) : '';
     const progressPct = item.overall_progress || 0;
     const rating = item.rating || 0;
+    const is3D = window.cardViewMode === '3d';
 
     // Series badge text (e.g. "4 vols" or "12 caps")
     const badgeText = isSeries ? I18N.t('series.vol', item.children_count || 0) : '';
     const authorText = item.author || (isSeries ? I18N.t('series.author_fallback') : I18N.t('author.unknown'));
 
-    return `
-      <div class="book-card" data-id="${item.id}" data-type="${item.type}">
-        <div class="book-cover-wrap">
-          ${coverUrl ? `
-            <img class="book-cover" src="${coverUrl}" alt="${this.escapeHtml(item.title)}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-          ` : ''}
-          
-          <div class="cover-fallback" style="${coverUrl ? 'display:none;' : 'display:flex;'}">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
-            </svg>
-            <span class="cover-fallback-title">${this.escapeHtml(item.title)}</span>
-          </div>
+    const coverContent = `
+      ${coverUrl ? `
+        <img class="book-cover" src="${coverUrl}" alt="${this.escapeHtml(item.title)}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+      ` : ''}
 
-          ${isSeries ? `
-            <div class="series-badge">
-              <div class="series-dot"></div>
-              <div class="series-dot"></div>
-              <div class="series-dot"></div>
-              ${badgeText}
-            </div>
-          ` : ''}
+      <div class="cover-fallback" style="${coverUrl ? 'display:none;' : 'display:flex;'}">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+        </svg>
+        <span class="cover-fallback-title">${this.escapeHtml(item.title)}</span>
+      </div>
 
-          ${this.favoritedIds.has(item.id) ? `
-            <div class="fav-badge">
-              <svg fill="currentColor" viewBox="0 0 24 24" width="14" height="14">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-              </svg>
-            </div>
-          ` : ''}
-
-          <div class="cover-gradient"></div>
-
-          <div class="cover-progress">
-            <div class="cover-progress-fill" style="width: ${progressPct}%"></div>
-          </div>
+      ${isSeries ? `
+        <div class="series-badge">
+          <div class="series-dot"></div>
+          <div class="series-dot"></div>
+          <div class="series-dot"></div>
+          ${badgeText}
         </div>
+      ` : ''}
+
+      ${this.favoritedIds.has(item.id) ? `
+        <div class="fav-badge">
+          <svg fill="currentColor" viewBox="0 0 24 24" width="14" height="14">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+          </svg>
+        </div>
+      ` : ''}
+
+      <div class="cover-gradient"></div>
+
+      <div class="cover-progress">
+        <div class="cover-progress-fill" style="width: ${progressPct}%"></div>
+      </div>
+    `;
+
+    const coverWrap = is3D
+      ? `
+        <div class="book-cover-wrap book-cover-wrap--3d">
+          <div class="book-card-stack-back"></div>
+          <div class="book-cover-front">${coverContent}</div>
+        </div>
+      `
+      : `
+        <div class="book-cover-wrap">${coverContent}</div>
+      `;
+
+    return `
+      <div class="book-card${is3D ? ' book-card--3d' : ''}" data-id="${item.id}" data-type="${item.type}">
+        ${coverWrap}
 
         <div class="book-title" title="${this.escapeHtml(item.title)}">${this.escapeHtml(item.title)}</div>
         <div class="book-meta">${this.escapeHtml(authorText)}</div>
@@ -1392,6 +1407,9 @@ class LibraryManager {
     cards.forEach(card => {
       const wrap = card.querySelector('.book-cover-wrap');
       if (!wrap) return;
+      // Em modo 3D o conteúdo vive dentro da camada frontal (book-cover-front);
+      // inserir o badge na mesma camada para manter a pilha de z-index correta.
+      const target = wrap.querySelector('.book-cover-front') || wrap;
       let badge = wrap.querySelector('.fav-badge');
       if (show && !badge) {
         badge = document.createElement('div');
@@ -1399,9 +1417,9 @@ class LibraryManager {
         badge.innerHTML = `<svg fill="currentColor" viewBox="0 0 24 24" width="14" height="14"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
         const gradient = wrap.querySelector('.cover-gradient');
         if (gradient) {
-          wrap.insertBefore(badge, gradient);
+          target.insertBefore(badge, gradient);
         } else {
-          wrap.appendChild(badge);
+          target.appendChild(badge);
         }
       } else if (!show && badge) {
         badge.classList.add('fav-badge--removing');
