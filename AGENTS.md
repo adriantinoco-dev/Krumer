@@ -211,6 +211,7 @@ Paridade F1–F7 (Android):
 - Build desktop: Windows (NSIS), Linux (AppImage + deb). CI via GitHub Actions em `.github/workflows/build.yml`.
 - Versão mobile Android em desenvolvimento com React Native + Expo Go dentro de `mobile/`, no mesmo repositório.
 - Publicação de releases no GitHub (`owner: adriantinoco-dev`, `repo: Krumer`).
+- Sempre atualizar o arquivo CHANGELOG.md com novas informações após cada commit.
 
 ---
 
