@@ -356,14 +356,16 @@
   display: block;
 }
 
-.card-style-option.active .card-style-icon {
-  filter: drop-shadow(0 0 2px var(--accent));
+/* Ícones são PNGs escuros embutidos (bom em light/sepia).
+   No dark invertemos para claro para garantir contraste sobre --bg-card #202020.
+   Sem glow no ícone — seleção indicada apenas pela borda do card. */
+html[data-theme="dark"] .card-style-option .card-style-icon,
+html[data-theme="dark"] .card-style-option.active .card-style-icon {
+  filter: invert(0.88) brightness(1.08) contrast(1.05);
 }
 
-/* Os SVGs carregam uma imagem embutida clara; nos temas dark/sepia
-   um leve realce mantém o ícone legível sem destoar do painel. */
-html[data-theme="dark"] .card-style-option .card-style-icon {
-  filter: brightness(0.92) contrast(1.02);
+html[data-theme="light"] .card-style-option .card-style-icon {
+  filter: none;
 }
 
 html[data-theme="sepia"] .card-style-option .card-style-icon {
