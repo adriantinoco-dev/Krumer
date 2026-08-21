@@ -109,6 +109,7 @@ async function openPdf(item, filePath) {
     await irParaPaginaPdf(pdfCurrentPage, { instant: true });
 
     document.addEventListener('keydown', pdfKeyHandler);
+    document.addEventListener('keyup', pdfZoomKeyUpHandler);
 
 
   } catch (err) {
@@ -698,6 +699,72 @@ function aplicarZoomPdf(novaEscala, { updateSlider = true, renderNow = false } =
 }
 
 /**
+ * Estica o PDF via CSS a 0ms sem agendar render em alta.
+ * Usado ao segurar Ctrl +/- para que as páginas fiquem 100% estáticas
+ * enquanto a tecla está pressionada. O render em alta com 0ms acontece
+ * apenas no keyup (finalizarZoomPdfImediato).
+ */
+function aplicarZoomStretch(novaEscala) {
+  pdfCurrentScale = novaEscala;
+  const pctVal = Math.round(pdfCurrentScale * 100);
+
+  const badge = document.getElementById('pdf-zoom-val-badge');
+  if (badge) badge.textContent = `${pctVal}%`;
+
+  if (typeof showReaderZoomToast === 'function') {
+    showReaderZoomToast(pctVal, 'Zoom');
+  }
+
+  const slider = document.getElementById('pdf-zoom-slider');
+  if (slider && parseInt(slider.value, 10) !== pctVal) {
+    slider.value = pctVal;
+  }
+
+  atualizarPresetsZoomVisual(pctVal);
+
+  pdfZooming = true;
+  const viewer = document.getElementById('reader-container');
+  const ancora = capturarAncoraScroll(viewer);
+  if (viewer) {
+    viewer.style.overflowAnchor = 'none';
+    viewer.style.scrollBehavior = 'auto';
+  }
+  atualizarDimensoesPlaceholders();
+  restaurarAncoraScroll(viewer, ancora);
+
+  if (zoomDebounceTimer) {
+    clearTimeout(zoomDebounceTimer);
+    zoomDebounceTimer = null;
+  }
+}
+
+function finalizarZoomPdfImediato() {
+  if (!pdfZooming) return;
+  if (zoomDebounceTimer) {
+    clearTimeout(zoomDebounceTimer);
+    zoomDebounceTimer = null;
+  }
+  renderizarPaginaPdf(pdfCurrentPage);
+  const viewer = document.getElementById('reader-container');
+  zoomDebounceTimer = setTimeout(() => {
+    pdfZooming = false;
+    if (viewer) {
+      viewer.style.overflowAnchor = '';
+      viewer.style.scrollBehavior = '';
+    }
+  }, 200);
+}
+
+function pdfZoomKeyUpHandler(e) {
+  const isZoomKey = e.key === '+' || e.key === '=' || e.key === '-' || e.key === '_' ||
+                    e.code === 'Equal' || e.code === 'Minus' || e.code === 'NumpadAdd' ||
+                    e.code === 'NumpadSubtract' || e.key === 'Control' || e.key === 'Meta';
+  if (!isZoomKey) return;
+  if (!pdfZooming) return;
+  finalizarZoomPdfImediato();
+}
+
+/**
  * Atualiza o destaque visual dos botões preset de zoom
  */
 function atualizarPresetsZoomVisual(pctVal) {
@@ -729,17 +796,20 @@ function pdfKeyHandler(e) {
   }
 
   // Atalhos de Zoom (Ctrl+ / Ctrl- / Ctrl 0)
+  // Segurar Ctrl + / Ctrl - estica via CSS a 0ms a cada repetição e só
+  // renderiza em alta com 0ms no keyup (finalizarZoomPdfImediato), evitando
+  // qualquer piscada por clear do canvas durante o hold.
   if (e.ctrlKey || e.metaKey) {
     if (e.key === '+' || e.key === '=' || e.code === 'Equal' || e.code === 'NumpadAdd') {
       e.preventDefault();
       const novaEscala = Math.min(2.0, Math.round((pdfCurrentScale + 0.1) * 10) / 10);
-      aplicarZoomPdf(novaEscala, { updateSlider: true, renderNow: true });
+      aplicarZoomStretch(novaEscala);
       return;
     }
     if (e.key === '-' || e.key === '_' || e.code === 'Minus' || e.code === 'NumpadSubtract') {
       e.preventDefault();
       const novaEscala = Math.max(0.5, Math.round((pdfCurrentScale - 0.1) * 10) / 10);
-      aplicarZoomPdf(novaEscala, { updateSlider: true, renderNow: true });
+      aplicarZoomStretch(novaEscala);
       return;
     }
     if (e.key === '0' || e.code === 'Digit0' || e.code === 'Numpad0') {
@@ -791,6 +861,7 @@ function pdfKeyHandler(e) {
  */
 function closePdf() {
   document.removeEventListener('keydown', pdfKeyHandler);
+  document.removeEventListener('keyup', pdfZoomKeyUpHandler);
   stopVirtualScrollObserver();
 
   if (zoomDebounceTimer) {
