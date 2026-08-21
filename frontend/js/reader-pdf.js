@@ -778,6 +778,11 @@ function pdfKeyHandler(e) {
     const fsBar = document.getElementById('reader-fullscreen-bar');
     if (fsBar) fsBar.style.display = pdfIsFullscreen ? 'flex' : 'none';
     _syncPdfFullscreenProgressLabel();
+  } else if (e.key === 'm' || e.key === 'M') {
+    if (e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+    const novoModo = (pdfMode === 'horizontal') ? 'vertical' : 'horizontal';
+    trocarModoPdf(novoModo);
   }
 }
 

@@ -20,7 +20,9 @@ const shortcutsMap = [
       { action: 'shortcuts.action.zoom_in', keys: [['shortcuts.key.ctrl', '+'], ['shortcuts.key.ctrl', '=']] },
       { action: 'shortcuts.action.zoom_out', keys: [['shortcuts.key.ctrl', '-']] },
       { action: 'shortcuts.action.zoom_reset', keys: [['shortcuts.key.ctrl', '0']] },
-      { action: 'shortcuts.action.fullscreen', keys: [['F']] }
+      { action: 'shortcuts.action.fullscreen', keys: [['F']] },
+      { action: 'shortcuts.action.toggle_pdf_mode', keys: [['M']] },
+      { action: 'shortcuts.action.toggle_epub_theme', keys: [['M']] }
     ]
   }
 ];

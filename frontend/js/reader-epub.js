@@ -268,6 +268,13 @@ function _applyEpubTheme(theme, persist = true) {
   });
 }
 
+function _cycleEpubTheme() {
+  const order = ['dark', 'light', 'sepia'];
+  const idx = order.indexOf(epubTheme);
+  const next = order[(idx + 1) % order.length];
+  _applyEpubTheme(next, true);
+}
+
 /**
  * Aplica tamanho de fonte ao rendition do epub.js.
  * @param {number} size    - Percentual (60-200)
@@ -578,7 +585,7 @@ async function saveEpubProgress() {
 // ──────────────────────────────────────────────────────────────────────────────
 
 function epubKeyHandler(e) {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
 
   // Atalhos de Zoom / Tamanho de fonte (Ctrl+ / Ctrl- / Ctrl 0)
   if (e.ctrlKey || e.metaKey) {
@@ -631,6 +638,10 @@ function epubKeyHandler(e) {
     document.body.classList.toggle('reader-fullscreen', epubIsFullscreen);
     const fsBar = document.getElementById('reader-fullscreen-bar');
     if (fsBar) fsBar.style.display = epubIsFullscreen ? 'flex' : 'none';
+  } else if (e.key === 'm' || e.key === 'M') {
+    if (e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+    _cycleEpubTheme();
   }
 }
 
