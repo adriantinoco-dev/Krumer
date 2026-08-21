@@ -20,6 +20,15 @@ class LibraryManager {
 
     this.selectedItem = null;
     this.continueReadingItems = [];
+
+    // IDs cuja capa foi alterada (editar/restaurar) e precisa ser re-baixada
+    // explicitamente na próxima renderização. Evita o recarregamento de todas
+    // as capas ao retornar à biblioteca.
+    this._bustedCoverIds = new Set();
+
+    // Mantém a posição de scroll ao re-renderizar a grade (retorno do leitor/
+    // detalhes) para que os livros "continuem lá" sem pulo para o topo.
+    this._restoreScroll = false;
   }
 
   /**
@@ -121,8 +130,10 @@ class LibraryManager {
   /**
    * Loads items from backend with active filters
    */
-  async loadItems(silent = false) {
+  async loadItems(silent = false, preserveScroll = false) {
     try {
+      this._restoreScroll = preserveScroll;
+
       if (!silent) {
         this.renderLoadingState();
       }
@@ -133,6 +144,7 @@ class LibraryManager {
       this.renderGrid();
     } catch (err) {
       console.error(err);
+      this._restoreScroll = false;
       if (!silent) {
         this.renderErrorState(err.message);
       }
@@ -184,6 +196,10 @@ class LibraryManager {
   renderGrid() {
     if (!this.gridElement) return;
 
+    // Preserva a posição de scroll ao re-renderizar (ex.: retorno do leitor)
+    const scrollViewport = document.querySelector('.library-viewport');
+    const savedScroll = (this._restoreScroll && scrollViewport) ? scrollViewport.scrollTop : 0;
+
     // Renderizar seção "Continuar Lendo" (livros avulsos e capítulos em andamento)
     this._renderContinueReading();
 
@@ -229,11 +245,16 @@ class LibraryManager {
         </div>
         `;
       }
+      if (this._restoreScroll && scrollViewport) scrollViewport.scrollTop = savedScroll;
+      this._restoreScroll = false;
       return;
     }
 
     this.gridElement.innerHTML = this.items.map(item => this.createBookCardHTML(item)).join('');
     this.attachCardEventListeners();
+
+    if (this._restoreScroll && scrollViewport) scrollViewport.scrollTop = savedScroll;
+    this._restoreScroll = false;
   }
 
   /**
@@ -288,7 +309,9 @@ class LibraryManager {
    */
   createBookCardHTML(item) {
     const isSeries = item.type === 'series';
-    const coverUrl = item.cover_path ? LibraryAPI.getCoverUrl(item.id) : '';
+    const busted = this._bustedCoverIds.has(item.id);
+    if (busted) this._bustedCoverIds.delete(item.id);
+    const coverUrl = item.cover_path ? LibraryAPI.getCoverUrl(item.id, busted) : '';
     const progressPct = item.overall_progress || 0;
     const rating = item.rating || 0;
     const is3D = window.cardViewMode === '3d';
@@ -451,9 +474,17 @@ class LibraryManager {
   }
 
   /**
+   * Marca a capa de um item para ser re-baixada na próxima renderização
+   * (usado após editar/restaurar a capa, sem afetar as demais).
+   */
+  refreshCoverForItem(id) {
+    this._bustedCoverIds.add(id);
+  }
+
+  /**
    * Opens dedicated Book Details page according to pagina-detalhes-livro.md specs
    */
-  async openBookDetails(id) {
+  async openBookDetails(id, cacheBustCover = false) {
     try {
       const item = await LibraryAPI.getItem(id);
       this.selectedItem = item;
@@ -472,7 +503,7 @@ class LibraryManager {
       const fallbackTitle = document.getElementById('details-fallback-title');
 
       if (item.cover_path) {
-        const coverUrl = LibraryAPI.getCoverUrl(item.id);
+        const coverUrl = LibraryAPI.getCoverUrl(item.id, cacheBustCover);
         coverImg.src = coverUrl;
         coverImg.style.display = 'block';
         if (coverFallback) coverFallback.style.display = 'none';
@@ -1020,8 +1051,9 @@ class LibraryManager {
     const sidebar = document.getElementById('sidebar');
     if (sidebar) sidebar.classList.remove('sidebar--hidden');
 
-    // Recarrega itens para refletir quaisquer atualizações de avaliação
-    this.loadItems();
+    // Recarrega itens para refletir quaisquer atualizações de avaliação,
+    // preservando a posição de scroll para que a grade não "pule".
+    this.loadItems(true, true);
 
     // F4: Auto-rescan ao retornar da página de detalhes (silencioso, em background)
     if (window.app && typeof window.app.triggerAutoRescan === 'function') {

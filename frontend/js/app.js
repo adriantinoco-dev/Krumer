@@ -450,13 +450,15 @@ class AppController {
           const newCoverFile = coverFileInput && coverFileInput.files[0];
           if (newCoverFile) {
             await LibraryAPI.uploadCover(item.id, newCoverFile);
+            this.libraryManager.refreshCoverForItem(item.id);
           }
 
           this.libraryManager.closeEditMetadataModal();
           this.showToast(I18N.t('toast.metadata_saved'));
 
           // 3. Reload the details page to reflect all changes instantly
-          await this.libraryManager.openBookDetails(item.id);
+          //    (bust the cover so the newly uploaded image appears)
+          await this.libraryManager.openBookDetails(item.id, !!newCoverFile);
 
         } catch (err) {
           console.error('Erro ao salvar metadados:', err);
@@ -484,9 +486,12 @@ class AppController {
           // Update the cover preview in the form
           const preview = document.getElementById('edit-cover-preview');
           if (preview) {
-            preview.src = LibraryAPI.getCoverUrl(updated.id) + '&restore=' + Date.now();
+            preview.src = LibraryAPI.getCoverUrl(updated.id, true);
             preview.style.display = 'block';
           }
+
+          // Garante que a grade da biblioteca exiba a capa original restaurada
+          this.libraryManager.refreshCoverForItem(updated.id);
 
           // Hide restore button (cover is now the original)
           restoreOriginalCoverBtn.style.display = 'none';
@@ -1338,13 +1343,14 @@ function closeReader() {
     closeEpub();
   }
 
-  // Recarregar biblioteca/detalhes para atualizar badges de progresso
-  if (window.app && window.app.libraryManager) {
-    window.app.libraryManager.loadItems();
-    if (window.app.libraryManager.selectedItem) {
-      window.app.libraryManager.openBookDetails(window.app.libraryManager.selectedItem.id);
-    }
-  }
+   // Recarregar biblioteca/detalhes para atualizar badges de progresso,
+   // preservando a posição de scroll (sem recarregar as capas em cache).
+   if (window.app && window.app.libraryManager) {
+     window.app.libraryManager.loadItems(true, true);
+     if (window.app.libraryManager.selectedItem) {
+       window.app.libraryManager.openBookDetails(window.app.libraryManager.selectedItem.id);
+     }
+   }
 
   // F4: Trigger silent incremental scan after leaving reader
   if (window.app && typeof window.app.triggerAutoRescan === 'function') {
