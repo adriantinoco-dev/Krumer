@@ -36,6 +36,7 @@ class AppController {
     this.libraryManager = new LibraryManager();
     this.metadataManager = new MetadataManager(this);
     this.isOnboarding = false;
+    this.coverRestoredInEdit = false;
   }
 
   async init() {
@@ -238,6 +239,7 @@ class AppController {
                 this.onbScanComplete();
               } else {
                 this.showToast(I18N.t('toast.scan_complete'));
+                LibraryAPI.refreshCoverCache();
                 this.libraryManager.loadTags();
                 this.libraryManager.loadItems();
               }
@@ -342,6 +344,7 @@ class AppController {
     const btnEditMetadata = document.getElementById('details-btn-edit');
     if (btnEditMetadata) {
       btnEditMetadata.addEventListener('click', () => {
+        this.coverRestoredInEdit = false;
         this.libraryManager.openEditMetadataModal();
       });
     }
@@ -454,16 +457,19 @@ class AppController {
           // 2. Upload cover if a new file was selected
           const newCoverFile = coverFileInput && coverFileInput.files[0];
           if (newCoverFile) {
-            await LibraryAPI.uploadCover(item.id, newCoverFile);
-            this.libraryManager.refreshCoverForItem(item.id);
+            const updatedCoverItem = await LibraryAPI.uploadCover(item.id, newCoverFile);
+            LibraryAPI.refreshCoverCache();
+            this.libraryManager.applyPersistedItem(updatedCoverItem);
           }
 
+          const shouldBustCover = !!newCoverFile || this.coverRestoredInEdit;
+          this.coverRestoredInEdit = false;
           this.libraryManager.closeEditMetadataModal();
           this.showToast(I18N.t('toast.metadata_saved'));
 
           // 3. Reload the details page to reflect all changes instantly
-          //    (bust the cover so the newly uploaded image appears)
-          await this.libraryManager.openBookDetails(item.id, !!newCoverFile);
+          //    (bust the cover after upload/restore so the new image appears)
+          await this.libraryManager.openBookDetails(item.id, shouldBustCover);
 
         } catch (err) {
           console.error('Erro ao salvar metadados:', err);
@@ -485,8 +491,9 @@ class AppController {
         restoreOriginalCoverBtn.disabled = true;
         try {
           const updated = await LibraryAPI.restoreOriginalCover(item.id);
-          // Update selected item in memory
-          this.libraryManager.selectedItem = updated;
+          LibraryAPI.refreshCoverCache();
+          this.libraryManager.applyPersistedItem(updated);
+          this.coverRestoredInEdit = true;
 
           // Update the cover preview in the form
           const preview = document.getElementById('edit-cover-preview');
@@ -496,8 +503,6 @@ class AppController {
           }
 
           // Garante que a grade da biblioteca exiba a capa original restaurada
-          this.libraryManager.refreshCoverForItem(updated.id);
-
           // Hide restore button (cover is now the original)
           restoreOriginalCoverBtn.style.display = 'none';
 

@@ -28,6 +28,31 @@ def _cover_is_auto_extracted(item) -> bool:
         return False
 
 
+def _series_custom_cover_path(series) -> str:
+    """Returns the path reserved for a cover directly uploaded to a series."""
+    cover_hash = hashlib.sha256(series.path.encode('utf-8')).hexdigest()
+    return str(COVERS_DIR / f"{cover_hash}.png")
+
+
+def _has_custom_series_cover(series) -> bool:
+    """Whether the series cover was explicitly uploaded by the user."""
+    if not series.cover_path or not os.path.exists(series.cover_path):
+        return False
+
+    return os.path.normcase(os.path.normpath(series.cover_path)) == os.path.normcase(
+        os.path.normpath(_series_custom_cover_path(series))
+    )
+
+
+def _sync_series_cover(series, child_cover_path, child_original_cover_path) -> None:
+    """Keeps automatic series covers tied to the first child without replacing uploads."""
+    if not child_cover_path or _has_custom_series_cover(series):
+        return
+
+    series.cover_path = child_cover_path
+    series.cover_original_path = child_original_cover_path or child_cover_path
+
+
 def count_files_in_path(root_path: str) -> int:
     """Conta quantos arquivos suportados existem no diretório (incluindo subpastas)."""
     root = Path(root_path)
@@ -143,6 +168,7 @@ def scan_library_folder(db: Session, root_path: str, progress_callback=None):
                 
                 # Upsert all child chapters
                 first_child_cover = None
+                first_child_original_cover = None
                 
                 for idx, child in enumerate(child_files):
                     child_filename = child.stem
@@ -165,6 +191,7 @@ def scan_library_folder(db: Session, root_path: str, progress_callback=None):
                             refresh_item_cover(str(child), db_child.cover_path, db_child.cover_original_path, child_filename)
                         if idx == 0:
                             first_child_cover = db_child.cover_path
+                            first_child_original_cover = db_child.cover_original_path
                     else:
                         # New chapter: use filename strictly as display title
                         _, _, _, _, cover_orig = process_file_metadata_and_cover(str(child), 'filename')
@@ -188,11 +215,17 @@ def scan_library_folder(db: Session, root_path: str, progress_callback=None):
                         try_restore_item(db, new_child)
                         if idx == 0:
                             first_child_cover = new_child.cover_path
+                            first_child_original_cover = new_child.cover_original_path
                         _report(str(child.name))
                         
-                # Update series cover if missing
-                if not db_series.cover_path or not os.path.exists(db_series.cover_path):
-                    db_series.cover_path = first_child_cover
+                # Series inherit the first chapter cover unless the user uploaded
+                # a specific cover for the series itself. This also repairs legacy
+                # series whose cover points to a chapter from another folder.
+                _sync_series_cover(
+                    db_series,
+                    first_child_cover,
+                    first_child_original_cover,
+                )
                     
     db.flush()
 

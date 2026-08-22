@@ -198,15 +198,20 @@ class LibraryAPI {
   }
 
   /**
-   * Gets absolute cover image URL.
-   * By default the URL is stable so the browser caches the image and it is
-   * NOT re-fetched when the grid re-renders (e.g. when returning to the
-   * library). Pass `bust=true` to force a fresh download after the cover was
-   * actually changed (edit/restore).
+   * Gets a cover URL with a per-session cache version. This prevents a cached
+   * image from being reused when an item starts pointing at another cover.
+   * Pass `bust=true` to force a fresh download after an individual edit.
    */
+  static coverCacheVersion = Date.now();
+
+  static refreshCoverCache() {
+    this.coverCacheVersion = Date.now();
+  }
+
   static getCoverUrl(id, bust = false) {
     const base = `${API_BASE_URL}/items/${id}/cover`;
-    return bust ? `${base}?t=${Date.now()}` : base;
+    const cacheVersion = bust ? Date.now() : this.coverCacheVersion;
+    return `${base}?t=${cacheVersion}`;
   }
 
   /**

@@ -283,8 +283,8 @@ def process_file_metadata_and_cover(file_path: str, display_title_setting: str) 
 def _process_cover_bytes(cover_bytes, cover_path, original_path, item_title="item"):
     """
     Crops the cover to 3:4, resizes it to 450x600 and saves both the display and
-    the "original" cover files. If the stored original already contains the same
-    bytes, nothing is rewritten. Returns True if files were written, False otherwise.
+    the "original" cover files. Existing identical files are left untouched.
+    Returns True when the cover bytes were valid and the cache is available.
     """
     try:
         image = Image.open(io.BytesIO(cover_bytes))
@@ -305,21 +305,24 @@ def _process_cover_bytes(cover_bytes, cover_path, original_path, item_title="ite
         image.save(buf, format="PNG")
         processed = buf.getvalue()
 
-        # Skip rewriting when nothing changed (avoids churn on every rescan)
-        if original_path and os.path.exists(original_path):
+        def _write_if_changed(path):
+            if not path:
+                return
             try:
-                with open(original_path, 'rb') as f:
-                    if f.read() == processed:
-                        return False
+                if os.path.exists(path):
+                    with open(path, 'rb') as f:
+                        if f.read() == processed:
+                            return
             except OSError:
                 pass
+            with open(path, 'wb') as f:
+                f.write(processed)
 
         Path(cover_path).parent.mkdir(parents=True, exist_ok=True)
-        with open(cover_path, 'wb') as f:
-            f.write(processed)
+        _write_if_changed(cover_path)
         if original_path:
-            with open(original_path, 'wb') as f:
-                f.write(processed)
+            Path(original_path).parent.mkdir(parents=True, exist_ok=True)
+            _write_if_changed(original_path)
         return True
     except Exception as e:
         print(f"Could not save cover image for {item_title}. Error: {e}")

@@ -482,6 +482,23 @@ class LibraryManager {
   }
 
   /**
+   * Replaces the cached item after the backend persists a cover change.
+   */
+  applyPersistedItem(updatedItem) {
+    const replaceIn = (items) => {
+      const index = items.findIndex(item => item.id === updatedItem.id);
+      if (index >= 0) items[index] = updatedItem;
+    };
+
+    replaceIn(this.items);
+    replaceIn(this.continueReadingItems);
+    if (this.selectedItem?.id === updatedItem.id) {
+      this.selectedItem = updatedItem;
+    }
+    this.refreshCoverForItem(updatedItem.id);
+  }
+
+  /**
    * Opens dedicated Book Details page according to pagina-detalhes-livro.md specs
    */
   async openBookDetails(id, cacheBustCover = false) {
@@ -1115,6 +1132,7 @@ class LibraryManager {
   closeEditMetadataModal() {
     const modal = document.getElementById('edit-metadata-modal');
     if (modal) modal.classList.remove('active');
+    if (window.app) window.app.coverRestoredInEdit = false;
   }
 
 

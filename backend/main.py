@@ -22,7 +22,12 @@ from models import (
     ProgressCreate, TagResponse, HighlightCreate, HighlightUpdate, HighlightResponse,
     UserListCreate, UserListUpdate, UserListResponse, ListItemsPayload
 )
-from scanner import scan_library_folder, SUPPORTED_EXTENSIONS, count_files_in_path
+from scanner import (
+    scan_library_folder,
+    SUPPORTED_EXTENSIONS,
+    count_files_in_path,
+    _sync_series_cover,
+)
 from archive import archive_item, try_restore_item
 from metadata import process_file_metadata_and_cover
 from metadata_service import (
@@ -785,7 +790,6 @@ def restore_original_book_cover(id: int, db: Session = Depends(get_db)):
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
-    # Séries não têm arquivo próprio: usa o primeiro capítulo para extrair a capa original
     target_item = item
     if item.type == "series":
         first_child = db.query(Item).filter(
@@ -793,17 +797,19 @@ def restore_original_book_cover(id: int, db: Session = Depends(get_db)):
         ).order_by(Item.path.asc()).first()
         if first_child:
             target_item = first_child
+            if first_child.cover_original_path and os.path.exists(first_child.cover_original_path):
+                item.cover_original_path = first_child.cover_original_path
         else:
             raise HTTPException(status_code=400, detail="Esta série não possui capítulos.")
 
     # Try to extract if not present
     if not item.cover_original_path or not os.path.exists(item.cover_original_path):
         import hashlib
-        from PIL import Image
-        from metadata import get_epub_metadata, get_pdf_metadata
+        from metadata import get_epub_metadata, get_pdf_metadata, _process_cover_bytes
         
-        cover_hash = hashlib.sha256(item.path.encode('utf-8')).hexdigest()
+        cover_hash = hashlib.sha256(target_item.path.encode('utf-8')).hexdigest()
         cover_original_path = COVERS_DIR / f"{cover_hash}_original.png"
+        cover_path = COVERS_DIR / f"{cover_hash}.png"
         
         suffix = Path(target_item.path).suffix.lower()
         cover_bytes = None
@@ -813,24 +819,18 @@ def restore_original_book_cover(id: int, db: Session = Depends(get_db)):
             _, _, _, cover_bytes = get_pdf_metadata(target_item.path)
             
         if cover_bytes:
-            try:
-                image = Image.open(io.BytesIO(cover_bytes))
-                target_w, target_h = 450, 600
-                img_ratio = image.width / image.height
-                target_ratio = target_w / target_h
-                if img_ratio > target_ratio:
-                    new_w = int(image.height * target_ratio)
-                    left = (image.width - new_w) // 2
-                    image = image.crop((left, 0, left + new_w, image.height))
-                else:
-                    new_h = int(image.width / target_ratio)
-                    top = (image.height - new_h) // 2
-                    image = image.crop((0, top, image.width, top + new_h))
-                image = image.resize((target_w, target_h), Image.LANCZOS)
-                image.save(cover_original_path, format="PNG")
+            if _process_cover_bytes(
+                cover_bytes,
+                str(cover_path),
+                str(cover_original_path),
+                target_item.filename_title or target_item.title,
+            ):
                 item.cover_original_path = str(cover_original_path)
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=f"Failed to process original cover: {str(e)}")
+                if target_item.id != item.id:
+                    target_item.cover_original_path = str(cover_original_path)
+                    target_item.cover_path = str(cover_original_path)
+            else:
+                raise HTTPException(status_code=400, detail="Failed to process original cover.")
         else:
             raise HTTPException(status_code=400, detail="Original cover could not be extracted from this file.")
 
@@ -979,14 +979,20 @@ def scan_incremental_route(db: Session = Depends(get_db)):
                 try_restore_item(db, new_item)
                 added_items.append(new_item)
                 
-        # Update series cover if needed
+        # Keep automatic series covers tied to the first chapter while
+        # preserving a cover uploaded directly to the series.
         for path, type_str, parent_path in disk_files:
             if type_str == "series" and path in series_objects:
                 series = series_objects[path]
-                if not series.cover_path or not os.path.exists(series.cover_path):
-                    first_child = db.query(Item).filter(Item.parent_id == series.id).first()
-                    if first_child:
-                        series.cover_path = first_child.cover_path
+                first_child = db.query(Item).filter(
+                    Item.parent_id == series.id
+                ).order_by(Item.path.asc()).first()
+                if first_child:
+                    _sync_series_cover(
+                        series,
+                        first_child.cover_path,
+                        first_child.cover_original_path,
+                    )
                         
         # Cleanup empty series
         series_items = db.query(Item).filter(Item.type == "series").all()
@@ -1211,7 +1217,11 @@ def get_book_cover_image(id: int, db: Session = Depends(get_db)):
         except Exception:
             raise HTTPException(status_code=404, detail="Cover file missing and auto-regeneration failed")
             
-    return FileResponse(item.cover_path, media_type="image/png")
+    return FileResponse(
+        item.cover_path,
+        media_type="image/png",
+        headers={"Cache-Control": "private, max-age=0, must-revalidate"},
+    )
 
 @app.get("/files")
 def serve_media_file(path: str, request: Request):

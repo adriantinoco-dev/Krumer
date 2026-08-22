@@ -19,6 +19,11 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ### Corrigido
 - Sincronização de status de leitura entre livros pai e filhos (séries)
+- Restauração de capa original em séries: agora usa a capa original do primeiro capítulo e força atualização visual após salvar
+- Cache de capas originais já existentes não é mais tratado como ausência de capa, evitando placeholders/capas incorretas em rescans
+- Capas de séries legadas apontando para outro livro são reparadas no scan, sem substituir capas personalizadas
+- Cache do navegador não reutiliza mais a imagem anterior quando uma capa é restaurada ou a biblioteca é escaneada
+- Upload de capa e restauração atualizam o item gravado pelo backend imediatamente; o re-scan incremental também preserva capas personalizadas
 
 ### Mobile (Android) — em desenvolvimento
 - Base do app Android em `mobile/` (React Native + Expo): onboarding (idioma/tema/pasta/API key), abas Biblioteca/Listas/Configurações, biblioteca com "Continuar lendo" e grid de capas, listas fixas, scanner local de PDF/EPUB, extração de capas, leitor PDF via `react-native-pdf` e EPUB via WebView + epub.js, 3 temas e i18n parcial (3 de 10 idiomas).

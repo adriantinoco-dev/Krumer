@@ -1,6 +1,10 @@
 import os
 import shutil
 import unittest
+import hashlib
+import asyncio
+import io
+from fastapi import UploadFile
 from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -87,6 +91,109 @@ class TestLibrarianBackend(unittest.TestCase):
         self.assertIsNotNone(book1)
         self.assertEqual(book1.title, "livro_avulso_1")
         self.assertEqual(book1.filename_title, "livro_avulso_1")
+
+    def test_existing_original_cover_cache_is_still_returned(self):
+        """Processing a file twice must keep returning the original cover path."""
+        file_path = str(self.test_dir / "livro_avulso_1.epub")
+
+        first = metadata.process_file_metadata_and_cover(file_path, "filename")
+        second = metadata.process_file_metadata_and_cover(file_path, "filename")
+
+        self.assertIsNotNone(first[4])
+        self.assertEqual(first[4], second[4])
+        self.assertTrue(os.path.exists(second[4]))
+
+    def test_restore_series_cover_uses_first_child_original_cover(self):
+        """Series restore should point back to the first chapter's original cover."""
+        scan_library_folder(self.db, str(self.test_dir))
+
+        series = self.db.query(Item).filter(Item.type == "series").first()
+        first_child = self.db.query(Item).filter(
+            Item.parent_id == series.id
+        ).order_by(Item.path.asc()).first()
+        self.assertIsNotNone(first_child.cover_original_path)
+
+        wrong_cover = database.COVERS_DIR / "wrong-series-cover-test.png"
+        with open(wrong_cover, "wb") as fp:
+            fp.write(b"not a real cover")
+        series.cover_path = str(wrong_cover)
+        series.cover_original_path = None
+        self.db.commit()
+
+        restored = main.restore_original_book_cover(series.id, db=self.db)
+
+        self.assertEqual(restored.cover_path, first_child.cover_original_path)
+        self.assertEqual(restored.cover_original_path, first_child.cover_original_path)
+
+    def test_rescan_repairs_legacy_series_cover_from_another_series(self):
+        """A legacy series cover must be replaced by its own first chapter cover."""
+        scan_library_folder(self.db, str(self.test_dir))
+
+        series = self.db.query(Item).filter(Item.type == "series").first()
+        first_child = self.db.query(Item).filter(
+            Item.parent_id == series.id
+        ).order_by(Item.path.asc()).first()
+        wrong_cover = str(database.COVERS_DIR / "wrong-legacy-series-cover.png")
+        shutil.copyfile(first_child.cover_path, wrong_cover)
+
+        series.cover_path = wrong_cover
+        series.cover_original_path = None
+        self.db.commit()
+
+        scan_library_folder(self.db, str(self.test_dir))
+        self.db.refresh(series)
+
+        self.assertEqual(series.cover_path, first_child.cover_path)
+        self.assertEqual(series.cover_original_path, first_child.cover_original_path)
+
+    def test_rescan_preserves_custom_series_cover(self):
+        """An uploaded series cover must not be replaced during a rescan."""
+        scan_library_folder(self.db, str(self.test_dir))
+
+        series = self.db.query(Item).filter(Item.type == "series").first()
+        first_child = self.db.query(Item).filter(Item.parent_id == series.id).first()
+        cover_hash = hashlib.sha256(series.path.encode("utf-8")).hexdigest()
+        custom_cover = database.COVERS_DIR / f"{cover_hash}.png"
+        shutil.copyfile(first_child.cover_path, custom_cover)
+
+        series.cover_path = str(custom_cover)
+        series.cover_original_path = None
+        self.db.commit()
+
+        scan_library_folder(self.db, str(self.test_dir))
+        self.db.refresh(series)
+
+        self.assertEqual(series.cover_path, str(custom_cover))
+
+    def test_cover_response_disables_stale_browser_cache(self):
+        """The cover endpoint must revalidate images after an item changes cover."""
+        scan_library_folder(self.db, str(self.test_dir))
+        book = self.db.query(Item).filter(Item.type == "book").first()
+
+        response = main.get_book_cover_image(book.id, db=self.db)
+
+        self.assertEqual(
+            response.headers["cache-control"],
+            "private, max-age=0, must-revalidate",
+        )
+
+    def test_custom_cover_upload_persists_through_rescan(self):
+        """A user-uploaded book cover remains the active cover after scanning."""
+        scan_library_folder(self.db, str(self.test_dir))
+        book = self.db.query(Item).filter(Item.type == "book").first()
+        from PIL import Image
+
+        custom_image = Image.new("RGB", (20, 20), color="blue")
+        custom_buffer = io.BytesIO()
+        custom_image.save(custom_buffer, format="PNG")
+        upload = UploadFile(filename="custom-cover.png", file=io.BytesIO(custom_buffer.getvalue()))
+
+        updated = asyncio.run(main.upload_custom_book_cover(book.id, upload, db=self.db))
+        self.assertTrue(os.path.exists(updated.cover_path))
+
+        scan_library_folder(self.db, str(self.test_dir))
+        self.db.refresh(book)
+        self.assertEqual(book.cover_path, updated.cover_path)
 
     def test_rescan_preserves_existing_metadata(self):
         """Test that re-scanning does NOT overwrite or erase scraped metadata (author, synopsis, year, title)."""
