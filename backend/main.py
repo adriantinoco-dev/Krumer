@@ -17,9 +17,9 @@ from pydantic import BaseModel
 
 from database import Base, engine, get_db, COVERS_DIR
 from models import (
-    Item, Progress, Tag, Setting, UserList, list_items,
+    Item, Progress, Tag, Setting, UserList, list_items, Highlight,
     ItemResponse, ItemUpdate, ProgressResponse,
-    ProgressCreate, TagResponse,
+    ProgressCreate, TagResponse, HighlightCreate, HighlightUpdate, HighlightResponse,
     UserListCreate, UserListUpdate, UserListResponse, ListItemsPayload
 )
 from scanner import scan_library_folder, SUPPORTED_EXTENSIONS, count_files_in_path
@@ -106,6 +106,30 @@ async def lifespan(app: FastAPI):
         # Migração — coluna is_default em user_lists
         try:
             conn.execute(text("ALTER TABLE user_lists ADD COLUMN is_default BOOLEAN NOT NULL DEFAULT 0"))
+            conn.commit()
+        except Exception:
+            pass
+
+        # Migração — tabela highlights (marcações EPUB)
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS highlights (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+                    cfi_range TEXT NOT NULL,
+                    text_excerpt TEXT,
+                    color TEXT NOT NULL DEFAULT 'yellow',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(item_id, cfi_range)
+                )
+            """))
+            conn.commit()
+        except Exception:
+            pass
+
+        try:
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_highlights_item_id ON highlights (item_id)"))
             conn.commit()
         except Exception:
             pass
@@ -257,6 +281,14 @@ class MetadataFetchPayload(BaseModel):
 class MetadataApplyItem(BaseModel):
     item_id: int
     metadados: Optional[dict] = None
+
+class HighlightCreatePayload(BaseModel):
+    cfi_range: str
+    text_excerpt: Optional[str] = None
+    color: Optional[str] = 'yellow'
+
+class HighlightPatchPayload(BaseModel):
+    color: Optional[str] = None
 
 class MetadataApplyPayload(BaseModel):
     results: List[MetadataApplyItem]
@@ -993,18 +1025,20 @@ def remove_item_from_library(id: int, db: Session = Depends(get_db)):
     item_title = item.title
 
     if item.type == "series":
-        # Remove progresso de todos os capítulos filhos
+        # Remove progresso e highlights de todos os capítulos filhos
         children = db.query(Item).filter(Item.parent_id == id).all()
         for child in children:
             archive_item(db, child)
             db.query(Progress).filter(Progress.item_id == child.id).delete()
+            db.query(Highlight).filter(Highlight.item_id == child.id).delete()
             db.delete(child)
 
     # Guarda metadados antes de remover para restauração futura
     archive_item(db, item)
 
-    # Remove o progresso do próprio item
+    # Remove progresso e highlights do próprio item
     db.query(Progress).filter(Progress.item_id == id).delete()
+    db.query(Highlight).filter(Highlight.item_id == id).delete()
 
     # Remove o item (cascade de tags é tratado pelo ORM)
     db.delete(item)
@@ -1073,6 +1107,96 @@ def save_reading_progress(id: int, payload: ProgressUpdatePayload, db: Session =
     db.commit()
     db.refresh(progress_record)
     return progress_record
+
+
+# ─── Highlights (marcações EPUB — CFI Range) ───────────────────────────────
+
+HIGHLIGHT_COLORS = {"yellow", "green", "blue", "pink"}
+
+@app.get("/items/{id}/highlights", response_model=List[HighlightResponse])
+def list_highlights(id: int, db: Session = Depends(get_db)):
+    item = db.query(Item).filter(Item.id == id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return db.query(Highlight).filter(Highlight.item_id == id).order_by(Highlight.created_at.asc()).all()
+
+@app.post("/items/{id}/highlights", response_model=HighlightResponse)
+def create_highlight(id: int, payload: HighlightCreatePayload, db: Session = Depends(get_db)):
+    item = db.query(Item).filter(Item.id == id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    cfi = (payload.cfi_range or "").strip()
+    if not cfi:
+        raise HTTPException(status_code=400, detail="cfi_range é obrigatório")
+    color = (payload.color or "yellow").strip().lower()
+    if color not in HIGHLIGHT_COLORS:
+        raise HTTPException(status_code=400, detail=f"Cor inválida. Use: {', '.join(sorted(HIGHLIGHT_COLORS))}")
+    # Evitar duplicata por UNIQUE(item_id, cfi_range) — retorna existente
+    existing = db.query(Highlight).filter(Highlight.item_id == id, Highlight.cfi_range == cfi).first()
+    if existing:
+        # Atualiza cor/texto se mudou
+        if payload.text_excerpt is not None:
+            existing.text_excerpt = payload.text_excerpt.strip()[:2000] if payload.text_excerpt else None
+        existing.color = color
+        existing.updated_at = datetime.datetime.utcnow()
+        db.commit()
+        db.refresh(existing)
+        return existing
+    hl = Highlight(
+        item_id=id,
+        cfi_range=cfi,
+        text_excerpt=(payload.text_excerpt.strip()[:2000] if payload.text_excerpt else None),
+        color=color,
+    )
+    db.add(hl)
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        # Corrida criou duplicata
+        dup = db.query(Highlight).filter(Highlight.item_id == id, Highlight.cfi_range == cfi).first()
+        if dup:
+            return dup
+        raise HTTPException(status_code=500, detail=str(e))
+    db.refresh(hl)
+    return hl
+
+@app.patch("/items/{id}/highlights/{highlight_id}", response_model=HighlightResponse)
+def update_highlight(id: int, highlight_id: int, payload: HighlightPatchPayload, db: Session = Depends(get_db)):
+    hl = db.query(Highlight).filter(Highlight.id == highlight_id, Highlight.item_id == id).first()
+    if not hl:
+        raise HTTPException(status_code=404, detail="Highlight not found")
+    if payload.color:
+        color = payload.color.strip().lower()
+        if color not in HIGHLIGHT_COLORS:
+            raise HTTPException(status_code=400, detail=f"Cor inválida. Use: {', '.join(sorted(HIGHLIGHT_COLORS))}")
+        hl.color = color
+    hl.updated_at = datetime.datetime.utcnow()
+    db.commit()
+    db.refresh(hl)
+    return hl
+
+@app.delete("/items/{id}/highlights/{highlight_id}")
+def delete_highlight(id: int, highlight_id: int, db: Session = Depends(get_db)):
+    hl = db.query(Highlight).filter(Highlight.id == highlight_id, Highlight.item_id == id).first()
+    if not hl:
+        raise HTTPException(status_code=404, detail="Highlight not found")
+    db.delete(hl)
+    db.commit()
+    return {"status": "deleted", "id": highlight_id}
+
+@app.delete("/items/{id}/highlights")
+def delete_highlights_by_cfi(id: int, cfi_range: str = Query(..., alias="cfi_range"), db: Session = Depends(get_db)):
+    """Remove highlight por CFI Range (usado pelo leitor que só tem o CFI)."""
+    cfi = (cfi_range or "").strip()
+    if not cfi:
+        raise HTTPException(status_code=400, detail="cfi_range é obrigatório")
+    hl = db.query(Highlight).filter(Highlight.item_id == id, Highlight.cfi_range == cfi).first()
+    if not hl:
+        raise HTTPException(status_code=404, detail="Highlight not found")
+    db.delete(hl)
+    db.commit()
+    return {"status": "deleted", "id": hl.id}
 
 @app.get("/items/{id}/cover")
 def get_book_cover_image(id: int, db: Session = Depends(get_db)):

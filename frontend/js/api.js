@@ -472,6 +472,50 @@ class LibraryAPI {
     if (!res.ok) throw new Error('Failed to fetch item lists');
     return await res.json();
   }
+
+  // ─── Highlights (marcações EPUB) ──────────────────────────────────────
+
+  static async getHighlights(itemId) {
+    const res = await fetch(`${API_BASE_URL}/items/${itemId}/highlights`);
+    if (!res.ok) throw new Error(I18N.t('api.error_get_highlights', res.statusText));
+    return await res.json();
+  }
+
+  static async createHighlight(itemId, data) {
+    const res = await fetch(`${API_BASE_URL}/items/${itemId}/highlights`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.detail || I18N.t('api.error_create_highlight', res.statusText));
+    return body;
+  }
+
+  static async updateHighlight(itemId, highlightId, data) {
+    const res = await fetch(`${API_BASE_URL}/items/${itemId}/highlights/${highlightId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.detail || I18N.t('api.error_update_highlight', res.statusText));
+    return body;
+  }
+
+  static async deleteHighlight(itemId, highlightId) {
+    const res = await fetch(`${API_BASE_URL}/items/${itemId}/highlights/${highlightId}`, { method: 'DELETE' });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.detail || I18N.t('api.error_delete_highlight', res.statusText));
+    return body;
+  }
+
+  static async deleteHighlightByCfi(itemId, cfiRange) {
+    const res = await fetch(`${API_BASE_URL}/items/${itemId}/highlights?cfi_range=${encodeURIComponent(cfiRange)}`, { method: 'DELETE' });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.detail || I18N.t('api.error_delete_highlight', res.statusText));
+    return body;
+  }
 }
 
 window.LibraryAPI = LibraryAPI;

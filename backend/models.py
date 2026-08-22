@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Table, Boolean, JSON
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Table, Boolean, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 import datetime
 from pydantic import BaseModel, ConfigDict
@@ -90,6 +90,22 @@ class UserList(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
     items = relationship("Item", secondary=list_items, lazy="selectin")
+
+
+class Highlight(Base):
+    """Marcações de texto (frase/versos) em EPUB, persistidas por CFI Range."""
+    __tablename__ = 'highlights'
+    __table_args__ = (UniqueConstraint('item_id', 'cfi_range', name='uq_highlight_item_cfi'),)
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    item_id = Column(Integer, ForeignKey('items.id', ondelete='CASCADE'), nullable=False, index=True)
+    cfi_range = Column(String, nullable=False)
+    text_excerpt = Column(String, nullable=True)
+    color = Column(String, nullable=False, default='yellow')
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
+
+    item = relationship("Item", backref="highlights")
 
 
 class ArchivedItem(Base):
@@ -196,6 +212,27 @@ class UserListResponse(BaseModel):
     item_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
+
+class HighlightCreate(BaseModel):
+    cfi_range: str
+    text_excerpt: Optional[str] = None
+    color: Optional[str] = 'yellow'
+
+class HighlightUpdate(BaseModel):
+    color: Optional[str] = None
+    text_excerpt: Optional[str] = None
+
+class HighlightResponse(BaseModel):
+    id: int
+    item_id: int
+    cfi_range: str
+    text_excerpt: Optional[str] = None
+    color: str
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 class ListItemsPayload(BaseModel):
     item_ids: List[int]

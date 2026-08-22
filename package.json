@@ -31,6 +31,7 @@
     "@capacitor/cli": "^8.5.0",
     "electron": "^43.2.0",
     "electron-builder": "^26.15.3",
+    "playwright": "^1.62.1",
     "typescript": "^7.0.2"
   },
   "dependencies": {
