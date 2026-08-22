@@ -420,6 +420,21 @@
 #reader-container.horizontal .pdf-canvas-wrap.current-page {
   display: inline-block;
 }
+#reader-container.horizontal.double {
+  gap: 20px;
+}
+#reader-container.horizontal.double .pdf-canvas-wrap.current-page,
+#reader-container.horizontal.double .pdf-canvas-wrap.current-page-second {
+  display: inline-block;
+}
+@media (max-width: 768px) {
+  #reader-container.horizontal.double .pdf-canvas-wrap.current-page-second {
+    display: none !important;
+  }
+  #reader-container.horizontal.double {
+    gap: 0;
+  }
+}
 
 /* Vertical: empilha todas as páginas com rolagem */
 #reader-container.vertical {

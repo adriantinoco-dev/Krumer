@@ -7,6 +7,7 @@ let pdfCurrentPage = 1;
 let pdfTotalPages = 0;
 let pdfCurrentScale = 1.0;
 let pdfMode = 'horizontal'; // 'horizontal' (página única) ou 'vertical' (rolagem contínua)
+let pdfColumnMode = 'single'; // 'single' | 'double' — Plano B duas colunas
 let pdfCurrentItem = null;
 let pdfCurrentFilePath = null;
 let pdfIsFullscreen = false;
@@ -32,6 +33,8 @@ async function openPdf(item, filePath) {
   // Restaurar o último modo de exibição definido pelo usuário (localStorage)
   const savedMode = localStorage.getItem('krumer_pdf_view_mode');
   pdfMode = (savedMode === 'vertical') ? 'vertical' : 'horizontal';
+  const savedCol = localStorage.getItem('krumer_pdf_column');
+  pdfColumnMode = (savedCol === 'double') ? 'double' : 'single';
   renderingPages.clear();
 
   // Limpar estado de fullscreen ao abrir novo documento
@@ -91,8 +94,9 @@ async function openPdf(item, filePath) {
     const viewer = document.getElementById('reader-container');
     if (viewer) {
       viewer.innerHTML = '';
-      viewer.classList.remove('horizontal', 'vertical');
+      viewer.classList.remove('horizontal', 'vertical', 'double');
       viewer.classList.add(pdfMode);
+      if (pdfColumnMode === 'double' && pdfMode === 'horizontal') viewer.classList.add('double');
     }
 
     // Criar placeholders de todas as páginas para permitir a rolagem nativa instantânea
@@ -251,6 +255,9 @@ async function irParaPaginaPdf(numPagina, { instant = false } = {}) {
   pdfCurrentPage = numPagina;
 
   await renderizarPaginaPdf(numPagina);
+  if (pdfColumnMode === 'double' && pdfMode === 'horizontal' && numPagina + 1 <= pdfTotalPages) {
+    await renderizarPaginaPdf(numPagina + 1);
+  }
 
   if (pdfMode === 'horizontal') {
     marcarPaginaAtual();
@@ -270,10 +277,13 @@ async function irParaPaginaPdf(numPagina, { instant = false } = {}) {
  */
 function marcarPaginaAtual() {
   const wraps = document.querySelectorAll('#reader-container .pdf-canvas-wrap');
+  const isDouble = pdfColumnMode === 'double' && pdfMode === 'horizontal';
   wraps.forEach(wrap => {
     const pageNum = Number(wrap.dataset.page);
     const isCurrent = (pageNum === pdfCurrentPage);
+    const isSecond = isDouble && pageNum === pdfCurrentPage + 1 && pdfCurrentPage + 1 <= pdfTotalPages;
     wrap.classList.toggle('current-page', isCurrent);
+    wrap.classList.toggle('current-page-second', isSecond);
   });
 }
 
@@ -294,8 +304,9 @@ async function trocarModoPdf(novoModo) {
   const viewer = document.getElementById('reader-container');
   if (!viewer) return;
 
-  viewer.classList.remove('horizontal', 'vertical');
+  viewer.classList.remove('horizontal', 'vertical', 'double');
   viewer.classList.add(pdfMode);
+  if (pdfColumnMode === 'double' && pdfMode === 'horizontal') viewer.classList.add('double');
 
   if (pdfMode === 'vertical') {
     initVirtualScrollObserver();
@@ -303,12 +314,67 @@ async function trocarModoPdf(novoModo) {
   } else {
     stopVirtualScrollObserver();
     await renderizarPaginaPdf(pdfCurrentPage);
+    if (pdfColumnMode === 'double' && pdfCurrentPage + 1 <= pdfTotalPages) await renderizarPaginaPdf(pdfCurrentPage + 1);
     marcarPaginaAtual();
   }
 
   updateModeToggleButton();
+  updatePdfColumnButton();
   irParaPaginaPdf(pdfCurrentPage, { instant: true });
 }
+
+function _applyPdfColumns(mode, persist = true) {
+  pdfColumnMode = mode === 'double' ? 'double' : 'single';
+  if (persist) {
+    try { localStorage.setItem('krumer_pdf_column', pdfColumnMode); } catch (_) {}
+  }
+  const viewer = document.getElementById('reader-container');
+  if (viewer) {
+    viewer.classList.toggle('double', pdfColumnMode === 'double' && pdfMode === 'horizontal');
+    if (pdfMode === 'horizontal' && pdfColumnMode === 'double' && pdfCurrentPage % 2 === 0 && pdfCurrentPage > 1) {
+      // opcional: alinhar para página ímpar à esquerda para spread correto
+      // pdfCurrentPage--; // comentado — mantém posição atual
+    }
+  }
+  updatePdfColumnButton();
+  if (pdfMode === 'horizontal') {
+    renderizarPaginaPdf(pdfCurrentPage);
+    if (pdfColumnMode === 'double' && pdfCurrentPage + 1 <= pdfTotalPages) renderizarPaginaPdf(pdfCurrentPage + 1);
+    marcarPaginaAtual();
+    updatePdfControlsState();
+  }
+  if (persist && typeof showReaderZoomToast === 'function') {
+    showReaderZoomToast(pdfColumnMode === 'double' ? 2 : 1, 'Colunas');
+  }
+}
+
+function _togglePdfColumns() {
+  if (pdfMode === 'vertical') {
+    // em vertical, muda para horizontal double
+    pdfMode = 'horizontal';
+    try { localStorage.setItem('krumer_pdf_view_mode', pdfMode); } catch (_) {}
+    const viewer = document.getElementById('reader-container');
+    if (viewer) {
+      viewer.classList.remove('horizontal', 'vertical', 'double');
+      viewer.classList.add('horizontal', 'double');
+      stopVirtualScrollObserver();
+    }
+    updateModeToggleButton();
+  }
+  _applyPdfColumns(pdfColumnMode === 'double' ? 'single' : 'double', true);
+}
+
+function updatePdfColumnButton() {
+  const btn = document.getElementById('pdf-column-toggle');
+  if (!btn) return;
+  const isDouble = pdfColumnMode === 'double' && pdfMode === 'horizontal';
+  btn.classList.toggle('active', isDouble);
+  const label = btn.querySelector('span');
+  if (label) label.textContent = isDouble ? I18N.t('reader.pdf.single_column') : I18N.t('reader.pdf.two_columns');
+}
+window._applyPdfColumns = _applyPdfColumns;
+window._togglePdfColumns = _togglePdfColumns;
+window.updatePdfColumnButton = updatePdfColumnButton;
 
 /**
  * Renderiza uma página específica via PDF.js no seu wrapper correspondente
@@ -408,6 +474,14 @@ function setupPdfControls() {
       <span id="pdf-mode-label">${I18N.t('reader.pdf.scroll_continuous')}</span>
     </button>
 
+    <button id="pdf-column-toggle" class="btn-mode-toggle" title="${I18N.t('reader.pdf.two_columns')}">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <rect x="3" y="4" width="7" height="16" rx="1"></rect>
+        <rect x="14" y="4" width="7" height="16" rx="1"></rect>
+      </svg>
+      <span>${I18N.t('reader.pdf.two_columns')}</span>
+    </button>
+
     <!-- Botão Tela Cheia -->
     <button id="btn-fullscreen" class="btn-mode-toggle" title="${I18N.t('reader.fullscreen')}">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -451,11 +525,15 @@ function setupPdfControls() {
 
   // Event Handlers
   document.getElementById('pdf-btn-prev')?.addEventListener('click', () => {
-    if (pdfCurrentPage > 1) irParaPaginaPdf(pdfCurrentPage - 1);
+    if (pdfCurrentPage <= 1) return;
+    const step = (pdfColumnMode === 'double' && pdfMode === 'horizontal') ? 2 : 1;
+    irParaPaginaPdf(Math.max(1, pdfCurrentPage - step));
   });
 
   document.getElementById('pdf-btn-next')?.addEventListener('click', () => {
-    if (pdfCurrentPage < pdfTotalPages) irParaPaginaPdf(pdfCurrentPage + 1);
+    if (pdfCurrentPage >= pdfTotalPages) return;
+    const step = (pdfColumnMode === 'double' && pdfMode === 'horizontal') ? 2 : 1;
+    irParaPaginaPdf(Math.min(pdfTotalPages, pdfCurrentPage + step));
   });
 
   const pageInput = document.getElementById('pdf-page-input');
@@ -487,6 +565,8 @@ function setupPdfControls() {
   });
 
   updateModeToggleButton();
+  updatePdfColumnButton();
+  document.getElementById('pdf-column-toggle')?.addEventListener('click', () => _togglePdfColumns());
 
   // Fullscreen toggle
   document.getElementById('btn-fullscreen')?.addEventListener('click', () => {
@@ -587,11 +667,12 @@ function updatePdfControlsState() {
   const pageInput = document.getElementById('pdf-page-input');
   if (pageInput) pageInput.value = pdfCurrentPage;
 
+  const isDouble = pdfColumnMode === 'double' && pdfMode === 'horizontal';
   const btnPrev = document.getElementById('pdf-btn-prev');
   if (btnPrev) btnPrev.disabled = (pdfCurrentPage <= 1);
 
   const btnNext = document.getElementById('pdf-btn-next');
-  if (btnNext) btnNext.disabled = (pdfCurrentPage >= pdfTotalPages);
+  if (btnNext) btnNext.disabled = isDouble ? (pdfCurrentPage + 1 >= pdfTotalPages) : (pdfCurrentPage >= pdfTotalPages);
 
   _syncPdfFullscreenProgressLabel();
 }
@@ -822,12 +903,14 @@ function pdfKeyHandler(e) {
   if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
     if (pdfCurrentPage > 1) {
       e.preventDefault();
-      irParaPaginaPdf(pdfCurrentPage - 1);
+      const step = (pdfColumnMode === 'double' && pdfMode === 'horizontal') ? 2 : 1;
+      irParaPaginaPdf(Math.max(1, pdfCurrentPage - step));
     }
   } else if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
     if (pdfCurrentPage < pdfTotalPages) {
       e.preventDefault();
-      irParaPaginaPdf(pdfCurrentPage + 1);
+      const step = (pdfColumnMode === 'double' && pdfMode === 'horizontal') ? 2 : 1;
+      irParaPaginaPdf(Math.min(pdfTotalPages, pdfCurrentPage + step));
     }
   } else if (e.key === 'Escape') {
     const popover = document.getElementById('pdf-settings-popover');
@@ -853,6 +936,10 @@ function pdfKeyHandler(e) {
     e.preventDefault();
     const novoModo = (pdfMode === 'horizontal') ? 'vertical' : 'horizontal';
     trocarModoPdf(novoModo);
+  } else if (e.key === 'c' || e.key === 'C') {
+    if (e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+    _togglePdfColumns();
   }
 }
 

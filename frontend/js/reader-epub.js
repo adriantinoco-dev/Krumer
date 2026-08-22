@@ -14,6 +14,7 @@ let epubToc = [];
 let epubTheme = 'dark';
 let epubFontSize = 100; // percentual
 let epubIsFullscreen = false;
+let epubColumnMode = 'single'; // 'single' | 'double' (Plano B — duas colunas)
 
 // Highlights (Feature A)
 let epubHighlights = []; // [{id, cfi_range, color, text_excerpt}]
@@ -21,10 +22,10 @@ let epubSelectedCfi = null;
 let epubSelectedText = '';
 let epubSelectedContents = null;
 const EPUB_HIGHLIGHT_COLORS = {
-  yellow: { fill: '#facc15', 'fill-opacity': '0.45', 'mix-blend-mode': 'normal' },
-  green:  { fill: '#4ade80', 'fill-opacity': '0.45', 'mix-blend-mode': 'normal' },
-  blue:   { fill: '#60a5fa', 'fill-opacity': '0.45', 'mix-blend-mode': 'normal' },
-  pink:   { fill: '#f472b6', 'fill-opacity': '0.45', 'mix-blend-mode': 'normal' },
+  yellow: { fill: '#facc15', 'fill-opacity': '0.75', 'mix-blend-mode': 'normal' },
+  green:  { fill: '#4ade80', 'fill-opacity': '0.75', 'mix-blend-mode': 'normal' },
+  blue:   { fill: '#60a5fa', 'fill-opacity': '0.75', 'mix-blend-mode': 'normal' },
+  pink:   { fill: '#f472b6', 'fill-opacity': '0.75', 'mix-blend-mode': 'normal' },
 };
 const EPUB_HIGHLIGHT_CSS_BY_COLOR = {
   yellow: 'rgba(250,204,21,0.35)',
@@ -49,6 +50,7 @@ async function openEpub(item, filePath) {
   // Restaurar preferências salvas
   epubTheme = localStorage.getItem('krumer_epub_theme') || 'dark';
   epubFontSize = parseInt(localStorage.getItem('krumer_epub_font_size') || '100', 10);
+  epubColumnMode = localStorage.getItem('krumer_epub_column') === 'double' ? 'double' : 'single';
   epubIsFullscreen = false;
   document.body.classList.remove('reader-fullscreen');
   const fsBar = document.getElementById('reader-fullscreen-bar');
@@ -98,7 +100,7 @@ async function openEpub(item, filePath) {
       width: '100%',
       height: '100%',
       flow: 'paginated',
-      spread: 'none',
+      spread: epubColumnMode === 'double' ? 'auto' : 'none',
     });
 
     // Aplicar tema e fonte salvos antes de exibir
@@ -277,15 +279,14 @@ function _injectHighlightStylesToContent(content) {
     content.document.head.appendChild(style);
   }
   style.textContent = `
-    .krumer-hl-yellow { background: rgba(250,204,21,0.40) !important; }
-    .krumer-hl-green  { background: rgba(74,222,128,0.40) !important; }
-    .krumer-hl-blue   { background: rgba(96,165,250,0.40) !important; }
-    .krumer-hl-pink   { background: rgba(244,114,182,0.40) !important; }
-    g.krumer-hl-yellow rect, g.krumer-hl-yellow polygon { fill: rgba(250,204,21,0.40) !important; fill-opacity: 1 !important; }
-    g.krumer-hl-green  rect, g.krumer-hl-green  polygon { fill: rgba(74,222,128,0.40) !important; fill-opacity: 1 !important; }
-    g.krumer-hl-blue   rect, g.krumer-hl-blue   polygon { fill: rgba(96,165,250,0.40) !important; fill-opacity: 1 !important; }
-    g.krumer-hl-pink   rect, g.krumer-hl-pink   polygon { fill: rgba(244,114,182,0.40) !important; fill-opacity: 1 !important; }
-    .epub-highlight { mix-blend-mode: multiply; }
+    .krumer-hl-yellow { background: rgba(250,204,21,0.75) !important; }
+    .krumer-hl-green  { background: rgba(74,222,128,0.75) !important; }
+    .krumer-hl-blue   { background: rgba(96,165,250,0.75) !important; }
+    .krumer-hl-pink   { background: rgba(244,114,182,0.75) !important; }
+    g.krumer-hl-yellow rect, g.krumer-hl-yellow polygon { fill: rgba(250,204,21,0.75) !important; fill-opacity: 1 !important; }
+    g.krumer-hl-green  rect, g.krumer-hl-green  polygon { fill: rgba(74,222,128,0.75) !important; fill-opacity: 1 !important; }
+    g.krumer-hl-blue   rect, g.krumer-hl-blue   polygon { fill: rgba(96,165,250,0.75) !important; fill-opacity: 1 !important; }
+    g.krumer-hl-pink   rect, g.krumer-hl-pink   polygon { fill: rgba(244,114,182,0.75) !important; fill-opacity: 1 !important; }
   `;
 }
 
@@ -357,6 +358,28 @@ function _applyEpubFontSize(size, persist = true) {
     showReaderZoomToast(epubFontSize, 'Fonte');
   }
 }
+
+function _applyEpubColumns(mode, persist = true) {
+  epubColumnMode = mode === 'double' ? 'double' : 'single';
+  if (epubRendition) {
+    try { epubRendition.spread(epubColumnMode === 'double' ? 'auto' : 'none'); } catch (_) {}
+  }
+  if (persist) {
+    try { localStorage.setItem('krumer_epub_column', epubColumnMode); } catch (_) {}
+  }
+  const btn = document.getElementById('epub-column-toggle');
+  if (btn) btn.classList.toggle('active', epubColumnMode === 'double');
+  if (typeof showReaderZoomToast === 'function' && persist) {
+    showReaderZoomToast(epubColumnMode === 'double' ? 2 : 1, 'Colunas');
+  }
+}
+
+function _toggleEpubColumns() {
+  _applyEpubColumns(epubColumnMode === 'double' ? 'single' : 'double', true);
+  setTimeout(() => _renderHighlightsInCurrentView(), 300);
+}
+window._applyEpubColumns = _applyEpubColumns;
+window._toggleEpubColumns = _toggleEpubColumns;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Highlights (Feature A — marcar frase/versos, apenas EPUB)
@@ -1009,6 +1032,15 @@ function setupEpubControls() {
       <span>${I18N.t('reader.fullscreen')}</span>
     </button>
 
+    <!-- Duas colunas (Plano B) -->
+    <button id="epub-column-toggle" class="btn-mode-toggle ${epubColumnMode === 'double' ? 'active' : ''}" title="${I18N.t('reader.epub.two_columns')}">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <rect x="3" y="4" width="7" height="16" rx="1"></rect>
+        <rect x="14" y="4" width="7" height="16" rx="1"></rect>
+      </svg>
+      <span>${I18N.t('reader.epub.two_columns')}</span>
+    </button>
+
     <!-- Configurações (tema + fonte) -->
     <div class="reader-settings-wrapper">
       <button id="epub-settings-toggle" class="btn-mode-toggle" title="${I18N.t('reader.settings')}">
@@ -1124,6 +1156,9 @@ function setupEpubControls() {
       _applyEpubFontSize(parseInt(btn.dataset.size, 10));
     });
   });
+
+  // Duas colunas toggle
+  document.getElementById('epub-column-toggle')?.addEventListener('click', () => _toggleEpubColumns());
 
   // Fechar popover ao clicar fora
   document.addEventListener('click', _onOutsideClickEpub);
@@ -1284,6 +1319,10 @@ function epubKeyHandler(e) {
     if (e.ctrlKey || e.metaKey) return;
     e.preventDefault();
     _cycleEpubTheme();
+  } else if (e.key === 'c' || e.key === 'C') {
+    if (e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+    _toggleEpubColumns();
   }
 }
 

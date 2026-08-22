@@ -23,6 +23,7 @@ const shortcutsMap = [
       { action: 'shortcuts.action.fullscreen', keys: [['F']] },
       { action: 'shortcuts.action.toggle_pdf_mode', keys: [['M']] },
       { action: 'shortcuts.action.toggle_epub_theme', keys: [['M']] },
+      { action: 'shortcuts.action.columns', keys: [['C']] },
       { action: 'shortcuts.action.highlight', keys: [['shortcuts.key.selection']] },
       { action: 'shortcuts.action.highlight_remove', keys: [['shortcuts.key.click_hl'], ['shortcuts.key.escape']] }
     ]
