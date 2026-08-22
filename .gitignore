@@ -41,3 +41,6 @@ android/**/build/
 .pytest_cache
 .pnpm-store
 mobile/**/build
+
+# Docs
+docs/
