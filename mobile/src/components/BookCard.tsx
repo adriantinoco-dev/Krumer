@@ -11,7 +11,17 @@ const STAR_EMPTY = '#414141ff';
 const COVER_RADIUS = 20;
 const STAR_SIZE = 14;
 
-export function BookCard({ book, width, onPress }: { book: Book; width: number; onPress: () => void }) {
+export function BookCard({
+  book,
+  width,
+  onPress,
+  onLongPress,
+}: {
+  book: Book;
+  width: number;
+  onPress: () => void;
+  onLongPress?: () => void;
+}) {
   const { theme, t } = useApp();
   const [coverFailed, setCoverFailed] = useState(false);
   const showCover = Boolean(book.coverPath && !coverFailed);
@@ -28,7 +38,7 @@ export function BookCard({ book, width, onPress }: { book: Book; width: number; 
   }, [book.coverPath]);
 
   return (
-    <Pressable onPress={onPress} style={{ paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, width }}>
+    <Pressable onPress={onPress} onLongPress={onLongPress} style={{ paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, width }}>
       <View style={{ alignItems: 'center', marginBottom: 12, width: coverWidth }}>
 <View
           style={{

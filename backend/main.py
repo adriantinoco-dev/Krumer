@@ -4,6 +4,7 @@ import io
 import zipfile
 import mimetypes
 import datetime
+import hmac
 from pathlib import Path
 from typing import List, Optional
 from contextlib import asynccontextmanager
@@ -36,6 +37,17 @@ from metadata_service import (
     mapear_metadados_para_item,
     MetadataServiceError,
 )
+from sync_outbox import (
+    enqueue_list,
+    enqueue_membership,
+    enqueue_progress_items,
+    related_progress_items,
+)
+from sync_service import SyncService
+
+
+sync_service = SyncService()
+SYNC_BRIDGE_TOKEN = os.getenv("KRUMER_SYNC_BRIDGE_TOKEN", "")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -111,6 +123,19 @@ async def lifespan(app: FastAPI):
         # Migração — coluna is_default em user_lists
         try:
             conn.execute(text("ALTER TABLE user_lists ADD COLUMN is_default BOOLEAN NOT NULL DEFAULT 0"))
+            conn.commit()
+        except Exception:
+            pass
+
+        # Migração — UUID estável que conecta listas locais às remotas.
+        try:
+            conn.execute(text("ALTER TABLE user_lists ADD COLUMN sync_id TEXT"))
+            conn.commit()
+        except Exception:
+            pass
+
+        try:
+            conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_user_lists_sync_id ON user_lists (sync_id)"))
             conn.commit()
         except Exception:
             pass
@@ -242,7 +267,11 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"Error in cover_original_path backfill: {e}")
 
-    yield
+    await sync_service.start()
+    try:
+        yield
+    finally:
+        await sync_service.stop()
 
 app = FastAPI(
     title="Librarian Backend API", 
@@ -280,6 +309,11 @@ class ProgressUpdatePayload(BaseModel):
     total_pages: Optional[int] = None
     cfi: Optional[str] = None
 
+class SyncSessionPayload(BaseModel):
+    access_token: str
+    user_id: str
+    expires_at: Optional[int] = None
+
 class MetadataFetchPayload(BaseModel):
     item_ids: List[int]
 
@@ -297,6 +331,47 @@ class HighlightPatchPayload(BaseModel):
 
 class MetadataApplyPayload(BaseModel):
     results: List[MetadataApplyItem]
+
+
+def _require_sync_bridge(request: Request) -> None:
+    """Autoriza somente o processo Electron desta execução, via loopback."""
+    client_host = request.client.host if request.client else ""
+    received = request.headers.get("X-Krumer-Sync-Bridge", "")
+    if (
+        client_host not in {"127.0.0.1", "::1", "localhost"}
+        or not SYNC_BRIDGE_TOKEN
+        or not hmac.compare_digest(received, SYNC_BRIDGE_TOKEN)
+    ):
+        raise HTTPException(status_code=403, detail="Canal de sincronização inválido.")
+
+
+@app.get("/sync/status")
+def get_sync_status(request: Request):
+    _require_sync_bridge(request)
+    return sync_service.status()
+
+
+@app.put("/sync/session")
+def set_sync_session(payload: SyncSessionPayload, request: Request):
+    _require_sync_bridge(request)
+    if not payload.access_token or not payload.user_id:
+        raise HTTPException(status_code=400, detail="Sessão de sincronização incompleta.")
+    sync_service.configure(payload.access_token, payload.user_id, payload.expires_at)
+    return sync_service.status()
+
+
+@app.delete("/sync/session")
+def clear_sync_session(request: Request):
+    _require_sync_bridge(request)
+    sync_service.clear_session()
+    return sync_service.status()
+
+
+@app.post("/sync/trigger")
+def trigger_sync(request: Request):
+    _require_sync_bridge(request)
+    sync_service.trigger()
+    return sync_service.status()
 
 
 # --- Helper Functions ---
@@ -707,6 +782,13 @@ def update_item_metadata(id: int, payload: ItemUpdate, db: Session = Depends(get
         _set_item_read_progress(db, item, payload.is_read)
         _sync_read_status_after_item_change(db, item)
 
+    if payload.rating is not None or payload.is_read is not None:
+        enqueue_progress_items(
+            db,
+            related_progress_items(db, item),
+            rating_changed=payload.rating is not None,
+        )
+
     if payload.tags is not None:
         item.tags = []
         for tag_name in payload.tags:
@@ -734,6 +816,7 @@ def update_item_read_status(id: int, payload: ItemReadPayload, db: Session = Dep
         raise HTTPException(status_code=404, detail="Item not found")
     _set_item_read_progress(db, item, payload.is_read)
     _sync_read_status_after_item_change(db, item)
+    enqueue_progress_items(db, related_progress_items(db, item))
 
     db.commit()
     db.refresh(item)
@@ -1109,6 +1192,7 @@ def save_reading_progress(id: int, payload: ProgressUpdatePayload, db: Session =
         item.is_read = False
 
     _sync_read_status_after_item_change(db, item)
+    enqueue_progress_items(db, related_progress_items(db, item))
             
     db.commit()
     db.refresh(progress_record)
@@ -1410,6 +1494,8 @@ def create_list(payload: UserListCreate, db: Session = Depends(get_db)):
     max_order = db.query(db.query(UserList).order_by(UserList.sort_order.desc()).exists())
     lst = UserList(name=name)
     db.add(lst)
+    db.flush()
+    enqueue_list(db, lst)
     db.commit()
     db.refresh(lst)
     resp = UserListResponse.model_validate(lst)
@@ -1429,6 +1515,7 @@ def update_list(list_id: int, payload: UserListUpdate, db: Session = Depends(get
         lst.name = name
     if payload.sort_order is not None:
         lst.sort_order = payload.sort_order
+    enqueue_list(db, lst)
     db.commit()
     db.refresh(lst)
     count = db.query(list_items).filter(list_items.c.list_id == lst.id).count()
@@ -1444,6 +1531,7 @@ def delete_list(list_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="List not found.")
     if lst.is_default:
         raise HTTPException(status_code=400, detail="Cannot delete the default Favoritos list.")
+    enqueue_list(db, lst, operation="delete")
     db.query(list_items).filter(list_items.c.list_id == list_id).delete()
     db.delete(lst)
     db.commit()
@@ -1471,6 +1559,9 @@ def add_items_to_list(list_id: int, payload: ListItemsPayload, db: Session = Dep
         ).first()
         if not existing:
             db.execute(list_items.insert().values(list_id=list_id, item_id=item_id))
+            item = db.query(Item).filter(Item.id == item_id).first()
+            if item:
+                enqueue_membership(db, lst, item, "upsert")
     db.commit()
     return {"status": "added"}
 
@@ -1484,6 +1575,9 @@ def remove_item_from_list(list_id: int, item_id: int, db: Session = Depends(get_
         list_items.c.list_id == list_id,
         list_items.c.item_id == item_id
     ))
+    item = db.query(Item).filter(Item.id == item_id).first()
+    if item:
+        enqueue_membership(db, lst, item, "delete")
     db.commit()
     return {"status": "removed"}
 
@@ -1678,8 +1772,10 @@ if __name__ == "__main__":
     import sys
     import uvicorn
     api_host = os.getenv("KRUMER_API_HOST", "127.0.0.1")
+    api_port = int(os.getenv("KRUMER_API_PORT", "8765"))
+    reload_enabled = os.getenv("KRUMER_BACKEND_RELOAD", "0") == "1"
 
-    if getattr(sys, 'frozen', False):
-        uvicorn.run(app, host=api_host, port=8765, log_level="info")
+    if reload_enabled and not getattr(sys, "frozen", False):
+        uvicorn.run("main:app", host=api_host, port=api_port, reload=True)
     else:
-        uvicorn.run("main:app", host=api_host, port=8765, reload=True)
+        uvicorn.run(app, host=api_host, port=api_port, log_level="info")

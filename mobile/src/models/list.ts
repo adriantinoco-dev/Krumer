@@ -7,3 +7,12 @@ export type UserList = {
   item_count: number;
 };
 
+export type SyncList = {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  sortOrder: number;
+  createdAt: string;
+  bookFingerprints: string[];
+};
+

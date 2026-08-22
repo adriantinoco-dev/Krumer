@@ -10,6 +10,38 @@ export type TranslationKey =
   | 'api.metadataTitle'
   | 'api.noKey'
   | 'api.placeholder'
+  | 'auth.account'
+  | 'auth.accountCreated'
+  | 'auth.checkEmailConfirmation'
+  | 'auth.checkEmailMagic'
+  | 'auth.checkEmailRecovery'
+  | 'auth.confirmPassword'
+  | 'auth.confirmPasswordPlaceholder'
+  | 'auth.email'
+  | 'auth.emailConfirmed'
+  | 'auth.emailNotConfirmed'
+  | 'auth.emailPlaceholder'
+  | 'auth.forgotPassword'
+  | 'auth.genericError'
+  | 'auth.googleBrowserOpened'
+  | 'auth.googleSignIn'
+  | 'auth.magicLink'
+  | 'auth.newPassword'
+  | 'auth.orEmail'
+  | 'auth.password'
+  | 'auth.passwordPlaceholder'
+  | 'auth.passwordsMismatch'
+  | 'auth.passwordUpdated'
+  | 'auth.recoveryReady'
+  | 'auth.signIn'
+  | 'auth.signOut'
+  | 'auth.signUp'
+  | 'auth.signedIn'
+  | 'auth.signedInAs'
+  | 'auth.signedOut'
+  | 'auth.subtitle'
+  | 'auth.updatePassword'
+  | 'auth.working'
   | 'common.done'
   | 'common.continue'
   | 'common.save'
@@ -80,6 +112,38 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'api.metadataTitle': 'Metadata Search',
     'api.noKey': 'No key configured.',
     'api.placeholder': 'Paste your key here',
+    'auth.account': 'Account',
+    'auth.accountCreated': 'Account created and signed in.',
+    'auth.checkEmailConfirmation': 'Account created. Check your email to confirm your registration.',
+    'auth.checkEmailMagic': 'Sign-in link sent. Check your email.',
+    'auth.checkEmailRecovery': 'Recovery link sent. Check your email.',
+    'auth.confirmPassword': 'Confirm password',
+    'auth.confirmPasswordPlaceholder': 'Enter the password again',
+    'auth.email': 'Email',
+    'auth.emailConfirmed': 'Email confirmed',
+    'auth.emailNotConfirmed': 'Email confirmation pending',
+    'auth.emailPlaceholder': 'you@example.com',
+    'auth.forgotPassword': 'Forgot password',
+    'auth.genericError': 'Authentication could not be completed.',
+    'auth.googleBrowserOpened': 'Your browser is open. Choose your Google account to finish signing in.',
+    'auth.googleSignIn': 'Continue with Google',
+    'auth.magicLink': 'Email me a sign-in link',
+    'auth.newPassword': 'New password',
+    'auth.orEmail': 'or continue with email',
+    'auth.password': 'Password',
+    'auth.passwordPlaceholder': 'At least 6 characters',
+    'auth.passwordsMismatch': 'The passwords do not match.',
+    'auth.passwordUpdated': 'Password changed successfully.',
+    'auth.recoveryReady': 'Set a new password to finish account recovery.',
+    'auth.signIn': 'Sign in',
+    'auth.signOut': 'Sign out',
+    'auth.signUp': 'Create account',
+    'auth.signedIn': 'Signed in successfully.',
+    'auth.signedInAs': 'Signed in as',
+    'auth.signedOut': 'Signed out',
+    'auth.subtitle': 'Sign in to prepare library sync across your devices.',
+    'auth.updatePassword': 'Change password',
+    'auth.working': 'Please wait…',
     'common.done': 'Done!',
     'common.continue': 'Continue',
     'common.save': 'Save',
@@ -139,6 +203,38 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'api.metadataTitle': 'Busca de Metadados',
     'api.noKey': 'Nenhuma chave configurada.',
     'api.placeholder': 'Cole sua chave aqui',
+    'auth.account': 'Conta',
+    'auth.accountCreated': 'Conta criada e conectada.',
+    'auth.checkEmailConfirmation': 'Conta criada. Confira seu email para confirmar o cadastro.',
+    'auth.checkEmailMagic': 'Link de acesso enviado. Confira seu email.',
+    'auth.checkEmailRecovery': 'Link de recuperação enviado. Confira seu email.',
+    'auth.confirmPassword': 'Confirmar senha',
+    'auth.confirmPasswordPlaceholder': 'Digite a senha novamente',
+    'auth.email': 'Email',
+    'auth.emailConfirmed': 'Email confirmado',
+    'auth.emailNotConfirmed': 'Confirmação de email pendente',
+    'auth.emailPlaceholder': 'voce@exemplo.com',
+    'auth.forgotPassword': 'Esqueci minha senha',
+    'auth.genericError': 'Não foi possível concluir a autenticação.',
+    'auth.googleBrowserOpened': 'Navegador aberto. Escolha sua conta do Google para concluir o login.',
+    'auth.googleSignIn': 'Continuar com Google',
+    'auth.magicLink': 'Receber link de acesso',
+    'auth.newPassword': 'Nova senha',
+    'auth.orEmail': 'ou continue com email',
+    'auth.password': 'Senha',
+    'auth.passwordPlaceholder': 'Mínimo de 6 caracteres',
+    'auth.passwordsMismatch': 'As senhas não coincidem.',
+    'auth.passwordUpdated': 'Senha alterada com sucesso.',
+    'auth.recoveryReady': 'Defina uma nova senha para concluir a recuperação da conta.',
+    'auth.signIn': 'Entrar',
+    'auth.signOut': 'Sair da conta',
+    'auth.signUp': 'Criar conta',
+    'auth.signedIn': 'Login realizado com sucesso.',
+    'auth.signedInAs': 'Conectado como',
+    'auth.signedOut': 'Conta desconectada',
+    'auth.subtitle': 'Entre para preparar a sincronização da sua biblioteca entre dispositivos.',
+    'auth.updatePassword': 'Alterar senha',
+    'auth.working': 'Aguarde…',
     'common.done': 'Concluído!',
     'common.continue': 'Continuar',
     'common.save': 'Salvar',
@@ -198,6 +294,38 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'api.metadataTitle': 'Búsqueda de Metadatos',
     'api.noKey': 'No hay clave configurada.',
     'api.placeholder': 'Pega tu clave aquí',
+    'auth.account': 'Cuenta',
+    'auth.accountCreated': 'Cuenta creada y conectada.',
+    'auth.checkEmailConfirmation': 'Cuenta creada. Revisa tu correo para confirmar el registro.',
+    'auth.checkEmailMagic': 'Enlace de acceso enviado. Revisa tu correo.',
+    'auth.checkEmailRecovery': 'Enlace de recuperación enviado. Revisa tu correo.',
+    'auth.confirmPassword': 'Confirmar contraseña',
+    'auth.confirmPasswordPlaceholder': 'Escribe la contraseña otra vez',
+    'auth.email': 'Correo electrónico',
+    'auth.emailConfirmed': 'Correo confirmado',
+    'auth.emailNotConfirmed': 'Confirmación de correo pendiente',
+    'auth.emailPlaceholder': 'tu@ejemplo.com',
+    'auth.forgotPassword': 'Olvidé mi contraseña',
+    'auth.genericError': 'No se pudo completar la autenticación.',
+    'auth.googleBrowserOpened': 'Se abrió el navegador. Elige tu cuenta de Google para completar el acceso.',
+    'auth.googleSignIn': 'Continuar con Google',
+    'auth.magicLink': 'Recibir enlace de acceso',
+    'auth.newPassword': 'Nueva contraseña',
+    'auth.orEmail': 'o continúa con correo electrónico',
+    'auth.password': 'Contraseña',
+    'auth.passwordPlaceholder': 'Mínimo 6 caracteres',
+    'auth.passwordsMismatch': 'Las contraseñas no coinciden.',
+    'auth.passwordUpdated': 'Contraseña cambiada correctamente.',
+    'auth.recoveryReady': 'Define una nueva contraseña para completar la recuperación.',
+    'auth.signIn': 'Iniciar sesión',
+    'auth.signOut': 'Cerrar sesión',
+    'auth.signUp': 'Crear cuenta',
+    'auth.signedIn': 'Sesión iniciada correctamente.',
+    'auth.signedInAs': 'Sesión iniciada como',
+    'auth.signedOut': 'Sesión cerrada',
+    'auth.subtitle': 'Inicia sesión para preparar la sincronización entre dispositivos.',
+    'auth.updatePassword': 'Cambiar contraseña',
+    'auth.working': 'Espera…',
     'common.done': 'Listo!',
     'common.continue': 'Continuar',
     'common.save': 'Guardar',

@@ -61,6 +61,11 @@ def _item_basename(item: Item) -> str:
     return item.filename_title or Path(item.path).stem
 
 
+def item_fingerprint(item: Item) -> str:
+    """Retorna a identidade portável usada pelo arquivo morto e pelo sync."""
+    return _fingerprint_key(item.type, _item_basename(item), item.file_size)
+
+
 def _has_meaningful_metadata(db: Session, item: Item) -> bool:
     """Itens nunca editados/leram não precisam de snapshot (evita poluir o arquivo morto)."""
     if item.type == "series":
@@ -84,7 +89,7 @@ def archive_item(db: Session, item: Item) -> None:
     if not _has_meaningful_metadata(db, item):
         return
 
-    key = _fingerprint_key(item.type, _item_basename(item), item.file_size)
+    key = item_fingerprint(item)
     payload = _snapshot(db, item)
 
     existing = db.query(ArchivedItem).filter(ArchivedItem.fingerprint == key).first()
@@ -108,7 +113,7 @@ def try_restore_item(db: Session, item: Item) -> bool:
     Tenta restaurar o snapshot de um item recém-criado. Retorna True se um
     snapshot foi encontrado e aplicado.
     """
-    key = _fingerprint_key(item.type, _item_basename(item), item.file_size)
+    key = item_fingerprint(item)
     archived = db.query(ArchivedItem).filter(ArchivedItem.fingerprint == key).first()
 
     # Fallback: se o tamanho não bater (ex.: item antigo sem file_size, arquivo

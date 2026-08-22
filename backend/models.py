@@ -1,4 +1,17 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Table, Boolean, JSON, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    JSON,
+    String,
+    Table,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 import datetime
 from pydantic import BaseModel, ConfigDict
@@ -84,6 +97,7 @@ class UserList(Base):
     __tablename__ = 'user_lists'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
+    sync_id = Column(String, nullable=True, unique=True)
     name = Column(String, nullable=False)
     sort_order = Column(Integer, default=0)
     is_default = Column(Boolean, default=False)
@@ -117,6 +131,64 @@ class ArchivedItem(Base):
     item_type = Column(String, nullable=False)
     snapshot = Column(JSON, nullable=True)
     archived_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+class SyncOutbox(Base):
+    """Fila local durável para writes que serão enviados ao Supabase."""
+    __tablename__ = 'sync_outbox'
+    __table_args__ = (
+        CheckConstraint(
+            "entity_type IN ('progress', 'list', 'list_membership')",
+            name='ck_sync_outbox_entity_type',
+        ),
+        CheckConstraint(
+            "operation IN ('upsert', 'delete')",
+            name='ck_sync_outbox_operation',
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'syncing', 'done', 'error')",
+            name='ck_sync_outbox_status',
+        ),
+        Index('ix_sync_outbox_status_client_updated_at', 'status', 'client_updated_at'),
+        Index('ix_sync_outbox_entity_key', 'entity_type', 'entity_key'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_user_id = Column(String, nullable=True)
+    entity_type = Column(String, nullable=False)
+    entity_key = Column(String, nullable=False)
+    fingerprint = Column(String, nullable=True)
+    local_list_id = Column(Integer, nullable=True)
+    operation = Column(String, nullable=False)
+    payload = Column(JSON, nullable=True)
+    client_updated_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    status = Column(String, nullable=False, default='pending')
+    retry_count = Column(Integer, nullable=False, default=0)
+    next_attempt_at = Column(DateTime, nullable=True)
+    last_error = Column(String, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.datetime.utcnow,
+        onupdate=datetime.datetime.utcnow,
+    )
+
+
+class PendingSyncProgress(Base):
+    """Estado remoto aguardando o arquivo correspondente aparecer neste device."""
+    __tablename__ = 'pending_sync_progress'
+
+    fingerprint = Column(String, primary_key=True)
+    payload = Column(JSON, nullable=False)
+    remote_updated_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.datetime.utcnow,
+        onupdate=datetime.datetime.utcnow,
+    )
 
 
 # --- Pydantic Schemas ---
@@ -205,6 +277,7 @@ class UserListUpdate(BaseModel):
 
 class UserListResponse(BaseModel):
     id: int
+    sync_id: Optional[str] = None
     name: str
     sort_order: int
     is_default: bool = False

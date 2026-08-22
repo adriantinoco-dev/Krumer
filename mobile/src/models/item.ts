@@ -10,9 +10,16 @@ export type Book = {
   author: string;
   format: BookFormat;
   filePath: string;
+  fileSize: number;
+  fingerprint: string;
   coverPath: string | null;
   rating?: number | null;
   progress: string | null;
+  progressPct?: number;
+  currentPage?: number;
+  totalPages?: number | null;
+  cfi?: string | null;
+  isRead?: boolean;
   childrenCount?: number | null;
   parentId?: string | null;
   children?: Book[];

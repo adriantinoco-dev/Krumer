@@ -15,7 +15,7 @@ sys.path.append(str(Path(__file__).parent))
 
 import database
 import models
-from models import Item, Progress, Setting, Tag, ArchivedItem, ItemUpdate
+from models import Item, Progress, Setting, SyncOutbox, Tag, ArchivedItem, ItemUpdate
 import metadata
 import scanner
 import main
@@ -268,6 +268,68 @@ class TestLibrarianBackend(unittest.TestCase):
         
         deleted_prog = self.db.query(Progress).filter(Progress.item_id == book.id).first()
         self.assertIsNone(deleted_prog)
+
+    def test_progress_outbox_coalesces_offline_writes(self):
+        """Repeated page writes keep only the latest pending sync state."""
+        scan_library_folder(self.db, str(self.test_dir))
+        book = self.db.query(Item).filter(Item.type == "book").first()
+
+        main.save_reading_progress(book.id, main.ProgressUpdatePayload(
+            file_path=book.path,
+            progress_pct=20.0,
+            current_page=2,
+            total_pages=10,
+        ), db=self.db)
+        main.save_reading_progress(book.id, main.ProgressUpdatePayload(
+            file_path=book.path,
+            progress_pct=70.0,
+            current_page=7,
+            total_pages=10,
+        ), db=self.db)
+
+        rows = self.db.query(SyncOutbox).filter(
+            SyncOutbox.entity_type == "progress",
+            SyncOutbox.status == "pending",
+        ).all()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].operation, "upsert")
+        self.assertEqual(rows[0].payload["progress_pct"], 70.0)
+        self.assertEqual(rows[0].payload["current_page"], 7)
+        self.assertTrue(rows[0].fingerprint.startswith("file|"))
+
+    def test_list_and_membership_outbox_coalesce(self):
+        """List edits and add/remove membership retain the latest intent."""
+        scan_library_folder(self.db, str(self.test_dir))
+        book = self.db.query(Item).filter(Item.type == "book").first()
+
+        created = main.create_list(main.UserListCreate(name="Depois"), db=self.db)
+        main.update_list(
+            created.id,
+            main.UserListUpdate(name="Ler depois", sort_order=3),
+            db=self.db,
+        )
+        main.add_items_to_list(
+            created.id,
+            main.ListItemsPayload(item_ids=[book.id]),
+            db=self.db,
+        )
+        main.remove_item_from_list(created.id, book.id, db=self.db)
+
+        list_rows = self.db.query(SyncOutbox).filter(
+            SyncOutbox.entity_type == "list",
+            SyncOutbox.status == "pending",
+        ).all()
+        self.assertEqual(len(list_rows), 1)
+        self.assertEqual(list_rows[0].payload["name"], "Ler depois")
+        self.assertEqual(list_rows[0].payload["sort_order"], 3)
+
+        membership_rows = self.db.query(SyncOutbox).filter(
+            SyncOutbox.entity_type == "list_membership",
+            SyncOutbox.status == "pending",
+        ).all()
+        self.assertEqual(len(membership_rows), 1)
+        self.assertEqual(membership_rows[0].operation, "delete")
+        self.assertEqual(membership_rows[0].payload["list_name"], "Ler depois")
 
     def test_marking_series_read_updates_all_chapters(self):
         """Marking a parent item as read/unread cascades to all chapters."""

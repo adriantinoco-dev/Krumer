@@ -19,10 +19,11 @@ export type ScanUpdate = {
 
 type ScannedFile = {
   uri: string;
+  size: number;
 };
 
 type ScannedEntry =
-  | { kind: 'book'; uri: string }
+  | { kind: 'book'; uri: string; size: number }
   | { kind: 'collection'; uri: string; files: ScannedFile[] };
 
 function createBookId(filePath: string) {
@@ -58,6 +59,11 @@ function getTitle(filePath: string) {
   return getFileName(filePath).replace(/\.(epub|pdf)$/i, '').replace(/[_-]+/g, ' ').trim();
 }
 
+function getFingerprint(filePath: string, size: number) {
+  const basename = getFileName(filePath).replace(/\.(epub|pdf)$/i, '');
+  return `file|${basename}|${Math.trunc(size || 0)}`;
+}
+
 function getFolderTitle(directoryUri: string) {
   const name = safeDecodeUri(directoryUri).replace(/\/$/, '').split('/').pop() ?? directoryUri;
   return name.replace(/[_-]+/g, ' ').trim();
@@ -75,7 +81,7 @@ async function collectFolderFiles(directoryUri: string): Promise<ScannedFile[]> 
     }
 
     if (entry instanceof File && getBookFormat(entry.uri)) {
-      result.push({ uri: entry.uri });
+      result.push({ uri: entry.uri, size: entry.size || 0 });
     }
   }
 
@@ -96,7 +102,7 @@ async function scanDirectory(directoryUri: string): Promise<ScannedEntry[]> {
     }
 
     if (entry instanceof File && getBookFormat(entry.uri)) {
-      result.push({ kind: 'book', uri: entry.uri });
+      result.push({ kind: 'book', uri: entry.uri, size: entry.size || 0 });
     }
   }
 
@@ -133,6 +139,8 @@ export async function scanLibrary(
         author: '',
         format: getBookFormat(file.uri) as BookFormat,
         filePath: file.uri,
+        fileSize: file.size,
+        fingerprint: getFingerprint(file.uri, file.size),
         coverPath: null,
         progress: null,
         parentId,
@@ -146,6 +154,8 @@ export async function scanLibrary(
         author: '',
         format: firstChild.format,
         filePath: firstChild.filePath,
+        fileSize: 0,
+        fingerprint: `series|${safeDecodeUri(entry.uri).replace(/\/$/, '').split('/').pop() ?? entry.uri}`,
         coverPath: null,
         progress: null,
         childrenCount: children.length,
@@ -159,6 +169,8 @@ export async function scanLibrary(
         author: '',
         format: getBookFormat(entry.uri) as BookFormat,
         filePath: entry.uri,
+        fileSize: entry.size,
+        fingerprint: getFingerprint(entry.uri, entry.size),
         coverPath: null,
         progress: null,
         parentId: null,

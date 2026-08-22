@@ -6,6 +6,7 @@ import { SettingsRow } from '../components/SettingsRow';
 import { languages } from '../i18n/translations';
 import type { MainTabParamList, RootStackParamList } from '../navigation/types';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { serifFont, spacing } from '../theme';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -17,6 +18,7 @@ type Props = CompositeScreenProps<
 
 export function SettingsScreen({ navigation }: Props) {
   const { preferences, theme, t } = useApp();
+  const { user } = useAuth();
   const language = languages.find((item) => item.code === preferences.language)?.name ?? 'English';
   const themeLabel =
     preferences.theme === 'dark' ? t('theme.dark') : preferences.theme === 'light' ? t('theme.light') : t('theme.sepia');
@@ -30,6 +32,11 @@ export function SettingsScreen({ navigation }: Props) {
         title={t('settings.general')}
         subtitle={`${preferences.libraryFolder ? t('general.folder') : t('general.noFolder')} · ${language}`}
         onPress={() => navigation.navigate('SettingsGroup', { group: 'general' })}
+      />
+      <SettingsRow
+        title={t('auth.account')}
+        subtitle={user?.email ?? t('auth.signedOut')}
+        onPress={() => navigation.navigate('SettingsGroup', { group: 'account' })}
       />
       <SettingsRow
         title={t('settings.theme')}

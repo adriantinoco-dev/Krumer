@@ -8,3 +8,4 @@ watchdog>=4.0.0
 python-multipart
 google-genai
 python-dotenv
+httpx>=0.28.0,<1.0.0

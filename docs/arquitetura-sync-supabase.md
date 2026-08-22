@@ -1,6 +1,6 @@
 # Arquitetura de Sincronização — Krumer + Supabase
 
-> **Status:** Proposta — documentar antes de implementar  
+> **Status:** Implementado no código — a ativação em produção ainda requer aplicar a migration, executar a verificação RLS no projeto alvo e configurar os provedores de Auth no Supabase.
 > **Decisão:** Supabase como backend único de auth + dados (Auth + Postgres + RLS)  
 > **Escopo de sync:** progresso de leitura, listas e favoritos  
 > **Plataformas:** Electron + Python (desktop), React Native/Expo (mobile)  
@@ -14,9 +14,24 @@
 
 Usar **Supabase** como único backend remoto para autenticação e persistência de dados sincronizados. Isso significa:
 
-- **Supabase Auth** para identidade do usuário (email/senha, magic link, OAuth quando necessário). Sem Clerk, sem serviço de auth separado.
+- **Supabase Auth** para identidade do usuário (email/senha, magic link e Google OAuth). Sem Clerk, sem serviço de auth separado.
+- No desktop, Google OAuth abre no navegador padrão com seleção explícita de conta e retorna pelo deep link `krumer://auth/callback`.
+- No Android, Google Sign-In abre o seletor nativo de contas e envia o ID token ao Supabase com `signInWithIdToken`, sem navegador.
 - **Supabase Postgres** como fonte canônica remota dos dados sincronizados.
 - **Row Level Security (RLS)** como mecanismo de isolamento por usuário — cada linha pertence a um `user_id` e só é visível/editável pelo dono.
+
+#### Configuração externa do Google OAuth
+
+O código cliente já está preparado. Para ativar o provedor no ambiente hospedado:
+
+1. Criar um cliente OAuth do tipo **Web application** no Google Auth Platform.
+2. Cadastrar nesse cliente a URI autorizada `https://bcwgtutmzdhkotiuymxl.supabase.co/auth/v1/callback`.
+3. Criar também um cliente OAuth **Android** para `com.adriantinoco.krumer`, cadastrando os SHA-1 dos certificados de desenvolvimento e produção.
+4. Ativar Google em **Supabase → Authentication → Providers**. Informar primeiro o Web Client ID, seguido do Android Client ID, e usar o Client Secret do cliente Web.
+5. Definir `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` no `.env.local` mobile com o Web Client ID.
+6. Manter `krumer://auth/callback` em **Authentication → URL Configuration → Redirect URLs** para desktop, confirmação por email, magic link e recuperação.
+
+O Client Secret fica somente no painel do Supabase e nunca é incluído no aplicativo ou no repositório.
 
 ### 1.2 Por que não Clerk
 
@@ -89,7 +104,7 @@ Problema: `Item.path` e `Item.id` (autoincrement local) não são portáveis. A 
 create table sync_items (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
-  fingerprint text not null,          -- ex: "file|nome.pdf|123456" ou "series|Nome da Serie"
+  fingerprint text not null,          -- ex: "file|nome|123456" ou "series|Nome da Serie"
   title text not null,                -- denormalizado para debug/listagem sem join local
   type text not null check (type in ('book','series','chapter','comic','graphic_novel')),
   created_at timestamptz default now(),
@@ -255,7 +270,7 @@ Todas as tabelas remotas têm `updated_at timestamptz`. O servidor Postgres é a
 ┌─────────────────────────────────────────────────────────────────┐
 │              SUPABASE POSTGRES (réplica canônica)                │
 │  Tabelas do §2 com RLS por user_id                               │
-│  Realtime (opcional, fase 2) para push quando online             │
+│  Sem Realtime: pull periódico e gatilhos de conectividade        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -301,8 +316,8 @@ Pull e push são independentes; podem rodar em intervalos diferentes. Pull não 
 
 | Plataforma | Onde roda | Detalhe |
 |------------|-----------|---------|
-| Desktop (Electron + Python) | `backend/sync_service.py` (novo) + thread no `lifespan` de `main.py` | Python tem acesso direto ao SQLite e pode usar `supabase-py` ou `httpx`. Alternativa: sync no processo Electron (Node) com `supabase-js` — mas preferível Python para manter toda lógica de DB num lugar só. |
-| Mobile (Expo) | `mobile/src/sync/` (novo) — módulo TS com `supabase-js` | Usa `expo-sqlite` (quando migrar de AsyncStorage puro) ou AsyncStorage + outbox em AsyncStorage. Roda em background task / `useEffect` no root navigator. |
+| Desktop (Electron + Python) | `backend/sync_service.py` + task no `lifespan` de `main.py` | Usa `httpx` direto contra PostgREST/RPC e mantém o SQLite sob responsabilidade exclusiva do backend. |
+| Mobile (Expo) | `mobile/src/sync/` — módulo TS com `supabase-js` | Usa AsyncStorage para outbox, cursores e pendências; `SyncCoordinator` roda pelo ciclo de vida React Native. |
 
 Decisão recomendada: **sync engine no backend Python para desktop** (mantém `backend/main.py` como único dono do SQLite, evita concorrência Electron↔Python no arquivo `.db`). O frontend apenas lê/escreve via API local (`http://localhost:{porta}`) como já faz hoje (`frontend/js/api.js`, `mobile/src/api/client.ts:22`).
 
@@ -344,25 +359,12 @@ if (navigator.onLine) triggerSync();
 **Main (Node) + Python:**
 
 - `main.js` já faz `child_process.spawn` do backend. Adicionar IPC `sync:status` entre main ↔ renderer ↔ Python.
-- No Python, verificação robusta antes de drenar outbox:
+- No Python, a própria chamada autenticada ao endpoint REST/RPC do projeto é a verificação robusta; falhas de DNS, conexão, timeout e HTTP entram no mesmo backoff do outbox. Um probe separado seria redundante e poderia indicar online enquanto a API necessária está indisponível.
 
-```python
-# backend/sync_service.py (esboço)
-import socket, urllib.request
-
-def is_online(timeout=3) -> bool:
-    try:
-        # Head leve no Supabase (ou 1.1.1.1:53) — não depende de DNS do app
-        urllib.request.urlopen("https://<project>.supabase.co/rest/v1/", timeout=timeout)
-        return True
-    except Exception:
-        return False
-```
-
-- Polling de fallback: `is_online()` a cada 30s quando em `offline`, a cada 5min quando `online` (para detectar queda silenciosa).
+- Polling de fallback: ciclo a cada 5 minutos quando autenticado, além de gatilhos por foco/online.
 - Ao detectar transição `offline → online`, drenar outbox imediatamente + pull.
 
-**Não fazer:** bloquear UI esperando `is_online()`. Sync é sempre async.
+**Não fazer:** bloquear UI esperando rede. Sync é sempre assíncrono.
 
 ### 4.2 Mobile — Expo / React Native
 
@@ -463,7 +465,7 @@ Para MVP sem tombstones, pode usar **último estado vence por lista**: comparar 
 
 ### 5.4 O que fazer quando o livro não existe no device
 
-Se `reading_progress` remoto referencia `fingerprint` que ainda não existe no SQLite local (livro ainda não escaneado naquele device), o sync engine **guarda o progresso órfão** em uma tabela local `pending_progress` (ou apenas loga). Quando o scanner (`scanner.py:scan_library_folder` / `mobile/src/services/libraryScanner.ts`) criar o `Item` com aquele fingerprint, aplica o progresso pendente. Isso evita perder progresso de um livro que só existe no outro device.
+Se `reading_progress` remoto referencia `fingerprint` que ainda não existe localmente, o desktop guarda o estado em `pending_sync_progress` e o Android em `krumer.sync.pending-progress.v1`. Quando o scanner criar o item correspondente, o ciclo seguinte aplica o progresso. Isso evita perder progresso de um livro que só existe no outro device.
 
 ---
 
@@ -509,53 +511,52 @@ Se `reading_progress` remoto referencia `fingerprint` que ainda não existe no S
 
 ## 7. Próximos passos / fases de implementação
 
-### Fase 0 — Preparação (sem código de sync)
+### Fase 0 — Preparação
 
-- [ ] Criar projeto Supabase, habilitar Auth (email/senha), criar tabelas do §2 com RLS.
-- [ ] Escrever migration SQL versionada (ex: `supabase/migrations/001_sync_tables.sql`) com `enable row level security` + policies.
-- [ ] Teste manual de RLS com 2 usuários (curl com JWTs diferentes).
-- [ ] Decidir onde vive o sync engine no desktop (recomendado: `backend/sync_service.py`).
-- [ ] Atualizar `PLANNING.md` — mover "Sincronização via Firebase" para "Sincronização via Supabase (offline-first, outbox, RLS)" e marcar como `[ ]` com link para este doc.
+- [ ] Criar/conferir o projeto Supabase e configurar Auth (email/senha, magic link e Google OAuth) no ambiente hospedado.
+- [x] Escrever migrations SQL versionadas em `supabase/migrations/` com grants explícitos, `enable row level security`, policies e índices.
+- [ ] Aplicar `supabase/migrations/20260822_sync.sql` e executar o teste de RLS/merge no banco Supabase alvo (`supabase/tests/20260822_sync_rls.sql`).
+- [x] Decidir onde vive o sync engine no desktop: `backend/sync_service.py` (Python, mesma camada proprietária do SQLite).
+- [x] Atualizar `PLANNING.md` para Supabase offline-first e remover a decisão antiga de Firebase.
 
 ### Fase 1 — Outbox local + auth (sem rede ainda)
 
-- [ ] Modelar `sync_outbox` no SQLite local (desktop: `backend/models.py` + migration inline; mobile: `expo-sqlite` ou AsyncStorage com chave `krumer.sync_outbox`).
-- [ ] Hookar writes existentes para enfileirar no outbox:
+- [x] Modelar `sync_outbox` no SQLite desktop e AsyncStorage Android, ambos com coalescência.
+- [x] Hookar writes existentes do desktop para enfileirar no outbox:
   - `PUT /items/{id}/progress` (`backend/main.py:1032`) → outbox `progress`
   - `PATCH /items/{id}/read` / `PUT /items/{id}` com `is_read`/`rating` → outbox `progress`
   - `POST /lists`, `PUT /lists/{id}`, `DELETE /lists/{id}` → outbox `list`
   - `POST /lists/{id}/items`, `DELETE /lists/{id}/items/{item_id}` → outbox `list_membership`
-- [ ] Implementar coalesce no outbox (atualiza `pending` existente para mesmo fingerprint em vez de duplicar).
-- [ ] Integrar Supabase Auth no desktop (tela de login nas Configurações) e no mobile (onboarding ou aba Configurações). Persistir sessão (Supabase `auth.setSession`).
-- [ ] Sem sync remoto ainda — apenas garantir que outbox cresce corretamente offline.
+- [x] Implementar coalesce no outbox desktop (atualiza `pending` existente para a mesma chave lógica em vez de duplicar).
+- [x] Integrar Supabase Auth no desktop e no mobile pela aba Configurações: email/senha, Google OAuth externo no desktop e nativo no Android, magic link, confirmação, recuperação/alteração de senha, logout e sessão persistida.
+- [x] Ligar as outboxes aos respectivos motores remotos; a validação end-to-end depende do deploy da Fase 0.
 
 ### Fase 2 — Push (local → remoto)
 
-- [ ] Implementar `sync_service.push()` — drena `pending` → `supabase.from(...).upsert/delete`.
-- [ ] Detecção de conectividade do §4 (Electron `navigator.onLine` + `is_online()` Python; Expo `NetInfo`).
-- [ ] Backoff exponencial, idempotência, marcação `done`/`error`.
-- [ ] Backfill inicial no primeiro login (push completo do estado local).
-- [ ] Teste: dois devices offline, avançar progresso em cada um, ficar online, verificar que um vence conforme §5.
+- [x] Implementar push desktop (`backend/sync_service.py`) e Android (`mobile/src/sync/engine.ts`) com RPC/UPSERT idempotente.
+- [x] Detecção de conectividade por gatilho Electron e `NetInfo`/`AppState` no Android.
+- [x] Backoff exponencial, coalescência e estados `pending`/`syncing`/`done`/`error`.
+- [x] Backfill inicial por usuário no primeiro login.
+- [x] Implementar a regra de conflito monotônica: 80% seguido de 20% mantém 80%; validar no banco alvo após aplicar a migration.
 
 ### Fase 3 — Pull (remoto → local)
 
-- [ ] Implementar `sync_service.pull()` — `SELECT ... WHERE updated_at > last_sync_at`.
-- [ ] Merge conforme §5 (LWW para progresso, união para listas).
-- [ ] `pending_progress` para fingerprints órfãos (livro ainda não escaneado).
-- [ ] Trigger de pull: ao ficar online, ao abrir app, ao sair da leitura (F4), a cada 5 min quando online.
-- [ ] Teste: criar lista no device A, verificar que aparece no device B após sync.
+- [x] Pull incremental paginado por `updated_at`, com reconciliação integral de memberships ativas.
+- [x] Merge atômico de progresso no Postgres e reconciliação por conjunto para listas/favoritos.
+- [x] `pending_sync_progress` no desktop e mapa persistente equivalente no Android para fingerprints órfãos.
+- [x] Triggers ao abrir/voltar ao app, recuperar conectividade, focar a janela e polling de fallback.
+- [x] Listas usam UUID remoto estável e memberships por fingerprint nas duas plataformas.
 
 ### Fase 4 — Polimento
 
-- [ ] UI de status de sync (ícone discreto, não modal).
-- [ ] Prune de outbox (`done` após 7 dias).
-- [ ] Paginação e coalesce para outbox grande.
-- [ ] Testes de RLS automatizados (`test_sync_rls.py`).
-- [ ] Documentar fingerprint e limitação de renomeio no README.
+- [x] Status discreto `Sync` na seção Conta do desktop e Android.
+- [x] Prune de outbox (`done` após 7 dias).
+- [x] Paginação em blocos de 1.000 e coalescência para outbox grande.
+- [x] Teste SQL reproduzível de estrutura RLS e merge (`supabase/tests/20260822_sync_rls.sql`); execução no projeto Supabase alvo pendente.
+- [x] Fingerprint e limitação de renomeio documentados neste documento e no README mobile.
 
 ### Fase 5 — Futuro (fora deste doc)
 
-- [ ] Supabase Realtime para push instantâneo quando ambos online (opcional, não necessário para offline-first).
 - [ ] Sincronização de metadados editados/tags (se desejado).
 - [ ] Exportar/importar CSV/JSON como fallback offline.
 - [ ] Métricas de sync (taxa de conflito, tamanho de outbox) para debug.
@@ -577,19 +578,19 @@ Se `reading_progress` remoto referencia `fingerprint` que ainda não existe no S
 | `backend/main.py:128` — `get_continue_reading` | Consome `progress` local; após sync, deve refletir merge remoto |
 | `mobile/src/storage/preferences.ts:15` | `AsyncStorage` keys; outbox mobile pode começar aqui antes de `expo-sqlite` |
 | `mobile/src/api/client.ts:22` — `fetch` | Cliente HTTP local; sync remoto usará `supabase-js` separado, não este client |
-| `PLANNING.md:164` — M10 Sincronização futura | Atualizar de "via Firebase" para "via Supabase (este doc)" |
+| `PLANNING.md:164` — M10 Sincronização | Status e decisões da implementação Supabase |
 | `CHANGELOG.md` | Registrar fases de sync quando implementadas |
 
 ---
 
-## 9. Decisões que este doc **não** toma (ficam para implementação)
+## 9. Decisões finais da implementação
 
-- Nome exato do projeto Supabase e região (escolher `sa-east-1` se disponível para latência BR).
-- Provedor de auth além de email/senha (OAuth Google/Apple pode vir depois).
-- Biblioteca JS do Supabase no desktop: `supabase-py` vs `httpx` direto vs `supabase-js` no Electron. Recomendação é `supabase-py` no Python, mas validar.
-- Formato exato de `client_updated_at` (ISO string vs epoch ms) — definir na Fase 1.
-- Se `sync_items` é necessário ou se `reading_progress.fingerprint` basta sem tabela separada (este doc propõe `sync_items` para normalização, mas pode começar sem ela).
+- Projeto remoto: `bcwgtutmzdhkotiuymxl`; clientes usam apenas chave publishable + JWT do usuário.
+- Desktop usa `httpx` direto e recebe somente access token por bridge localhost autenticada; refresh token fica no Electron. A porta 8765 é preferida, com fallback automático para uma porta local livre quando já estiver ocupada; Electron, renderer e FastAPI recebem a mesma porta.
+- Android usa `supabase-js`, AsyncStorage e NetInfo.
+- `sync_items` foi mantida como identidade/diagnóstico remoto; memberships continuam auto-contidas por fingerprint.
+- Apple OAuth permanece fora do escopo; Google OAuth é o provedor social adotado.
 
 ---
 
-*Documento gerado a partir da análise do código atual do Krumer (v1.3.0 desktop / 0.1.0 mobile) e dos requisitos de offline-first, fila/outbox e resolução de conflito. Revisar com o autor antes de iniciar Fase 0.*
+*Documento gerado a partir da análise do código atual do Krumer (v1.3.0 desktop / 0.1.0 mobile) e dos requisitos de offline-first, fila/outbox e resolução de conflito. O código das Fases 0–4 foi concluído em 2026-08-22; o deploy remoto permanece pendente.*

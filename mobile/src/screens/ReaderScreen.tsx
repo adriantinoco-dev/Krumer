@@ -14,8 +14,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Reader'>;
 
 export function ReaderScreen({ navigation, route }: Props) {
   const { book } = route.params;
-  const { preferences, setThemeName, theme, t } = useApp();
-  const [progress, setProgress] = useState(0);
+  const { preferences, setThemeName, theme, t, updateBookProgress } = useApp();
+  const [progress, setProgress] = useState((book.progressPct ?? 0) / 100);
   const [savedPosition, setSavedPosition] = useState<string | null>(book.progress);
   const [barsVisible, setBarsVisible] = useState(true);
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -48,9 +48,17 @@ export function ReaderScreen({ navigation, route }: Props) {
     if (visible) scheduleHide();
   }
 
-  async function saveProgress(value: string, percent: number) {
+  async function saveProgress(value: string, percent: number, currentPage?: number, totalPages?: number) {
     setProgress(percent);
     await AsyncStorage.setItem(`progress_${book.id}`, value);
+    await updateBookProgress(book.id, {
+      progress: value,
+      progressPct: Math.max(0, Math.min(100, percent * 100)),
+      currentPage: currentPage ?? book.currentPage ?? 0,
+      totalPages: totalPages ?? book.totalPages ?? null,
+      cfi: book.format === 'epub' ? value : null,
+      isRead: percent >= 1,
+    });
   }
 
   return (
@@ -60,7 +68,7 @@ export function ReaderScreen({ navigation, route }: Props) {
           <PdfReader
             filePath={book.filePath}
             initialPage={savedPosition ? Number(savedPosition) : 1}
-            onPageChange={(page, total) => saveProgress(String(page), total ? page / total : 0)}
+            onPageChange={(page, total) => saveProgress(String(page), total ? page / total : 0, page, total)}
           />
         ) : (
           <EpubReader

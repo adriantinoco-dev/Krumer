@@ -68,6 +68,7 @@ class AppController {
     this.setupSearchAndFilter();
     this.setupModals();
     this.setupSettingsModal();
+    this.setupAuth();
     this.setupOnboarding();
     this.metadataManager.init();
     await this.libraryManager.init();
@@ -756,6 +757,170 @@ class AppController {
         }
       });
     }
+  }
+
+  setupAuth() {
+    const api = window.electronAPI;
+    const panel = document.querySelector('.settings-panel[data-panel="conta"]');
+    if (!panel) return;
+
+    const status = document.getElementById('auth-panel-status');
+    const signedOut = document.getElementById('auth-signed-out');
+    const signedIn = document.getElementById('auth-signed-in');
+    const email = document.getElementById('auth-email');
+    const password = document.getElementById('auth-password');
+    const passwordConfirm = document.getElementById('auth-password-confirm');
+    const newPassword = document.getElementById('auth-new-password');
+    const newPasswordConfirm = document.getElementById('auth-new-password-confirm');
+    const credentialsForm = document.getElementById('auth-credentials-form');
+    const updatePasswordForm = document.getElementById('auth-update-password-form');
+    const submitLabel = document.getElementById('auth-submit-label');
+    const confirmGroup = document.getElementById('auth-confirm-group');
+    const accountEmail = document.getElementById('auth-account-email');
+    const emailConfirmed = document.getElementById('auth-email-confirmed');
+    const recoveryNotice = document.getElementById('auth-recovery-notice');
+    let mode = 'signin';
+
+    const setStatus = (message = '', isError = false) => {
+      if (!status) return;
+      status.textContent = message;
+      status.classList.toggle('error', isError);
+    };
+
+    const setBusy = (busy) => {
+      panel.querySelectorAll('button, input').forEach((element) => {
+        element.disabled = busy;
+      });
+    };
+
+    const renderState = (state) => {
+      const authenticated = Boolean(state?.authenticated && state.user);
+      if (signedOut) signedOut.style.display = authenticated ? 'none' : '';
+      if (signedIn) signedIn.style.display = authenticated ? '' : 'none';
+      if (accountEmail) accountEmail.textContent = state?.user?.email || '';
+      if (emailConfirmed) {
+        emailConfirmed.textContent = state?.user?.emailConfirmed
+          ? I18N.t('auth.email_confirmed')
+          : I18N.t('auth.email_not_confirmed');
+      }
+      if (recoveryNotice) recoveryNotice.style.display = state?.recovery ? '' : 'none';
+    };
+
+    const refreshState = async () => {
+      const state = await api.authGetState();
+      renderState(state);
+      if (state?.error) setStatus(state.error, true);
+      return state;
+    };
+
+    const run = async (action, successMessage) => {
+      setBusy(true);
+      setStatus(I18N.t('auth.working'));
+      try {
+        const result = await action();
+        if (result?.state) renderState(result.state);
+        else if (result?.authenticated !== undefined) renderState(result);
+        else await refreshState();
+        if (successMessage) {
+          setStatus(typeof successMessage === 'function' ? successMessage(result) : successMessage);
+        }
+        return result;
+      } catch (error) {
+        console.error('[Auth] Falha na ação da conta:', error);
+        setStatus(error?.message || I18N.t('auth.generic_error'), true);
+        return null;
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    const setMode = (nextMode) => {
+      mode = nextMode === 'signup' ? 'signup' : 'signin';
+      document.querySelectorAll('.auth-mode-button').forEach((button) => {
+        button.classList.toggle('active', button.dataset.authMode === mode);
+      });
+      if (confirmGroup) confirmGroup.style.display = mode === 'signup' ? '' : 'none';
+      if (password) password.autocomplete = mode === 'signup' ? 'new-password' : 'current-password';
+      if (submitLabel) submitLabel.textContent = I18N.t(mode === 'signup' ? 'auth.sign_up' : 'auth.sign_in');
+      setStatus('');
+    };
+
+    if (!api?.authGetState) {
+      setStatus(I18N.t('auth.electron_required'), true);
+      setBusy(true);
+      return;
+    }
+
+    document.querySelectorAll('.auth-mode-button').forEach((button) => {
+      button.addEventListener('click', () => setMode(button.dataset.authMode));
+    });
+
+    document.getElementById('auth-google')?.addEventListener('click', () => {
+      void run(() => api.authSignInWithGoogle(), I18N.t('auth.google_browser_opened'));
+    });
+
+    credentialsForm?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const nextEmail = email?.value.trim() || '';
+      const nextPassword = password?.value || '';
+      if (mode === 'signup' && nextPassword !== (passwordConfirm?.value || '')) {
+        setStatus(I18N.t('auth.passwords_mismatch'), true);
+        passwordConfirm?.focus();
+        return;
+      }
+
+      void run(async () => {
+        if (mode === 'signup') {
+          const result = await api.authSignUp(nextEmail, nextPassword);
+          password.value = '';
+          if (passwordConfirm) passwordConfirm.value = '';
+          return result;
+        }
+        const result = await api.authSignIn(nextEmail, nextPassword);
+        password.value = '';
+        return result;
+      }, mode === 'signup'
+        ? (result) => I18N.t(result?.confirmationRequired ? 'auth.check_email_confirmation' : 'auth.account_created')
+        : I18N.t('auth.signed_in'));
+    });
+
+    document.getElementById('auth-magic-link')?.addEventListener('click', () => {
+      void run(() => api.authSendMagicLink(email?.value.trim() || ''), I18N.t('auth.check_email_magic'));
+    });
+
+    document.getElementById('auth-forgot-password')?.addEventListener('click', () => {
+      void run(() => api.authRequestPasswordReset(email?.value.trim() || ''), I18N.t('auth.check_email_recovery'));
+    });
+
+    updatePasswordForm?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const nextPassword = newPassword?.value || '';
+      if (nextPassword !== (newPasswordConfirm?.value || '')) {
+        setStatus(I18N.t('auth.passwords_mismatch'), true);
+        newPasswordConfirm?.focus();
+        return;
+      }
+      void run(async () => {
+        const result = await api.authUpdatePassword(nextPassword);
+        newPassword.value = '';
+        if (newPasswordConfirm) newPasswordConfirm.value = '';
+        return result;
+      }, I18N.t('auth.password_updated'));
+    });
+
+    document.getElementById('auth-sign-out')?.addEventListener('click', () => {
+      void run(() => api.authSignOut(), I18N.t('auth.signed_out'));
+    });
+
+    api.onAuthStateChanged?.((state) => {
+      renderState(state);
+      if (state?.error) setStatus(state.error, true);
+    });
+
+    void refreshState().catch((error) => {
+      console.error('[Auth] Não foi possível carregar a sessão:', error);
+      setStatus(error?.message || I18N.t('auth.generic_error'), true);
+    });
   }
 
   switchSettingsPanel(panelName) {

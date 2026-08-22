@@ -2,7 +2,9 @@
    Krumer Personal Library - API Client (FastAPI Integration)
    ========================================================================== */
 
-const API_BASE_URL = 'http://localhost:8765';
+// O Electron pode escolher uma porta livre quando 8765 já está ocupada.
+// Em execução fora do Electron, mantém o endpoint local padrão para desenvolvimento.
+const API_BASE_URL = window.electronAPI?.backendBaseUrl || 'http://127.0.0.1:8765';
 
 class LibraryAPI {
   /**

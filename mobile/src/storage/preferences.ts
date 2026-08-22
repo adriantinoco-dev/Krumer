@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { File } from 'expo-file-system';
 import type { Book } from '../models/item';
+import type { SyncList } from '../models/list';
 import type { LanguageCode } from '../i18n/translations';
 import type { ThemeName } from '../theme';
 
@@ -14,6 +16,7 @@ export type MobilePreferences = {
 const KEYS = {
   books: 'krumer.books',
   preferences: 'krumer.preferences',
+  syncLists: 'krumer.sync.lists',
 };
 
 export const defaultPreferences: MobilePreferences = {
@@ -43,10 +46,45 @@ export async function patchPreferences(nextPreferences: Partial<MobilePreference
 
 export async function loadBooks(): Promise<Book[]> {
   const raw = await AsyncStorage.getItem(KEYS.books);
-  return raw ? JSON.parse(raw) : [];
+  const stored: Book[] = raw ? JSON.parse(raw) : [];
+  return stored.map(normalizeBook);
 }
 
 export async function saveBooks(books: Book[]) {
   await AsyncStorage.setItem(KEYS.books, JSON.stringify(books));
+}
+
+function normalizeBook(book: Book): Book {
+  let fileSize = Number(book.fileSize || 0);
+  if (!fileSize && !book.children?.length) {
+    try { fileSize = new File(book.filePath).size || 0; } catch { /* URI indisponível */ }
+  }
+  const decodedPath = safeDecode(book.filePath);
+  const fileName = decodedPath.split('/').pop() ?? book.title;
+  const basename = fileName.replace(/\.(epub|pdf)$/i, '');
+  const seriesName = book.children?.length
+    ? (safeDecode(book.children[0].filePath).split('/').slice(-2)[0] || book.title)
+    : book.title;
+  return {
+    ...book,
+    fileSize,
+    fingerprint: book.fingerprint
+      ?? (book.children?.length ? `series|${seriesName}` : `file|${basename}|${Math.trunc(fileSize)}`),
+    progressPct: book.progressPct ?? 0,
+    children: book.children?.map(normalizeBook),
+  };
+}
+
+function safeDecode(value: string) {
+  try { return decodeURIComponent(value); } catch { return value; }
+}
+
+export async function loadSyncLists(): Promise<SyncList[]> {
+  const raw = await AsyncStorage.getItem(KEYS.syncLists);
+  return raw ? JSON.parse(raw) : [];
+}
+
+export async function saveSyncLists(lists: SyncList[]) {
+  await AsyncStorage.setItem(KEYS.syncLists, JSON.stringify(lists));
 }
 

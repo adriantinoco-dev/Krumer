@@ -20,11 +20,11 @@ type Props = CompositeScreenProps<
 
 export function LibraryScreen({ navigation }: Props) {
   const { width } = useWindowDimensions();
-  const { books, theme, t } = useApp();
+  const { books, theme, t, toggleFavorite } = useApp();
   const numColumns = width >= TABLET_BREAKPOINT ? 5 : 3;
   const cardWidth = width / numColumns;
   const continueReading = books.filter(
-    (book) => book.progress && book.progress !== '0' && book.progress !== '100'
+    (book) => (book.progressPct ?? 0) > 0 && (book.progressPct ?? 0) < 100
   );
   const openReader = (book: Book) => navigation.navigate('Reader', { book });
 
@@ -40,7 +40,14 @@ export function LibraryScreen({ navigation }: Props) {
         key={numColumns}
         keyExtractor={(item) => item.id}
         numColumns={numColumns}
-        renderItem={({ item }) => <BookCard book={item} width={cardWidth} onPress={() => openReader(item)} />}
+        renderItem={({ item }) => (
+          <BookCard
+            book={item}
+            width={cardWidth}
+            onPress={() => openReader(item)}
+            onLongPress={() => { void toggleFavorite(item); }}
+          />
+        )}
         showsVerticalScrollIndicator={false}
       />
     </SafeAreaView>

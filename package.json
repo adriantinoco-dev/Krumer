@@ -40,6 +40,7 @@
     "@capacitor/core": "^8.5.0",
     "@capacitor/filesystem": "^8.1.2",
     "@capacitor/preferences": "^8.0.1",
+    "@supabase/supabase-js": "2.112.3",
     "electron-updater": "^6.2.1",
     "epubjs": "^0.3.93",
     "jszip": "^3.10.1",
@@ -64,7 +65,10 @@
     "files": [
       "frontend/**/*",
       "main.js",
-      "preload.js"
+      "backend-port.js",
+      "preload.js",
+      "auth-config.js",
+      "auth-service.js"
     ],
     "win": {
       "target": [

@@ -5,6 +5,48 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Adicionado
+- Supabase Auth no desktop e Android: cadastro por email/senha, login, Google OAuth, magic link, confirmação por email, recuperação e alteração de senha, logout e sessão persistida.
+- No desktop, login e cadastro com Google abrem no navegador padrão e solicitam explicitamente a seleção da conta antes de retornar ao Krumer.
+- No Android, Google Sign-In usa o seletor nativo de contas via Google Play Services e troca o ID token diretamente por uma sessão Supabase, sem abrir o navegador.
+- Nova seção **Conta** nas Configurações das duas plataformas, integrada aos temas existentes.
+- Deep link `krumer://auth/callback` para confirmação de cadastro, magic link e recuperação de senha.
+- Sessão desktop protegida com `Electron.safeStorage`; no Android, persistência e refresh seguem o ciclo de vida do app via `AsyncStorage`.
+- Traduções da autenticação nos 10 idiomas do desktop e nos 3 idiomas atualmente disponíveis no mobile.
+- Schema remoto de sincronização no Supabase para perfis, identidade por fingerprint, progresso de leitura, listas e memberships.
+- Migrations versionadas em `supabase/migrations/`, com índices para pull incremental e timestamps canônicos do servidor.
+- Outbox SQLite offline-first no desktop para progresso, estado lido, avaliação, listas e favoritos.
+- Coalescência da outbox: writes repetidos da mesma entidade mantêm somente o estado pendente mais recente.
+- Motor de sincronização bidirecional no desktop (`backend/sync_service.py`) e Android (`mobile/src/sync/`), com backfill inicial, push/pull paginado e retry exponencial.
+- RPC `merge_reading_progress` no Postgres: maior progresso vence atomicamente; avaliação usa a gravação mais recente recebida.
+- Tombstones e UUIDs estáveis para listas e favoritos; memberships são reconciliadas por fingerprint.
+- Progresso remoto de livros ainda não escaneados fica pendente localmente e é aplicado quando o arquivo aparece.
+- Detecção de conectividade/foco no Electron e `NetInfo` + `AppState` no Android, com status discreto de sync nas Configurações.
+- Testes locais do motor de sync e teste SQL reproduzível para a estrutura de RLS.
+
+### Segurança
+- Cliente usa somente a chave publishable do Supabase; nenhuma `service_role`/secret key é distribuída.
+- Tokens da sessão Electron permanecem no processo principal e não são expostos ao renderer.
+- URLs de autorização OAuth são validadas contra a origem do projeto Supabase antes de serem abertas externamente.
+- Deep links são aceitos somente no endpoint `krumer://auth/callback`.
+- Dependências de autenticação fixadas no lockfile (`@supabase/supabase-js` 2.112.3 e `react-native-url-polyfill` 4.0.0 no mobile).
+- Google Sign-In nativo fixado em `@react-native-google-signin/google-signin` 16.1.4; requer development build, não Expo Go.
+- Todas as tabelas remotas de sync usam RLS por `auth.uid()`, quatro policies por operação e grants mínimos somente para `authenticated`.
+- Memberships usam FK composto `(user_id, list_id)`, impedindo associação cruzada entre usuários mesmo com UUID conhecido.
+- O token de acesso do desktop chega ao FastAPI apenas por canal localhost autenticado com segredo efêmero; refresh token continua exclusivo do processo principal Electron.
+
+### Sincronização
+- Implementação das fases 0–4 no código: migration/RLS, outboxes, push, pull, conflitos, conectividade, status, prune e paginação para desktop e Android. A aplicação da migration e a configuração dos provedores de Auth são etapas de deploy.
+- TypeScript do mobile validado após a integração da sincronização; o build Android nativo de desenvolvimento ainda precisa ser executado em ambiente configurado.
+
+### Corrigido
+- Build Android com Expo SDK 57: removida a tentativa obsoleta de desativar a Nova Arquitetura, dependências Expo alinhadas à matriz do SDK e paralelismo nativo limitado para evitar falhas de codegen/CMake e falta de memória.
+- Bridge de sincronização no desktop agora valida a prontidão pelo canal autenticado e seleciona automaticamente outra porta local quando a 8765 já está ocupada, evitando respostas 403 de um backend residual.
+- Propagação da sessão Supabase para o FastAPI aguarda a bridge ficar pronta, eliminando o `ECONNREFUSED` transitório durante a inicialização do desktop.
+- Backend FastAPI iniciado pelo Electron agora roda em processo único por padrão; o reloader do Uvicorn fica opt-in, evitando o travamento do subprocesso no Windows e o timeout da bridge de sync.
+
 ## [1.3.0] — atual
 
 ### Adicionado

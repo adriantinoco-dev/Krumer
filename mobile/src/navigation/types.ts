@@ -3,7 +3,7 @@ import type { Book } from '../models/item';
 export type RootStackParamList = {
   MainTabs: undefined;
   Reader: { book: Book };
-  SettingsGroup: { group: 'general' | 'theme' | 'api' | 'about' };
+  SettingsGroup: { group: 'general' | 'account' | 'theme' | 'api' | 'about' };
 };
 
 export type MainTabParamList = {

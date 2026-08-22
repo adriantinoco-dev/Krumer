@@ -6,6 +6,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { BookOpen, List, Settings } from 'lucide-react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProvider, useApp } from './src/context/AppContext';
+import { AuthProvider } from './src/context/AuthContext';
 import { LibraryScreen } from './src/screens/LibraryScreen';
 import { ListsScreen } from './src/screens/ListsScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
@@ -14,6 +15,7 @@ import { SettingsGroupScreen } from './src/screens/SettingsGroupScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import type { MainTabParamList, RootStackParamList } from './src/navigation/types';
 import { serifFont } from './src/theme';
+import { SyncCoordinator } from './src/sync/SyncCoordinator';
 
 const Tabs = createBottomTabNavigator<MainTabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -106,9 +108,12 @@ function AppShell() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <AppProvider>
-        <AppShell />
-      </AppProvider>
+      <AuthProvider>
+        <AppProvider>
+          <SyncCoordinator />
+          <AppShell />
+        </AppProvider>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }

@@ -27,7 +27,7 @@
 ## Roadmap de longo prazo (README)
 
 - [ ] Suporte a CBZ / CBR
-- [ ] Sincronização de progresso entre dispositivos via Firebase
+- [~] Sincronização offline-first entre dispositivos via Supabase (código concluído; migration e Auth aguardam deploy)
 - [ ] Exportar biblioteca como CSV / JSON
 - [~] Versão Android — React Native + Expo em `mobile/`, no mesmo repositório (base concluída, paridade com o desktop v1.3.0 em andamento)
 
@@ -158,18 +158,20 @@ Implementar cache básico para melhorar uso sem conexão imediata:
 - capas já vistas;
 - preferências locais.
 
-Offline real com sincronização fica para etapa futura.
+Offline real permanece local-first; progresso, listas e favoritos são reconciliados pelo Supabase quando a rede volta.
 
-### M10 — Sincronização futura
-**Status:** `[ ]`
+### M10 — Sincronização via Supabase
+**Status:** `[~]` (auth, RLS, outbox, push/pull, conflito, conectividade e status concluídos no código; migration e Auth aguardam deploy)
 
-Futuramente, implementar sincronização via Firebase:
+Arquitetura detalhada em `docs/arquitetura-sync-supabase.md`. Implementar com abordagem offline-first:
 - progresso entre dispositivos;
-- biblioteca/metadados quando aplicável;
+- listas e favoritos;
 - resolução de conflitos;
-- autenticação, se necessária.
+- outbox local e RLS por usuário.
 
-Não implementar Firebase no MVP.
+Supabase Auth já está integrado no desktop e Android com email/senha, Google OAuth externo no desktop, Google Sign-In nativo no Android, magic link, recuperação de senha e sessão persistida. Não introduzir Firebase.
+
+Implementação concluída no repositório: migration remota, RPC de merge monotônico, tombstones, outbox SQLite/AsyncStorage, backfill inicial, push/pull paginado, progresso órfão, backoff, conectividade e status discreto. Aplicar a migration e configurar os provedores de Auth no painel Supabase continua necessário. O build físico Android permanece fora desta task.
 
 ---
 
@@ -189,6 +191,7 @@ Não implementar Firebase no MVP.
 - Leitores: PDF via `react-native-pdf` e EPUB via WebView + epub.js, com progresso persistido no AsyncStorage.
 - Temas dark / light / sépia.
 - i18n parcial: 3 de 10 idiomas (`en`, `pt-br`, `es`).
+- Supabase Auth completo na aba Configurações (email/senha, Google OAuth externo no desktop e nativo no Android, magic link, recuperação, alteração de senha, logout e sessão persistida).
 
 ### Base de paridade (pré-requisitos)
 
@@ -234,7 +237,7 @@ PyInstaller gera `krumer-backend.exe` incluído no bundle do Electron via `extra
 ### Mobile Android — React Native
 Decisão: React Native com Expo Go (não Capacitor). App Android mantido no mesmo repositório, dentro de `mobile/`.
 
-No MVP, o mobile deve funcionar de forma semelhante ao desktop: o usuário seleciona uma pasta contendo livros com a mesma estrutura descrita no README, e o app escaneia/importa essa biblioteca. Futuramente haverá sincronização via Firebase, mas isso não entra na primeira fase.
+No MVP, o mobile funciona de forma semelhante ao desktop: o usuário seleciona uma pasta contendo livros com a mesma estrutura descrita no README, e o app escaneia/importa essa biblioteca. Progresso, listas e favoritos são sincronizados via Supabase; os arquivos continuam locais.
 
 Durante o desenvolvimento, a URL base padrão do backend pode ser `http://localhost:8765`, com opção de configuração no app quando necessário.
 

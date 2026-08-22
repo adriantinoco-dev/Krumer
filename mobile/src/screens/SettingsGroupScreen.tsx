@@ -3,6 +3,7 @@ import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ApiKeyInput } from '../components/ApiKeyInput';
+import { AuthSettings } from '../components/AuthSettings';
 import { FolderPickerField } from '../components/FolderPickerField';
 import { KrumerLogo } from '../components/KrumerLogo';
 import { LangPickerButton } from '../components/LangPicker';
@@ -25,6 +26,7 @@ export function SettingsGroupScreen({ route }: Props) {
 
   const titles = {
     general: t('settings.general'),
+    account: t('auth.account'),
     theme: t('settings.theme'),
     api: t('settings.apiKey'),
     about: t('settings.about'),
@@ -69,6 +71,7 @@ export function SettingsGroupScreen({ route }: Props) {
             ))}
           </View>
         ) : null}
+        {group === 'account' ? <AuthSettings /> : null}
         {group === 'api' ? (
           <View style={{ gap: spacing.md }}>
             <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 13 }}>{t('api.key')}</Text>

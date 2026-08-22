@@ -1,13 +1,65 @@
 const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const { autoUpdater, CancellationToken } = require('electron-updater');
+const { AuthService } = require('./auth-service');
 const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
+const crypto = require('crypto');
+const { selectBackendPort } = require('./backend-port');
 
 let mainWindow = null;
 let pyProcess = null;
 let cancellationToken = null;
+let authService = null;
+let backendPort = 8765;
+let backendReady = false;
+const syncBridgeToken = crypto.randomBytes(32).toString('hex');
+let pendingAuthUrl = process.argv.find((arg) => arg.startsWith('krumer://')) || null;
+
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+  app.quit();
+}
+
+function focusMainWindow() {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.focus();
+}
+
+async function handleAuthUrl(url) {
+  if (!url) return;
+  if (!authService) {
+    pendingAuthUrl = url;
+    return;
+  }
+  try {
+    await authService.handleCallback(url);
+    focusMainWindow();
+  } catch (error) {
+    console.error('[Auth] Falha ao processar callback:', error.message);
+    if (mainWindow) {
+      const currentState = authService ? await authService.getState() : {
+        authenticated: false,
+        recovery: false,
+        user: null
+      };
+      mainWindow.webContents.send('auth:state-changed', { ...currentState, error: error.message });
+    }
+  }
+}
+
+app.on('second-instance', (_event, commandLine) => {
+  const authUrl = commandLine.find((arg) => arg.startsWith('krumer://'));
+  void handleAuthUrl(authUrl);
+  focusMainWindow();
+});
+
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  void handleAuthUrl(url);
+});
 
 // Configurações do autoUpdater
 autoUpdater.autoDownload = false;
@@ -61,13 +113,20 @@ function getPythonExecutable() {
  * Inicia o servidor backend FastAPI em Python como processo filho.
  */
 function startPythonBackend() {
+  backendReady = false;
   const exePath = getBackendExecutablePath();
 
   if (exePath) {
     console.log(`Iniciando backend empacotado (.exe): ${exePath}`);
     pyProcess = spawn(exePath, [], {
       cwd: path.dirname(exePath),
-      env: { ...process.env, PYTHONUNBUFFERED: '1' }
+      env: {
+        ...process.env,
+        PYTHONUNBUFFERED: '1',
+        KRUMER_BACKEND_RELOAD: '0',
+        KRUMER_API_PORT: String(backendPort),
+        KRUMER_SYNC_BRIDGE_TOKEN: syncBridgeToken
+      }
     });
   } else {
     const pythonBin = getPythonExecutable();
@@ -78,20 +137,36 @@ function startPythonBackend() {
 
     pyProcess = spawn(pythonBin, [scriptPath], {
       cwd: backendDir,
-      env: { ...process.env, PYTHONUNBUFFERED: '1' }
+      env: {
+        ...process.env,
+        PYTHONUNBUFFERED: '1',
+        KRUMER_BACKEND_RELOAD: '0',
+        KRUMER_API_PORT: String(backendPort),
+        KRUMER_SYNC_BRIDGE_TOKEN: syncBridgeToken
+      }
     });
   }
 
-  pyProcess.stdout.on('data', (data) => {
+  const startedProcess = pyProcess;
+
+  startedProcess.stdout.on('data', (data) => {
     console.log(`[Backend stdout]: ${data}`);
   });
 
-  pyProcess.stderr.on('data', (data) => {
+  startedProcess.stderr.on('data', (data) => {
     console.error(`[Backend stderr]: ${data}`);
   });
 
-  pyProcess.on('close', (code) => {
-    console.log(`Processo backend encerrado com código: ${code}`);
+  startedProcess.on('error', (error) => {
+    console.error('[Backend] Falha ao iniciar o processo Python:', error);
+  });
+
+  startedProcess.on('close', (code, signal) => {
+    console.log(`Processo backend encerrado com código ${code} e sinal ${signal || 'nenhum'}.`);
+    if (pyProcess === startedProcess) {
+      backendReady = false;
+      pyProcess = null;
+    }
   });
 }
 
@@ -99,6 +174,7 @@ function startPythonBackend() {
  * Encerra o processo filho do Python ao fechar o app.
  */
 function stopPythonBackend() {
+  backendReady = false;
   if (pyProcess) {
     console.log('Encerrando servidor backend Python...');
     if (process.platform === 'win32') {
@@ -118,19 +194,13 @@ function stopPythonBackend() {
 /**
  * Verifica se a API FastAPI já está pronta para aceitar requisições.
  */
-function waitForBackend(url, timeoutMs = 20000) {
+function waitForBackend(timeoutMs = 20000) {
   const startTime = Date.now();
   return new Promise((resolve, reject) => {
     const check = () => {
-      http.get(url, (res) => {
-        if (res.statusCode >= 200 && res.statusCode < 500) {
-          resolve(true);
-        } else {
-          retry();
-        }
-      }).on('error', () => {
-        retry();
-      });
+      callSyncBackend('GET', '/sync/status', null, 1000)
+        .then(() => resolve(true))
+        .catch(retry);
     };
 
     const retry = () => {
@@ -145,11 +215,67 @@ function waitForBackend(url, timeoutMs = 20000) {
   });
 }
 
+function callSyncBackend(method, route, body = null, timeoutMs = 10000) {
+  const payload = body ? Buffer.from(JSON.stringify(body)) : null;
+  return new Promise((resolve, reject) => {
+    const request = http.request({
+      hostname: '127.0.0.1',
+      port: backendPort,
+      path: route,
+      method,
+      headers: {
+        'X-Krumer-Sync-Bridge': syncBridgeToken,
+        ...(payload ? {
+          'Content-Type': 'application/json',
+          'Content-Length': payload.length
+        } : {})
+      },
+      timeout: timeoutMs
+    }, (response) => {
+      let raw = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk) => { raw += chunk; });
+      response.on('end', () => {
+        let parsed = {};
+        try { parsed = raw ? JSON.parse(raw) : {}; } catch (_error) { parsed = { raw }; }
+        if (response.statusCode >= 200 && response.statusCode < 300) resolve(parsed);
+        else reject(new Error(parsed.detail || `Backend de sync respondeu ${response.statusCode}.`));
+      });
+    });
+    request.on('timeout', () => request.destroy(new Error('Timeout no backend de sync.')));
+    request.on('error', reject);
+    if (payload) request.write(payload);
+    request.end();
+  });
+}
+
+async function syncAuthToBackend() {
+  if (!authService || !pyProcess || !backendReady) return;
+  try {
+    const credentials = await authService.getSyncCredentials();
+    if (!credentials) {
+      await callSyncBackend('DELETE', '/sync/session');
+      return;
+    }
+    await callSyncBackend('PUT', '/sync/session', {
+      access_token: credentials.accessToken,
+      user_id: credentials.userId,
+      expires_at: credentials.expiresAt
+    });
+  } catch (error) {
+    console.warn('[Sync] Não foi possível atualizar a sessão do backend:', error.message);
+  }
+}
+
 /**
  * Cria a janela principal do aplicativo Electron.
  */
 async function createWindow() {
   const iconPath = path.join(__dirname, 'frontend', 'assets', 'Krumer-icon.ico');
+  backendPort = await selectBackendPort();
+  if (backendPort !== 8765) {
+    console.warn(`[Backend] Porta 8765 ocupada; usando a porta local ${backendPort}.`);
+  }
 
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -161,6 +287,7 @@ async function createWindow() {
     show: false, // evita flash antes de maximizar
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      additionalArguments: [`--krumer-backend-port=${backendPort}`],
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true
@@ -185,8 +312,10 @@ async function createWindow() {
   startPythonBackend();
 
   try {
-    await waitForBackend('http://127.0.0.1:8765/onboarding/status');
-    console.log('Backend iniciado e responsivo na porta 8765.');
+    await waitForBackend();
+    backendReady = true;
+    console.log(`Backend iniciado e autenticado na porta ${backendPort}.`);
+    await syncAuthToBackend();
   } catch (err) {
     console.error('Falha ao aguardar o backend:', err);
   }
@@ -251,6 +380,26 @@ ipcMain.handle('restart-and-install', () => {
   autoUpdater.quitAndInstall(true, true);
 });
 
+function requireAuthService() {
+  if (!authService) throw new Error('O serviço de autenticação ainda não está pronto.');
+  return authService;
+}
+
+ipcMain.handle('auth:get-state', () => requireAuthService().getState());
+ipcMain.handle('auth:sign-in', (_event, { email, password }) => requireAuthService().signIn(email, password));
+ipcMain.handle('auth:sign-in-google', async () => {
+  const url = await requireAuthService().getGoogleOAuthUrl();
+  await shell.openExternal(url);
+  return { opened: true };
+});
+ipcMain.handle('auth:sign-up', (_event, { email, password }) => requireAuthService().signUp(email, password));
+ipcMain.handle('auth:magic-link', (_event, { email }) => requireAuthService().sendMagicLink(email));
+ipcMain.handle('auth:reset-password', (_event, { email }) => requireAuthService().requestPasswordReset(email));
+ipcMain.handle('auth:update-password', (_event, { password }) => requireAuthService().updatePassword(password));
+ipcMain.handle('auth:sign-out', () => requireAuthService().signOut());
+ipcMain.handle('sync:trigger', () => callSyncBackend('POST', '/sync/trigger'));
+ipcMain.handle('sync:get-status', () => callSyncBackend('GET', '/sync/status'));
+
 // Eventos do electron-updater repassados para o Renderer Process
 autoUpdater.on('update-available', (info) => {
   console.log('[Update] update-available:', JSON.stringify(info));
@@ -275,7 +424,28 @@ autoUpdater.on('error', (err) => {
 });
 
 // Ciclo de vida da aplicação Electron
-app.whenReady().then(createWindow);
+app.whenReady().then(async () => {
+  if (process.defaultApp && process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('krumer', process.execPath, [path.resolve(process.argv[1])]);
+  } else {
+    app.setAsDefaultProtocolClient('krumer');
+  }
+
+  authService = new AuthService(app.getPath('userData'));
+  authService.setStateListener((state) => {
+    if (mainWindow) mainWindow.webContents.send('auth:state-changed', state);
+    void syncAuthToBackend();
+  });
+  await authService.initialize();
+
+  if (pendingAuthUrl) {
+    const url = pendingAuthUrl;
+    pendingAuthUrl = null;
+    await handleAuthUrl(url);
+  }
+
+  await createWindow();
+});
 
 app.on('window-all-closed', () => {
   stopPythonBackend();

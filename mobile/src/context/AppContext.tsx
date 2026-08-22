@@ -1,22 +1,35 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { Book } from '../models/item';
+import type { SyncList } from '../models/list';
 import { extractCoversInBackground } from '../services/libraryScanner';
 import { DEFAULT_LANGUAGE, translate, type LanguageCode, type TranslationKey } from '../i18n/translations';
 import {
   defaultPreferences,
   loadBooks,
   loadPreferences,
+  loadSyncLists,
   saveBooks,
   savePreferences,
+  saveSyncLists,
   type MobilePreferences,
 } from '../storage/preferences';
+import { enqueueBookProgress, enqueueListMembership, enqueueSyncList } from '../sync/outbox';
 import { themes, type ThemeName } from '../theme';
 
 type AppContextValue = {
   books: Book[];
+  lists: SyncList[];
   preferences: MobilePreferences;
   ready: boolean;
   setBooks: (books: Book[]) => Promise<void>;
+  replaceBooksFromSync: (books: Book[]) => Promise<void>;
+  replaceListsFromSync: (lists: SyncList[]) => Promise<void>;
+  updateBookProgress: (
+    bookId: string,
+    update: Partial<Pick<Book, 'progress' | 'progressPct' | 'currentPage' | 'totalPages' | 'cfi' | 'isRead'>>,
+  ) => Promise<void>;
+  toggleFavorite: (book: Book) => Promise<void>;
+  createList: (name: string) => Promise<void>;
   updateBookCover: (bookId: string, coverPath: string) => void;
   setGeminiApiKey: (geminiApiKey: string | null) => Promise<void>;
   setHasOnboarded: (hasOnboarded: boolean) => Promise<void>;
@@ -31,6 +44,7 @@ const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [books, setBookState] = useState<Book[]>([]);
+  const [lists, setLists] = useState<SyncList[]>([]);
   const [preferences, setPreferenceState] = useState<MobilePreferences>(defaultPreferences);
   const [ready, setReady] = useState(false);
   const booksRef = useRef<Book[]>([]);
@@ -52,10 +66,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     let mounted = true;
 
     async function hydrate() {
-      const [storedPreferences, storedBooks] = await Promise.all([loadPreferences(), loadBooks()]);
+      const [storedPreferences, storedBooks, storedLists] = await Promise.all([
+        loadPreferences(),
+        loadBooks(),
+        loadSyncLists(),
+      ]);
       if (!mounted) return;
       setPreferenceState(storedPreferences);
       setBookState(storedBooks);
+      setLists(storedLists);
       booksRef.current = storedBooks;
       setReady(true);
       if (storedBooks.some((book) => !book.coverPath)) {
@@ -111,19 +130,98 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [updateBookCover]);
 
   const setBooks = useCallback(async (nextBooks: Book[]) => {
+    const previous = new Map(flattenBooks(booksRef.current).map((book) => [book.fingerprint, book]));
+    const merged = mergeScannedBooks(nextBooks, previous);
+    booksRef.current = merged;
+    setBookState(merged);
+    await saveBooks(merged);
+    runCoversLoop();
+  }, [runCoversLoop]);
+
+  const replaceBooksFromSync = useCallback(async (nextBooks: Book[]) => {
     booksRef.current = nextBooks;
     setBookState(nextBooks);
     await saveBooks(nextBooks);
-    runCoversLoop();
-  }, [runCoversLoop]);
+  }, []);
+
+  const replaceListsFromSync = useCallback(async (nextLists: SyncList[]) => {
+    setLists(nextLists);
+    await saveSyncLists(nextLists);
+  }, []);
+
+  const updateBookProgress = useCallback(async (
+    bookId: string,
+    update: Partial<Pick<Book, 'progress' | 'progressPct' | 'currentPage' | 'totalPages' | 'cfi' | 'isRead'>>,
+  ) => {
+    let changed: Book | null = null;
+    const next = updateBookTree(booksRef.current, bookId, (book) => {
+      changed = { ...book, ...update };
+      return changed;
+    });
+    booksRef.current = next;
+    setBookState(next);
+    await saveBooks(next);
+    if (changed) await enqueueBookProgress(changed);
+  }, []);
+
+  const toggleFavorite = useCallback(async (book: Book) => {
+    let favorite = lists.find((list) => list.isDefault || list.name === 'Favoritos');
+    let nextLists = [...lists];
+    if (!favorite) {
+      favorite = {
+        id: createUuid(),
+        name: 'Favoritos',
+        isDefault: true,
+        sortOrder: -1,
+        createdAt: new Date().toISOString(),
+        bookFingerprints: [],
+      };
+      nextLists.push(favorite);
+      await enqueueSyncList(favorite);
+    }
+    const contains = favorite.bookFingerprints.includes(book.fingerprint);
+    const updated = {
+      ...favorite,
+      bookFingerprints: contains
+        ? favorite.bookFingerprints.filter((value) => value !== book.fingerprint)
+        : [...favorite.bookFingerprints, book.fingerprint],
+    };
+    nextLists = nextLists.map((list) => list.id === updated.id ? updated : list);
+    setLists(nextLists);
+    await saveSyncLists(nextLists);
+    await enqueueListMembership(updated, book.fingerprint, contains ? 'delete' : 'upsert');
+  }, [lists]);
+
+  const createList = useCallback(async (name: string) => {
+    const normalized = name.trim();
+    if (!normalized || lists.some((list) => list.name.toLowerCase() === normalized.toLowerCase())) return;
+    const next: SyncList = {
+      id: createUuid(),
+      name: normalized,
+      isDefault: false,
+      sortOrder: lists.length,
+      createdAt: new Date().toISOString(),
+      bookFingerprints: [],
+    };
+    const nextLists = [...lists, next];
+    setLists(nextLists);
+    await saveSyncLists(nextLists);
+    await enqueueSyncList(next);
+  }, [lists]);
 
   const value = useMemo<AppContextValue>(() => {
     const language = preferences.language ?? DEFAULT_LANGUAGE;
     return {
       books,
+      lists,
       preferences,
       ready,
       setBooks,
+      replaceBooksFromSync,
+      replaceListsFromSync,
+      updateBookProgress,
+      toggleFavorite,
+      createList,
       updateBookCover,
       setGeminiApiKey: (geminiApiKey) => persistPreferences({ geminiApiKey }),
       setHasOnboarded: (hasOnboarded) => persistPreferences({ hasOnboarded }),
@@ -133,9 +231,65 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       t: (key) => translate(language, key),
       theme: themes[preferences.theme],
     };
-  }, [books, persistPreferences, preferences, ready, setBooks, updateBookCover]);
+  }, [
+    books,
+    createList,
+    lists,
+    persistPreferences,
+    preferences,
+    ready,
+    replaceBooksFromSync,
+    replaceListsFromSync,
+    setBooks,
+    toggleFavorite,
+    updateBookCover,
+    updateBookProgress,
+  ]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+}
+
+function flattenBooks(books: Book[]): Book[] {
+  return books.flatMap((book) => [book, ...flattenBooks(book.children ?? [])]);
+}
+
+function mergeScannedBooks(books: Book[], previous: Map<string, Book>): Book[] {
+  return books.map((book) => {
+    const existing = previous.get(book.fingerprint);
+    return {
+      ...book,
+      ...(existing ? {
+        coverPath: existing.coverPath,
+        rating: existing.rating,
+        progress: existing.progress,
+        progressPct: existing.progressPct,
+        currentPage: existing.currentPage,
+        totalPages: existing.totalPages,
+        cfi: existing.cfi,
+        isRead: existing.isRead,
+      } : {}),
+      children: book.children ? mergeScannedBooks(book.children, previous) : book.children,
+    };
+  });
+}
+
+function updateBookTree(
+  books: Book[],
+  bookId: string,
+  updater: (book: Book) => Book,
+): Book[] {
+  return books.map((book) => {
+    if (book.id === bookId) return updater(book);
+    return book.children ? { ...book, children: updateBookTree(book.children, bookId, updater) } : book;
+  });
+}
+
+function createUuid() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
+    const random = Math.floor(Math.random() * 16);
+    const value = character === 'x' ? random : (random & 0x3) | 0x8;
+    return value.toString(16);
+  });
 }
 
 export function useApp() {

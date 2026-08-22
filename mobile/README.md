@@ -13,16 +13,24 @@ Este app vive no mesmo repositorio do desktop, mas mantem dependencias e codigo 
 - Scanner local de `.epub` e `.pdf` com progresso visual.
 - Extracao de capa EPUB via ZIP/OPF e thumbnail PDF via modulo nativo.
 - Leitor EPUB com WebView + epub.js e leitor PDF com `react-native-pdf`.
+- Supabase Auth com email/senha e Google Sign-In nativo no Android.
+- Sincronizacao offline-first via Supabase de progresso, avaliacao, listas e favoritos, com outbox persistente, backoff e merge de conflitos.
 
 ## Desenvolvimento
 
-Algumas dependencias sao nativas (`react-native-pdf`, `react-native-pdf-thumbnail`, `react-native-webview`). Por isso, use development build:
+Algumas dependencias sao nativas (`react-native-pdf`, `react-native-webview` e `@react-native-google-signin/google-signin`). Por isso, use development build; Expo Go nao suporta esse fluxo:
 
 ```bash
 npm install
 npx expo prebuild
-npx expo run:android
+npm run android
 ```
+
+O script `npm run android` reaplica automaticamente a compatibilidade do NetInfo
+12.0.1 com Gradle 9. O mesmo ajuste roda apos cada `npm install`, evitando que a
+falha de Codegen volte quando `node_modules` for recriado.
+
+Antes do build, copie `.env.example` para `.env.local` e configure `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` com o OAuth Client ID do tipo **Web application**. O projeto Google tambem precisa de um OAuth Client ID Android para o package `com.adriantinoco.krumer` e os SHA-1 de desenvolvimento/producao. O passo a passo completo fica em `../docs/arquitetura-sync-supabase.md`.
 
 ## Estrutura
 
@@ -40,6 +48,7 @@ mobile/
     ├── readers/          # Leitores PDF/EPUB
     ├── screens/          # Telas principais
     ├── storage/          # Preferencias locais do Android
+    ├── sync/             # Outbox, conectividade e push/pull Supabase
     └── theme/            # Cores, espacamentos e tokens visuais
 ```
 
@@ -48,4 +57,10 @@ mobile/
 - Preferencias, onboarding, pasta e chave Gemini ficam no AsyncStorage.
 - A biblioteca escaneada e salva como lista de livros no AsyncStorage.
 - Capas ficam como arquivos locais; o storage guarda apenas o path.
+- Progresso, listas e favoritos sao gravados primeiro no AsyncStorage e sincronizados em background quando houver sessao e rede.
+- PDF/EPUB e capas nao sao enviados ao Supabase.
+
+## Identidade entre dispositivos
+
+O vinculo usa `file|nome-sem-extensao|tamanho` (ou `series|nome-da-pasta`). Renomear ou reencodar um arquivo altera esse fingerprint e, por isso, pode criar uma nova identidade remota. Um novo scan migra automaticamente livros antigos do storage para o formato atual sempre que o caminho ainda estiver acessivel.
 

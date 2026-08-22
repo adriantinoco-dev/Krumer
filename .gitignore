@@ -1,6 +1,7 @@
 # Variáveis de ambiente — NUNCA subir pro GitHub
 backend/.env
 .env
+client_secret_*.json
 
 # Cache do Python
 __pycache__/
@@ -16,6 +17,7 @@ node_modules/
 
 # Build
 dist/
+dist-auth-verification/
 build/
 
 # Resources
@@ -38,3 +40,4 @@ android/**/build/
 .gradle-user-home
 .pytest_cache
 .pnpm-store
+mobile/**/build
