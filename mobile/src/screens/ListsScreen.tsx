@@ -122,6 +122,7 @@ export function ListsScreen({ navigation }: Props) {
   }, [activeCollectionKey, collections]);
 
   const numColumns = width >= TABLET_BREAKPOINT ? 5 : 3;
+  const listNumColumns = width >= TABLET_BREAKPOINT ? 4 : 2;
   const cardWidth = width / numColumns;
 
   const handleOpenReader = (book: Book) => {
@@ -159,6 +160,22 @@ export function ListsScreen({ navigation }: Props) {
     );
   }, [allBooks, bookSearchQuery]);
 
+  const formattedCollections = useMemo(() => {
+    if (collections.length % listNumColumns === 0) return collections;
+    const copy = [...collections];
+    const remainder = collections.length % listNumColumns;
+    for (let i = 0; i < listNumColumns - remainder; i++) {
+      copy.push({
+        key: `__spacer_${i}__`,
+        title: '',
+        books: [],
+        isFixed: true,
+        isSpacer: true,
+      } as any);
+    }
+    return copy;
+  }, [collections, listNumColumns]);
+
   return (
     <SafeAreaView edges={['top']} style={{ backgroundColor: theme.bg, flex: 1 }}>
       {/* Top Bar / Header */}
@@ -178,7 +195,7 @@ export function ListsScreen({ navigation }: Props) {
         </Pressable>
       </View>
 
-      {/* Main List Cards Grid / ScrollView */}
+      {/* Main List Cards Grid */}
       {collections.every((collection) => collection.books.length === 0 && collection.isFixed && collections.length === 4) ? (
         <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center', padding: spacing.xl }}>
           <ListIcon color={theme.textSecondary} size={56} strokeWidth={1.2} />
@@ -190,16 +207,28 @@ export function ListsScreen({ navigation }: Props) {
           </Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ gap: spacing.md, padding: spacing.md, paddingBottom: spacing.xl }}>
-          {collections.map((collection) => (
-            <ListCard
-              key={collection.key}
-              title={collection.title}
-              books={collection.books}
-              onPress={() => setActiveCollectionKey(collection.key)}
-            />
-          ))}
-        </ScrollView>
+        <FlatList
+          columnWrapperStyle={{ gap: spacing.md }}
+          contentContainerStyle={{ gap: spacing.md, padding: spacing.md, paddingBottom: spacing.xl }}
+          data={formattedCollections}
+          key={listNumColumns}
+          keyExtractor={(item) => item.key}
+          numColumns={listNumColumns}
+          renderItem={({ item }) => {
+            if ((item as any).isSpacer) {
+              return <View style={{ flex: 1 }} />;
+            }
+            return (
+              <View style={{ flex: 1 }}>
+                <ListCard
+                  title={item.title}
+                  books={item.books}
+                  onPress={() => setActiveCollectionKey(item.key)}
+                />
+              </View>
+            );
+          }}
+        />
       )}
 
       {/* Modal: Create List */}
