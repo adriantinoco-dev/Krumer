@@ -7,7 +7,6 @@ import type { Book } from '../models/item';
 import { coverShadow, serifFont, spacing } from '../theme';
 
 const STAR_FILLED = '#ffda4d';
-const STAR_EMPTY = '#414141ff';
 const COVER_RADIUS = 20;
 const STAR_SIZE = 14;
 
@@ -97,10 +96,10 @@ export function BookCard({
         ellipsizeMode="tail"
         numberOfLines={1}
         style={{
-          color: theme.textMuted,
+          color: theme.textSecondary,
           fontFamily: serifFont,
           fontSize: 11,
-          fontWeight: '700',
+          fontWeight: '600',
           marginTop: 2,
           textAlign: 'left',
         }}
@@ -110,8 +109,8 @@ export function BookCard({
       <View style={{ alignItems: 'center', flexDirection: 'row', marginTop: 4 }}>
         {[1, 2, 3, 4, 5].map((star) => (
           <Star
-            color={star <= rating ? STAR_FILLED : STAR_EMPTY}
-            fill={star <= rating ? STAR_FILLED : STAR_EMPTY}
+            color={star <= rating ? STAR_FILLED : theme.border}
+            fill={star <= rating ? STAR_FILLED : theme.border}
             key={star}
             size={STAR_SIZE}
             strokeWidth={1.4}

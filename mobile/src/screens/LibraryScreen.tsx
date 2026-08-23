@@ -153,7 +153,7 @@ function LibraryHeader({
       </View>
 
       {/* Continuar lendo — só aparece quando não está buscando */}
-      {!isSearching && continueReading.length > 0 && (
+      {!isSearching && continueReading.length > 1 && (
         <>
           <View
             style={{

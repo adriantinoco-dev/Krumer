@@ -36,7 +36,7 @@ import { coverShadow, radii, serifFont, spacing, TABLET_BREAKPOINT } from '../th
 type Props = NativeStackScreenProps<RootStackParamList, 'BookDetail'>;
 
 const STAR_FILLED = '#ffda4d';
-const STAR_EMPTY = '#414141ff';
+const STAR_EMPTY = '#414141';
 const ORANGE_ACCENT = '#ff6500';
 
 export function BookDetailScreen({ navigation, route }: Props) {
@@ -95,6 +95,12 @@ export function BookDetailScreen({ navigation, route }: Props) {
   const coverCardWidth = width >= TABLET_BREAKPOINT ? 220 : 180;
   const rating = Math.max(0, Math.min(5, Math.round(book.rating ?? 0)));
   const accentColor = theme.name === 'dark' ? ORANGE_ACCENT : theme.accent;
+  // Hero text colors: white on dark, theme-aware on light/sepia
+  const heroTextColor = theme.name === 'dark' ? '#ffffff' : theme.textPrimary;
+  const heroSubtextColor = theme.name === 'dark' ? 'rgba(255, 255, 255, 0.7)' : theme.textSecondary;
+  const heroMutedColor = theme.name === 'dark' ? 'rgba(255, 255, 255, 0.55)' : theme.textSecondary;
+  const heroIconColor = theme.name === 'dark' ? '#ffffff' : theme.textPrimary;
+  const starEmptyColor = theme.name === 'dark' ? '#414141' : theme.border;
 
   const handleToggleRead = async () => {
     const nextIsRead = !book.isRead;
@@ -133,7 +139,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
   const handlePickCoverImage = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['image/*'],
+        type: 'image/*',
         copyToCacheDirectory: true,
       });
 
@@ -186,14 +192,14 @@ export function BookDetailScreen({ navigation, route }: Props) {
       {/* Blurred Cover Backdrop Hero */}
       <View style={{ position: 'relative', flex: 1 }}>
         {showCover && (
-          <View style={{ position: 'absolute', top: -50, left: -50, right: -50, bottom: -50, overflow: 'hidden', pointerEvents: 'none' }}>
+          <View pointerEvents="none" style={{ position: 'absolute', top: -50, left: -50, right: -50, bottom: -50, overflow: 'hidden' }}>
             {/* Top Blurred Cover Artwork extending deep down */}
             <Image
               blurRadius={20}
               onError={() => setCoverFailed(true)}
               resizeMode="cover"
               source={{ uri: book.coverPath ?? undefined }}
-              style={{ height: 720, width: '100%', opacity: 0.85, transform: [{ scale: 1.35 }] }}
+              style={{ height: 720, width: '100%', opacity: theme.name === 'dark' ? 0.7 : 0.3, transform: [{ scale: 1.35 }] }}
             />
             {/* Subtle top tint */}
             <View
@@ -203,19 +209,19 @@ export function BookDetailScreen({ navigation, route }: Props) {
                 left: 0,
                 right: 0,
                 height: 720,
-                backgroundColor: 'rgba(0, 0, 0, 0.15)',
+                backgroundColor: theme.name === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'transparent',
               }}
             />
             {/* Full-screen SVG Linear Gradient for 100% seamless procedural fade into theme.bg */}
             <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
               <Svg height="100%" width="100%">
                 <Defs>
-                  <LinearGradient id="smoothHeroFade" x1="0" y1="0" x2="0" y2="1">
-                    <Stop offset="0" stopColor={theme.bg} stopOpacity="0" />
-                    <Stop offset="0.12" stopColor={theme.bg} stopOpacity="0.2" />
-                    <Stop offset="0.28" stopColor={theme.bg} stopOpacity="0.6" />
-                    <Stop offset="0.42" stopColor={theme.bg} stopOpacity="1" />
-                    <Stop offset="1.0" stopColor={theme.bg} stopOpacity="1" />
+                  <LinearGradient id="smoothHeroFade" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <Stop offset="0%" stopColor={theme.bg} stopOpacity="0" />
+                    <Stop offset="12%" stopColor={theme.bg} stopOpacity="0.2" />
+                    <Stop offset="28%" stopColor={theme.bg} stopOpacity="0.6" />
+                    <Stop offset="42%" stopColor={theme.bg} stopOpacity="1" />
+                    <Stop offset="100%" stopColor={theme.bg} stopOpacity="1" />
                   </LinearGradient>
                 </Defs>
                 <Rect width="100%" height="100%" fill="url(#smoothHeroFade)" />
@@ -236,19 +242,19 @@ export function BookDetailScreen({ navigation, route }: Props) {
           }}
         >
           <Pressable hitSlop={12} onPress={() => navigation.goBack()}>
-            <ArrowLeft color="#ffffff" size={24} />
+            <ArrowLeft color={heroIconColor} size={24} />
           </Pressable>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
             <Pressable hitSlop={12} onPress={() => { void toggleFavorite(book); }}>
               <Heart
-                color={isFavorite ? accentColor : '#ffffff'}
+                color={isFavorite ? accentColor : heroIconColor}
                 fill={isFavorite ? accentColor : 'transparent'}
                 size={22}
               />
             </Pressable>
             <Pressable hitSlop={12} onPress={handleOpenEditModal}>
-              <MoreVertical color="#ffffff" size={22} />
+              <MoreVertical color={heroIconColor} size={22} />
             </Pressable>
           </View>
         </View>
@@ -300,15 +306,15 @@ export function BookDetailScreen({ navigation, route }: Props) {
 
             {/* Pagination Dots (as in screenshot) */}
             <View style={{ flexDirection: 'row', gap: 6, marginTop: spacing.md, marginBottom: spacing.xs }}>
-              <View style={{ backgroundColor: '#ffffff', borderRadius: 4, height: 6, width: 6 }} />
-              <View style={{ backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 4, height: 6, width: 6 }} />
-              <View style={{ backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 4, height: 6, width: 6 }} />
+              <View style={{ backgroundColor: heroTextColor, borderRadius: 4, height: 6, width: 6, opacity: 1 }} />
+              <View style={{ backgroundColor: heroTextColor, borderRadius: 4, height: 6, width: 6, opacity: 0.3 }} />
+              <View style={{ backgroundColor: heroTextColor, borderRadius: 4, height: 6, width: 6, opacity: 0.3 }} />
             </View>
 
             {/* Title */}
             <Text
               style={{
-                color: '#ffffff',
+                color: heroTextColor,
                 fontFamily: serifFont,
                 fontSize: 22,
                 fontWeight: '800',
@@ -323,7 +329,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
             {/* Series / Format Subtitle */}
             <Text
               style={{
-                color: 'rgba(255, 255, 255, 0.7)',
+                color: heroSubtextColor,
                 fontFamily: serifFont,
                 fontSize: 14,
                 fontWeight: '500',
@@ -337,7 +343,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
             {/* Author */}
             <Text
               style={{
-                color: 'rgba(255, 255, 255, 0.55)',
+                color: heroMutedColor,
                 fontFamily: serifFont,
                 fontSize: 14,
                 fontWeight: '500',
@@ -353,8 +359,8 @@ export function BookDetailScreen({ navigation, route }: Props) {
               {[1, 2, 3, 4, 5].map((star) => (
                 <Pressable key={star} hitSlop={6} onPress={() => { void handleRatingPress(star); }}>
                   <Star
-                    color={star <= rating ? STAR_FILLED : STAR_EMPTY}
-                    fill={star <= rating ? STAR_FILLED : STAR_EMPTY}
+                    color={star <= rating ? STAR_FILLED : starEmptyColor}
+                    fill={star <= rating ? STAR_FILLED : starEmptyColor}
                     size={20}
                     strokeWidth={1.5}
                   />
@@ -831,8 +837,8 @@ export function BookDetailScreen({ navigation, route }: Props) {
                 {[1, 2, 3, 4, 5].map((star) => (
                   <Pressable key={star} hitSlop={6} onPress={() => setEditRating(star)}>
                     <Star
-                      color={star <= editRating ? STAR_FILLED : STAR_EMPTY}
-                      fill={star <= editRating ? STAR_FILLED : STAR_EMPTY}
+                      color={star <= editRating ? STAR_FILLED : starEmptyColor}
+                      fill={star <= editRating ? STAR_FILLED : starEmptyColor}
                       size={26}
                       strokeWidth={1.5}
                     />

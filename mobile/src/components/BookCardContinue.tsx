@@ -82,10 +82,10 @@ export function BookCardContinue({ book, onPress }: { book: Book; onPress: () =>
         ellipsizeMode="tail"
         numberOfLines={1}
         style={{
-          color: theme.textMuted,
+          color: theme.textSecondary,
           fontFamily: serifFont,
           fontSize: 11,
-          fontWeight: '700',
+          fontWeight: '600',
           marginTop: 2,
           textAlign: 'left',
         }}
