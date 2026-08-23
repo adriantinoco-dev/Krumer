@@ -12,7 +12,7 @@ import { SearchSortBar, type SortKey } from '../components/SearchSortBar';
 import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import type { MainTabParamList, RootStackParamList } from '../navigation/types';
-import { serifFont, spacing, TABLET_BREAKPOINT } from '../theme';
+import { radii, serifFont, spacing, TABLET_BREAKPOINT } from '../theme';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Library'>,
@@ -135,9 +135,20 @@ function LibraryHeader({
 }) {
   const { theme, t } = useApp();
 
+  const allBooks = useMemo(() => flattenBooks(books), [books]);
+  const totalCount = allBooks.length;
+  const readCount = useMemo(
+    () => allBooks.filter((book) => (book.progressPct ?? 0) >= 100 || book.isRead).length,
+    [allBooks],
+  );
+  const unreadCount = useMemo(
+    () => allBooks.filter((book) => (book.progressPct ?? 0) === 0 && !book.isRead).length,
+    [allBooks],
+  );
+
   return (
     <>
-      <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.md }}>
+      <View style={{ paddingHorizontal: spacing.md, paddingTop: 32, paddingBottom: spacing.xs }}>
         <KrumerLogo compact hideLabel />
       </View>
 
@@ -146,8 +157,6 @@ function LibraryHeader({
         <>
           <View
             style={{
-              alignItems: 'baseline',
-              flexDirection: 'row',
               marginBottom: spacing.sm,
               marginTop: spacing.lg,
               paddingHorizontal: spacing.md,
@@ -155,9 +164,6 @@ function LibraryHeader({
           >
             <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 17, fontWeight: '700' }}>
               {t('library.continueReading')}
-            </Text>
-            <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 13, fontWeight: '700', marginLeft: 8 }}>
-              ({continueReading.length} {t('library.items')})
             </Text>
           </View>
           <FlatList
@@ -188,22 +194,52 @@ function LibraryHeader({
         onSortChange={onSortChange}
       />
 
-      {/* Título da seção + contagem */}
+      {/* Stats em 3 colunas modernas e simples (abaixo da busca/filtro) */}
       <View
         style={{
-          alignItems: 'baseline',
+          alignItems: 'center',
+          backgroundColor: theme.card,
+          borderColor: theme.border,
+          borderRadius: radii.md,
+          borderWidth: 1,
           flexDirection: 'row',
-          marginBottom: spacing.sm,
-          paddingHorizontal: spacing.md,
-          paddingTop: spacing.xs,
+          justifyContent: 'space-around',
+          marginBottom: spacing.md,
+          marginHorizontal: spacing.md,
+          marginTop: spacing.sm,
+          paddingVertical: spacing.sm + 2,
         }}
       >
-        <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 20, fontWeight: '700' }}>
-          {t('library.title')}
-        </Text>
-        <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 13, fontWeight: '700', marginLeft: 8 }}>
-          ({isSearching ? filteredCount : books.length} {t('library.items')})
-        </Text>
+        <View style={{ alignItems: 'center', flex: 1 }}>
+          <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 18, fontWeight: '700' }}>
+            {totalCount}
+          </Text>
+          <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 11, fontWeight: '600', marginTop: 2 }}>
+            {t('library.statsTotal')}
+          </Text>
+        </View>
+
+        <View style={{ backgroundColor: theme.border, height: 24, width: 1 }} />
+
+        <View style={{ alignItems: 'center', flex: 1 }}>
+          <Text style={{ color: theme.accent, fontFamily: serifFont, fontSize: 18, fontWeight: '700' }}>
+            {readCount}
+          </Text>
+          <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 11, fontWeight: '600', marginTop: 2 }}>
+            {t('lists.read')}
+          </Text>
+        </View>
+
+        <View style={{ backgroundColor: theme.border, height: 24, width: 1 }} />
+
+        <View style={{ alignItems: 'center', flex: 1 }}>
+          <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 18, fontWeight: '700' }}>
+            {unreadCount}
+          </Text>
+          <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 11, fontWeight: '600', marginTop: 2 }}>
+            {t('lists.unread')}
+          </Text>
+        </View>
       </View>
     </>
   );

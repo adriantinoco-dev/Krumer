@@ -67,6 +67,7 @@ export type TranslationKey =
   | 'library.sortRecent'
   | 'library.sortRating'
   | 'library.sortProgress'
+  | 'library.statsTotal'
   | 'library.noResults'
   | 'library.noResultsHint'
   | 'lists.books'
@@ -188,6 +189,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.sortRecent': 'Recent',
     'library.sortRating': 'Rating',
     'library.sortProgress': 'Progress',
+    'library.statsTotal': 'Total',
     'library.noResults': 'No results.',
     'library.noResultsHint': 'Try a different search term.',
     'lists.books': 'books',
@@ -299,6 +301,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.sortRecent': 'Recentes',
     'library.sortRating': 'Avaliação',
     'library.sortProgress': 'Progresso',
+    'library.statsTotal': 'Total',
     'library.noResults': 'Nenhum resultado.',
     'library.noResultsHint': 'Tente outro termo de busca.',
     'lists.books': 'livros',
@@ -410,6 +413,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.sortRecent': 'Recientes',
     'library.sortRating': 'Valoración',
     'library.sortProgress': 'Progreso',
+    'library.statsTotal': 'Total',
     'library.noResults': 'Sin resultados.',
     'library.noResultsHint': 'Intenta con otro término.',
     'lists.books': 'libros',
