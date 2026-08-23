@@ -100,7 +100,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
   const heroSubtextColor = theme.name === 'dark' ? 'rgba(255, 255, 255, 0.7)' : theme.textSecondary;
   const heroMutedColor = theme.name === 'dark' ? 'rgba(255, 255, 255, 0.55)' : theme.textSecondary;
   const heroIconColor = theme.name === 'dark' ? '#ffffff' : theme.textPrimary;
-  const starEmptyColor = theme.name === 'dark' ? '#414141' : theme.border;
+  const starEmptyColor = theme.name === 'dark' ? '#414141' : theme.name === 'sepia' ? '#bfae88' : '#a8acb5';
 
   const handleToggleRead = async () => {
     const nextIsRead = !book.isRead;
@@ -199,7 +199,12 @@ export function BookDetailScreen({ navigation, route }: Props) {
               onError={() => setCoverFailed(true)}
               resizeMode="cover"
               source={{ uri: book.coverPath ?? undefined }}
-              style={{ height: 720, width: '100%', opacity: theme.name === 'dark' ? 0.7 : 0.3, transform: [{ scale: 1.35 }] }}
+              style={{
+                height: 720,
+                width: '100%',
+                opacity: theme.name === 'dark' ? 1.0 : theme.name === 'sepia' ? 1.0 : 1.0, 
+                transform: [{ scale: 1.35 }],
+              }}
             />
             {/* Subtle top tint */}
             <View
@@ -209,7 +214,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
                 left: 0,
                 right: 0,
                 height: 720,
-                backgroundColor: theme.name === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'transparent',
+                backgroundColor: theme.name === 'dark' ? 'rgba(0, 0, 0, 0.25)' : 'rgba(0, 0, 0, 0.04)',
               }}
             />
             {/* Full-screen SVG Linear Gradient for 100% seamless procedural fade into theme.bg */}
@@ -218,9 +223,10 @@ export function BookDetailScreen({ navigation, route }: Props) {
                 <Defs>
                   <LinearGradient id="smoothHeroFade" x1="0%" y1="0%" x2="0%" y2="100%">
                     <Stop offset="0%" stopColor={theme.bg} stopOpacity="0" />
-                    <Stop offset="12%" stopColor={theme.bg} stopOpacity="0.2" />
-                    <Stop offset="28%" stopColor={theme.bg} stopOpacity="0.6" />
-                    <Stop offset="42%" stopColor={theme.bg} stopOpacity="1" />
+                    <Stop offset="15%" stopColor={theme.bg} stopOpacity="0.1" />
+                    <Stop offset="32%" stopColor={theme.bg} stopOpacity="0.4" />
+                    <Stop offset="55%" stopColor={theme.bg} stopOpacity="0.8" />
+                    <Stop offset="75%" stopColor={theme.bg} stopOpacity="1" />
                     <Stop offset="100%" stopColor={theme.bg} stopOpacity="1" />
                   </LinearGradient>
                 </Defs>

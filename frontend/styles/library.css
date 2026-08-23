@@ -758,6 +758,16 @@ html[data-theme="dark"] .book-cover-front .cover-fallback-title {
   transition: background-image 0.4s ease;
 }
 
+html[data-theme="light"] .details-hero-backdrop {
+  filter: brightness(0.95) saturate(1.1) blur(24px);
+  opacity: 0.65;
+}
+
+html[data-theme="sepia"] .details-hero-backdrop {
+  filter: brightness(0.92) saturate(1.15) blur(24px);
+  opacity: 0.70;
+}
+
 .details-hero-overlay {
   position: absolute;
   inset: 0;
@@ -772,6 +782,20 @@ html[data-theme="dark"] .book-cover-front .cover-fallback-title {
       transparent 60%,
       rgba(var(--hero-vignette), 0.85) 100%);
   z-index: 2;
+}
+
+html[data-theme="light"] .details-hero-overlay,
+html[data-theme="sepia"] .details-hero-overlay {
+  background:
+    linear-gradient(to bottom,
+      rgba(var(--hero-vignette), 0.10) 0%,
+      rgba(var(--hero-vignette), 0.50) 50%,
+      var(--bg-primary) 100%),
+    linear-gradient(to right,
+      rgba(var(--hero-vignette), 0.60) 0%,
+      transparent 35%,
+      transparent 65%,
+      rgba(var(--hero-vignette), 0.60) 100%);
 }
 
 .details-nav-bar {

@@ -107,16 +107,19 @@ export function BookCard({
         {book.author || t('library.unknownAuthor')}
       </Text>
       <View style={{ alignItems: 'center', flexDirection: 'row', marginTop: 4 }}>
-        {[1, 2, 3, 4, 5].map((star) => (
-          <Star
-            color={star <= rating ? STAR_FILLED : theme.border}
-            fill={star <= rating ? STAR_FILLED : theme.border}
-            key={star}
-            size={STAR_SIZE}
-            strokeWidth={1.4}
-            style={{ marginHorizontal: 1 }}
-          />
-        ))}
+        {(() => {
+          const starEmptyColor = theme.name === 'dark' ? '#414141' : theme.name === 'sepia' ? '#bfae88' : '#a8acb5';
+          return [1, 2, 3, 4, 5].map((star) => (
+            <Star
+              color={star <= rating ? STAR_FILLED : starEmptyColor}
+              fill={star <= rating ? STAR_FILLED : starEmptyColor}
+              key={star}
+              size={STAR_SIZE}
+              strokeWidth={1.4}
+              style={{ marginHorizontal: 1 }}
+            />
+          ));
+        })()}
       </View>
     </Pressable>
   );

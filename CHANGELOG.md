@@ -44,6 +44,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 - Implementação das fases 0–4 no código: migration/RLS, outboxes, push, pull, conflitos, conectividade, status, prune e paginação para desktop e Android. A aplicação da migration e a configuração dos provedores de Auth são etapas de deploy.
 - TypeScript do mobile validado após a integração da sincronização; o build Android nativo de desenvolvimento ainda precisa ser executado em ambiente configurado.
 
+### Alterado
+- **Visibilidade do fundo com capa nos temas Claro e Sépia (Mobile e Desktop):** ajustada a opacidade e o gradiente do backdrop da capa desfocada no cabeçalho da tela de detalhes (`BookDetailScreen` no mobile e `library.css` no desktop). Nos temas claro e sépia, a opacidade foi elevada (de 0.3 para 0.65/0.68 no mobile e ajustes de `brightness` no desktop) e a transição do gradiente foi estendida suavemente, tornando o fundo com a arte da capa perfeitamente visível, vibrante e harmonioso mantendo a legibilidade do texto.
+- **Cor da estrela de avaliação vazia nos temas Claro e Sépia (Mobile e Desktop):** mantido o design e formato original da estrela preenchida (`strokeWidth` 1.5, preenchimento sólido `fill` igual ao `color`), ajustando o tom do cinza para um tom um pouco mais escuro e definido (`#a8acb5` no tema Claro e `#bfae88` no tema Sépia, mantendo `#414141` no escuro), garantindo visibilidade e contraste perfeitos.
+
 ### Corrigido
 - Build Android com Expo SDK 57: removida a tentativa obsoleta de desativar a Nova Arquitetura, dependências Expo alinhadas à matriz do SDK e paralelismo nativo limitado para evitar falhas de codegen/CMake e falta de memória.
 - Bridge de sincronização no desktop agora valida a prontidão pelo canal autenticado e seleciona automaticamente outra porta local quando a 8765 já está ocupada, evitando respostas 403 de um backend residual.
