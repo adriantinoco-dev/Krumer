@@ -187,7 +187,7 @@ Base de paridade (pré-requisitos):
 - **PB1** `[ ]` Busca e ordenação na biblioteca (por título/autor; ordenar por nome, data, avaliação e progresso).
 - **PB2** `[ ]` Tela de detalhes do livro (capa, metadados, avaliação, progresso, capítulos/volumes, marcar lido/não lido).
 - **PB3** `[ ]` Edição de metadados (título, autor, ano, sinopse, tags, avaliação e capa — sem editora).
-- **PB4** `[ ]` Listas customizadas + favoritos (criar/renomear/excluir listas, adicionar/remover itens; Séries/Mangás, Lidos e Não Lidos são fixos e não excluíveis).
+- **PB4** `[x]` Listas customizadas + favoritos (criar/renomear/excluir listas, adicionar/remover itens; Séries/Mangás, Lidos e Não Lidos são fixos e não excluíveis).
 - **PB5** `[ ]` Busca de metadados via Gemini (usando a chave já salva no onboarding).
 - **PB6** `[ ]` Sincronizar status de leitura entre livro pai e filhos (séries), como no fix do v1.3.0.
 

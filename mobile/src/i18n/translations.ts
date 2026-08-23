@@ -42,6 +42,8 @@ export type TranslationKey =
   | 'auth.subtitle'
   | 'auth.updatePassword'
   | 'auth.working'
+  | 'common.cancel'
+  | 'common.delete'
   | 'common.done'
   | 'common.continue'
   | 'common.save'
@@ -52,18 +54,33 @@ export type TranslationKey =
   | 'general.selectFolder'
   | 'language.label'
   | 'language.select'
-| 'library.empty'
+  | 'library.empty'
   | 'library.emptyHint'
   | 'library.title'
   | 'library.unknownAuthor'
   | 'library.continueReading'
   | 'library.items'
   | 'library.volumesShort'
+  | 'library.search'
+  | 'library.sortBy'
+  | 'library.sortName'
+  | 'library.sortRecent'
+  | 'library.sortRating'
+  | 'library.sortProgress'
+  | 'library.noResults'
+  | 'library.noResultsHint'
   | 'lists.books'
+  | 'lists.create'
+  | 'lists.delete'
+  | 'lists.deleteConfirm'
   | 'lists.empty'
   | 'lists.emptyHint'
+  | 'lists.emptyList'
   | 'lists.favorites'
+  | 'lists.manageBooks'
+  | 'lists.namePlaceholder'
   | 'lists.read'
+  | 'lists.rename'
   | 'lists.series'
   | 'lists.title'
   | 'lists.toRead'
@@ -72,6 +89,8 @@ export type TranslationKey =
   | 'reader.bookmarks'
   | 'reader.chapters'
   | 'reader.fontSize'
+  | 'reader.pdfWebUnavailableDescription'
+  | 'reader.pdfWebUnavailableTitle'
   | 'reader.readingSettings'
   | 'reader.spacing'
   | 'scan.action'
@@ -144,6 +163,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'auth.subtitle': 'Sign in to prepare library sync across your devices.',
     'auth.updatePassword': 'Change password',
     'auth.working': 'Please wait…',
+    'common.cancel': 'Cancel',
+    'common.delete': 'Delete',
     'common.done': 'Done!',
     'common.continue': 'Continue',
     'common.save': 'Save',
@@ -161,11 +182,26 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.continueReading': 'Continue Reading',
     'library.items': 'items',
     'library.volumesShort': "vol's",
+    'library.search': 'Search title or author…',
+    'library.sortBy': 'Sort',
+    'library.sortName': 'Title',
+    'library.sortRecent': 'Recent',
+    'library.sortRating': 'Rating',
+    'library.sortProgress': 'Progress',
+    'library.noResults': 'No results.',
+    'library.noResultsHint': 'Try a different search term.',
     'lists.books': 'books',
+    'lists.create': 'Create list',
+    'lists.delete': 'Delete list',
+    'lists.deleteConfirm': 'Are you sure you want to delete this list?',
     'lists.empty': 'No lists yet.',
     'lists.emptyHint': 'Tap + to create your first list.',
+    'lists.emptyList': 'No books in this list.',
     'lists.favorites': 'Favorites',
+    'lists.manageBooks': 'Manage books',
+    'lists.namePlaceholder': 'List name',
     'lists.read': 'Read',
+    'lists.rename': 'Rename list',
     'lists.series': 'Series / Manga',
     'lists.title': 'Lists',
     'lists.toRead': 'To Read',
@@ -174,6 +210,9 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.bookmarks': 'Bookmarks',
     'reader.chapters': 'Go to chapter',
     'reader.fontSize': 'Font size',
+    'reader.pdfWebUnavailableDescription':
+      'PDF reading uses a native module (react-native-pdf) and does not work in the browser. Open on Android to read this file.',
+    'reader.pdfWebUnavailableTitle': 'PDF unavailable on web',
     'reader.readingSettings': 'Reading settings',
     'reader.spacing': 'Spacing',
     'scan.action': 'Scan',
@@ -235,6 +274,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'auth.subtitle': 'Entre para preparar a sincronização da sua biblioteca entre dispositivos.',
     'auth.updatePassword': 'Alterar senha',
     'auth.working': 'Aguarde…',
+    'common.cancel': 'Cancelar',
+    'common.delete': 'Excluir',
     'common.done': 'Concluído!',
     'common.continue': 'Continuar',
     'common.save': 'Salvar',
@@ -252,11 +293,26 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.continueReading': 'Continuar Lendo',
     'library.items': 'itens',
     'library.volumesShort': "vol's",
+    'library.search': 'Buscar título ou autor…',
+    'library.sortBy': 'Ordenar',
+    'library.sortName': 'Título',
+    'library.sortRecent': 'Recentes',
+    'library.sortRating': 'Avaliação',
+    'library.sortProgress': 'Progresso',
+    'library.noResults': 'Nenhum resultado.',
+    'library.noResultsHint': 'Tente outro termo de busca.',
     'lists.books': 'livros',
+    'lists.create': 'Criar lista',
+    'lists.delete': 'Excluir lista',
+    'lists.deleteConfirm': 'Tem certeza que deseja excluir esta lista?',
     'lists.empty': 'Nenhuma lista ainda.',
     'lists.emptyHint': 'Toque em + para criar sua primeira lista.',
+    'lists.emptyList': 'Nenhum livro nesta lista.',
     'lists.favorites': 'Favoritos',
+    'lists.manageBooks': 'Gerenciar livros',
+    'lists.namePlaceholder': 'Nome da lista',
     'lists.read': 'Lidos',
+    'lists.rename': 'Renomear lista',
     'lists.series': 'Séries / Mangás',
     'lists.title': 'Listas',
     'lists.toRead': 'Para ler',
@@ -265,6 +321,9 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.bookmarks': 'Marcadores',
     'reader.chapters': 'Ir para capítulo',
     'reader.fontSize': 'Tamanho da fonte',
+    'reader.pdfWebUnavailableDescription':
+      'A leitura de PDF usa um módulo nativo (react-native-pdf) e não funciona no navegador. Abra no Android para ler este arquivo.',
+    'reader.pdfWebUnavailableTitle': 'PDF indisponível na web',
     'reader.readingSettings': 'Configurações de leitura',
     'reader.spacing': 'Espaçamento',
     'scan.action': 'Escanear',
@@ -326,6 +385,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'auth.subtitle': 'Inicia sesión para preparar la sincronización entre dispositivos.',
     'auth.updatePassword': 'Cambiar contraseña',
     'auth.working': 'Espera…',
+    'common.cancel': 'Cancelar',
+    'common.delete': 'Eliminar',
     'common.done': 'Listo!',
     'common.continue': 'Continuar',
     'common.save': 'Guardar',
@@ -343,11 +404,26 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.continueReading': 'Seguir Leyendo',
     'library.items': 'items',
     'library.volumesShort': "vol's",
+    'library.search': 'Buscar título o autor…',
+    'library.sortBy': 'Ordenar',
+    'library.sortName': 'Título',
+    'library.sortRecent': 'Recientes',
+    'library.sortRating': 'Valoración',
+    'library.sortProgress': 'Progreso',
+    'library.noResults': 'Sin resultados.',
+    'library.noResultsHint': 'Intenta con otro término.',
     'lists.books': 'libros',
+    'lists.create': 'Crear lista',
+    'lists.delete': 'Eliminar lista',
+    'lists.deleteConfirm': '¿Estás seguro de que deseas eliminar esta lista?',
     'lists.empty': 'Aún no hay listas.',
     'lists.emptyHint': 'Toca + para crear tu primera lista.',
+    'lists.emptyList': 'No hay libros en esta lista.',
     'lists.favorites': 'Favoritos',
+    'lists.manageBooks': 'Gestionar libros',
+    'lists.namePlaceholder': 'Nombre de la lista',
     'lists.read': 'Leídos',
+    'lists.rename': 'Renombrar lista',
     'lists.series': 'Series / Mangas',
     'lists.title': 'Listas',
     'lists.toRead': 'Por leer',
@@ -356,6 +432,9 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.bookmarks': 'Marcadores',
     'reader.chapters': 'Ir al capítulo',
     'reader.fontSize': 'Tamaño de fuente',
+    'reader.pdfWebUnavailableDescription':
+      'La lectura de PDF usa un módulo nativo (react-native-pdf) y no funciona en el navegador. Ábrelo en Android para leer este archivo.',
+    'reader.pdfWebUnavailableTitle': 'PDF no disponible en web',
     'reader.readingSettings': 'Configuración de lectura',
     'reader.spacing': 'Espaciado',
     'scan.action': 'Escanear',

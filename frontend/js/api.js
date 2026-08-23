@@ -523,6 +523,48 @@ class LibraryAPI {
     if (!res.ok) throw new Error(body.detail || I18N.t('api.error_delete_highlight', res.statusText));
     return body;
   }
+
+  static async exportJson() {
+    const res = await fetch(`${API_BASE_URL}/export/json`);
+    if (!res.ok) throw new Error('Export failed');
+    return await res.json();
+  }
+
+  static async exportCsvBlob() {
+    const res = await fetch(`${API_BASE_URL}/export/csv`);
+    if (!res.ok) throw new Error('Export failed');
+    return await res.blob();
+  }
+
+  static async importJson(payload) {
+    const res = await fetch(`${API_BASE_URL}/import/json`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.detail || 'Import failed');
+    return body;
+  }
+
+  static async importCsvFile(file) {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch(`${API_BASE_URL}/import/csv`, { method: 'POST', body: fd });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.detail || 'Import failed');
+    return body;
+  }
+
+  static async getSyncMetrics() {
+    // Via bridge: precisa passar pelo Electron main se disponível, senão tenta direto (dev)
+    if (window.electronAPI?.syncGetMetrics) {
+      return await window.electronAPI.syncGetMetrics();
+    }
+    const res = await fetch(`${API_BASE_URL}/sync/metrics`);
+    if (!res.ok) throw new Error('Metrics failed');
+    return await res.json();
+  }
 }
 
 window.LibraryAPI = LibraryAPI;

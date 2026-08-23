@@ -30,6 +30,9 @@ type AppContextValue = {
   ) => Promise<void>;
   toggleFavorite: (book: Book) => Promise<void>;
   createList: (name: string) => Promise<void>;
+  renameList: (listId: string, newName: string) => Promise<void>;
+  deleteList: (listId: string) => Promise<void>;
+  toggleBookInList: (listId: string, bookFingerprint: string) => Promise<void>;
   updateBookCover: (bookId: string, coverPath: string) => void;
   setGeminiApiKey: (geminiApiKey: string | null) => Promise<void>;
   setHasOnboarded: (hasOnboarded: boolean) => Promise<void>;
@@ -209,6 +212,66 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await enqueueSyncList(next);
   }, [lists]);
 
+  const renameList = useCallback(async (listId: string, newName: string) => {
+    const normalized = newName.trim();
+    if (!normalized) return;
+    const target = lists.find((l) => l.id === listId);
+    if (!target || target.isDefault) return;
+    if (lists.some((l) => l.id !== listId && l.name.toLowerCase() === normalized.toLowerCase())) return;
+
+    const updated: SyncList = { ...target, name: normalized };
+    const nextLists = lists.map((l) => (l.id === listId ? updated : l));
+    setLists(nextLists);
+    await saveSyncLists(nextLists);
+    await enqueueSyncList(updated, 'upsert');
+  }, [lists]);
+
+  const deleteList = useCallback(async (listId: string) => {
+    const target = lists.find((l) => l.id === listId);
+    if (!target || target.isDefault) return;
+
+    const nextLists = lists.filter((l) => l.id !== listId);
+    setLists(nextLists);
+    await saveSyncLists(nextLists);
+    await enqueueSyncList(target, 'delete');
+  }, [lists]);
+
+  const toggleBookInList = useCallback(async (listId: string, bookFingerprint: string) => {
+    let target = lists.find((l) => l.id === listId);
+    let nextLists = [...lists];
+
+    if (!target && listId === 'favorites') {
+      target = lists.find((l) => l.isDefault || l.name === 'Favoritos');
+      if (!target) {
+        target = {
+          id: createUuid(),
+          name: 'Favoritos',
+          isDefault: true,
+          sortOrder: -1,
+          createdAt: new Date().toISOString(),
+          bookFingerprints: [],
+        };
+        nextLists.push(target);
+        await enqueueSyncList(target, 'upsert');
+      }
+    }
+
+    if (!target) return;
+
+    const contains = target.bookFingerprints.includes(bookFingerprint);
+    const updated: SyncList = {
+      ...target,
+      bookFingerprints: contains
+        ? target.bookFingerprints.filter((fp) => fp !== bookFingerprint)
+        : [...target.bookFingerprints, bookFingerprint],
+    };
+
+    nextLists = nextLists.map((l) => (l.id === updated.id ? updated : l));
+    setLists(nextLists);
+    await saveSyncLists(nextLists);
+    await enqueueListMembership(updated, bookFingerprint, contains ? 'delete' : 'upsert');
+  }, [lists]);
+
   const value = useMemo<AppContextValue>(() => {
     const language = preferences.language ?? DEFAULT_LANGUAGE;
     return {
@@ -222,6 +285,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       updateBookProgress,
       toggleFavorite,
       createList,
+      renameList,
+      deleteList,
+      toggleBookInList,
       updateBookCover,
       setGeminiApiKey: (geminiApiKey) => persistPreferences({ geminiApiKey }),
       setHasOnboarded: (hasOnboarded) => persistPreferences({ hasOnboarded }),
@@ -234,13 +300,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [
     books,
     createList,
+    deleteList,
     lists,
     persistPreferences,
     preferences,
     ready,
+    renameList,
     replaceBooksFromSync,
     replaceListsFromSync,
     setBooks,
+    toggleBookInList,
     toggleFavorite,
     updateBookCover,
     updateBookProgress,

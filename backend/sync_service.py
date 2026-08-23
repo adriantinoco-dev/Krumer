@@ -10,7 +10,8 @@ import os
 from typing import Optional
 
 import httpx
-from sqlalchemy import or_
+from sqlalchemy import or_, text
+from sqlalchemy.exc import IntegrityError
 
 from archive import item_fingerprint
 from database import SessionLocal
@@ -23,7 +24,7 @@ from models import (
     UserList,
     list_items,
 )
-from sync_outbox import enqueue_list, enqueue_membership, enqueue_progress
+from sync_outbox import enqueue_list, enqueue_membership, enqueue_metadata, enqueue_progress, enqueue_tag
 
 
 DEFAULT_SUPABASE_URL = "https://bcwgtutmzdhkotiuymxl.supabase.co"
@@ -50,15 +51,33 @@ def _setting(db, key: str) -> Optional[str]:
 
 
 def _set_setting(db, key: str, value: Optional[str]) -> None:
-    row = db.get(Setting, key)
     if value is None:
+        row = db.get(Setting, key)
         if row:
             db.delete(row)
         return
-    if row:
-        row.value = value
-    else:
-        db.add(Setting(key=key, value=value))
+    # Upsert atômico para evitar race entre dois PUT /sync/session simultâneos
+    try:
+        db.execute(
+            text("INSERT INTO settings (key, value) VALUES (:key, :value) ON CONFLICT(key) DO UPDATE SET value=excluded.value"),
+            {"key": key, "value": value},
+        )
+        # Mantém o identity map consistente
+        db.flush()
+        # Expire cached row se houver
+        try:
+            cached = db.get(Setting, key)
+            if cached:
+                db.refresh(cached)
+        except Exception:
+            pass
+    except Exception:
+        # Fallback ORM (caso a tabela ainda não exista ou outro erro)
+        row = db.get(Setting, key)
+        if row:
+            row.value = value
+        else:
+            db.add(Setting(key=key, value=value))
 
 
 class SyncHttpError(RuntimeError):
@@ -116,16 +135,28 @@ class SyncService:
             "user_id": user_id,
             "expires_at": expires_at,
         }
-        with SessionLocal() as db:
-            _set_setting(db, "sync_active_user_id", user_id)
-            db.query(SyncOutbox).filter(SyncOutbox.owner_user_id.is_(None)).update(
-                {SyncOutbox.owner_user_id: user_id}, synchronize_session=False
-            )
-            db.query(SyncOutbox).filter(
-                SyncOutbox.owner_user_id == user_id,
-                SyncOutbox.status == "syncing",
-            ).update({SyncOutbox.status: "pending"}, synchronize_session=False)
-            db.commit()
+        # Retry em caso de race no INSERT da settings (dois PUT /sync/session simultâneos)
+        for attempt in range(2):
+            try:
+                with SessionLocal() as db:
+                    _set_setting(db, "sync_active_user_id", user_id)
+                    db.query(SyncOutbox).filter(SyncOutbox.owner_user_id.is_(None)).update(
+                        {SyncOutbox.owner_user_id: user_id}, synchronize_session=False
+                    )
+                    db.query(SyncOutbox).filter(
+                        SyncOutbox.owner_user_id == user_id,
+                        SyncOutbox.status == "syncing",
+                    ).update({SyncOutbox.status: "pending"}, synchronize_session=False)
+                    db.commit()
+                break
+            except IntegrityError:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                if attempt == 1:
+                    raise
+                continue
         self._status.update(state="pending", last_error=None)
         self.trigger()
 
@@ -235,7 +266,13 @@ class SyncService:
         user_id = credentials["user_id"]
         with httpx.Client(timeout=httpx.Timeout(15.0, connect=5.0)) as client:
             self._ensure_initial_backfill(user_id)
-            self._push(client, user_id)
+            pushed = self._push(client, user_id)
+            if pushed:
+                with SessionLocal() as db:
+                    cur = int(_setting(db, f"sync_metrics_push_count:{user_id}") or "0")
+                    _set_setting(db, f"sync_metrics_push_count:{user_id}", str(cur + 1))
+                    _set_setting(db, f"sync_metrics_last_push_at:{user_id}", _iso(_utcnow()))
+                    db.commit()
             self._pull(client, user_id)
             self._prune(user_id)
 
@@ -247,11 +284,41 @@ class SyncService:
             for item in db.query(Item).all():
                 if item.progress or item.is_read or item.rating is not None:
                     enqueue_progress(db, item, rating_changed=item.rating is not None)
+                # Fase 5: backfill de metadados editados e tags
+                has_metadata = any([
+                    item.title != (item.filename_title or item.title),
+                    item.author, item.publisher, item.year, item.description,
+                ])
+                if has_metadata:
+                    enqueue_metadata(db, item)
+                for tag in item.tags:
+                    enqueue_tag(db, item, tag.name, "upsert")
             for user_list in db.query(UserList).all():
                 enqueue_list(db, user_list)
                 for item in user_list.items:
                     enqueue_membership(db, user_list, item, "upsert")
             _set_setting(db, key, "true")
+            db.commit()
+        # Fase 5: segunda chave para backfill incremental de metadata/tags para usuários já inicializados
+        key5 = f"sync_initial_done_fase5:{user_id}"
+        with SessionLocal() as db:
+            if _setting(db, key5) == "true":
+                return
+            # Só executa se a fase base já foi feita
+            if _setting(db, key) != "true":
+                return
+            for item in db.query(Item).all():
+                if not item.tags and not any([item.author, item.publisher, item.year, item.description]):
+                    continue
+                # Evita duplicar se já tem outbox pendente para metadata
+                from models import SyncOutbox as _SB
+                fp = item_fingerprint(item)
+                existing = db.query(_SB).filter(_SB.fingerprint == fp, _SB.entity_type == "metadata", _SB.status == "pending").first()
+                if not existing:
+                    enqueue_metadata(db, item)
+                for tag in item.tags:
+                    enqueue_tag(db, item, tag.name, "upsert")
+            _set_setting(db, key5, "true")
             db.commit()
 
     def _due_rows(self, db, user_id: str) -> list[SyncOutbox]:
@@ -266,6 +333,7 @@ class SyncService:
             .order_by(
                 # Lists must exist remotely before memberships are applied.
                 SyncOutbox.entity_type == "list_membership",
+                SyncOutbox.entity_type == "tag",
                 SyncOutbox.client_updated_at.asc(),
                 SyncOutbox.id.asc(),
             )
@@ -273,12 +341,13 @@ class SyncService:
             .all()
         )
 
-    def _push(self, client: httpx.Client, user_id: str) -> None:
+    def _push(self, client: httpx.Client, user_id: str) -> int:
+        total_pushed = 0
         while True:
             with SessionLocal() as db:
                 rows = self._due_rows(db, user_id)
                 if not rows:
-                    return
+                    return total_pushed
                 row_ids = [row.id for row in rows]
                 db.query(SyncOutbox).filter(SyncOutbox.id.in_(row_ids)).update(
                     {SyncOutbox.status: "syncing", SyncOutbox.updated_at: _utcnow()},
@@ -323,6 +392,8 @@ class SyncService:
                         row.last_error = str(error)
                         row.status = "error"
                     finally:
+                        if row.status == "done":
+                            total_pushed += 1
                         row.updated_at = _utcnow()
                         db.commit()
 
@@ -409,6 +480,37 @@ class SyncService:
                 headers=self._headers("resolution=merge-duplicates,return=minimal"),
                 json=body,
             ))
+            return
+
+        if row.entity_type == "metadata":
+            body = {
+                "p_fingerprint": payload["fingerprint"],
+                "p_title": payload.get("title"),
+                "p_author": payload.get("author"),
+                "p_publisher": payload.get("publisher"),
+                "p_year": payload.get("year"),
+                "p_description": payload.get("description"),
+            }
+            self._checked(client.post(
+                f"{self.supabase_url}/rest/v1/rpc/merge_item_metadata",
+                headers=self._headers(),
+                json=body,
+            ))
+            return
+
+        if row.entity_type == "tag":
+            body = {
+                "user_id": user_id,
+                "fingerprint": payload["fingerprint"],
+                "tag_name": payload["tag_name"],
+                "deleted_at": _iso(_utcnow()) if row.operation == "delete" else None,
+            }
+            self._checked(client.post(
+                f"{self.supabase_url}/rest/v1/item_tag_memberships",
+                params={"on_conflict": "user_id,fingerprint,tag_name"},
+                headers=self._headers("resolution=merge-duplicates,return=minimal"),
+                json=body,
+            ))
 
     def _fetch_changed(self, client, table: str, cursor: str, select: str) -> list[dict]:
         rows = []
@@ -457,6 +559,8 @@ class SyncService:
             progress_cursor_key = f"sync_cursor:progress:{user_id}"
             lists_cursor_key = f"sync_cursor:lists:{user_id}"
             memberships_cursor_key = f"sync_cursor:memberships:{user_id}"
+            metadata_cursor_key = f"sync_cursor:metadata:{user_id}"
+            tags_cursor_key = f"sync_cursor:tags:{user_id}"
             epoch = "1970-01-01T00:00:00Z"
             progress_rows = self._fetch_changed(
                 client,
@@ -476,15 +580,33 @@ class SyncService:
                 _setting(db, memberships_cursor_key) or epoch,
                 "id,list_id,fingerprint,added_at,updated_at,deleted_at",
             )
+            metadata_rows = self._fetch_changed(
+                client,
+                "item_metadata",
+                _setting(db, metadata_cursor_key) or epoch,
+                "fingerprint,title,author,publisher,year,description,updated_at",
+            )
+            tag_rows = self._fetch_changed(
+                client,
+                "item_tag_memberships",
+                _setting(db, tags_cursor_key) or epoch,
+                "fingerprint,tag_name,deleted_at,updated_at",
+            )
             active_memberships = self._fetch_active_memberships(client)
 
             self._apply_pending_progress(db)
+            self._apply_pending_metadata(db)
+            self._apply_pending_tags(db)
             for remote in progress_rows:
                 self._apply_remote_progress(db, remote)
             for remote in list_rows:
                 self._apply_remote_list(db, remote)
             for remote in membership_rows:
                 self._apply_remote_membership(db, remote)
+            for remote in metadata_rows:
+                self._apply_remote_metadata(db, remote)
+            for remote in tag_rows:
+                self._apply_remote_tag(db, remote)
             changed_ids = {remote["id"] for remote in membership_rows}
             for remote in active_memberships:
                 if remote["id"] not in changed_ids:
@@ -496,7 +618,15 @@ class SyncService:
                 _set_setting(db, lists_cursor_key, list_rows[-1]["updated_at"])
             if membership_rows:
                 _set_setting(db, memberships_cursor_key, membership_rows[-1]["updated_at"])
+            if metadata_rows:
+                _set_setting(db, metadata_cursor_key, metadata_rows[-1]["updated_at"])
+            if tag_rows:
+                _set_setting(db, tags_cursor_key, tag_rows[-1]["updated_at"])
+            # metrics pull counter
+            _set_setting(db, f"sync_metrics_pull_count:{user_id}", str(int(_setting(db, f"sync_metrics_pull_count:{user_id}") or "0") + 1))
+            _set_setting(db, f"sync_metrics_last_pull_at:{user_id}", _iso(_utcnow()))
             db.commit()
+            self._record_metrics(user_id)
 
     def _items_by_fingerprint(self, db) -> dict[str, Item]:
         return {item_fingerprint(item): item for item in db.query(Item).all()}
@@ -591,6 +721,152 @@ class SyncService:
                 item_id=item.id,
                 added_at=_parse_remote(remote["added_at"]),
             ))
+
+    def _apply_pending_metadata(self, db) -> None:
+        from models import PendingSyncMetadata
+        items = self._items_by_fingerprint(db)
+        for pending in db.query(PendingSyncMetadata).all():
+            if pending.fingerprint in items:
+                self._apply_remote_metadata(db, pending.payload, items)
+                db.delete(pending)
+
+    def _apply_remote_metadata(self, db, remote: dict, items=None) -> None:
+        from models import PendingSyncMetadata
+        items = items or self._items_by_fingerprint(db)
+        item = items.get(remote["fingerprint"])
+        remote_updated = _parse_remote(remote["updated_at"])
+        if not item:
+            pending = db.get(PendingSyncMetadata, remote["fingerprint"])
+            if pending:
+                pending.payload = remote
+                pending.remote_updated_at = remote_updated
+            else:
+                db.add(PendingSyncMetadata(
+                    fingerprint=remote["fingerprint"],
+                    payload=remote,
+                    remote_updated_at=remote_updated,
+                ))
+            return
+        # LWW whole-record: só aplica se remoto for mais novo que metadata_updated_at local
+        if item.metadata_updated_at and remote_updated <= item.metadata_updated_at.replace(tzinfo=None) if item.metadata_updated_at.tzinfo else item.metadata_updated_at:
+            # ainda atualiza se local nunca teve metadata_updated_at
+            pass
+        # Se o item já tem metadata mais recente localmente, preserva local (evita regressão)
+        # Mas para simplicidade Fase 5, remoto vence se for mais novo que 1s
+        local_ts = item.metadata_updated_at or datetime.datetime.min
+        if local_ts.tzinfo is not None:
+            local_ts = local_ts.replace(tzinfo=None)
+        if remote_updated > local_ts:
+            if remote.get("title") is not None:
+                item.title = remote["title"]
+            if remote.get("author") is not None:
+                item.author = remote["author"]
+            if remote.get("publisher") is not None:
+                item.publisher = remote["publisher"]
+            if remote.get("year") is not None:
+                item.year = remote["year"]
+            if remote.get("description") is not None:
+                item.description = remote["description"]
+            item.metadata_updated_at = remote_updated
+            # increment conflict metric if local tinha dados diferentes
+            with SessionLocal() as mdb:
+                key = f"sync_metrics_conflicts:{self._credentials['user_id']}" if self._credentials else None
+                if key:
+                    cur = int(_setting(mdb, key) or "0")
+                    _set_setting(mdb, key, str(cur + 1))
+                    mdb.commit()
+
+    def _apply_pending_tags(self, db) -> None:
+        from models import PendingSyncTags
+        items = self._items_by_fingerprint(db)
+        for pending in db.query(PendingSyncTags).all():
+            if pending.fingerprint in items:
+                # pending.payload = {tags: [], tag_rows: []}
+                for row in pending.payload.get("rows", []):
+                    self._apply_remote_tag(db, row, items)
+                db.delete(pending)
+
+    def _apply_remote_tag(self, db, remote: dict, items=None) -> None:
+        from models import Tag, PendingSyncTags
+        items = items or self._items_by_fingerprint(db)
+        item = items.get(remote["fingerprint"])
+        remote_updated = _parse_remote(remote["updated_at"])
+        if not item:
+            pending = db.get(PendingSyncTags, remote["fingerprint"])
+            rows = pending.payload.get("rows", []) if pending else []
+            rows.append(remote)
+            if pending:
+                pending.payload = {"rows": rows}
+                pending.remote_updated_at = remote_updated
+            else:
+                db.add(PendingSyncTags(
+                    fingerprint=remote["fingerprint"],
+                    payload={"rows": rows},
+                    remote_updated_at=remote_updated,
+                ))
+            return
+        tag_name = (remote.get("tag_name") or "").strip()
+        if not tag_name:
+            return
+        if remote.get("deleted_at"):
+            tag = db.query(Tag).filter(Tag.name == tag_name).first()
+            if tag and tag in item.tags:
+                item.tags.remove(tag)
+        else:
+            tag = db.query(Tag).filter(Tag.name == tag_name).first()
+            if not tag:
+                tag = Tag(name=tag_name)
+                db.add(tag)
+                db.flush()
+            if tag not in item.tags:
+                item.tags.append(tag)
+
+    def _record_metrics(self, user_id: str) -> None:
+        try:
+            with SessionLocal() as db:
+                pending = db.query(SyncOutbox).filter(SyncOutbox.owner_user_id == user_id, SyncOutbox.status == "pending").count()
+                error = db.query(SyncOutbox).filter(SyncOutbox.owner_user_id == user_id, SyncOutbox.status == "error").count()
+                from models import PendingSyncProgress, PendingSyncMetadata, PendingSyncTags
+                pending_meta = db.query(PendingSyncProgress).count() + db.query(PendingSyncMetadata).count() + db.query(PendingSyncTags).count()
+                _set_setting(db, f"sync_metrics_pending:{user_id}", str(pending))
+                _set_setting(db, f"sync_metrics_error:{user_id}", str(error))
+                _set_setting(db, f"sync_metrics_pending_orphans:{user_id}", str(pending_meta))
+                db.commit()
+        except Exception:
+            pass
+
+    def metrics(self) -> dict:
+        user_id = self._credentials.get("user_id") if self._credentials else None
+        if not user_id:
+            return {"state": "signed_out", "pending": 0}
+        try:
+            with SessionLocal() as db:
+                pending = db.query(SyncOutbox).filter(SyncOutbox.owner_user_id == user_id, SyncOutbox.status == "pending").count()
+                syncing = db.query(SyncOutbox).filter(SyncOutbox.owner_user_id == user_id, SyncOutbox.status == "syncing").count()
+                done = db.query(SyncOutbox).filter(SyncOutbox.owner_user_id == user_id, SyncOutbox.status == "done").count()
+                error = db.query(SyncOutbox).filter(SyncOutbox.owner_user_id == user_id, SyncOutbox.status == "error").count()
+                try:
+                    from models import PendingSyncProgress, PendingSyncMetadata, PendingSyncTags
+                    orphans = db.query(PendingSyncProgress).count() + db.query(PendingSyncMetadata).count() + db.query(PendingSyncTags).count()
+                except Exception:
+                    orphans = 0
+                return {
+                    "state": self._status.get("state"),
+                    "pending": pending,
+                    "syncing": syncing,
+                    "done": done,
+                    "error": error,
+                    "orphans": orphans,
+                    "last_sync_at": self._status.get("last_sync_at"),
+                    "last_error": self._status.get("last_error"),
+                    "pull_count": int(_setting(db, f"sync_metrics_pull_count:{user_id}") or "0"),
+                    "push_count": int(_setting(db, f"sync_metrics_push_count:{user_id}") or "0"),
+                    "conflicts": int(_setting(db, f"sync_metrics_conflicts:{user_id}") or "0"),
+                    "last_pull_at": _setting(db, f"sync_metrics_last_pull_at:{user_id}"),
+                    "last_push_at": _setting(db, f"sync_metrics_last_push_at:{user_id}"),
+                }
+        except Exception as e:
+            return {"state": self._status.get("state", "error"), "pending": 0, "last_error": str(e)}
 
     def _prune(self, user_id: str) -> None:
         cutoff = _utcnow() - datetime.timedelta(days=7)

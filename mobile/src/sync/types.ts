@@ -1,4 +1,4 @@
-export type SyncEntityType = 'progress' | 'list' | 'list_membership';
+export type SyncEntityType = 'progress' | 'list' | 'list_membership' | 'metadata' | 'tag';
 export type SyncOperation = 'upsert' | 'delete';
 
 export type MobileOutboxRow = {

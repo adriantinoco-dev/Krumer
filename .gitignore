@@ -44,3 +44,10 @@ mobile/**/build
 
 # Docs
 docs/
+
+supabase/
+
+# AI Code suggestions
+.gemini/
+
+.expo

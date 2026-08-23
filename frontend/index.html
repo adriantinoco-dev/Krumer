@@ -660,6 +660,7 @@
           <button class="settings-menu-item" data-settings-panel="api-key"><span data-i18n="settings.api_key_topic">Chave da API</span></button>
           <button class="settings-menu-item" data-settings-panel="temas"><span data-i18n="settings.themes">Temas</span></button>
           <button class="settings-menu-item" data-settings-panel="atalhos"><span data-i18n="settings.shortcuts">Atalhos</span></button>
+          <button class="settings-menu-item" data-settings-panel="dados"><span data-i18n="settings.data">Dados</span></button>
         </nav>
 
         <!-- Painéis de conteúdo -->
@@ -910,6 +911,28 @@
             </p>
             <div id="settings-shortcuts-container" class="shortcuts-container">
               <!-- Populated dynamically by app.js renderShortcuts() -->
+            </div>
+          </section>
+
+          <!-- Painel: Dados (Fase 5) -->
+          <section class="settings-panel" data-panel="dados">
+            <h3 class="settings-panel-title" data-i18n="settings.data_title">Dados e backup</h3>
+            <p class="settings-help-text" style="margin-bottom:16px;" data-i18n="settings.data_help">Exporte ou importe sua biblioteca.</p>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;">
+              <button id="btn-export-json" class="btn btn-secondary" data-i18n="settings.data_export_json">Exportar JSON</button>
+              <button id="btn-export-csv" class="btn btn-secondary" data-i18n="settings.data_export_csv">Exportar CSV</button>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:20px;">
+              <label class="btn btn-secondary" for="import-json-input" style="cursor:pointer;" data-i18n="settings.data_import_json">Importar JSON</label>
+              <input type="file" id="import-json-input" accept=".json,application/json" style="display:none;">
+              <label class="btn btn-secondary" for="import-csv-input" style="cursor:pointer;" data-i18n="settings.data_import_csv">Importar CSV</label>
+              <input type="file" id="import-csv-input" accept=".csv,text/csv" style="display:none;">
+            </div>
+            <p class="settings-help-text" data-i18n="settings.data_import_help" style="margin-bottom:20px;"></p>
+            <div id="sync-metrics-box" class="settings-status" style="display:flex; flex-direction:column; gap:6px; padding:12px;">
+              <strong data-i18n="settings.sync_metrics">Métricas de sincronização</strong>
+              <span class="settings-help-text" data-i18n="settings.sync_metrics_help"></span>
+              <div id="sync-metrics-content" style="font-size:12px; color:var(--text-secondary); line-height:1.6;">Carregando…</div>
             </div>
           </section>
 

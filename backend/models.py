@@ -48,6 +48,7 @@ class Item(Base):
     added_at = Column(DateTime, default=datetime.datetime.utcnow)
     last_read = Column(DateTime, nullable=True)
     is_read = Column(Boolean, default=False, nullable=False)
+    metadata_updated_at = Column(DateTime, nullable=True)
     
     # Relationships
     children = relationship("Item", back_populates="parent", cascade="all, delete-orphan")
@@ -138,7 +139,7 @@ class SyncOutbox(Base):
     __tablename__ = 'sync_outbox'
     __table_args__ = (
         CheckConstraint(
-            "entity_type IN ('progress', 'list', 'list_membership')",
+            "entity_type IN ('progress', 'list', 'list_membership', 'metadata', 'tag')",
             name='ck_sync_outbox_entity_type',
         ),
         CheckConstraint(
@@ -181,6 +182,38 @@ class PendingSyncProgress(Base):
 
     fingerprint = Column(String, primary_key=True)
     payload = Column(JSON, nullable=False)
+    remote_updated_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.datetime.utcnow,
+        onupdate=datetime.datetime.utcnow,
+    )
+
+
+class PendingSyncMetadata(Base):
+    """Metadados remotos aguardando o arquivo aparecer neste device."""
+    __tablename__ = 'pending_sync_metadata'
+
+    fingerprint = Column(String, primary_key=True)
+    payload = Column(JSON, nullable=False)
+    remote_updated_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=datetime.datetime.utcnow,
+        onupdate=datetime.datetime.utcnow,
+    )
+
+
+class PendingSyncTags(Base):
+    """Tags remotas aguardando o arquivo aparecer neste device."""
+    __tablename__ = 'pending_sync_tags'
+
+    fingerprint = Column(String, primary_key=True)
+    payload = Column(JSON, nullable=False)  # {tags: [...], deleted: [...]}
     remote_updated_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
     updated_at = Column(

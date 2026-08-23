@@ -40,7 +40,9 @@ from metadata_service import (
 from sync_outbox import (
     enqueue_list,
     enqueue_membership,
+    enqueue_metadata,
     enqueue_progress_items,
+    enqueue_tag,
     related_progress_items,
 )
 from sync_service import SyncService
@@ -163,6 +165,91 @@ async def lifespan(app: FastAPI):
             conn.commit()
         except Exception:
             pass
+
+        # Migração Fase 5 — metadata_updated_at em items
+        try:
+            conn.execute(text("ALTER TABLE items ADD COLUMN metadata_updated_at TIMESTAMP"))
+            conn.commit()
+        except Exception:
+            pass
+
+        # Migração Fase 5 — pending_sync_metadata / pending_sync_tags
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS pending_sync_metadata (
+                    fingerprint TEXT PRIMARY KEY,
+                    payload TEXT NOT NULL,
+                    remote_updated_at TIMESTAMP NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS pending_sync_tags (
+                    fingerprint TEXT PRIMARY KEY,
+                    payload TEXT NOT NULL,
+                    remote_updated_at TIMESTAMP NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """))
+            conn.commit()
+        except Exception:
+            pass
+
+        # Migração Fase 5 — ampliar sync_outbox para metadata/tag (recria se constraint antiga)
+        try:
+            conn.execute(text("INSERT INTO sync_outbox (owner_user_id, entity_type, entity_key, operation, payload, client_updated_at, status, retry_count, created_at, updated_at) VALUES (NULL, 'metadata', '__migrate_probe__', 'upsert', '{}', CURRENT_TIMESTAMP, 'pending', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"))
+            conn.execute(text("DELETE FROM sync_outbox WHERE entity_key='__migrate_probe__'"))
+            conn.commit()
+        except Exception:
+            try:
+                conn.execute(text("ROLLBACK"))
+            except Exception:
+                pass
+            try:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS sync_outbox_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        owner_user_id TEXT,
+                        entity_type TEXT NOT NULL CHECK (entity_type IN ('progress', 'list', 'list_membership', 'metadata', 'tag')),
+                        entity_key TEXT NOT NULL,
+                        fingerprint TEXT,
+                        local_list_id INTEGER,
+                        operation TEXT NOT NULL CHECK (operation IN ('upsert', 'delete')),
+                        payload TEXT,
+                        client_updated_at TIMESTAMP NOT NULL,
+                        status TEXT NOT NULL CHECK (status IN ('pending', 'syncing', 'done', 'error')),
+                        retry_count INTEGER NOT NULL DEFAULT 0,
+                        next_attempt_at TIMESTAMP,
+                        last_error TEXT,
+                        created_at TIMESTAMP NOT NULL,
+                        updated_at TIMESTAMP NOT NULL
+                    )
+                """))
+                conn.commit()
+            except Exception:
+                pass
+            try:
+                # Copia dados se a nova tabela estiver vazia
+                existing_count = conn.execute(text("SELECT count(*) FROM sync_outbox_new")).scalar()
+                if existing_count == 0:
+                    conn.execute(text("INSERT INTO sync_outbox_new (id, owner_user_id, entity_type, entity_key, fingerprint, local_list_id, operation, payload, client_updated_at, status, retry_count, next_attempt_at, last_error, created_at, updated_at) SELECT id, owner_user_id, entity_type, entity_key, fingerprint, local_list_id, operation, payload, client_updated_at, status, retry_count, next_attempt_at, last_error, created_at, updated_at FROM sync_outbox"))
+                    conn.commit()
+                    conn.execute(text("DROP TABLE sync_outbox"))
+                    conn.commit()
+                    conn.execute(text("ALTER TABLE sync_outbox_new RENAME TO sync_outbox"))
+                    conn.commit()
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sync_outbox_status_client_updated_at ON sync_outbox (status, client_updated_at)"))
+                    conn.commit()
+                    conn.execute(text("CREATE INDEX IF NOT EXISTS ix_sync_outbox_entity_key ON sync_outbox (entity_type, entity_key)"))
+                    conn.commit()
+            except Exception as e:
+                print(f"[Fase5] Falha ao migrar sync_outbox: {e}")
 
         # Seed — lista padrão "Favoritos"
         try:
@@ -372,6 +459,261 @@ def trigger_sync(request: Request):
     _require_sync_bridge(request)
     sync_service.trigger()
     return sync_service.status()
+
+
+@app.get("/sync/metrics")
+def get_sync_metrics(request: Request):
+    _require_sync_bridge(request)
+    return sync_service.metrics()
+
+
+# --- Export / Import (Fase 5) ---
+
+def _build_export_payload(db: Session) -> dict:
+    from archive import item_fingerprint
+    items = db.query(Item).all()
+    payload_items = []
+    for item in items:
+        prog = db.query(Progress).filter(Progress.item_id == item.id).order_by(Progress.updated_at.desc()).first()
+        payload_items.append({
+            "fingerprint": item_fingerprint(item),
+            "type": item.type,
+            "path": item.path,
+            "title": item.title,
+            "author": item.author,
+            "publisher": item.publisher,
+            "year": item.year,
+            "description": item.description,
+            "rating": item.rating,
+            "is_read": bool(item.is_read),
+            "tags": [t.name for t in item.tags],
+            "progress_pct": float(prog.progress_pct or 0) if prog else 0,
+            "current_page": int(prog.current_page or 0) if prog else 0,
+            "total_pages": prog.total_pages if prog else None,
+            "cfi": prog.cfi if prog else None,
+        })
+    lists = db.query(UserList).all()
+    payload_lists = []
+    for ul in lists:
+        item_ids = [row.item_id for row in db.execute(list_items.select().where(list_items.c.list_id == ul.id)).fetchall()]
+        fps = []
+        for iid in item_ids:
+            it = db.query(Item).filter(Item.id == iid).first()
+            if it:
+                fps.append(item_fingerprint(it))
+        payload_lists.append({
+            "name": ul.name,
+            "is_default": bool(ul.is_default),
+            "sort_order": int(ul.sort_order or 0),
+            "sync_id": ul.sync_id,
+            "fingerprints": fps,
+        })
+    return {
+        "version": 1,
+        "exported_at": datetime.datetime.utcnow().isoformat() + "Z",
+        "items": payload_items,
+        "lists": payload_lists,
+    }
+
+
+@app.get("/export/json")
+def export_json(db: Session = Depends(get_db)):
+    payload = _build_export_payload(db)
+    return payload
+
+
+@app.get("/export/csv")
+def export_csv(db: Session = Depends(get_db)):
+    import csv
+    import io
+    payload = _build_export_payload(db)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["fingerprint","type","title","author","publisher","year","description","rating","is_read","progress_pct","current_page","total_pages","tags","lists"])
+    # map fingerprint -> lists
+    fp_to_lists = {}
+    for lst in payload["lists"]:
+        for fp in lst["fingerprints"]:
+            fp_to_lists.setdefault(fp, []).append(lst["name"])
+    for it in payload["items"]:
+        writer.writerow([
+            it["fingerprint"], it["type"], it["title"] or "", it["author"] or "", it["publisher"] or "",
+            it["year"] or "", (it["description"] or "").replace("\n"," "),
+            it["rating"] or "", int(it["is_read"]), it["progress_pct"], it["current_page"], it["total_pages"] or "",
+            ";".join(it["tags"]), ";".join(fp_to_lists.get(it["fingerprint"], []))
+        ])
+    csv_bytes = output.getvalue().encode("utf-8")
+    return StreamingResponse(io.BytesIO(csv_bytes), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=krumer-export.csv"})
+
+
+class ImportPayload(BaseModel):
+    version: Optional[int] = None
+    items: List[dict] = []
+    lists: List[dict] = []
+
+
+@app.post("/import/json")
+def import_json(payload: ImportPayload, db: Session = Depends(get_db)):
+    from archive import item_fingerprint
+    imported = 0
+    # items: merge por fingerprint, atualiza metadados/progress/tags se arquivo existir localmente
+    for entry in payload.items:
+        fp = entry.get("fingerprint")
+        if not fp:
+            continue
+        item = next((it for it in db.query(Item).all() if item_fingerprint(it) == fp), None)
+        if not item:
+            # guarda como pending para quando arquivo aparecer
+            from models import PendingSyncMetadata, PendingSyncProgress, PendingSyncTags
+            now = datetime.datetime.utcnow()
+            # metadata pendente
+            meta = {
+                "fingerprint": fp,
+                "title": entry.get("title"),
+                "author": entry.get("author"),
+                "publisher": entry.get("publisher"),
+                "year": entry.get("year"),
+                "description": entry.get("description"),
+                "updated_at": now.isoformat() + "Z",
+            }
+            existing = db.get(PendingSyncMetadata, fp)
+            if existing:
+                existing.payload = meta
+                existing.remote_updated_at = now
+            else:
+                db.add(PendingSyncMetadata(fingerprint=fp, payload=meta, remote_updated_at=now))
+            prog_payload = {
+                "fingerprint": fp,
+                "progress_pct": entry.get("progress_pct", 0),
+                "current_page": entry.get("current_page", 0),
+                "total_pages": entry.get("total_pages"),
+                "cfi": entry.get("cfi"),
+                "is_read": bool(entry.get("is_read")),
+                "rating": entry.get("rating"),
+                "updated_at": now.isoformat() + "Z",
+            }
+            existing2 = db.get(PendingSyncProgress, fp)
+            if existing2:
+                existing2.payload = prog_payload
+                existing2.remote_updated_at = now
+            else:
+                from models import PendingSyncProgress as PSP
+                db.add(PSP(fingerprint=fp, payload=prog_payload, remote_updated_at=now))
+            if entry.get("tags"):
+                from models import PendingSyncTags
+                rows = [{"fingerprint": fp, "tag_name": t, "deleted_at": None, "updated_at": now.isoformat() + "Z"} for t in entry.get("tags", [])]
+                existing3 = db.get(PendingSyncTags, fp)
+                if existing3:
+                    existing3.payload = {"rows": rows}
+                    existing3.remote_updated_at = now
+                else:
+                    db.add(PendingSyncTags(fingerprint=fp, payload={"rows": rows}, remote_updated_at=now))
+            continue
+        # atualiza metadados local
+        for field in ["title","author","publisher","year","description"]:
+            if field in entry and entry[field] is not None:
+                setattr(item, field, entry[field])
+        item.metadata_updated_at = datetime.datetime.utcnow()
+        if entry.get("rating") is not None:
+            item.rating = entry.get("rating")
+        if entry.get("is_read") is not None:
+            _set_item_read_progress(db, item, bool(entry.get("is_read")))
+            _sync_read_status_after_item_change(db, item)
+        # tags
+        if entry.get("tags") is not None:
+            item.tags = []
+            for tname in entry.get("tags", []):
+                tname = (tname or "").strip()
+                if not tname:
+                    continue
+                tag = db.query(Tag).filter(Tag.name == tname).first()
+                if not tag:
+                    tag = Tag(name=tname)
+                    db.add(tag)
+                    db.flush()
+                item.tags.append(tag)
+        # progresso
+        if entry.get("progress_pct") is not None or entry.get("current_page") is not None:
+            prog = db.query(Progress).filter(Progress.item_id == item.id).first()
+            if not prog:
+                prog = Progress(item_id=item.id, file_path=item.path)
+                db.add(prog)
+            prog.progress_pct = float(entry.get("progress_pct", prog.progress_pct or 0))
+            prog.current_page = int(entry.get("current_page", prog.current_page or 0))
+            prog.total_pages = entry.get("total_pages", prog.total_pages)
+            prog.cfi = entry.get("cfi", prog.cfi)
+            prog.updated_at = datetime.datetime.utcnow()
+        imported += 1
+        # enfileira para sync remoto
+        enqueue_metadata(db, item)
+        for t in item.tags:
+            enqueue_tag(db, item, t.name, "upsert")
+        enqueue_progress(db, item, rating_changed=True)
+    # listas
+    for lst in payload.lists:
+        name = (lst.get("name") or "").strip()
+        if not name:
+            continue
+        existing = db.query(UserList).filter(UserList.name == name).first()
+        if not existing:
+            existing = UserList(name=name, is_default=bool(lst.get("is_default")), sort_order=int(lst.get("sort_order") or 0))
+            if lst.get("sync_id"):
+                existing.sync_id = lst.get("sync_id")
+            db.add(existing)
+            db.flush()
+        # memberships
+        for fp in lst.get("fingerprints", []):
+            it = next((x for x in db.query(Item).all() if item_fingerprint(x) == fp), None)
+            if not it:
+                continue
+            exists = db.execute(list_items.select().where(list_items.c.list_id == existing.id, list_items.c.item_id == it.id)).first()
+            if not exists:
+                db.execute(list_items.insert().values(list_id=existing.id, item_id=it.id))
+        enqueue_list(db, existing)
+        for fp in lst.get("fingerprints", []):
+            it = next((x for x in db.query(Item).all() if item_fingerprint(x) == fp), None)
+            if it:
+                enqueue_membership(db, existing, it, "upsert")
+    db.commit()
+    return {"status": "success", "imported_items": imported, "lists": len(payload.lists)}
+
+
+@app.post("/import/csv")
+async def import_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    import csv
+    import io
+    content = await file.read()
+    try:
+        text_content = content.decode("utf-8")
+    except Exception:
+        text_content = content.decode("latin-1")
+    reader = csv.DictReader(io.StringIO(text_content))
+    items = []
+    lists_map = {}
+    for row in reader:
+        fp = row.get("fingerprint")
+        if not fp:
+            continue
+        items.append({
+            "fingerprint": fp,
+            "type": row.get("type") or "book",
+            "title": row.get("title"),
+            "author": row.get("author"),
+            "publisher": row.get("publisher"),
+            "year": int(row.get("year")) if (row.get("year") or "").strip().isdigit() else None,
+            "description": row.get("description"),
+            "rating": int(row.get("rating")) if (row.get("rating") or "").strip().isdigit() else None,
+            "is_read": row.get("is_read") in ("1","true","True"),
+            "progress_pct": float(row.get("progress_pct") or 0),
+            "current_page": int(float(row.get("current_page") or 0)),
+            "total_pages": int(float(row.get("total_pages"))) if (row.get("total_pages") or "").strip() else None,
+            "cfi": row.get("cfi") or None,
+            "tags": [t.strip() for t in (row.get("tags") or "").split(";") if t.strip()],
+        })
+        for lname in [t.strip() for t in (row.get("lists") or "").split(";") if t.strip()]:
+            lists_map.setdefault(lname, []).append(fp)
+    lists = [{"name": k, "fingerprints": v} for k, v in lists_map.items()]
+    return import_json(ImportPayload(items=items, lists=lists), db)
 
 
 # --- Helper Functions ---
@@ -790,18 +1132,28 @@ def update_item_metadata(id: int, payload: ItemUpdate, db: Session = Depends(get
         )
 
     if payload.tags is not None:
+        old_tags = {t.name for t in item.tags}
+        new_tags = {t.strip() for t in payload.tags if t and t.strip()}
         item.tags = []
-        for tag_name in payload.tags:
-            tag_name_clean = tag_name.strip()
-            if not tag_name_clean:
-                continue
-            tag = db.query(Tag).filter(Tag.name == tag_name_clean).first()
+        for tag_name in new_tags:
+            tag = db.query(Tag).filter(Tag.name == tag_name).first()
             if not tag:
-                tag = Tag(name=tag_name_clean)
+                tag = Tag(name=tag_name)
                 db.add(tag)
                 db.flush()
             item.tags.append(tag)
+        # enfileira diff de tags para sync (Fase 5)
+        for added in new_tags - old_tags:
+            enqueue_tag(db, item, added, "upsert")
+        for removed in old_tags - new_tags:
+            enqueue_tag(db, item, removed, "delete")
             
+    # Fase 5: sincronizar metadados editados
+    metadata_fields = ["title","author","publisher","year","description"]
+    if any(getattr(payload, field) is not None for field in metadata_fields):
+        item.metadata_updated_at = datetime.datetime.utcnow()
+        enqueue_metadata(db, item)
+
     db.commit()
     db.refresh(item)
     return _enrich_item(item, db)

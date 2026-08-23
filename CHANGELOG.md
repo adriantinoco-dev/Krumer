@@ -8,6 +8,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Adicionado
+- **Mobile M4 / PB4 — Listas customizadas e gerenciamento de favoritos (Android):** criação, renomeação e exclusão de listas customizadas na aba Listas. Detalhes de coleção com visualização dos livros da lista, modal de gerenciamento/seleção de livros com busca em tempo real, suporte para listas fixas (Séries/Mangás, Lidos, Não lidos, Favoritos) e enfileiramento na outbox de sincronização offline-first.
+- **Mobile M3 — Busca e ordenação na biblioteca (Android):** campo de busca por título/autor e seletor de ordenação (título, recentes, avaliação, progresso) integrados à tela Biblioteca. A seção "Continuar lendo" é ocultada durante a busca; estado de lista vazia diferencia biblioteca vazia de busca sem resultados. Traduções adicionadas em pt-BR, en e es (`library.search`, `library.sortBy`, `library.sortName`, `library.sortRecent`, `library.sortRating`, `library.sortProgress`, `library.noResults`, `library.noResultsHint`). Novo componente `SearchSortBar` com bottom-sheet de seleção de ordenação.
 - Supabase Auth no desktop e Android: cadastro por email/senha, login, Google OAuth, magic link, confirmação por email, recuperação e alteração de senha, logout e sessão persistida.
 - No desktop, login e cadastro com Google abrem no navegador padrão e solicitam explicitamente a seleção da conta antes de retornar ao Krumer.
 - No Android, Google Sign-In usa o seletor nativo de contas via Google Play Services e troca o ID token diretamente por uma sessão Supabase, sem abrir o navegador.
@@ -46,6 +48,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 - Bridge de sincronização no desktop agora valida a prontidão pelo canal autenticado e seleciona automaticamente outra porta local quando a 8765 já está ocupada, evitando respostas 403 de um backend residual.
 - Propagação da sessão Supabase para o FastAPI aguarda a bridge ficar pronta, eliminando o `ECONNREFUSED` transitório durante a inicialização do desktop.
 - Backend FastAPI iniciado pelo Electron agora roda em processo único por padrão; o reloader do Uvicorn fica opt-in, evitando o travamento do subprocesso no Windows e o timeout da bridge de sync.
+
+---
 
 ## [1.3.0] — atual
 

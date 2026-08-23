@@ -1,11 +1,25 @@
 import React from 'react';
-import { Image, Text, View } from 'react-native';
+import { Image, Platform, Text, View } from 'react-native';
 import { SvgUri } from 'react-native-svg';
 import { useApp } from '../context/AppContext';
 import { serifFont, spacing } from '../theme';
 
-const logoSource = Image.resolveAssetSource(require('../../assets/Krumer-logo.svg'));
 const iconSource = require('../../assets/Krumer-logo.png');
+
+function getLogoSource(): { uri?: string } | null {
+  if (Platform.OS === 'web') return null;
+  try {
+    const req = require('../../assets/Krumer-logo.svg');
+    const resolver = (Image as unknown as { resolveAssetSource?: (s: number) => { uri: string } })
+      .resolveAssetSource;
+    if (typeof resolver === 'function') return resolver(req);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+const logoSource = getLogoSource();
 
 export function KrumerLogo({
   compact = false,
@@ -19,7 +33,7 @@ export function KrumerLogo({
   size?: number;
 }) {
   const { theme } = useApp();
-  const iconSize = size ?? (compact ? 60 : 72);
+  const iconSize = size ?? (compact ? 40 : 52);
 
   return (
     <View style={{ alignItems: 'center', gap: spacing.sm }}>

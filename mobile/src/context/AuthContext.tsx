@@ -35,14 +35,18 @@ function validatePassword(password: string) {
 }
 
 function getCallbackParams(rawUrl: string) {
-  const url = new URL(rawUrl);
-  if (url.protocol !== 'krumer:' || url.hostname !== 'auth' || url.pathname !== '/callback') {
-    throw new Error('O link de autenticação não pertence ao Krumer.');
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== 'krumer:' || url.hostname !== 'auth' || url.pathname !== '/callback') {
+      return null;
+    }
+    const params = new URLSearchParams(url.search);
+    const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
+    hashParams.forEach((value, key) => params.set(key, value));
+    return params;
+  } catch {
+    return null;
   }
-  const params = new URLSearchParams(url.search);
-  const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
-  hashParams.forEach((value, key) => params.set(key, value));
-  return params;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -52,6 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const handleAuthUrl = useCallback(async (rawUrl: string) => {
     const params = getCallbackParams(rawUrl);
+    if (!params) return;
     const callbackError = params.get('error_description') ?? params.get('error');
     if (callbackError) throw new Error(callbackError);
 

@@ -120,6 +120,27 @@ export function enqueueListMembership(
   );
 }
 
+export function enqueueMetadata(book: Book) {
+  return enqueueMobileWrite('metadata', book.fingerprint, 'upsert', {
+    fingerprint: book.fingerprint,
+    title: book.title,
+    author: book.author,
+    publisher: (book as any).publisher ?? null,
+    year: (book as any).year ?? null,
+    description: (book as any).description ?? null,
+    type: book.children?.length ? 'series' : 'book',
+  });
+}
+
+export function enqueueTag(book: Book, tagName: string, operation: SyncOperation = 'upsert') {
+  const normalized = tagName.trim();
+  if (!normalized) return Promise.resolve();
+  return enqueueMobileWrite('tag', `${book.fingerprint}:${normalized.toLowerCase()}`, operation, {
+    fingerprint: book.fingerprint,
+    tag_name: normalized,
+  });
+}
+
 export async function adoptUnownedRows(userId: string) {
   await mutateOutbox((rows) => {
     for (const row of rows) {

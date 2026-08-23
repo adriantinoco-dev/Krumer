@@ -188,41 +188,157 @@ export async function getExistingCoverPath(bookId: string): Promise<string | nul
   return null;
 }
 
+async function saveCoverData(base64Data: string, bookId: string, extension: string): Promise<string> {
+  const coversDirectory = await ensureCoversDirectory();
+  const destination = `${coversDirectory}cover_${bookId}.${extension}`;
+  await deleteIfExists(destination);
+  await FileSystem.writeAsStringAsync(destination, base64Data, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  return destination;
+}
+
+function findImageSrcInXhtml(htmlText: string): string | null {
+  const imgMatch = htmlText.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i);
+  if (imgMatch) return imgMatch[1];
+
+  const svgMatch = htmlText.match(/<image\b[^>]*\b(?:xlink:href|href)=["']([^"']+)["']/i);
+  if (svgMatch) return svgMatch[1];
+
+  return null;
+}
+
 export async function extractEpubCover(epubPath: string, bookId: string): Promise<string | null> {
   try {
     const base64 = await FileSystem.readAsStringAsync(epubPath, {
       encoding: FileSystem.EncodingType.Base64,
     });
     const zip = await JSZip.loadAsync(base64, { base64: true });
+    const allPaths = Object.keys(zip.files);
+
+    async function resolveCoverCandidate(candidateHref: string, opfDir: string): Promise<string | null> {
+      const fullPath = joinZipPath(opfDir, candidateHref);
+      const lower = fullPath.toLowerCase();
+      const isImage = IMAGE_EXTENSIONS.some((ext) => lower.endsWith(`.${ext}`));
+
+      if (isImage) {
+        const data = await findZipFile(zip, fullPath)?.async('base64');
+        if (data) return saveCoverData(data, bookId, getExtension(fullPath));
+      } else {
+        // Página XHTML de capa — extrair <img src> ou SVG <image href>
+        const xhtmlContent = await findZipFile(zip, fullPath)?.async('string');
+        if (xhtmlContent) {
+          const imgSrc = findImageSrcInXhtml(xhtmlContent);
+          if (imgSrc) {
+            const xhtmlDir = fullPath.includes('/') ? fullPath.substring(0, fullPath.lastIndexOf('/')) : '';
+            const imgPath = joinZipPath(xhtmlDir, imgSrc);
+            const data = await findZipFile(zip, imgPath)?.async('base64');
+            if (data) return saveCoverData(data, bookId, getExtension(imgPath));
+          }
+        }
+      }
+      return null;
+    }
+
+    // 1. OPF — fonte mais confiável
     const containerXml = await zip.file('META-INF/container.xml')?.async('string');
-    if (!containerXml) return null;
+    const opfPathFromContainer = containerXml
+      ? (getAttribute(getXmlTags(containerXml, 'rootfile')[0] ?? '', 'full-path') ?? null)
+      : null;
+    const opfPath = opfPathFromContainer ?? allPaths.find((p) => p.toLowerCase().endsWith('.opf')) ?? null;
 
-    const rootfileTag = getXmlTags(containerXml, 'rootfile')[0];
-    const opfPath = rootfileTag ? getAttribute(rootfileTag, 'full-path') : null;
-    if (!opfPath) return null;
+    if (opfPath) {
+      const normalizedOpfPath = normalizeZipPath(opfPath);
+      const opfContent = await findZipFile(zip, normalizedOpfPath)?.async('string');
 
-    const normalizedOpfPath = normalizeZipPath(opfPath);
-    const opfContent = await findZipFile(zip, normalizedOpfPath)?.async('string');
-    if (!opfContent) return null;
+      if (opfContent) {
+        const opfDir = normalizedOpfPath.includes('/')
+          ? normalizedOpfPath.substring(0, normalizedOpfPath.lastIndexOf('/'))
+          : '';
 
-    const coverHref = findCoverHref(opfContent);
-    if (!coverHref) return null;
+        // Strategy A: EPUB 3 <item properties="... cover-image ..." href="...">
+        const itemPropMatch = opfContent.match(/<item\b[^>]*properties=["'][^"']*cover-image[^"']*["'][^>]*href=["']([^"']+)["']/i);
+        if (itemPropMatch) {
+          const result = await resolveCoverCandidate(itemPropMatch[1], opfDir);
+          if (result) return result;
+        }
 
-    const opfDir = normalizedOpfPath.includes('/') ? normalizedOpfPath.substring(0, normalizedOpfPath.lastIndexOf('/')) : '';
-    const fullCoverPath = joinZipPath(opfDir, coverHref);
-    const coverData = await findZipFile(zip, fullCoverPath)?.async('base64');
-    if (!coverData) return null;
+        // Strategy B: EPUB 2 <meta name="cover" content="id">
+        const metaMatch = opfContent.match(/<meta\b[^>]*name=["']cover["'][^>]*content=["']([^"']+)["']/i);
+        if (metaMatch) {
+          const coverId = metaMatch[1];
+          const itemMatch = new RegExp(`<item\\b[^>]*id=["']${coverId}["'][^>]*href=["']([^"']+)["']`, 'i').exec(opfContent);
+          if (itemMatch) {
+            const result = await resolveCoverCandidate(itemMatch[1], opfDir);
+            if (result) return result;
+          }
+        }
 
-    const extension = getExtension(fullCoverPath);
-    const coversDirectory = await ensureCoversDirectory();
-    const destination = `${coversDirectory}cover_${bookId}.${extension}`;
+        // Strategy C: OPF Guide <reference type="cover" href="...">
+        const guideMatch = opfContent.match(/<reference\b[^>]*type=["']cover["'][^>]*href=["']([^"']+)["']/i);
+        if (guideMatch) {
+          const result = await resolveCoverCandidate(guideMatch[1], opfDir);
+          if (result) return result;
+        }
 
-    await deleteIfExists(destination);
-    await FileSystem.writeAsStringAsync(destination, coverData, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+        // Strategy D: Manifest item com ID "cover"
+        const coverItemMatch = opfContent.match(/<item\b[^>]*id=["'](?:cover|cover-image|coverimage|cover_image)["'][^>]*href=["']([^"']+)["']/i);
+        if (coverItemMatch) {
+          const result = await resolveCoverCandidate(coverItemMatch[1], opfDir);
+          if (result) return result;
+        }
 
-    return destination;
+        // Strategy E: Primeiro item do <spine> (página de capa do próprio livro)
+        const spineMatch = opfContent.match(/<spine\b[^>]*>([\s\S]*?)<\/spine>/i);
+        if (spineMatch) {
+          const itemrefMatch = spineMatch[1].match(/<itemref\b[^>]*idref=["']([^"']+)["']/i);
+          if (itemrefMatch) {
+            const firstId = itemrefMatch[1];
+            const itemMatch = new RegExp(`<item\\b[^>]*id=["']${firstId}["'][^>]*href=["']([^"']+)["']`, 'i').exec(opfContent);
+            if (itemMatch) {
+              const result = await resolveCoverCandidate(itemMatch[1], opfDir);
+              if (result) return result;
+            }
+          }
+        }
+      }
+    }
+
+    // 2. Fallback: imagem cujo nome de arquivo (sem pasta) seja exatamente cover/capa
+    for (const relativePath of allPaths) {
+      const fileName = relativePath.split('/').pop()?.toLowerCase() ?? '';
+      const stem = fileName.replace(/\.[^.]+$/, '');
+      const isImage = IMAGE_EXTENSIONS.some((ext) => fileName.endsWith(`.${ext}`));
+      if (isImage && (stem === 'cover' || stem === 'capa' || stem === 'cover_image' || stem === 'cover-image')) {
+        const data = await findZipFile(zip, relativePath)?.async('base64');
+        if (data) return saveCoverData(data, bookId, getExtension(relativePath));
+      }
+    }
+
+    // 3. Maior imagem encontrada no ZIP
+    let bestPath: string | null = null;
+    let bestSize = 0;
+    for (const [relativePath, zipObj] of Object.entries(zip.files)) {
+      if (!zipObj.dir) {
+        const lower = relativePath.toLowerCase();
+        const isImage = IMAGE_EXTENSIONS.some((ext) => lower.endsWith(`.${ext}`));
+        if (isImage) {
+          const data = await zipObj.async('uint8array');
+          if (data.length > bestSize) {
+            bestSize = data.length;
+            bestPath = relativePath;
+          }
+        }
+      }
+    }
+    if (bestPath) {
+      const data = await findZipFile(zip, bestPath)?.async('base64');
+      if (data) {
+        return saveCoverData(data, bookId, getExtension(bestPath));
+      }
+    }
+
+    return null;
   } catch (error) {
     console.warn(`EPUB cover extraction failed for ${bookId}:`, error);
     return null;

@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   syncTrigger: () => ipcRenderer.invoke('sync:trigger'),
   syncGetStatus: () => ipcRenderer.invoke('sync:get-status'),
+  syncGetMetrics: () => ipcRenderer.invoke('sync:get-metrics'),
 
   onUpdateAvailable: (callback) => {
     ipcRenderer.on('update-available', (_event, info) => callback(info));

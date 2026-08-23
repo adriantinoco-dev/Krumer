@@ -642,6 +642,7 @@ class AppController {
 
     // === Custom Language Picker ===
     this._initLangPicker();
+    this._setupDataPanel();
 
     // Alternar entre os menus do modal (Geral / Temas / Chave da API)
     document.querySelectorAll('.settings-menu-item').forEach(item => {
@@ -937,6 +938,9 @@ class AppController {
       if (panelName === 'atalhos') {
         this.renderShortcuts();
       }
+      if (panelName === 'dados') {
+        this._loadSyncMetrics();
+      }
     }
   }
 
@@ -1208,6 +1212,100 @@ class AppController {
     } else {
       statusEl.classList.add('is-missing');
       textEl.textContent = I18N.t('settings.status_missing');
+    }
+  }
+
+  _setupDataPanel() {
+    const exportJsonBtn = document.getElementById('btn-export-json');
+    const exportCsvBtn = document.getElementById('btn-export-csv');
+    const importJsonInput = document.getElementById('import-json-input');
+    const importCsvInput = document.getElementById('import-csv-input');
+    if (exportJsonBtn) {
+      exportJsonBtn.addEventListener('click', async () => {
+        try {
+          const data = await LibraryAPI.exportJson();
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `krumer-export-${new Date().toISOString().slice(0,10)}.json`;
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          this.showToast(I18N.t('toast.export_done'));
+        } catch (err) {
+          this.showToast(I18N.t('toast.import_error', err.message));
+        }
+      });
+    }
+    if (exportCsvBtn) {
+      exportCsvBtn.addEventListener('click', async () => {
+        try {
+          const blob = await LibraryAPI.exportCsvBlob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `krumer-export-${new Date().toISOString().slice(0,10)}.csv`;
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          this.showToast(I18N.t('toast.export_done'));
+        } catch (err) {
+          this.showToast(I18N.t('toast.import_error', err.message));
+        }
+      });
+    }
+    if (importJsonInput) {
+      importJsonInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+          const text = await file.text();
+          const payload = JSON.parse(text);
+          const res = await LibraryAPI.importJson(payload);
+          this.showToast(I18N.t('toast.import_done', res.imported_items ?? 0));
+          this.libraryManager.loadItems();
+          this.libraryManager.loadTags();
+          this.libraryManager.loadLists();
+        } catch (err) {
+          this.showToast(I18N.t('toast.import_error', err.message));
+        } finally {
+          e.target.value = '';
+        }
+      });
+    }
+    if (importCsvInput) {
+      importCsvInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+          const res = await LibraryAPI.importCsvFile(file);
+          this.showToast(I18N.t('toast.import_done', res.imported_items ?? 0));
+          this.libraryManager.loadItems();
+          this.libraryManager.loadTags();
+          this.libraryManager.loadLists();
+        } catch (err) {
+          this.showToast(I18N.t('toast.import_error', err.message));
+        } finally {
+          e.target.value = '';
+        }
+      });
+    }
+  }
+
+  async _loadSyncMetrics() {
+    const box = document.getElementById('sync-metrics-content');
+    if (!box) return;
+    box.textContent = I18N.t('settings.status_checking');
+    try {
+      const m = await LibraryAPI.getSyncMetrics();
+      const fmt = (v) => v ?? '—';
+      box.innerHTML = `
+        <div>${I18N.t('settings.sync_metrics_pending')}: <strong>${fmt(m.pending)}</strong> · ${I18N.t('settings.sync_metrics_error')}: <strong>${fmt(m.error)}</strong> · ${I18N.t('settings.sync_metrics_orphans')}: <strong>${fmt(m.orphans)}</strong></div>
+        <div>${I18N.t('settings.sync_metrics_conflicts')}: <strong>${fmt(m.conflicts)}</strong> · ${I18N.t('settings.sync_metrics_pull_count')}: <strong>${fmt(m.pull_count)}</strong> · ${I18N.t('settings.sync_metrics_push_count')}: <strong>${fmt(m.push_count)}</strong></div>
+        <div>${I18N.t('settings.sync_metrics_last_sync')}: <strong>${fmt(m.last_sync_at || m.last_pull_at || m.last_push_at)}</strong></div>
+        ${m.last_error ? `<div style="color:#ef4444; word-break:break-word;">${this.libraryManager.escapeHtml(m.last_error)}</div>` : ''}
+      `;
+    } catch (err) {
+      box.textContent = I18N.t('toast.metrics_error', err.message);
     }
   }
 

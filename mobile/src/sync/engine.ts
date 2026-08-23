@@ -89,6 +89,37 @@ function updateBookTree(books: Book[], updates: Map<string, RemoteProgress>): Bo
   });
 }
 
+function updateBookTreeWithMetadata(books: Book[], updates: Map<string, any>): Book[] {
+  return books.map((book) => {
+    const remote = updates.get(book.fingerprint);
+    const children = book.children ? updateBookTreeWithMetadata(book.children, updates) : book.children;
+    if (!remote) return children === book.children ? book : { ...book, children };
+    return {
+      ...book,
+      children,
+      title: remote.title ?? book.title,
+      author: remote.author ?? book.author,
+      publisher: remote.publisher ?? (book as any).publisher,
+      year: remote.year ?? (book as any).year,
+      description: remote.description ?? (book as any).description,
+    };
+  });
+}
+
+function updateBookTreeWithTags(books: Book[], updates: Map<string, any[]>): Book[] {
+  return books.map((book) => {
+    const rows = updates.get(book.fingerprint);
+    const children = book.children ? updateBookTreeWithTags(book.children, updates) : book.children;
+    if (!rows) return children === book.children ? book : { ...book, children };
+    const tagSet = new Set<string>((book as any).tags ?? []);
+    for (const r of rows) {
+      if (r.deleted_at) tagSet.delete(r.tag_name);
+      else tagSet.add(r.tag_name);
+    }
+    return { ...book, children, tags: Array.from(tagSet) };
+  });
+}
+
 async function getJson<T>(key: string, fallback: T): Promise<T> {
   const raw = await AsyncStorage.getItem(key);
   return raw ? JSON.parse(raw) : fallback;
@@ -101,6 +132,15 @@ async function ensureInitialBackfill(userId: string, books: Book[], lists: SyncL
     if ((book.progressPct ?? 0) > 0 || book.isRead || book.rating != null) {
       await enqueueBookProgress(book, book.rating != null);
     }
+    // Fase 5: metadata/tags backfill
+    if (book.author || (book as any).publisher || (book as any).year || (book as any).description || book.title !== book.filePath.split('/').pop()?.replace(/\.(epub|pdf)$/i,'')) {
+      const { enqueueMetadata } = await import('./outbox');
+      await enqueueMetadata(book);
+    }
+    for (const tag of (book as any).tags ?? []) {
+      const { enqueueTag } = await import('./outbox');
+      await enqueueTag(book, tag, 'upsert');
+    }
   }
   for (const list of lists) {
     await enqueueSyncList(list);
@@ -109,6 +149,18 @@ async function ensureInitialBackfill(userId: string, books: Book[], lists: SyncL
     }
   }
   await AsyncStorage.setItem(key, 'true');
+  // Fase5 incremental backfill para usuários já inicializados
+  const key5 = `krumer.sync.initial:fase5:${userId}`;
+  if (!await AsyncStorage.getItem(key5)) {
+    for (const book of flattenBooks(books)) {
+      if ((book as any).tags?.length || book.author || (book as any).description) {
+        const { enqueueMetadata, enqueueTag } = await import('./outbox');
+        await enqueueMetadata(book);
+        for (const tag of (book as any).tags ?? []) await enqueueTag(book, tag, 'upsert');
+      }
+    }
+    await AsyncStorage.setItem(key5, 'true');
+  }
 }
 
 async function setRowResult(rowId: string, error?: unknown) {
@@ -181,6 +233,30 @@ async function pushRow(row: MobileOutboxRow, userId: string) {
     return;
   }
 
+  if (row.entityType === 'metadata') {
+    const { error } = await supabase.rpc('merge_item_metadata', {
+      p_fingerprint: payload.fingerprint,
+      p_title: payload.title,
+      p_author: payload.author,
+      p_publisher: payload.publisher,
+      p_year: payload.year,
+      p_description: payload.description,
+    });
+    if (error) throw error;
+    return;
+  }
+
+  if (row.entityType === 'tag') {
+    const { error } = await supabase.from('item_tag_memberships').upsert({
+      user_id: userId,
+      fingerprint: payload.fingerprint,
+      tag_name: payload.tag_name,
+      deleted_at: row.operation === 'delete' ? new Date().toISOString() : null,
+    }, { onConflict: 'user_id,fingerprint,tag_name' });
+    if (error) throw error;
+    return;
+  }
+
   if (row.entityType === 'list') {
     const localId = String(payload.id);
     const mappedId = await remoteListId(localId);
@@ -241,16 +317,25 @@ async function pushRow(row: MobileOutboxRow, userId: string) {
 }
 
 async function pushOutbox(userId: string) {
+  let pushed = 0;
   while (true) {
     const row = await nextDueRow(userId);
     if (!row) break;
     try {
       await pushRow(row, userId);
       await setRowResult(row.id);
+      pushed += 1;
     } catch (error) {
       await setRowResult(row.id, error);
       throw error;
     }
+  }
+  if (pushed) {
+    const metricsKey = `krumer.sync.metrics:${userId}`;
+    const prev = await getJson<any>(metricsKey, { pullCount: 0, pushCount: 0, conflicts: 0 });
+    prev.pushCount = (prev.pushCount || 0) + 1;
+    prev.lastPushAt = new Date().toISOString();
+    await AsyncStorage.setItem(metricsKey, JSON.stringify(prev));
   }
 }
 
@@ -286,7 +371,7 @@ async function activeMemberships() {
 }
 
 async function pullRemote(inputs: SyncInputs, userId: string) {
-  const [progressResult, listResult, membershipResult] = await Promise.all([
+  const [progressResult, listResult, membershipResult, metadataResult, tagResult] = await Promise.all([
     changedRows(
       'reading_progress',
       userId,
@@ -298,9 +383,13 @@ async function pullRemote(inputs: SyncInputs, userId: string) {
       'id,name,is_default,sort_order,created_at,updated_at,deleted_at',
     ),
     activeMemberships(),
+    changedRows('item_metadata', userId, 'fingerprint,title,author,publisher,year,description,updated_at'),
+    changedRows('item_tag_memberships', userId, 'fingerprint,tag_name,deleted_at,updated_at'),
   ]);
   const progressRows = progressResult.rows;
   const listRows = listResult.rows;
+  const metadataRows = metadataResult.rows;
+  const tagRows = tagResult.rows;
 
   const localFingerprints = new Set(flattenBooks(inputs.books).map((book) => book.fingerprint));
   const pending = await getJson<Record<string, RemoteProgress>>(PENDING_PROGRESS_KEY, {});
@@ -313,7 +402,41 @@ async function pullRemote(inputs: SyncInputs, userId: string) {
     }
   }
   await AsyncStorage.setItem(PENDING_PROGRESS_KEY, JSON.stringify(pending));
-  if (applicable.size) await inputs.replaceBooks(updateBookTree(inputs.books, applicable));
+  let mergedBooks = inputs.books;
+  if (applicable.size) {
+    mergedBooks = updateBookTree(mergedBooks, applicable);
+    await inputs.replaceBooks(mergedBooks);
+  }
+  // Fase 5: metadata
+  const PENDING_META_KEY = 'krumer.sync.pending-metadata.v1';
+  const pendingMeta = await getJson<Record<string, any>>(PENDING_META_KEY, {});
+  for (const remote of metadataRows) pendingMeta[remote.fingerprint] = remote;
+  const applicableMeta = new Map<string, any>();
+  for (const [fp, remote] of Object.entries(pendingMeta)) {
+    if (localFingerprints.has(fp)) { applicableMeta.set(fp, remote); delete pendingMeta[fp]; }
+  }
+  await AsyncStorage.setItem(PENDING_META_KEY, JSON.stringify(pendingMeta));
+  if (applicableMeta.size) {
+    mergedBooks = updateBookTreeWithMetadata(mergedBooks, applicableMeta);
+    await inputs.replaceBooks(mergedBooks);
+  }
+  // Fase 5: tags
+  const PENDING_TAGS_KEY = 'krumer.sync.pending-tags.v1';
+  const pendingTags = await getJson<Record<string, any[]>>(PENDING_TAGS_KEY, {});
+  for (const remote of tagRows) {
+    const arr = pendingTags[remote.fingerprint] ?? [];
+    arr.push(remote);
+    pendingTags[remote.fingerprint] = arr;
+  }
+  const applicableTags = new Map<string, any[]>();
+  for (const [fp, rows] of Object.entries(pendingTags)) {
+    if (localFingerprints.has(fp)) { applicableTags.set(fp, rows as any[]); delete pendingTags[fp]; }
+  }
+  await AsyncStorage.setItem(PENDING_TAGS_KEY, JSON.stringify(pendingTags));
+  if (applicableTags.size) {
+    mergedBooks = updateBookTreeWithTags(mergedBooks, applicableTags);
+    await inputs.replaceBooks(mergedBooks);
+  }
 
   let nextLists = [...inputs.lists];
   for (const remote of listRows) {
@@ -357,6 +480,19 @@ async function pullRemote(inputs: SyncInputs, userId: string) {
   if (listRows.length) {
     await AsyncStorage.setItem(listResult.cursorKey, listRows[listRows.length - 1].updated_at);
   }
+  if (metadataRows.length) {
+    await AsyncStorage.setItem(metadataResult.cursorKey, metadataRows[metadataRows.length - 1].updated_at);
+  }
+  if (tagRows.length) {
+    await AsyncStorage.setItem(tagResult.cursorKey, tagRows[tagRows.length - 1].updated_at);
+  }
+  // metrics
+  const metricsKey = `krumer.sync.metrics:${userId}`;
+  const prev = await getJson<any>(metricsKey, { pullCount: 0, pushCount: 0, conflicts: 0 });
+  prev.pullCount = (prev.pullCount || 0) + 1;
+  prev.lastPullAt = new Date().toISOString();
+  if (metadataRows.length || tagRows.length) prev.conflicts = (prev.conflicts || 0) + 1;
+  await AsyncStorage.setItem(metricsKey, JSON.stringify(prev));
 }
 
 async function countPending(userId: string) {

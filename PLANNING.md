@@ -53,7 +53,7 @@ Fluxo inicial:
 O onboarding deve seguir a identidade visual dark/minimalista do desktop, adaptada para toque e telas pequenas.
 
 ### M3 — Biblioteca mobile
-**Status:** `[x]` (grid + "Continuar lendo" concluídos; busca/ordenação pendentes — ver PB1)
+**Status:** `[x]`
 
 Tela principal equivalente a "Minha Biblioteca" no desktop:
 - seção "Continuar lendo" no topo;
@@ -65,17 +65,18 @@ Tela principal equivalente a "Minha Biblioteca" no desktop:
 Referência futura: pode ser adicionado modo lista, mas o MVP usa grid de capas.
 
 ### M4 — Listas mobile
-**Status:** `[~]` (listas fixas concluídas; listas customizadas e gerenciamento de favoritos pendentes — ver PB4)
+**Status:** `[x]`
 
-A aba "Listas" deve conter:
+A aba "Listas" contém:
 - Séries/Mangás;
 - Lidos;
 - Não lidos;
 - Favoritos;
 - listas customizadas;
-- opção de criar listas.
+- opção de criar, renomear e excluir listas customizadas;
+- seleção e remoção de livros por lista.
 
-Também deve permitir adicionar/remover itens de listas e gerenciar favoritos. (favoritos, series/mangas, lidos e não lidos são fixos. Portanto não podem ser excluidos)
+(favoritos, series/mangas, lidos e não lidos são fixos. Portanto não podem ser excluídos ou renomeados)
 
 ### M5 — Detalhes e metadados
 **Status:** `[ ]`
@@ -86,7 +87,6 @@ Tela de detalhes baseada no desktop:
 - autor;
 - ano;
 - sinopse;
-- tags;
 - avaliação;
 - progresso;
 - capítulos/volumes quando houver;
@@ -97,7 +97,6 @@ Edição mobile:
 - editar autor;
 - editar ano;
 - editar sinopse;
-- editar tags;
 - editar avaliação;
 - editar capa;
 - restaurar capa original;
@@ -195,10 +194,10 @@ Implementação concluída no repositório: migration remota, RPC de merge monot
 
 ### Base de paridade (pré-requisitos)
 
-- **PB1** `[ ]` **Busca e ordenação na biblioteca** — buscar por título/autor; ordenar por nome, data, avaliação e progresso. Igual à base do desktop.
+- **PB1** `[x]` **Busca e ordenação na biblioteca** — buscar por título/autor; ordenar por nome, data, avaliação e progresso. Igual à base do desktop.
 - **PB2** `[ ]` **Tela de detalhes do livro** — capa, título, autor, ano, sinopse, tags, avaliação, progresso, capítulos/volumes quando houver e marcar lido/não lido.
 - **PB3** `[ ]` **Edição de metadados** — título, autor, ano, sinopse, tags, avaliação e capa. **Não editar editora no mobile.** Pré-requisito do F3.
-- **PB4** `[ ]` **Listas customizadas + favoritos** — criar/renomear/excluir listas, adicionar/remover itens e gerenciar favoritos. Séries/Mangás, Lidos e Não Lidos são fixos e não excluíveis. A lista "Favoritos" hoje é placeholder.
+- **PB4** `[x]` **Listas customizadas + favoritos** — criar/renomear/excluir listas, adicionar/remover itens e gerenciar favoritos. Séries/Mangás, Lidos e Não Lidos são fixos e não excluíveis.
 - **PB5** `[ ]` **Busca de metadados via Gemini** — usar a chave já salva no onboarding; buscar/aplicar metadados via `mobile/src/api`. Reaproveitar os endpoints do backend quando aplicável.
 - **PB6** `[ ]` **Sincronizar status de leitura entre pai e filhos (séries)** — espelhar o fix do v1.3.0 no desktop.
 

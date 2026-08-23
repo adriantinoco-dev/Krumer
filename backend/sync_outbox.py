@@ -215,3 +215,66 @@ def enqueue_membership(
         fingerprint=fingerprint,
         local_list_id=user_list.id,
     )
+
+
+def _metadata_payload(item: Item) -> tuple[str, dict]:
+    fingerprint = item_fingerprint(item)
+    payload = {
+        "fingerprint": fingerprint,
+        "title": item.title,
+        "author": item.author,
+        "publisher": item.publisher,
+        "year": item.year,
+        "description": item.description,
+        "type": item.type,
+    }
+    return fingerprint, payload
+
+
+def enqueue_metadata(db: Session, item: Item) -> SyncOutbox:
+    """Enfileira metadados editados (título, autor, etc.) para sync."""
+    db.flush()
+    if item.type == "series":
+        # Séries não têm fingerprint estável por tamanho; ainda sincroniza título
+        pass
+    fingerprint, payload = _metadata_payload(item)
+    # Atualiza timestamp local para ordenação LWW
+    item.metadata_updated_at = _utcnow()
+    return enqueue(
+        db,
+        entity_type="metadata",
+        entity_key=fingerprint,
+        operation="upsert",
+        payload=payload,
+        fingerprint=fingerprint,
+    )
+
+
+def enqueue_tag(db: Session, item: Item, tag_name: str, operation: str = "upsert") -> SyncOutbox:
+    fingerprint = item_fingerprint(item)
+    normalized = tag_name.strip()
+    if not normalized:
+        raise ValueError("tag_name vazio")
+    payload = {
+        "fingerprint": fingerprint,
+        "tag_name": normalized,
+    }
+    return enqueue(
+        db,
+        entity_type="tag",
+        entity_key=f"{fingerprint}:{normalized.lower()}",
+        operation=operation,
+        payload=payload,
+        fingerprint=fingerprint,
+    )
+
+
+def enqueue_tags_for_item(db: Session, item: Item, tag_names: list[str]) -> None:
+    """Sincroniza o conjunto completo de tags do item (diff vs outbox)."""
+    # O chamador deve já ter atualizado item.tags; aqui apenas enfileira
+    current = {t.name for t in item.tags}
+    # Para simplificar, enfileira upsert para todas atuais; deletes são tratados pelo caller
+    for name in current:
+        enqueue_tag(db, item, name, "upsert")
+    # deletes: se o cliente sabe quais foram removidas, deve chamar enqueue_tag com delete
+    # Este helper cobre apenas o caso de snapshot completo sem diff previo

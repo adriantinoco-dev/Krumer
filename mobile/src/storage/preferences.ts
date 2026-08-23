@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { File } from 'expo-file-system';
+import { Platform } from 'react-native';
 import type { Book } from '../models/item';
 import type { SyncList } from '../models/list';
 import type { LanguageCode } from '../i18n/translations';
@@ -56,8 +56,12 @@ export async function saveBooks(books: Book[]) {
 
 function normalizeBook(book: Book): Book {
   let fileSize = Number(book.fileSize || 0);
-  if (!fileSize && !book.children?.length) {
-    try { fileSize = new File(book.filePath).size || 0; } catch { /* URI indisponível */ }
+  if (!fileSize && !book.children?.length && Platform.OS !== 'web') {
+    try {
+      // Import lazy para não quebrar web bundle (expo-file-system sem File na web).
+      const { File } = require('expo-file-system');
+      fileSize = new File(book.filePath).size || 0;
+    } catch { /* URI indisponível */ }
   }
   const decodedPath = safeDecode(book.filePath);
   const fileName = decodedPath.split('/').pop() ?? book.title;

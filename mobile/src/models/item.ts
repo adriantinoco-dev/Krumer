@@ -24,6 +24,11 @@ export type Book = {
   parentId?: string | null;
   children?: Book[];
   addedAt: number;
+  publisher?: string | null;
+  year?: number | null;
+  description?: string | null;
+  tags?: string[];
+  metadataUpdatedAt?: string | null;
 };
 
 export type Item = {

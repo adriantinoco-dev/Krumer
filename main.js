@@ -399,6 +399,7 @@ ipcMain.handle('auth:update-password', (_event, { password }) => requireAuthServ
 ipcMain.handle('auth:sign-out', () => requireAuthService().signOut());
 ipcMain.handle('sync:trigger', () => callSyncBackend('POST', '/sync/trigger'));
 ipcMain.handle('sync:get-status', () => callSyncBackend('GET', '/sync/status'));
+ipcMain.handle('sync:get-metrics', () => callSyncBackend('GET', '/sync/metrics'));
 
 // Eventos do electron-updater repassados para o Renderer Process
 autoUpdater.on('update-available', (info) => {
