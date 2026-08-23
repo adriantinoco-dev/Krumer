@@ -148,7 +148,7 @@ function LibraryHeader({
 
   return (
     <>
-      <View style={{ paddingHorizontal: spacing.md, paddingTop: 32, paddingBottom: spacing.xs }}>
+      <View style={{ paddingHorizontal: spacing.md, paddingTop: 20, paddingBottom: 10 }}>
         <KrumerLogo compact hideLabel />
       </View>
 

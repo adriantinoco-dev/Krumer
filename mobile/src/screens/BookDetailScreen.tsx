@@ -632,8 +632,8 @@ export function BookDetailScreen({ navigation, route }: Props) {
       </View>
 
       {/* Metadata Edit Modal */}
-      <Modal transparent animationType="slide" visible={isEditing} onRequestClose={() => setIsEditing(false)}>
-        <SafeAreaView edges={['top']} style={{ backgroundColor: theme.bg, flex: 1 }}>
+      <Modal animationType="slide" visible={isEditing} onRequestClose={() => setIsEditing(false)}>
+        <SafeAreaView edges={['top', 'bottom']} style={{ backgroundColor: theme.bg, flex: 1 }}>
           {/* Modal Header */}
           <View
             style={{
@@ -642,42 +642,58 @@ export function BookDetailScreen({ navigation, route }: Props) {
               borderBottomWidth: 1,
               flexDirection: 'row',
               justifyContent: 'space-between',
-              padding: spacing.md,
+              paddingHorizontal: spacing.lg,
+              paddingVertical: spacing.md,
             }}
           >
             <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 18, fontWeight: '700' }}>
               {t('details.editMetadata')}
             </Text>
-            <View style={{ flexDirection: 'row', gap: spacing.md }}>
-              <Pressable onPress={() => setIsEditing(false)} style={{ padding: spacing.xs }}>
-                <Text style={{ color: theme.textSecondary, fontFamily: serifFont }}>{t('common.cancel')}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+              <Pressable onPress={() => setIsEditing(false)} style={{ paddingHorizontal: spacing.xs, paddingVertical: spacing.xs }}>
+                <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 14 }}>{t('common.cancel')}</Text>
               </Pressable>
               <Pressable
                 disabled={isSaving}
                 onPress={() => { void handleSaveMetadata(); }}
-                style={{ backgroundColor: accentColor, borderRadius: 6, paddingHorizontal: spacing.md, paddingVertical: spacing.xs }}
+                style={{
+                  backgroundColor: accentColor,
+                  borderRadius: radii.sm,
+                  paddingHorizontal: spacing.md + 4,
+                  paddingVertical: spacing.xs + 2,
+                }}
               >
                 {isSaving ? (
                   <ActivityIndicator color="#ffffff" size="small" />
                 ) : (
-                  <Text style={{ color: '#ffffff', fontFamily: serifFont, fontWeight: '600' }}>{t('common.save')}</Text>
+                  <Text style={{ color: '#ffffff', fontFamily: serifFont, fontSize: 14, fontWeight: '600' }}>{t('common.save')}</Text>
                 )}
               </Pressable>
             </View>
           </View>
 
           {/* Form Scroll Area */}
-          <ScrollView contentContainerStyle={{ gap: spacing.md, padding: spacing.md, paddingBottom: spacing.xl * 2 }}>
+          <ScrollView
+            contentContainerStyle={{
+              gap: spacing.lg,
+              paddingHorizontal: spacing.md,
+              paddingTop: spacing.md,
+              paddingBottom: spacing.xl * 2,
+            }}
+            showsVerticalScrollIndicator={false}
+          >
             {/* Cover Picker & Restore Section */}
-            <View style={{ alignItems: 'center', marginBottom: spacing.sm }}>
+            <View style={{ alignItems: 'center', marginBottom: spacing.xs }}>
               <View
                 style={{
                   aspectRatio: 5 / 7,
                   backgroundColor: theme.card,
                   borderRadius: radii.md,
-                  height: 140,
+                  height: 230,
                   overflow: 'hidden',
-                  marginBottom: spacing.sm,
+                  marginBottom: spacing.md,
+                  boxShadow: coverShadow(theme.name),
+                  elevation: 8,
                 }}
               >
                 {editCoverPath ? (
@@ -689,7 +705,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
                 )}
               </View>
 
-              <View style={{ flexDirection: 'row', gap: spacing.md }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.sm }}>
                 <Pressable
                   onPress={() => { void handlePickCoverImage(); }}
                   style={{
@@ -704,7 +720,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
                     paddingVertical: spacing.sm,
                   }}
                 >
-                  <ImageIcon color={accentColor} size={16} />
+                  <ImageIcon color={accentColor} size={15} />
                   <Text style={{ color: accentColor, fontFamily: serifFont, fontSize: 13, fontWeight: '600' }}>
                     {t('details.changeCover')}
                   </Text>
@@ -725,7 +741,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
                     paddingVertical: spacing.sm,
                   }}
                 >
-                  <RotateCcw color={theme.textSecondary} size={16} />
+                  <RotateCcw color={theme.textSecondary} size={15} />
                   <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, fontWeight: '600' }}>
                     {t('details.restoreCover')}
                   </Text>
@@ -735,7 +751,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
 
             {/* Title Input */}
             <View>
-              <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, marginBottom: 4 }}>
+              <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, fontWeight: '600', marginBottom: 6 }}>
                 {t('details.titleInput')}
               </Text>
               <TextInput
@@ -750,7 +766,8 @@ export function BookDetailScreen({ navigation, route }: Props) {
                   color: theme.textPrimary,
                   fontFamily: serifFont,
                   fontSize: 15,
-                  padding: spacing.md,
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: spacing.sm + 4,
                 }}
                 value={editTitle}
               />
@@ -758,7 +775,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
 
             {/* Author Input */}
             <View>
-              <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, marginBottom: 4 }}>
+              <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, fontWeight: '600', marginBottom: 6 }}>
                 {t('details.authorInput')}
               </Text>
               <TextInput
@@ -773,7 +790,8 @@ export function BookDetailScreen({ navigation, route }: Props) {
                   color: theme.textPrimary,
                   fontFamily: serifFont,
                   fontSize: 15,
-                  padding: spacing.md,
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: spacing.sm + 4,
                 }}
                 value={editAuthor}
               />
@@ -781,7 +799,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
 
             {/* Year Input */}
             <View>
-              <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, marginBottom: 4 }}>
+              <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, fontWeight: '600', marginBottom: 6 }}>
                 {t('details.yearInput')}
               </Text>
               <TextInput
@@ -797,7 +815,8 @@ export function BookDetailScreen({ navigation, route }: Props) {
                   color: theme.textPrimary,
                   fontFamily: serifFont,
                   fontSize: 15,
-                  padding: spacing.md,
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: spacing.sm + 4,
                 }}
                 value={editYear}
               />
@@ -805,10 +824,10 @@ export function BookDetailScreen({ navigation, route }: Props) {
 
             {/* Rating Stars Picker */}
             <View>
-              <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, marginBottom: 6 }}>
+              <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, fontWeight: '600', marginBottom: 8 }}>
                 {t('details.rating')}
               </Text>
-              <View style={{ flexDirection: 'row', gap: 6 }}>
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                 {[1, 2, 3, 4, 5].map((star) => (
                   <Pressable key={star} hitSlop={6} onPress={() => setEditRating(star)}>
                     <Star
@@ -824,7 +843,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
 
             {/* Tags Input */}
             <View>
-              <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, marginBottom: 4 }}>
+              <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, fontWeight: '600', marginBottom: 6 }}>
                 {t('details.tagsInput')}
               </Text>
               <TextInput
@@ -839,7 +858,8 @@ export function BookDetailScreen({ navigation, route }: Props) {
                   color: theme.textPrimary,
                   fontFamily: serifFont,
                   fontSize: 15,
-                  padding: spacing.md,
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: spacing.sm + 4,
                 }}
                 value={editTags}
               />
@@ -847,7 +867,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
 
             {/* Synopsis Input */}
             <View>
-              <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, marginBottom: 4 }}>
+              <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, fontWeight: '600', marginBottom: 6 }}>
                 {t('details.synopsisInput')}
               </Text>
               <TextInput
@@ -864,9 +884,10 @@ export function BookDetailScreen({ navigation, route }: Props) {
                   color: theme.textPrimary,
                   fontFamily: serifFont,
                   fontSize: 14,
-                  lineHeight: 20,
+                  lineHeight: 22,
                   minHeight: 120,
-                  padding: spacing.md,
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: spacing.md,
                   textAlignVertical: 'top',
                 }}
                 value={editDescription}
