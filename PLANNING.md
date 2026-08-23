@@ -79,7 +79,7 @@ A aba "Listas" contém:
 (favoritos, series/mangas, lidos e não lidos são fixos. Portanto não podem ser excluídos ou renomeados)
 
 ### M5 — Detalhes e metadados
-**Status:** `[ ]`
+**Status:** `[x]`
 
 Tela de detalhes baseada no desktop:
 - capa;
@@ -195,8 +195,8 @@ Implementação concluída no repositório: migration remota, RPC de merge monot
 ### Base de paridade (pré-requisitos)
 
 - **PB1** `[x]` **Busca e ordenação na biblioteca** — buscar por título/autor; ordenar por nome, data, avaliação e progresso. Igual à base do desktop.
-- **PB2** `[ ]` **Tela de detalhes do livro** — capa, título, autor, ano, sinopse, tags, avaliação, progresso, capítulos/volumes quando houver e marcar lido/não lido.
-- **PB3** `[ ]` **Edição de metadados** — título, autor, ano, sinopse, tags, avaliação e capa. **Não editar editora no mobile.** Pré-requisito do F3.
+- **PB2** `[x]` **Tela de detalhes do livro** — capa, título, autor, ano, sinopse, tags, avaliação, progresso, capítulos/volumes quando houver e marcar lido/não lido.
+- **PB3** `[x]` **Edição de metadados** — título, autor, ano, sinopse, tags, avaliação e capa. **Não editar editora no mobile.** Pré-requisito do F3.
 - **PB4** `[x]` **Listas customizadas + favoritos** — criar/renomear/excluir listas, adicionar/remover itens e gerenciar favoritos. Séries/Mangás, Lidos e Não Lidos são fixos e não excluíveis.
 - **PB5** `[ ]` **Busca de metadados via Gemini** — usar a chave já salva no onboarding; buscar/aplicar metadados via `mobile/src/api`. Reaproveitar os endpoints do backend quando aplicável.
 - **PB6** `[ ]` **Sincronizar status de leitura entre pai e filhos (séries)** — espelhar o fix do v1.3.0 no desktop.
@@ -205,7 +205,7 @@ Implementação concluída no repositório: migration remota, RPC de merge monot
 
 - **F1** `[ ]` **Contador de itens recursivo (Android)** — a contagem na biblioteca/listas soma os livros dentro de séries/subpastas, não só o nível raiz. Requer modelar pai/filhos (séries) e contagem recursiva.
 - **F2** `[ ]` **Menu de atalhos nas Configurações (Android)** — seção listando os atalhos/gestos do app por contexto (Geral, Biblioteca, Leitura), adaptando o `shortcutsMap` do desktop para gestos/navegação mobile.
-- **F3** `[ ]` **Restaurar capa original (Android)** — botão na edição de metadados que volta à capa original do arquivo (equivalente ao `cover_original_path`). Requer PB3.
+- **F3** `[x]` **Restaurar capa original (Android)** — botão na edição de metadados que volta à capa original do arquivo (equivalente ao `cover_original_path`). Requer PB3.
 - **F4** `[ ]` **Rescan automático (Android)** — reescanear ao sair da leitura ou voltar à biblioteca/mudar de aba, sem travar a UI.
 - **F5** `[~]` **Idioma no onboarding + 10 idiomas (Android)** — expandir de 3 para os 10 idiomas do desktop (pt-BR, en, es, fr, de, it, ja, zh, ko, ru) e aplicar no onboarding e no resto do app.
 - **F6** `[ ]` **Modo de visualização de capítulos (Android)** — toggle "Somente Título" ou "Título + Capa" na lista de capítulos de séries, com preferência salva localmente (equivalente ao `window.chapterViewMode`).

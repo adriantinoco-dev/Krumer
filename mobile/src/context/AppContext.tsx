@@ -13,7 +13,7 @@ import {
   saveSyncLists,
   type MobilePreferences,
 } from '../storage/preferences';
-import { enqueueBookProgress, enqueueListMembership, enqueueSyncList } from '../sync/outbox';
+import { enqueueBookProgress, enqueueListMembership, enqueueMetadata, enqueueSyncList, enqueueTag } from '../sync/outbox';
 import { themes, type ThemeName } from '../theme';
 
 type AppContextValue = {
@@ -27,6 +27,10 @@ type AppContextValue = {
   updateBookProgress: (
     bookId: string,
     update: Partial<Pick<Book, 'progress' | 'progressPct' | 'currentPage' | 'totalPages' | 'cfi' | 'isRead'>>,
+  ) => Promise<void>;
+  updateBookMetadata: (
+    bookId: string,
+    update: Partial<Pick<Book, 'title' | 'author' | 'year' | 'description' | 'rating' | 'tags' | 'coverPath' | 'coverOriginalPath' | 'isRead' | 'totalPages'>>,
   ) => Promise<void>;
   toggleFavorite: (book: Book) => Promise<void>;
   createList: (name: string) => Promise<void>;
@@ -99,9 +103,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [preferences]);
 
   const updateBookCover = useCallback((bookId: string, coverPath: string) => {
-    const next = booksRef.current.map((book) =>
-      book.id === bookId ? { ...book, coverPath } : book
-    );
+    const next = updateBookTree(booksRef.current, bookId, (book) => ({
+      ...book,
+      coverPath,
+      coverOriginalPath: book.coverOriginalPath ?? coverPath,
+    }));
     booksRef.current = next;
     setBookState(next);
 
@@ -110,6 +116,41 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       saveTimerRef.current = null;
       void saveBooks(booksRef.current);
     }, 400);
+  }, []);
+
+  const updateBookMetadata = useCallback(async (
+    bookId: string,
+    update: Partial<Pick<Book, 'title' | 'author' | 'year' | 'description' | 'rating' | 'tags' | 'coverPath' | 'coverOriginalPath' | 'isRead'>>,
+  ) => {
+    let updatedBook: Book | null = null;
+    const next = updateBookTree(booksRef.current, bookId, (book) => {
+      const coverOriginalPath = update.coverOriginalPath !== undefined
+        ? update.coverOriginalPath
+        : (book.coverOriginalPath ?? (update.coverPath !== undefined && update.coverPath !== book.coverPath ? book.coverPath : book.coverOriginalPath));
+
+      updatedBook = {
+        ...book,
+        ...update,
+        coverOriginalPath,
+        metadataUpdatedAt: new Date().toISOString(),
+      };
+      return updatedBook;
+    });
+    booksRef.current = next;
+    setBookState(next);
+    await saveBooks(next);
+
+    if (updatedBook) {
+      await enqueueMetadata(updatedBook);
+      if (update.rating !== undefined) {
+        await enqueueBookProgress(updatedBook, true);
+      }
+      if (update.tags !== undefined) {
+        for (const tag of update.tags) {
+          await enqueueTag(updatedBook, tag);
+        }
+      }
+    }
   }, []);
 
   const runCoversLoop = useCallback(async () => {
@@ -283,6 +324,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       replaceBooksFromSync,
       replaceListsFromSync,
       updateBookProgress,
+      updateBookMetadata,
       toggleFavorite,
       createList,
       renameList,
@@ -312,6 +354,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     toggleBookInList,
     toggleFavorite,
     updateBookCover,
+    updateBookMetadata,
     updateBookProgress,
   ]);
 
@@ -328,7 +371,13 @@ function mergeScannedBooks(books: Book[], previous: Map<string, Book>): Book[] {
     return {
       ...book,
       ...(existing ? {
+        title: existing.title,
+        author: existing.author,
+        year: existing.year,
+        description: existing.description,
+        tags: existing.tags,
         coverPath: existing.coverPath,
+        coverOriginalPath: existing.coverOriginalPath,
         rating: existing.rating,
         progress: existing.progress,
         progressPct: existing.progressPct,

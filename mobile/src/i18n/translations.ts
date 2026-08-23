@@ -48,6 +48,29 @@ export type TranslationKey =
   | 'common.continue'
   | 'common.save'
   | 'common.setupLater'
+  | 'details.authorInput'
+  | 'details.changeCover'
+  | 'details.chapters'
+  | 'details.editMetadata'
+  | 'details.fileSize'
+  | 'details.format'
+  | 'details.markAsRead'
+  | 'details.markAsUnread'
+  | 'details.noSynopsis'
+  | 'details.pagesInput'
+  | 'details.progress'
+  | 'details.rating'
+  | 'details.readNow'
+  | 'details.restoreCover'
+  | 'details.synopsis'
+  | 'details.synopsisInput'
+  | 'details.tags'
+  | 'details.tagsHint'
+  | 'details.tagsInput'
+  | 'details.title'
+  | 'details.titleInput'
+  | 'details.year'
+  | 'details.yearInput'
   | 'general.booksFolder'
   | 'general.folder'
   | 'general.noFolder'
@@ -170,6 +193,29 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'common.continue': 'Continue',
     'common.save': 'Save',
     'common.setupLater': 'Set up later',
+    'details.authorInput': 'Author',
+    'details.changeCover': 'Change Cover',
+    'details.chapters': 'Chapters / Volumes',
+    'details.editMetadata': 'Edit Details',
+    'details.fileSize': 'File Size',
+    'details.format': 'Format',
+    'details.markAsRead': 'Mark as Read',
+    'details.markAsUnread': 'Mark as Unread',
+    'details.noSynopsis': 'No synopsis available.',
+    'details.pagesInput': 'Total Pages',
+    'details.progress': 'Progress',
+    'details.rating': 'Rating',
+    'details.readNow': 'Read Now',
+    'details.restoreCover': 'Restore Original Cover',
+    'details.synopsis': 'Synopsis',
+    'details.synopsisInput': 'Synopsis',
+    'details.tags': 'Tags',
+    'details.tagsHint': 'Separate tags with commas',
+    'details.tagsInput': 'Tags (comma separated)',
+    'details.title': 'Book Details',
+    'details.titleInput': 'Title',
+    'details.year': 'Year',
+    'details.yearInput': 'Year',
     'general.booksFolder': 'Books folder',
     'general.folder': 'Folder',
     'general.noFolder': 'No folder selected',
@@ -282,6 +328,29 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'common.continue': 'Continuar',
     'common.save': 'Salvar',
     'common.setupLater': 'Configurar mais tarde',
+    'details.authorInput': 'Autor',
+    'details.changeCover': 'Alterar Capa',
+    'details.chapters': 'Capítulos / Volumes',
+    'details.editMetadata': 'Editar Metadados',
+    'details.fileSize': 'Tamanho do Arquivo',
+    'details.format': 'Formato',
+    'details.markAsRead': 'Marcar como Lido',
+    'details.markAsUnread': 'Marcar como Não Lido',
+    'details.noSynopsis': 'Nenhuma sinopse disponível.',
+    'details.pagesInput': 'Número de Páginas',
+    'details.progress': 'Progresso',
+    'details.rating': 'Avaliação',
+    'details.readNow': 'Ler Agora',
+    'details.restoreCover': 'Restaurar Capa Original',
+    'details.synopsis': 'Sinopse',
+    'details.synopsisInput': 'Sinopse',
+    'details.tags': 'Tags',
+    'details.tagsHint': 'Separe as tags por vírgula',
+    'details.tagsInput': 'Tags (separadas por vírgula)',
+    'details.title': 'Detalhes do Livro',
+    'details.titleInput': 'Título',
+    'details.year': 'Ano',
+    'details.yearInput': 'Ano',
     'general.booksFolder': 'Pasta de livros',
     'general.folder': 'Pasta',
     'general.noFolder': 'Nenhuma pasta selecionada',
@@ -394,6 +463,29 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'common.continue': 'Continuar',
     'common.save': 'Guardar',
     'common.setupLater': 'Configurar más tarde',
+    'details.authorInput': 'Autor',
+    'details.changeCover': 'Cambiar Portada',
+    'details.chapters': 'Capítulos / Volúmenes',
+    'details.editMetadata': 'Editar Metadatos',
+    'details.fileSize': 'Tamaño del Archivo',
+    'details.format': 'Formato',
+    'details.markAsRead': 'Marcar como Leído',
+    'details.markAsUnread': 'Marcar como No Leído',
+    'details.noSynopsis': 'No hay sinopsis disponible.',
+    'details.pagesInput': 'Número de Páginas',
+    'details.progress': 'Progreso',
+    'details.rating': 'Valoración',
+    'details.readNow': 'Leer Ahora',
+    'details.restoreCover': 'Restaurar Portada Original',
+    'details.synopsis': 'Sinopsis',
+    'details.synopsisInput': 'Sinopsis',
+    'details.tags': 'Etiquetas',
+    'details.tagsHint': 'Separa las etiquetas con comas',
+    'details.tagsInput': 'Etiquetas (separadas por coma)',
+    'details.title': 'Detalles del Libro',
+    'details.titleInput': 'Título',
+    'details.year': 'Año',
+    'details.yearInput': 'Año',
     'general.booksFolder': 'Carpeta de libros',
     'general.folder': 'Carpeta',
     'general.noFolder': 'Ninguna carpeta seleccionada',

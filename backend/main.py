@@ -41,6 +41,7 @@ from sync_outbox import (
     enqueue_list,
     enqueue_membership,
     enqueue_metadata,
+    enqueue_progress,
     enqueue_progress_items,
     enqueue_tag,
     related_progress_items,

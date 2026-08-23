@@ -69,7 +69,7 @@ export function LibraryScreen({ navigation }: Props) {
     return result;
   }, [books, query, sort]);
 
-  const openReader = (book: Book) => navigation.navigate('Reader', { book });
+  const openBookDetails = (book: Book) => navigation.navigate('BookDetail', { bookId: book.id });
 
   // When searching, flatten and don't show the "continue reading" strip
   const isSearching = query.trim().length > 0;
@@ -86,7 +86,7 @@ export function LibraryScreen({ navigation }: Props) {
             continueReading={continueReading}
             filteredCount={filteredBooks.length}
             isSearching={isSearching}
-            onPressBook={openReader}
+            onPressBook={openBookDetails}
             query={query}
             sort={sort}
             onQueryChange={setQuery}
@@ -102,7 +102,7 @@ export function LibraryScreen({ navigation }: Props) {
           <BookCard
             book={item}
             width={cardWidth}
-            onPress={() => openReader(item)}
+            onPress={() => openBookDetails(item)}
             onLongPress={() => { void toggleFavorite(item); }}
           />
         )}

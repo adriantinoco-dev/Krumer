@@ -125,8 +125,8 @@ export function ListsScreen({ navigation }: Props) {
   const listNumColumns = width >= TABLET_BREAKPOINT ? 4 : 2;
   const cardWidth = width / numColumns;
 
-  const handleOpenReader = (book: Book) => {
-    navigation.navigate('Reader', { book });
+  const handleOpenBookDetail = (book: Book) => {
+    navigation.navigate('BookDetail', { bookId: book.id });
   };
 
   const handleCreateList = async () => {
@@ -363,7 +363,7 @@ export function ListsScreen({ navigation }: Props) {
                   <BookCard
                     book={item}
                     width={cardWidth}
-                    onPress={() => handleOpenReader(item)}
+                    onPress={() => handleOpenBookDetail(item)}
                     onLongPress={() => {
                       if (activeCollection.listId) {
                         void toggleBookInList(activeCollection.listId, item.fingerprint);

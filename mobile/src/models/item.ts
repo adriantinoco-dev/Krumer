@@ -13,6 +13,7 @@ export type Book = {
   fileSize: number;
   fingerprint: string;
   coverPath: string | null;
+  coverOriginalPath?: string | null;
   rating?: number | null;
   progress: string | null;
   progressPct?: number;

@@ -2,6 +2,7 @@ import type { Book } from '../models/item';
 
 export type RootStackParamList = {
   MainTabs: undefined;
+  BookDetail: { bookId: string };
   Reader: { book: Book };
   SettingsGroup: { group: 'general' | 'account' | 'theme' | 'api' | 'about' };
 };
