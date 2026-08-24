@@ -69,13 +69,36 @@ function normalizeBook(book: Book): Book {
   const seriesName = book.children?.length
     ? (safeDecode(book.children[0].filePath).split('/').slice(-2)[0] || book.title)
     : book.title;
+
+  const normalizedChildren = book.children?.map(normalizeBook);
+  const isSeries = Boolean(normalizedChildren && normalizedChildren.length > 0);
+
+  let progressPct = book.progressPct ?? 0;
+  let isRead = Boolean(book.isRead);
+  let coverPath = book.coverPath ?? null;
+
+  if (isSeries && normalizedChildren) {
+    const totalPct = normalizedChildren.reduce(
+      (sum, child) => sum + (child.isRead ? 100 : (child.progressPct ?? 0)),
+      0
+    );
+    progressPct = Math.round(totalPct / normalizedChildren.length);
+    isRead = normalizedChildren.every((child) => child.isRead || (child.progressPct ?? 0) >= 100);
+    if (!coverPath && normalizedChildren[0]?.coverPath) {
+      coverPath = normalizedChildren[0].coverPath;
+    }
+  }
+
   return {
     ...book,
     fileSize,
     fingerprint: book.fingerprint
-      ?? (book.children?.length ? `series|${seriesName}` : `file|${basename}|${Math.trunc(fileSize)}`),
-    progressPct: book.progressPct ?? 0,
-    children: book.children?.map(normalizeBook),
+      ?? (isSeries ? `series|${seriesName}` : `file|${basename}|${Math.trunc(fileSize)}`),
+    progressPct,
+    isRead,
+    coverPath,
+    childrenCount: isSeries && normalizedChildren ? normalizedChildren.length : (book.childrenCount ?? null),
+    children: normalizedChildren,
   };
 }
 

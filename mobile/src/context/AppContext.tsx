@@ -103,11 +103,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [preferences]);
 
   const updateBookCover = useCallback((bookId: string, coverPath: string) => {
-    const next = updateBookTree(booksRef.current, bookId, (book) => ({
-      ...book,
-      coverPath,
-      coverOriginalPath: book.coverOriginalPath ?? coverPath,
-    }));
+    const next = updateBookTreeCover(booksRef.current, bookId, coverPath);
     booksRef.current = next;
     setBookState(next);
 
@@ -122,23 +118,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     bookId: string,
     update: Partial<Pick<Book, 'title' | 'author' | 'year' | 'description' | 'rating' | 'tags' | 'coverPath' | 'coverOriginalPath' | 'isRead'>>,
   ) => {
-    let updatedBook: Book | null = null;
-    const next = updateBookTree(booksRef.current, bookId, (book) => {
+    const { nextBooks, updatedBook } = updateBookTree(booksRef.current, bookId, (book) => {
       const coverOriginalPath = update.coverOriginalPath !== undefined
         ? update.coverOriginalPath
         : (book.coverOriginalPath ?? (update.coverPath !== undefined && update.coverPath !== book.coverPath ? book.coverPath : book.coverOriginalPath));
 
-      updatedBook = {
+      return {
         ...book,
         ...update,
         coverOriginalPath,
         metadataUpdatedAt: new Date().toISOString(),
       };
-      return updatedBook;
     });
-    booksRef.current = next;
-    setBookState(next);
-    await saveBooks(next);
+
+    booksRef.current = nextBooks;
+    setBookState(nextBooks);
+    await saveBooks(nextBooks);
 
     if (updatedBook) {
       await enqueueMetadata(updatedBook);
@@ -162,7 +157,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       do {
         coversRestartRef.current = false;
-        const pending = booksRef.current.filter((book) => !book.coverPath);
+        const all = flattenBooks(booksRef.current);
+        const pending = all.filter((book) => !book.coverPath && Boolean(book.filePath));
         if (!pending.length) break;
         await extractCoversInBackground(pending, (bookId, coverPath) => {
           updateBookCover(bookId, coverPath);
@@ -197,15 +193,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     bookId: string,
     update: Partial<Pick<Book, 'progress' | 'progressPct' | 'currentPage' | 'totalPages' | 'cfi' | 'isRead'>>,
   ) => {
-    let changed: Book | null = null;
-    const next = updateBookTree(booksRef.current, bookId, (book) => {
-      changed = { ...book, ...update };
-      return changed;
-    });
-    booksRef.current = next;
-    setBookState(next);
-    await saveBooks(next);
-    if (changed) await enqueueBookProgress(changed);
+    const { nextBooks, updatedBook } = updateBookTree(booksRef.current, bookId, (book) => ({
+      ...book,
+      ...update,
+    }));
+    booksRef.current = nextBooks;
+    setBookState(nextBooks);
+    await saveBooks(nextBooks);
+    if (updatedBook) await enqueueBookProgress(updatedBook);
   }, []);
 
   const toggleFavorite = useCallback(async (book: Book) => {
@@ -368,6 +363,25 @@ function flattenBooks(books: Book[]): Book[] {
 function mergeScannedBooks(books: Book[], previous: Map<string, Book>): Book[] {
   return books.map((book) => {
     const existing = previous.get(book.fingerprint);
+    const mergedChildren = book.children ? mergeScannedBooks(book.children, previous) : book.children;
+    const isSeries = Boolean(mergedChildren && mergedChildren.length > 0);
+
+    let progressPct = existing?.progressPct ?? book.progressPct ?? 0;
+    let isRead = existing?.isRead ?? book.isRead ?? false;
+    let coverPath = existing?.coverPath ?? book.coverPath ?? null;
+
+    if (isSeries && mergedChildren) {
+      const totalPct = mergedChildren.reduce(
+        (sum, child) => sum + (child.isRead ? 100 : (child.progressPct ?? 0)),
+        0
+      );
+      progressPct = Math.round(totalPct / mergedChildren.length);
+      isRead = mergedChildren.every((child) => child.isRead || (child.progressPct ?? 0) >= 100);
+      if (!coverPath && mergedChildren[0]?.coverPath) {
+        coverPath = mergedChildren[0].coverPath;
+      }
+    }
+
     return {
       ...book,
       ...(existing ? {
@@ -376,17 +390,18 @@ function mergeScannedBooks(books: Book[], previous: Map<string, Book>): Book[] {
         year: existing.year,
         description: existing.description,
         tags: existing.tags,
-        coverPath: existing.coverPath,
         coverOriginalPath: existing.coverOriginalPath,
         rating: existing.rating,
         progress: existing.progress,
-        progressPct: existing.progressPct,
         currentPage: existing.currentPage,
         totalPages: existing.totalPages,
         cfi: existing.cfi,
-        isRead: existing.isRead,
       } : {}),
-      children: book.children ? mergeScannedBooks(book.children, previous) : book.children,
+      coverPath,
+      progressPct,
+      isRead,
+      childrenCount: isSeries && mergedChildren ? mergedChildren.length : (book.childrenCount ?? null),
+      children: mergedChildren,
     };
   });
 }
@@ -395,10 +410,95 @@ function updateBookTree(
   books: Book[],
   bookId: string,
   updater: (book: Book) => Book,
-): Book[] {
+): { nextBooks: Book[]; updatedBook: Book | null } {
+  let updatedBook: Book | null = null;
+
+  function traverse(list: Book[]): Book[] {
+    return list.map((book) => {
+      if (book.id === bookId) {
+        const updated = updater(book);
+        updatedBook = updated;
+        // If parent series has its isRead updated, cascade to all children
+        if (updated.children?.length) {
+          const cascadedChildren = updated.children.map((child) => {
+            if (updated.isRead !== book.isRead) {
+              return {
+                ...child,
+                isRead: updated.isRead,
+                progressPct: updated.isRead ? 100 : (child.progressPct === 100 ? 0 : child.progressPct),
+              };
+            }
+            return child;
+          });
+          const totalPct = cascadedChildren.reduce(
+            (sum, child) => sum + (child.isRead ? 100 : (child.progressPct ?? 0)),
+            0
+          );
+          return {
+            ...updated,
+            children: cascadedChildren,
+            progressPct: Math.round(totalPct / cascadedChildren.length),
+          };
+        }
+        return updated;
+      }
+
+      if (book.children?.length) {
+        const nextChildren = traverse(book.children);
+        if (nextChildren !== book.children) {
+          // Recompute parent aggregates from updated children
+          const totalPct = nextChildren.reduce(
+            (sum, child) => sum + (child.isRead ? 100 : (child.progressPct ?? 0)),
+            0
+          );
+          const aggProgress = Math.round(totalPct / nextChildren.length);
+          const allRead = nextChildren.every((child) => child.isRead || (child.progressPct ?? 0) >= 100);
+          let parentCover = book.coverPath;
+          if (!parentCover && nextChildren[0]?.coverPath) {
+            parentCover = nextChildren[0].coverPath;
+          }
+          return {
+            ...book,
+            children: nextChildren,
+            progressPct: aggProgress,
+            isRead: allRead,
+            coverPath: parentCover,
+          };
+        }
+      }
+
+      return book;
+    });
+  }
+
+  const nextBooks = traverse(books);
+  return { nextBooks, updatedBook };
+}
+
+function updateBookTreeCover(books: Book[], bookId: string, coverPath: string): Book[] {
   return books.map((book) => {
-    if (book.id === bookId) return updater(book);
-    return book.children ? { ...book, children: updateBookTree(book.children, bookId, updater) } : book;
+    if (book.id === bookId) {
+      return {
+        ...book,
+        coverPath,
+        coverOriginalPath: book.coverOriginalPath ?? coverPath,
+      };
+    }
+    if (book.children?.length) {
+      const nextChildren = updateBookTreeCover(book.children, bookId, coverPath);
+      const firstChild = nextChildren[0];
+      const isFirstChild = firstChild && firstChild.id === bookId;
+      const parentHasNoCustomCover = !book.coverPath || book.coverPath === book.coverOriginalPath;
+      const shouldSyncParentCover = isFirstChild && parentHasNoCustomCover;
+
+      return {
+        ...book,
+        children: nextChildren,
+        coverPath: shouldSyncParentCover ? coverPath : (book.coverPath || firstChild?.coverPath || null),
+        coverOriginalPath: shouldSyncParentCover ? (book.coverOriginalPath ?? coverPath) : book.coverOriginalPath,
+      };
+    }
+    return book;
   });
 }
 

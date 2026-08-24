@@ -30,39 +30,52 @@ export function LibraryScreen({ navigation }: Props) {
   const cardWidth = width / numColumns;
 
   const continueReading = useMemo(
-    () => books.filter((book) => (book.progressPct ?? 0) > 0 && (book.progressPct ?? 0) < 100),
+    () =>
+      flattenBooks(books).filter((book) => {
+        const isChildOrStandalone = !book.children?.length;
+        const prog = book.progressPct ?? 0;
+        return isChildOrStandalone && prog > 0 && prog < 100;
+      }),
     [books],
   );
 
   const filteredBooks = useMemo(() => {
     const term = query.trim().toLowerCase();
 
-    // flatten + filter
-    let result = flattenBooks(books);
+    // Main grid displays root-level items (standalone books + parent series)
+    let result = [...books];
+
     if (term) {
-      result = result.filter(
-        (book) =>
-          book.title.toLowerCase().includes(term) ||
-          (book.author ?? '').toLowerCase().includes(term),
-      );
+      result = result.filter((book) => {
+        const matchTitle = book.title.toLowerCase().includes(term);
+        const matchAuthor = (book.author ?? '').toLowerCase().includes(term);
+        const matchChildren = Boolean(
+          book.children?.some(
+            (child) =>
+              child.title.toLowerCase().includes(term) ||
+              (child.author ?? '').toLowerCase().includes(term),
+          ),
+        );
+        return matchTitle || matchAuthor || matchChildren;
+      });
     }
 
     // sort
     switch (sort) {
       case 'name':
-        result = [...result].sort((a, b) =>
-          a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }),
+        result.sort((a, b) =>
+          a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' }),
         );
         break;
       case 'rating':
-        result = [...result].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+        result.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
         break;
       case 'progress':
-        result = [...result].sort((a, b) => (b.progressPct ?? 0) - (a.progressPct ?? 0));
+        result.sort((a, b) => (b.progressPct ?? 0) - (a.progressPct ?? 0));
         break;
       case 'recent':
       default:
-        result = [...result].sort((a, b) => b.addedAt - a.addedAt);
+        result.sort((a, b) => b.addedAt - a.addedAt);
         break;
     }
 
@@ -71,7 +84,7 @@ export function LibraryScreen({ navigation }: Props) {
 
   const openBookDetails = (book: Book) => navigation.navigate('BookDetail', { bookId: book.id });
 
-  // When searching, flatten and don't show the "continue reading" strip
+  // When searching, don't show the "continue reading" strip
   const isSearching = query.trim().length > 0;
 
   return (
@@ -135,15 +148,21 @@ function LibraryHeader({
 }) {
   const { theme, t } = useApp();
 
-  const allBooks = useMemo(() => flattenBooks(books), [books]);
-  const totalCount = allBooks.length;
+  const allLeafs = useMemo(
+    () => flattenBooks(books).filter((book) => !book.children?.length),
+    [books],
+  );
+  const totalCount = useMemo(
+    () => books.reduce((sum, b) => sum + (b.childrenCount || 1), 0),
+    [books],
+  );
   const readCount = useMemo(
-    () => allBooks.filter((book) => (book.progressPct ?? 0) >= 100 || book.isRead).length,
-    [allBooks],
+    () => allLeafs.filter((book) => (book.progressPct ?? 0) >= 100 || book.isRead).length,
+    [allLeafs],
   );
   const unreadCount = useMemo(
-    () => allBooks.filter((book) => (book.progressPct ?? 0) === 0 && !book.isRead).length,
-    [allBooks],
+    () => allLeafs.filter((book) => (book.progressPct ?? 0) === 0 && !book.isRead).length,
+    [allLeafs],
   );
 
   return (
@@ -153,7 +172,7 @@ function LibraryHeader({
       </View>
 
       {/* Continuar lendo — só aparece quando não está buscando */}
-      {!isSearching && continueReading.length > 1 && (
+      {!isSearching && continueReading.length > 0 && (
         <>
           <View
             style={{

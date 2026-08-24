@@ -102,6 +102,11 @@ export function BookDetailScreen({ navigation, route }: Props) {
   const heroIconColor = theme.name === 'dark' ? '#ffffff' : theme.textPrimary;
   const starEmptyColor = theme.name === 'dark' ? '#414141' : theme.name === 'sepia' ? '#bfae88' : '#a8acb5';
 
+  const parentBook = useMemo(
+    () => (book.parentId ? findBookById(books, book.parentId) : null),
+    [books, book.parentId],
+  );
+
   const handleToggleRead = async () => {
     const nextIsRead = !book.isRead;
     const nextProgressPct = nextIsRead ? 100 : 0;
@@ -117,7 +122,8 @@ export function BookDetailScreen({ navigation, route }: Props) {
 
   const handleOpenReader = (targetBook: Book = book) => {
     if (targetBook.children && targetBook.children.length > 0) {
-      const firstUnread = targetBook.children.find((c) => !c.isRead && (c.progressPct ?? 0) < 100) ?? targetBook.children[0];
+      const inProgress = targetBook.children.find((c) => (c.progressPct ?? 0) > 0 && (c.progressPct ?? 0) < 100);
+      const firstUnread = inProgress ?? targetBook.children.find((c) => !c.isRead && (c.progressPct ?? 0) < 100) ?? targetBook.children[0];
       navigation.navigate('Reader', { book: firstUnread });
     } else {
       navigation.navigate('Reader', { book: targetBook });
@@ -343,8 +349,32 @@ export function BookDetailScreen({ navigation, route }: Props) {
                 textAlign: 'center',
               }}
             >
-              {isSeries ? `Série de ${book.title}` : (book.publisher ? `Editora: ${book.publisher}` : (book.format ? book.format.toUpperCase() : 'Livro'))}
+              {isSeries
+                ? `Série • ${book.children?.length ?? 0} ${t('library.volumesShort')}`
+                : parentBook
+                ? `Parte de: ${parentBook.title}`
+                : (book.publisher ? `Editora: ${book.publisher}` : (book.format ? book.format.toUpperCase() : 'Livro'))}
             </Text>
+
+            {/* If chapter, button to view parent series */}
+            {parentBook && (
+              <Pressable
+                onPress={() => navigation.navigate('BookDetail', { bookId: parentBook.id })}
+                style={{
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  marginTop: spacing.xs,
+                  paddingHorizontal: spacing.sm + 4,
+                  paddingVertical: 4,
+                }}
+              >
+                <Text style={{ color: accentColor, fontFamily: serifFont, fontSize: 12, fontWeight: '600' }}>
+                  Ver Série Completa ({parentBook.title})
+                </Text>
+              </Pressable>
+            )}
 
             {/* Author */}
             <Text
@@ -485,7 +515,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
                   Formato
                 </Text>
                 <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 15, fontWeight: '700', marginTop: 2 }}>
-                  {book.format ? book.format.toUpperCase() : 'PDF'}
+                  {isSeries ? `${book.children?.length ?? 0} VOL'S` : (book.format ? book.format.toUpperCase() : 'PDF')}
                 </Text>
               </View>
             </View>
@@ -504,7 +534,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
           >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.xs }}>
               <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, fontWeight: '600' }}>
-                Progresso
+                {isSeries ? 'Progresso da Série' : 'Progresso'}
               </Text>
               <Text style={{ color: accentColor, fontFamily: serifFont, fontSize: 13, fontWeight: '700' }}>
                 {Math.round(book.progressPct ?? 0)}%
@@ -630,11 +660,23 @@ export function BookDetailScreen({ navigation, route }: Props) {
                       </Text>
                     </View>
 
-                    {chapter.isRead ? (
-                      <Check color={accentColor} size={18} strokeWidth={2.5} />
-                    ) : (
-                      <BookOpen color={theme.textMuted} size={18} />
-                    )}
+                    <Pressable
+                      hitSlop={8}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        void updateBookProgress(chapter.id, {
+                          isRead: !chapter.isRead,
+                          progressPct: !chapter.isRead ? 100 : 0,
+                        });
+                      }}
+                      style={{ padding: 4 }}
+                    >
+                      {chapter.isRead ? (
+                        <Check color={accentColor} size={20} strokeWidth={2.5} />
+                      ) : (
+                        <BookOpen color={theme.textMuted} size={20} />
+                      )}
+                    </Pressable>
                   </Pressable>
                 ))}
               </View>

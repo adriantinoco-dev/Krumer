@@ -85,7 +85,9 @@ async function collectFolderFiles(directoryUri: string): Promise<ScannedFile[]> 
     }
   }
 
-  return result.sort((a, b) => getFileName(a.uri).localeCompare(getFileName(b.uri)));
+  return result.sort((a, b) =>
+    getFileName(a.uri).localeCompare(getFileName(b.uri), undefined, { numeric: true, sensitivity: 'base' }),
+  );
 }
 
 async function scanDirectory(directoryUri: string): Promise<ScannedEntry[]> {

@@ -144,12 +144,25 @@ export async function scanLibrary(
     const books: Book[] = [];
     const total = validFiles.length || 1;
 
+    type TempFile = {
+      file: File;
+      name: string;
+      format: BookFormat;
+      title: string;
+      objectUrl: string;
+      coverPath: string;
+      relPath: string;
+    };
+
+    const processedFiles: TempFile[] = [];
+
     for (let index = 0; index < validFiles.length; index += 1) {
       const file = validFiles[index];
       const name = file.name;
       const format: BookFormat = name.toLowerCase().endsWith('.epub') ? 'epub' : 'pdf';
       const title = name.replace(/\.(epub|pdf)$/i, '').replace(/[_-]+/g, ' ').trim();
       const objectUrl = URL.createObjectURL(file);
+      const relPath = (file as any).webkitRelativePath || name;
 
       let coverPath: string | null = null;
       try {
@@ -167,21 +180,102 @@ export async function scanLibrary(
         done: index + 1 === total,
       });
 
-      books.push({
-        id: `web-file-${index}-${Date.now()}`,
-        title,
-        author: '',
+      processedFiles.push({
+        file,
+        name,
         format,
-        filePath: objectUrl,
-        fileSize: file.size,
-        fingerprint: `file|${title}|${file.size}`,
+        title,
+        objectUrl,
         coverPath,
-        progress: null,
-        progressPct: 0,
-        addedAt: Date.now(),
+        relPath,
       });
 
-      await delay(80);
+      await delay(40);
+    }
+
+    // Group files by directory
+    const rootFiles: TempFile[] = [];
+    const folderMap = new Map<string, TempFile[]>();
+
+    for (const item of processedFiles) {
+      const segments = item.relPath.split('/');
+      // If webkitRelativePath gives "rootFolder/seriesFolder/file.pdf" (>= 3 parts) or "seriesFolder/file.pdf" (2 parts)
+      if (segments.length >= 3) {
+        const folderName = segments[1];
+        if (!folderMap.has(folderName)) folderMap.set(folderName, []);
+        folderMap.get(folderName)!.push(item);
+      } else if (segments.length === 2) {
+        // Could be "folder/file.pdf"
+        const folderName = segments[0];
+        if (!folderMap.has(folderName)) folderMap.set(folderName, []);
+        folderMap.get(folderName)!.push(item);
+      } else {
+        rootFiles.push(item);
+      }
+    }
+
+    // If all files landed in 1 top-level directory and have no subfolders, treat them as root books unless there were actual subfolders
+    if (folderMap.size === 1 && rootFiles.length === 0) {
+      const singleFolderName = folderMap.keys().next().value!;
+      const itemsInFolder = folderMap.get(singleFolderName)!;
+      // If the items in folder were not nested further, treat as root files
+      rootFiles.push(...itemsInFolder);
+      folderMap.clear();
+    }
+
+    // Create root books
+    for (const item of rootFiles) {
+      books.push({
+        id: `web-file-${item.name}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        title: item.title,
+        author: '',
+        format: item.format,
+        filePath: item.objectUrl,
+        fileSize: item.file.size,
+        fingerprint: `file|${item.title}|${item.file.size}`,
+        coverPath: item.coverPath,
+        progress: null,
+        progressPct: 0,
+        parentId: null,
+        addedAt: Date.now(),
+      });
+    }
+
+    // Create series collections for folders
+    for (const [folderName, files] of folderMap.entries()) {
+      files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+      const parentId = `web-series-${folderName}-${Date.now()}`;
+      const firstChild = files[0];
+      const children: Book[] = files.map((file) => ({
+        id: `web-child-${file.name}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        title: file.title,
+        author: '',
+        format: file.format,
+        filePath: file.objectUrl,
+        fileSize: file.file.size,
+        fingerprint: `file|${file.title}|${file.file.size}`,
+        coverPath: file.coverPath,
+        progress: null,
+        progressPct: 0,
+        parentId,
+        addedAt: Date.now(),
+      }));
+
+      books.push({
+        id: parentId,
+        title: folderName.replace(/[_-]+/g, ' ').trim(),
+        author: '',
+        format: firstChild.format,
+        filePath: firstChild.objectUrl,
+        fileSize: 0,
+        fingerprint: `series|${folderName}`,
+        coverPath: firstChild.coverPath,
+        progress: null,
+        progressPct: 0,
+        childrenCount: children.length,
+        children,
+        addedAt: Date.now(),
+      });
     }
 
     if (!books.length) {
