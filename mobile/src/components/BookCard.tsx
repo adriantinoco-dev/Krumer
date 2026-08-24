@@ -34,6 +34,7 @@ export function BookCard({
 
   return (
     <Pressable
+      delayLongPress={200}
       onPress={onPress}
       onLongPress={onLongPress}
       style={{ paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, width }}

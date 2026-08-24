@@ -24,6 +24,7 @@ import {
   Trash2,
 } from 'lucide-react-native';
 import { BookCard } from '../components/BookCard';
+import { BookListModal } from '../components/BookListModal';
 import { ListCard } from '../components/ListCard';
 import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
@@ -67,6 +68,7 @@ export function ListsScreen({ navigation }: Props) {
   const [deleting, setDeleting] = useState(false);
   const [managingBooks, setManagingBooks] = useState(false);
   const [bookSearchQuery, setBookSearchQuery] = useState('');
+  const [longPressBook, setLongPressBook] = useState<Book | null>(null);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('tabPress', () => {
@@ -296,11 +298,7 @@ export function ListsScreen({ navigation }: Props) {
                   book={item}
                   width={cardWidth}
                   onPress={() => handleOpenBookDetail(item)}
-                  onLongPress={() => {
-                    if (activeCollection.listId) {
-                      void toggleBookInList(activeCollection.listId, item.fingerprint);
-                    }
-                  }}
+                  onLongPress={() => setLongPressBook(item)}
                 />
               )}
             />
@@ -532,6 +530,11 @@ export function ListsScreen({ navigation }: Props) {
           />
         </SafeAreaView>
       </Modal>
+      <BookListModal
+        book={longPressBook}
+        visible={longPressBook !== null}
+        onClose={() => setLongPressBook(null)}
+      />
     </SafeAreaView>
   );
 }

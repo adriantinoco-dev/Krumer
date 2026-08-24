@@ -93,6 +93,7 @@ export type TranslationKey =
   | 'library.statsTotal'
   | 'library.noResults'
   | 'library.noResultsHint'
+  | 'lists.addToList'
   | 'lists.books'
   | 'lists.create'
   | 'lists.delete'
@@ -103,6 +104,7 @@ export type TranslationKey =
   | 'lists.favorites'
   | 'lists.manageBooks'
   | 'lists.namePlaceholder'
+  | 'lists.noCustomLists'
   | 'lists.read'
   | 'lists.rename'
   | 'lists.series'
@@ -240,6 +242,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.statsTotal': 'Total',
     'library.noResults': 'No results.',
     'library.noResultsHint': 'Try a different search term.',
+    'lists.addToList': 'Add to list',
     'lists.books': 'books',
     'lists.create': 'Create list',
     'lists.delete': 'Delete list',
@@ -250,6 +253,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'lists.favorites': 'Favorites',
     'lists.manageBooks': 'Manage books',
     'lists.namePlaceholder': 'List name',
+    'lists.noCustomLists': 'No custom lists yet. Create one in Lists tab.',
     'lists.read': 'Read',
     'lists.rename': 'Rename list',
     'lists.series': 'Series / Manga',
@@ -377,6 +381,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.statsTotal': 'Total',
     'library.noResults': 'Nenhum resultado.',
     'library.noResultsHint': 'Tente outro termo de busca.',
+    'lists.addToList': 'Adicionar à lista',
     'lists.books': 'livros',
     'lists.create': 'Criar lista',
     'lists.delete': 'Excluir lista',
@@ -387,6 +392,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'lists.favorites': 'Favoritos',
     'lists.manageBooks': 'Gerenciar livros',
     'lists.namePlaceholder': 'Nome da lista',
+    'lists.noCustomLists': 'Nenhuma lista ainda. Crie uma na aba Listas.',
     'lists.read': 'Lidos',
     'lists.rename': 'Renomear lista',
     'lists.series': 'Séries / Mangás',
@@ -522,8 +528,10 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'lists.emptyHint': 'Toca + para crear tu primera lista.',
     'lists.emptyList': 'No hay libros en esta lista.',
     'lists.favorites': 'Favoritos',
+    'lists.addToList': 'Añadir a lista',
     'lists.manageBooks': 'Gestionar libros',
     'lists.namePlaceholder': 'Nombre de la lista',
+    'lists.noCustomLists': 'Aún no hay listas. Crea una en la pestaña Listas.',
     'lists.read': 'Leídos',
     'lists.rename': 'Renombrar lista',
     'lists.series': 'Series / Mangas',

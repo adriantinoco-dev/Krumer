@@ -9,7 +9,15 @@ const COVER_RADIUS = 10;
 const CARD_WIDTH = 140;
 const COVER_HEIGHT = 196;
 
-export function BookCardContinue({ book, onPress }: { book: Book; onPress: () => void }) {
+export function BookCardContinue({
+  book,
+  onPress,
+  onLongPress,
+}: {
+  book: Book;
+  onPress: () => void;
+  onLongPress?: () => void;
+}) {
   const { theme, t } = useApp();
   const [coverFailed, setCoverFailed] = useState(false);
   const showCover = Boolean(book.coverPath && !coverFailed);
@@ -24,7 +32,12 @@ export function BookCardContinue({ book, onPress }: { book: Book; onPress: () =>
   }, [book.coverPath]);
 
   return (
-    <Pressable onPress={onPress} style={{ width: CARD_WIDTH }}>
+    <Pressable
+      delayLongPress={200}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      style={{ width: CARD_WIDTH }}
+    >
       <View style={{ marginBottom: spacing.sm }}>
         <View
           style={{

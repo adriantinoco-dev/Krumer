@@ -7,6 +7,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BookOpen, SearchX } from 'lucide-react-native';
 import { BookCard } from '../components/BookCard';
 import { BookCardContinue } from '../components/BookCardContinue';
+import { BookListModal } from '../components/BookListModal';
 import { KrumerLogo } from '../components/KrumerLogo';
 import { SearchSortBar, type SortKey } from '../components/SearchSortBar';
 import { useApp } from '../context/AppContext';
@@ -22,10 +23,11 @@ type Props = CompositeScreenProps<
 
 export function LibraryScreen({ navigation }: Props) {
   const { width } = useWindowDimensions();
-  const { books, theme, t, toggleFavorite } = useApp();
+  const { books, theme, t } = useApp();
 
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('recent');
+  const [longPressBook, setLongPressBook] = useState<Book | null>(null);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('tabPress', () => {
@@ -108,6 +110,7 @@ export function LibraryScreen({ navigation }: Props) {
             filteredCount={filteredBooks.length}
             isSearching={isSearching}
             onPressBook={openBookDetails}
+            onLongPressBook={setLongPressBook}
             query={query}
             sort={sort}
             onQueryChange={setQuery}
@@ -124,10 +127,15 @@ export function LibraryScreen({ navigation }: Props) {
             book={item}
             width={cardWidth}
             onPress={() => openBookDetails(item)}
-            onLongPress={() => { void toggleFavorite(item); }}
+            onLongPress={() => setLongPressBook(item)}
           />
         )}
         showsVerticalScrollIndicator={false}
+      />
+      <BookListModal
+        book={longPressBook}
+        visible={longPressBook !== null}
+        onClose={() => setLongPressBook(null)}
       />
     </SafeAreaView>
   );
@@ -139,6 +147,7 @@ function LibraryHeader({
   filteredCount,
   isSearching,
   onPressBook,
+  onLongPressBook,
   query,
   sort,
   onQueryChange,
@@ -149,6 +158,7 @@ function LibraryHeader({
   filteredCount: number;
   isSearching: boolean;
   onPressBook: (book: Book) => void;
+  onLongPressBook?: (book: Book) => void;
   query: string;
   sort: SortKey;
   onQueryChange: (v: string) => void;
@@ -198,7 +208,13 @@ function LibraryHeader({
             data={continueReading}
             horizontal
             keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <BookCardContinue book={item} onPress={() => onPressBook(item)} />}
+            renderItem={({ item }) => (
+              <BookCardContinue
+                book={item}
+                onPress={() => onPressBook(item)}
+                onLongPress={() => onLongPressBook?.(item)}
+              />
+            )}
             showsHorizontalScrollIndicator={false}
           />
           <View
