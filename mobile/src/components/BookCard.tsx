@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { VolumeBadge } from './VolumeBadge';
-import { RatingStars } from './RatingStars';
 import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import { coverShadow, serifFont, spacing } from '../theme';
@@ -22,7 +21,6 @@ export function BookCard({
   const { theme, t } = useApp();
   const [coverFailed, setCoverFailed] = useState(false);
   const showCover = Boolean(book.coverPath && !coverFailed);
-  const rating = Math.max(0, Math.min(5, Math.round(book.rating ?? 0)));
   const coverWidth = Math.max(0, width - spacing.sm * 2);
   const placeholderBackground = {
     dark: '#2d2d2d',
@@ -35,9 +33,13 @@ export function BookCard({
   }, [book.coverPath]);
 
   return (
-    <Pressable onPress={onPress} onLongPress={onLongPress} style={{ paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, width }}>
-      <View style={{ alignItems: 'center', marginBottom: 12, width: coverWidth }}>
-<View
+    <Pressable
+      onPress={onPress}
+      onLongPress={onLongPress}
+      style={{ paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, width }}
+    >
+      <View style={{ marginBottom: spacing.sm }}>
+        <View
           style={{
             alignItems: 'center',
             aspectRatio: 5 / 7,
@@ -63,10 +65,10 @@ export function BookCard({
               style={{
                 color: theme.textPrimary,
                 fontFamily: serifFont,
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: '800',
-                lineHeight: 20,
-                paddingHorizontal: spacing.md,
+                lineHeight: 18,
+                paddingHorizontal: spacing.sm,
                 textAlign: 'center',
               }}
             >
@@ -84,7 +86,6 @@ export function BookCard({
           fontFamily: serifFont,
           fontSize: 12,
           fontWeight: '700',
-          marginTop: 8,
           textAlign: 'left',
         }}
       >
@@ -104,12 +105,6 @@ export function BookCard({
       >
         {book.author || t('library.unknownAuthor')}
       </Text>
-      <RatingStars
-        rating={rating}
-        size={13}
-        gap={2}
-        style={{ marginTop: 4 }}
-      />
     </Pressable>
   );
 }

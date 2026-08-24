@@ -8,6 +8,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Alterado
+- **Mobile — Paridade do BookCard com BookCardContinue (Android):** o componente `BookCard` foi harmonizado para seguir a mesma estrutura, proporções (5:7), raio de capa (`COVER_RADIUS = 10`), tipografia do fallback e hierarquia de espaçamentos do `BookCardContinue`, mantendo alinhamento consistente e uniforme em todas as telas de grade da biblioteca e listas.
 - **Mobile — Botões redondos sem borda com fundo do tema nos detalhes do livro (Android):** na tela `BookDetailScreen`, os botões superiores flutuantes circulares (voltar, favoritos e opções) e o container de avaliação por estrelas não possuem mais bordas e agora utilizam exatamente a cor de fundo do tema ativo (`theme.bg`): `#111111` no tema escuro (Dark), `#ffffff` no tema claro (White/Light) e `#f4ecd8ff` no tema Sépia.
 - **Botões na barra superior / cabeçalho na cor padrão (laranja):** botões de ação e navegação do topo (ordenar, adicionar lista, etc.) padronizados com a cor de destaque do aplicativo (`theme.accent` / `#f97316`).
 - **Títulos e autores em negrito nas visualizações em grade:** títulos de livros e nomes de autores agora são exibidos em negrito (`fontWeight: '700'`) em todos os cards e grades da biblioteca e listas (mobile e desktop).

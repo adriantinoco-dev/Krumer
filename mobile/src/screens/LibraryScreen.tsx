@@ -12,6 +12,7 @@ import { SearchSortBar, type SortKey } from '../components/SearchSortBar';
 import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import type { MainTabParamList, RootStackParamList } from '../navigation/types';
+import { fuzzyMatch } from '../services/fuzzySearch';
 import { radii, serifFont, spacing, TABLET_BREAKPOINT } from '../theme';
 
 type Props = CompositeScreenProps<
@@ -47,20 +48,20 @@ export function LibraryScreen({ navigation }: Props) {
   );
 
   const filteredBooks = useMemo(() => {
-    const term = query.trim().toLowerCase();
+    const term = query.trim();
 
     // Main grid displays root-level items (standalone books + parent series)
     let result = [...books];
 
     if (term) {
       result = result.filter((book) => {
-        const matchTitle = book.title.toLowerCase().includes(term);
-        const matchAuthor = (book.author ?? '').toLowerCase().includes(term);
+        const matchTitle = fuzzyMatch(book.title, term);
+        const matchAuthor = fuzzyMatch(book.author ?? '', term);
         const matchChildren = Boolean(
           book.children?.some(
             (child) =>
-              child.title.toLowerCase().includes(term) ||
-              (child.author ?? '').toLowerCase().includes(term),
+              fuzzyMatch(child.title, term) ||
+              fuzzyMatch(child.author ?? '', term),
           ),
         );
         return matchTitle || matchAuthor || matchChildren;

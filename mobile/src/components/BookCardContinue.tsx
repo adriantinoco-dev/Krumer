@@ -5,7 +5,7 @@ import { VolumeBadge } from './VolumeBadge';
 import type { Book } from '../models/item';
 import { coverShadow, serifFont, spacing } from '../theme';
 
-const COVER_RADIUS = 16;
+const COVER_RADIUS = 10;
 const CARD_WIDTH = 140;
 const COVER_HEIGHT = 196;
 

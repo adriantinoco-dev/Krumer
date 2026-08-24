@@ -209,7 +209,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
               style={{
                 height: 720,
                 width: '100%',
-                opacity: theme.name === 'dark' ? 1.0 : theme.name === 'sepia' ? 1.0 : 1.0, 
+                opacity: theme.name === 'dark' ? 1.0 : theme.name === 'sepia' ? 1.0 : 1.0,
                 transform: [{ scale: 1.35 }],
               }}
             />
@@ -402,8 +402,8 @@ export function BookDetailScreen({ navigation, route }: Props) {
                 {isSeries
                   ? `Série • ${book.children?.length ?? 0} ${t('library.volumesShort')}`
                   : parentBook
-                  ? `Parte de: ${parentBook.title}`
-                  : `Editora: ${book.publisher}`}
+                    ? `Parte de: ${parentBook.title}`
+                    : `Editora: ${book.publisher}`}
               </Text>
             )}
 

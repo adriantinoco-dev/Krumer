@@ -28,6 +28,7 @@ import { ListCard } from '../components/ListCard';
 import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import type { MainTabParamList, RootStackParamList } from '../navigation/types';
+import { fuzzyMatch } from '../services/fuzzySearch';
 import { radii, serifFont, spacing, TABLET_BREAKPOINT } from '../theme';
 
 type Props = CompositeScreenProps<
@@ -169,17 +170,17 @@ export function ListsScreen({ navigation }: Props) {
   };
 
   const searchableBooks = useMemo(() => {
-    const term = bookSearchQuery.trim().toLowerCase();
+    const term = bookSearchQuery.trim();
     if (!term) return books;
     return books.filter(
       (b) =>
-        b.title.toLowerCase().includes(term) ||
-        (b.author ?? '').toLowerCase().includes(term) ||
+        fuzzyMatch(b.title, term) ||
+        fuzzyMatch(b.author ?? '', term) ||
         Boolean(
           b.children?.some(
             (c) =>
-              c.title.toLowerCase().includes(term) ||
-              (c.author ?? '').toLowerCase().includes(term),
+              fuzzyMatch(c.title, term) ||
+              fuzzyMatch(c.author ?? '', term),
           ),
         ),
     );
