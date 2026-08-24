@@ -93,11 +93,15 @@ export function BookDetailScreen({ navigation, route }: Props) {
   const coverCardWidth = width >= TABLET_BREAKPOINT ? 220 : 180;
   const rating = Math.max(0, Math.min(5, Math.round(book.rating ?? 0)));
   const accentColor = theme.name === 'dark' ? ORANGE_ACCENT : theme.accent;
-  // Hero text colors: white on dark, theme-aware on light/sepia
+  // Hero text colors: high contrast guaranteed on all themes
   const heroTextColor = theme.name === 'dark' ? '#ffffff' : theme.textPrimary;
-  const heroSubtextColor = theme.name === 'dark' ? 'rgba(255, 255, 255, 0.7)' : theme.textSecondary;
-  const heroMutedColor = theme.name === 'dark' ? 'rgba(255, 255, 255, 0.55)' : theme.textSecondary;
-  const heroIconColor = theme.name === 'dark' ? '#ffffff' : theme.textPrimary;
+  const heroSubtextColor = theme.name === 'dark' ? 'rgba(255, 255, 255, 0.85)' : theme.textSecondary;
+  const heroMutedColor = theme.name === 'dark' ? 'rgba(255, 255, 255, 0.7)' : theme.textMuted;
+  const heroAuthorColor = theme.name === 'dark' ? '#ffffff' : theme.textPrimary;
+
+  // Header circular buttons: background matches theme background without border
+  const navButtonBg = theme.bg;
+  const navButtonIconColor = theme.textPrimary;
 
   const parentBook = useMemo(
     () => (book.parentId ? findBookById(books, book.parentId) : null),
@@ -209,7 +213,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
                 transform: [{ scale: 1.35 }],
               }}
             />
-            {/* Subtle top tint */}
+            {/* Contrast tint overlay */}
             <View
               style={{
                 position: 'absolute',
@@ -217,7 +221,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
                 left: 0,
                 right: 0,
                 height: 720,
-                backgroundColor: theme.name === 'dark' ? 'rgba(0, 0, 0, 0.25)' : 'rgba(0, 0, 0, 0.04)',
+                backgroundColor: theme.name === 'dark' ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.35)',
               }}
             />
             {/* Full-screen SVG Linear Gradient for 100% seamless procedural fade into theme.bg */}
@@ -239,7 +243,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
           </View>
         )}
 
-        {/* Floating Top Navigation Header */}
+        {/* Floating Top Navigation Header without border, matching theme background */}
         <View
           style={{
             alignItems: 'center',
@@ -250,20 +254,68 @@ export function BookDetailScreen({ navigation, route }: Props) {
             zIndex: 10,
           }}
         >
-          <Pressable hitSlop={12} onPress={() => navigation.goBack()}>
-            <ArrowLeft color={heroIconColor} size={24} />
+          <Pressable
+            hitSlop={12}
+            onPress={() => navigation.goBack()}
+            style={{
+              alignItems: 'center',
+              backgroundColor: navButtonBg,
+              borderRadius: 999,
+              height: 40,
+              justifyContent: 'center',
+              width: 40,
+              elevation: 4,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.18,
+              shadowRadius: 4,
+            }}
+          >
+            <ArrowLeft color={navButtonIconColor} size={20} />
           </Pressable>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-            <Pressable hitSlop={12} onPress={() => { void toggleFavorite(book); }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+            <Pressable
+              hitSlop={12}
+              onPress={() => { void toggleFavorite(book); }}
+              style={{
+                alignItems: 'center',
+                backgroundColor: navButtonBg,
+                borderRadius: 999,
+                height: 40,
+                justifyContent: 'center',
+                width: 40,
+                elevation: 4,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.18,
+                shadowRadius: 4,
+              }}
+            >
               <Heart
-                color={isFavorite ? accentColor : heroIconColor}
-                fill={isFavorite ? accentColor : 'transparent'}
-                size={22}
+                color={isFavorite ? '#ef4444' : navButtonIconColor}
+                fill={isFavorite ? '#ef4444' : 'transparent'}
+                size={20}
               />
             </Pressable>
-            <Pressable hitSlop={12} onPress={handleOpenEditModal}>
-              <MoreVertical color={heroIconColor} size={22} />
+            <Pressable
+              hitSlop={12}
+              onPress={handleOpenEditModal}
+              style={{
+                alignItems: 'center',
+                backgroundColor: navButtonBg,
+                borderRadius: 999,
+                height: 40,
+                justifyContent: 'center',
+                width: 40,
+                elevation: 4,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.18,
+                shadowRadius: 4,
+              }}
+            >
+              <MoreVertical color={navButtonIconColor} size={20} />
             </Pressable>
           </View>
         </View>
@@ -335,23 +387,25 @@ export function BookDetailScreen({ navigation, route }: Props) {
               {book.title}
             </Text>
 
-            {/* Series / Format Subtitle */}
-            <Text
-              style={{
-                color: heroSubtextColor,
-                fontFamily: serifFont,
-                fontSize: 14,
-                fontWeight: '500',
-                marginTop: 6,
-                textAlign: 'center',
-              }}
-            >
-              {isSeries
-                ? `Série • ${book.children?.length ?? 0} ${t('library.volumesShort')}`
-                : parentBook
-                ? `Parte de: ${parentBook.title}`
-                : (book.publisher ? `Editora: ${book.publisher}` : (book.format ? book.format.toUpperCase() : 'Livro'))}
-            </Text>
+            {/* Series / Subtitle */}
+            {(isSeries || parentBook || Boolean(book.publisher)) && (
+              <Text
+                style={{
+                  color: heroSubtextColor,
+                  fontFamily: serifFont,
+                  fontSize: 14,
+                  fontWeight: '500',
+                  marginTop: 6,
+                  textAlign: 'center',
+                }}
+              >
+                {isSeries
+                  ? `Série • ${book.children?.length ?? 0} ${t('library.volumesShort')}`
+                  : parentBook
+                  ? `Parte de: ${parentBook.title}`
+                  : `Editora: ${book.publisher}`}
+              </Text>
+            )}
 
             {/* If chapter, button to view parent series */}
             {parentBook && (
@@ -376,10 +430,10 @@ export function BookDetailScreen({ navigation, route }: Props) {
             {/* Author */}
             <Text
               style={{
-                color: heroMutedColor,
+                color: heroAuthorColor,
                 fontFamily: serifFont,
                 fontSize: 14,
-                fontWeight: '500',
+                fontWeight: '700',
                 marginTop: 4,
                 textAlign: 'center',
               }}

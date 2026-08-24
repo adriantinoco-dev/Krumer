@@ -122,7 +122,7 @@ export function SearchSortBar({ query, sort, onQueryChange, onSortChange }: Prop
         style={({ pressed }) => ({
           alignItems: 'center',
           backgroundColor: pressed ? theme.cardHover : theme.surface,
-          borderColor: sort !== 'recent' ? theme.accent : theme.border,
+          borderColor: theme.accent,
           borderRadius: radii.lg,
           borderWidth: 1,
           flexDirection: 'row',
@@ -131,10 +131,10 @@ export function SearchSortBar({ query, sort, onQueryChange, onSortChange }: Prop
           paddingVertical: 10,
         })}
       >
-        <ArrowUpDown color={sort !== 'recent' ? theme.accent : theme.textSecondary} size={15} strokeWidth={2} />
+        <ArrowUpDown color={theme.accent} size={15} strokeWidth={2} />
         <Text
           style={{
-            color: sort !== 'recent' ? theme.accent : theme.textSecondary,
+            color: theme.accent,
             fontFamily: serifFont,
             fontSize: 13,
             fontWeight: '600',

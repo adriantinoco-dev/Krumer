@@ -6,7 +6,7 @@ import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import { coverShadow, serifFont, spacing } from '../theme';
 
-const COVER_RADIUS = 20;
+const COVER_RADIUS = 10;
 
 export function BookCard({
   book,
@@ -83,7 +83,7 @@ export function BookCard({
           color: theme.textPrimary,
           fontFamily: serifFont,
           fontSize: 12,
-          fontWeight: '600',
+          fontWeight: '700',
           marginTop: 8,
           textAlign: 'left',
         }}
@@ -97,7 +97,7 @@ export function BookCard({
           color: theme.textSecondary,
           fontFamily: serifFont,
           fontSize: 11,
-          fontWeight: '600',
+          fontWeight: '700',
           marginTop: 2,
           textAlign: 'left',
         }}

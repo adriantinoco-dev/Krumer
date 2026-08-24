@@ -183,7 +183,7 @@ export function ReaderScreen({ navigation, route }: Props) {
               padding: spacing.xs,
             })}
           >
-            <ArrowLeft color={theme.textPrimary} size={22} />
+            <ArrowLeft color={theme.accent} size={22} />
           </Pressable>
           <View style={{ flex: 1, gap: 2 }}>
             <Text

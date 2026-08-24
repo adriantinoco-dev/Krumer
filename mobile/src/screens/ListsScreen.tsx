@@ -218,7 +218,7 @@ export function ListsScreen({ navigation }: Props) {
             }}
           >
             <Pressable hitSlop={10} onPress={() => setActiveCollectionKey(null)}>
-              <ArrowLeft color={theme.textPrimary} size={24} />
+              <ArrowLeft color={theme.accent} size={24} />
             </Pressable>
             <View style={{ flex: 1 }}>
               <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 20, fontWeight: '700' }} numberOfLines={1}>
@@ -253,7 +253,7 @@ export function ListsScreen({ navigation }: Props) {
                   }}
                   style={{ padding: 4 }}
                 >
-                  <Edit2 color={theme.textSecondary} size={20} />
+                  <Edit2 color={theme.accent} size={20} />
                 </Pressable>
                 <Pressable hitSlop={10} onPress={() => setDeleting(true)} style={{ padding: 4 }}>
                   <Trash2 color="#ef4444" size={20} />

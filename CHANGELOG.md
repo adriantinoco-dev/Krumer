@@ -7,7 +7,14 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ## [Unreleased]
 
+### Alterado
+- **Mobile — Botões redondos sem borda com fundo do tema nos detalhes do livro (Android):** na tela `BookDetailScreen`, os botões superiores flutuantes circulares (voltar, favoritos e opções) e o container de avaliação por estrelas não possuem mais bordas e agora utilizam exatamente a cor de fundo do tema ativo (`theme.bg`): `#111111` no tema escuro (Dark), `#ffffff` no tema claro (White/Light) e `#f4ecd8ff` no tema Sépia.
+- **Botões na barra superior / cabeçalho na cor padrão (laranja):** botões de ação e navegação do topo (ordenar, adicionar lista, etc.) padronizados com a cor de destaque do aplicativo (`theme.accent` / `#f97316`).
+- **Títulos e autores em negrito nas visualizações em grade:** títulos de livros e nomes de autores agora são exibidos em negrito (`fontWeight: '700'`) em todos os cards e grades da biblioteca e listas (mobile e desktop).
+
 ### Corrigido
+- **Mobile — Autor em negrito com cores por tema nos detalhes (Android):** alteração do peso da fonte do autor para negrito (`fontWeight: '700'`) e cor dinâmica (`heroAuthorColor`): branco (`#ffffff`) no tema escuro (Dark) e preto (`#000000`) nos temas claro (Light) e sépia (Sepia) na tela `BookDetailScreen`.
+- **Mobile — Removido formato do livro nos detalhes (Android):** remoção da exibição do formato (PDF ou EPUB) que aparecia logo abaixo do nome/título do livro na tela `BookDetailScreen`.
 - **Mobile — Margens do Leitor EPUB (Android):** ajuste das margens laterais para um valor natural e discreto (14px). O container `#viewer` é dimensionado e posicionado explicitamente com base nos insets da tela (`width = window.innerWidth - left - right` e `left = offset`), mantendo o aproveitamento de mais de 93% da largura da tela sem deixar o texto afunilado ou estranhamente centralizado.
 - **Mobile — Leitor EPUB (Android):** correção na inicialização de arquivos EPUB no WebView. Os scripts `JSZip` (v3.10.1) e `epub.js` (v0.3.93) foram vendorizados localmente (`epubVendorScript.ts`) eliminando dependência da CDN externa para leitura 100% offline. Abertura do livro otimizada para converter Base64 diretamente em `ArrayBuffer` em memória via `window.atob()`, evitando bloqueios CORS/Same-Origin no `fetch('file://')` do Android WebView e eliminando timeouts no carregamento.
 

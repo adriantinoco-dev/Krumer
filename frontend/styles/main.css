@@ -445,7 +445,7 @@ body {
   border-radius: 50%;
   border: 1px solid var(--border);
   background-color: var(--bg-card);
-  color: var(--text-secondary);
+  color: var(--accent);
   cursor: pointer;
   transition: var(--transition);
   flex-shrink: 0;

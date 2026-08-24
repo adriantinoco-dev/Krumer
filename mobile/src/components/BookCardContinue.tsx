@@ -72,7 +72,7 @@ export function BookCardContinue({ book, onPress }: { book: Book; onPress: () =>
           color: theme.textPrimary,
           fontFamily: serifFont,
           fontSize: 12,
-          fontWeight: '600',
+          fontWeight: '700',
           textAlign: 'left',
         }}
       >
@@ -85,7 +85,7 @@ export function BookCardContinue({ book, onPress }: { book: Book; onPress: () =>
           color: theme.textSecondary,
           fontFamily: serifFont,
           fontSize: 11,
-          fontWeight: '600',
+          fontWeight: '700',
           marginTop: 2,
           textAlign: 'left',
         }}

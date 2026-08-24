@@ -114,7 +114,7 @@ function AppShell() {
 
   return (
     <NavigationContainer theme={navigationTheme}>
-      <Stack.Navigator screenOptions={{ headerTintColor: theme.textPrimary, headerStyle: { backgroundColor: theme.bg } }}>
+      <Stack.Navigator screenOptions={{ headerTintColor: theme.accent, headerStyle: { backgroundColor: theme.bg } }}>
         <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
         <Stack.Screen name="BookDetail" component={BookDetailScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Reader" component={ReaderScreen} options={{ headerShown: false }} />

@@ -29,13 +29,8 @@ export function RatingStars({
   const { theme } = useApp();
   const normalizedRating = Math.max(0, Math.min(maxRating, Math.round(rating ?? 0)));
 
-  // Cores do fundo escuro adaptado a cada tema
-  const containerBg =
-    theme.name === 'dark'
-      ? '#1c1c1e'
-      : theme.name === 'sepia'
-      ? '#f4ecd8ff'
-      : '#f8f8fcff';
+  // Cores do fundo adaptado a cada tema
+  const containerBg = theme.bg;
 
   // Cores das estrelas
   const starEmptyColor = container

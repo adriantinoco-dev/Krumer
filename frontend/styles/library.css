@@ -427,7 +427,7 @@ html[data-theme="dark"] .book-cover-front .cover-fallback-title {
 .book-title {
   margin-top: 8px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
