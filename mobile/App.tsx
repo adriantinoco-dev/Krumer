@@ -38,8 +38,8 @@ function MainTabs() {
         tabBarStyle: {
           position: 'absolute',
           bottom: 20,
-          left: 48,
-          right: 48,
+          left: 68,
+          right: 68,
           height: 62,
           borderRadius: 31,
           backgroundColor: theme.card,

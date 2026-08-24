@@ -1,14 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
-import { Star } from 'lucide-react-native';
 import { VolumeBadge } from './VolumeBadge';
+import { RatingStars } from './RatingStars';
 import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import { coverShadow, serifFont, spacing } from '../theme';
 
-const STAR_FILLED = '#ffda4d';
 const COVER_RADIUS = 20;
-const STAR_SIZE = 14;
 
 export function BookCard({
   book,
@@ -106,21 +104,12 @@ export function BookCard({
       >
         {book.author || t('library.unknownAuthor')}
       </Text>
-      <View style={{ alignItems: 'center', flexDirection: 'row', marginTop: 4 }}>
-        {(() => {
-          const starEmptyColor = theme.name === 'dark' ? '#414141' : theme.name === 'sepia' ? '#bfae88' : '#a8acb5';
-          return [1, 2, 3, 4, 5].map((star) => (
-            <Star
-              color={star <= rating ? STAR_FILLED : starEmptyColor}
-              fill={star <= rating ? STAR_FILLED : starEmptyColor}
-              key={star}
-              size={STAR_SIZE}
-              strokeWidth={1.4}
-              style={{ marginHorizontal: 1 }}
-            />
-          ));
-        })()}
-      </View>
+      <RatingStars
+        rating={rating}
+        size={13}
+        gap={2}
+        style={{ marginTop: 4 }}
+      />
     </Pressable>
   );
 }

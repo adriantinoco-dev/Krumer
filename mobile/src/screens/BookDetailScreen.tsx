@@ -26,8 +26,8 @@ import {
   Image as ImageIcon,
   MoreVertical,
   RotateCcw,
-  Star,
 } from 'lucide-react-native';
+import { RatingStars } from '../components/RatingStars';
 import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import type { RootStackParamList } from '../navigation/types';
@@ -35,8 +35,6 @@ import { coverShadow, radii, serifFont, spacing, TABLET_BREAKPOINT } from '../th
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BookDetail'>;
 
-const STAR_FILLED = '#ffda4d';
-const STAR_EMPTY = '#414141';
 const ORANGE_ACCENT = '#ff6500';
 
 export function BookDetailScreen({ navigation, route }: Props) {
@@ -100,7 +98,6 @@ export function BookDetailScreen({ navigation, route }: Props) {
   const heroSubtextColor = theme.name === 'dark' ? 'rgba(255, 255, 255, 0.7)' : theme.textSecondary;
   const heroMutedColor = theme.name === 'dark' ? 'rgba(255, 255, 255, 0.55)' : theme.textSecondary;
   const heroIconColor = theme.name === 'dark' ? '#ffffff' : theme.textPrimary;
-  const starEmptyColor = theme.name === 'dark' ? '#414141' : theme.name === 'sepia' ? '#bfae88' : '#a8acb5';
 
   const parentBook = useMemo(
     () => (book.parentId ? findBookById(books, book.parentId) : null),
@@ -391,18 +388,15 @@ export function BookDetailScreen({ navigation, route }: Props) {
             </Text>
 
             {/* 5-Star Rating */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: spacing.sm, gap: 4 }}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <Pressable key={star} hitSlop={6} onPress={() => { void handleRatingPress(star); }}>
-                  <Star
-                    color={star <= rating ? STAR_FILLED : starEmptyColor}
-                    fill={star <= rating ? STAR_FILLED : starEmptyColor}
-                    size={20}
-                    strokeWidth={1.5}
-                  />
-                </Pressable>
-              ))}
-            </View>
+            <RatingStars
+              rating={rating}
+              size={20}
+              gap={6}
+              container
+              interactive
+              onRate={(newRating) => { void handleRatingPress(newRating); }}
+              style={{ marginTop: spacing.md }}
+            />
           </View>
 
           {/* Action Buttons (Stacked, Full Width) */}
@@ -881,18 +875,15 @@ export function BookDetailScreen({ navigation, route }: Props) {
               <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, fontWeight: '600', marginBottom: 8 }}>
                 {t('details.rating')}
               </Text>
-              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <Pressable key={star} hitSlop={6} onPress={() => setEditRating(star)}>
-                    <Star
-                      color={star <= editRating ? STAR_FILLED : starEmptyColor}
-                      fill={star <= editRating ? STAR_FILLED : starEmptyColor}
-                      size={26}
-                      strokeWidth={1.5}
-                    />
-                  </Pressable>
-                ))}
-              </View>
+              <RatingStars
+                rating={editRating}
+                size={24}
+                gap={8}
+                container
+                interactive
+                onRate={setEditRating}
+                style={{ alignSelf: 'flex-start' }}
+              />
             </View>
 
             {/* Tags Input */}

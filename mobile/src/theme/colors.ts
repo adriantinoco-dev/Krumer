@@ -12,6 +12,7 @@ export type ThemeTokens = {
   textMuted: string;
   accent: string;
   accentMuted: string;
+  starEmpty: string;
 };
 
 export const themes: Record<ThemeName, ThemeTokens> = {
@@ -27,6 +28,7 @@ export const themes: Record<ThemeName, ThemeTokens> = {
     textMuted: '#888888',
     accent: '#f97316',
     accentMuted: '#f9731622',
+    starEmpty: '#6b6b6b',
   },
   light: {
     name: 'light',
@@ -40,6 +42,7 @@ export const themes: Record<ThemeName, ThemeTokens> = {
     textMuted: '#777777',
     accent: '#f97316',
     accentMuted: '#f9731622',
+    starEmpty: '#a8acb5',
   },
   sepia: {
     name: 'sepia',
@@ -53,6 +56,7 @@ export const themes: Record<ThemeName, ThemeTokens> = {
     textMuted: '#8a7a5c',
     accent: '#f97316',
     accentMuted: '#f9731622',
+    starEmpty: '#a89060',
   },
 };
 
