@@ -12,6 +12,12 @@
         "READ_MEDIA_IMAGES",
         "READ_MEDIA_VIDEO"
       ]
+    },
+    "plugins": ["./plugins/with-ndk27"],
+    "extra": {
+      "eas": {
+        "projectId": "4f26c674-76c9-469f-b38a-05c8b6a00234"
+      }
     }
   }
 }

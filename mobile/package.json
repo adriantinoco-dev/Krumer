@@ -7,7 +7,7 @@
   "scripts": {
     "android": "node scripts/fix-netinfo-gradle9.cjs && expo run:android",
     "postinstall": "node scripts/fix-netinfo-gradle9.cjs",
-    "prebuild": "expo prebuild",
+    "prebuild": "expo prebuild && node scripts/fix-netinfo-gradle9.cjs",
     "start": "expo start",
     "test": "jest"
   },
@@ -21,6 +21,7 @@
     "@react-navigation/native-stack": "^6.11.0",
     "@supabase/supabase-js": "2.112.3",
     "expo": "~57.0.15",
+    "expo-dev-client": "~57.0.14",
     "expo-document-picker": "~57.0.1",
     "expo-file-system": "~57.0.5",
     "jszip": "^3.10.1",

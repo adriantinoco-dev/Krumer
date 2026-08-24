@@ -113,9 +113,11 @@ export type TranslationKey =
   | 'reader.bookmarks'
   | 'reader.chapters'
   | 'reader.fontSize'
+  | 'reader.page'
   | 'reader.pdfWebUnavailableDescription'
   | 'reader.pdfWebUnavailableTitle'
   | 'reader.readingSettings'
+  | 'reader.resetDefaults'
   | 'reader.spacing'
   | 'scan.action'
   | 'scan.scanning'
@@ -258,10 +260,12 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.bookmarks': 'Bookmarks',
     'reader.chapters': 'Go to chapter',
     'reader.fontSize': 'Font size',
+    'reader.page': 'Page',
     'reader.pdfWebUnavailableDescription':
       'PDF reading uses a native module (react-native-pdf) and does not work in the browser. Open on Android to read this file.',
     'reader.pdfWebUnavailableTitle': 'PDF unavailable on web',
     'reader.readingSettings': 'Reading settings',
+    'reader.resetDefaults': 'Reset to defaults',
     'reader.spacing': 'Spacing',
     'scan.action': 'Scan',
     'scan.scanning': 'Scanning',
@@ -393,10 +397,12 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.bookmarks': 'Marcadores',
     'reader.chapters': 'Ir para capítulo',
     'reader.fontSize': 'Tamanho da fonte',
+    'reader.page': 'Página',
     'reader.pdfWebUnavailableDescription':
       'A leitura de PDF usa um módulo nativo (react-native-pdf) e não funciona no navegador. Abra no Android para ler este arquivo.',
     'reader.pdfWebUnavailableTitle': 'PDF indisponível na web',
     'reader.readingSettings': 'Configurações de leitura',
+    'reader.resetDefaults': 'Restaurar padrão',
     'reader.spacing': 'Espaçamento',
     'scan.action': 'Escanear',
     'scan.scanning': 'Escaneando',
@@ -528,10 +534,12 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.bookmarks': 'Marcadores',
     'reader.chapters': 'Ir al capítulo',
     'reader.fontSize': 'Tamaño de fuente',
+    'reader.page': 'Página',
     'reader.pdfWebUnavailableDescription':
       'La lectura de PDF usa un módulo nativo (react-native-pdf) y no funciona en el navegador. Ábrelo en Android para leer este archivo.',
     'reader.pdfWebUnavailableTitle': 'PDF no disponible en web',
     'reader.readingSettings': 'Configuración de lectura',
+    'reader.resetDefaults': 'Restaurar valores predeterminados',
     'reader.spacing': 'Espaciado',
     'scan.action': 'Escanear',
     'scan.scanning': 'Escaneando',

@@ -1,0 +1,8 @@
+# EAS should never upload gradle caches
+android/.gradle
+android/build
+android/app/build
+.gradle
+.gradle-krumer-mobile
+node_modules
+.expo

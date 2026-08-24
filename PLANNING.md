@@ -103,7 +103,7 @@ Edição mobile:
 - não editar editora no mobile.
 
 ### M6 — Leitores PDF/EPUB
-**Status:** `[ ]`
+**Status:** `[x]`
 
 Leitores já validados:
 - **PDF** via `react-native-pdf` (biblioteca nativa) — página única com paging, salva página atual.
