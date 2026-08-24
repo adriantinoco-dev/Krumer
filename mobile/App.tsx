@@ -33,13 +33,40 @@ function MainTabs() {
         tabBarInactiveTintColor: theme.textSecondary,
         tabBarLabelStyle: {
           fontFamily: serifFont,
+          fontSize: 11,
         },
+        tabBarBackground: () => (
+          <View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: -12,
+              backgroundColor: theme.card,
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              borderBottomLeftRadius: 0,
+              borderBottomRightRadius: 0,
+            }}
+          />
+        ),
         tabBarStyle: {
-          backgroundColor: theme.surface,
-          borderTopColor: theme.border,
-          height: 56,
-          paddingBottom: 6,
+          position: 'absolute',
+          bottom: 12,
+          left: 20,
+          right: 20,
+          height: 72,
+          backgroundColor: 'transparent',
+          borderTopWidth: 0,
+          borderWidth: 0,
+          paddingBottom: 16,
           paddingTop: 6,
+          elevation: 12,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.12,
+          shadowRadius: 8,
         },
       }}
     >
