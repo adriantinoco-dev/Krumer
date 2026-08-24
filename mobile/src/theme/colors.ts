@@ -46,7 +46,7 @@ export const themes: Record<ThemeName, ThemeTokens> = {
   },
   sepia: {
     name: 'sepia',
-    bg: '#f4ecd8',
+    bg: '#f4ecd8ff',
     surface: '#ece2c8',
     card: '#f0e6cc',
     cardHover: '#e6dab8',

@@ -34,14 +34,14 @@ export function RatingStars({
     theme.name === 'dark'
       ? '#1c1c1e'
       : theme.name === 'sepia'
-      ? '#382a1a'
-      : '#1e242b';
+      ? '#f4ecd8ff'
+      : '#f8f8fcff';
 
   // Cores das estrelas
   const starEmptyColor = container
     ? theme.name === 'sepia'
-      ? '#8c775a'
-      : '#71717a'
+      ? '#9a9790ff'
+      : '#9c9c9fff'
     : theme.starEmpty;
 
   const starFilledColor = theme.accent;

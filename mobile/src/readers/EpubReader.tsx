@@ -42,13 +42,44 @@ const EPUB_HTML_BASE = `<!DOCTYPE html>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; -webkit-tap-highlight-color: transparent; }
-    body { background: transparent; position: relative; width: 100vw; height: 100vh; }
+    body { background: #181818; position: relative; width: 100vw; height: 100vh; font-family: Georgia, "Times New Roman", serif; }
+    #running-header {
+      position: absolute;
+      top: 14px;
+      left: 20px;
+      right: 20px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.4);
+      pointer-events: none;
+      z-index: 10;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: color 0.3s ease;
+    }
+    #running-footer {
+      position: absolute;
+      bottom: 12px;
+      right: 20px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      color: rgba(255, 255, 255, 0.4);
+      pointer-events: none;
+      z-index: 10;
+      transition: color 0.3s ease;
+    }
     #viewer {
       position: absolute;
-      top: 24px;
-      left: 14px;
-      width: calc(100vw - 28px);
-      height: calc(100vh - 40px);
+      top: 36px;
+      left: 20px;
+      width: calc(100vw - 40px);
+      height: calc(100vh - 60px);
       overflow: hidden;
     }
     #loading {
@@ -67,12 +98,18 @@ const EPUB_HTML_BASE = `<!DOCTYPE html>
 </head>
 <body>
   <div id="loading"><div class="spinner"></div></div>
+  <div id="running-header"></div>
+  <div id="running-footer"></div>
   <div id="viewer"></div>
   <script>
     var rendition = null;
     var book = null;
     var isReady = false;
-    var currentInsets = { top: 24, bottom: 16, left: 14, right: 14 };
+    var currentInsets = { top: 36, bottom: 24, left: 20, right: 20 };
+    var epubToc = [];
+    var currentChapterTitle = '';
+    var currentLocIdx = -1;
+    var currentTotalLocs = 0;
 
     function post(obj) {
       if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
@@ -95,8 +132,21 @@ const EPUB_HTML_BASE = `<!DOCTYPE html>
       currentInsets = ins;
       var top = ins.top || 40;
       var bottom = ins.bottom || 32;
-      var left = ins.left || 32;
-      var right = ins.right || 32;
+      var left = ins.left || 20;
+      var right = ins.right || 20;
+
+      var headerEl = document.getElementById('running-header');
+      if (headerEl) {
+        headerEl.style.top = Math.max(12, top - 24) + 'px';
+        headerEl.style.left = left + 'px';
+        headerEl.style.right = right + 'px';
+      }
+
+      var footerEl = document.getElementById('running-footer');
+      if (footerEl) {
+        footerEl.style.bottom = Math.max(10, bottom - 22) + 'px';
+        footerEl.style.right = right + 'px';
+      }
 
       var w = Math.max(100, window.innerWidth - left - right);
       var h = Math.max(100, window.innerHeight - top - bottom);
@@ -117,6 +167,42 @@ const EPUB_HTML_BASE = `<!DOCTYPE html>
       }
     }
 
+    function updateRunningHeaderFooter(chapterTitle, locIdx, totalLocs) {
+      var headerEl = document.getElementById('running-header');
+      if (headerEl) {
+        headerEl.textContent = chapterTitle ? chapterTitle.trim().toUpperCase() : '';
+      }
+      var footerEl = document.getElementById('running-footer');
+      if (footerEl) {
+        if (locIdx >= 0 && totalLocs > 0) {
+          footerEl.textContent = (locIdx + 1) + ' / ' + totalLocs;
+        } else {
+          footerEl.textContent = '';
+        }
+      }
+    }
+
+    function _injectBookTypography(doc) {
+      if (!doc) return;
+      var styleId = 'krumer-book-style';
+      var style = doc.getElementById(styleId);
+      if (!style) {
+        style = doc.createElement('style');
+        style.id = styleId;
+        doc.head.appendChild(style);
+      }
+      style.textContent =
+        'body {' +
+          'font-family: Georgia, "Times New Roman", serif !important;' +
+          'line-height: 1.75 !important;' +
+          '-webkit-font-smoothing: antialiased;' +
+        '}' +
+        'a {' +
+          'color: #f97316 !important;' +
+          'text-decoration: none !important;' +
+        '}';
+    }
+
     window.addEventListener('message', function(event) {
       try {
         var msg = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
@@ -133,14 +219,12 @@ const EPUB_HTML_BASE = `<!DOCTYPE html>
       } catch (e) { console.log('[Krumer EPUB] message handler error', e && e.message ? e.message : e); }
     });
 
-    // Toque em qualquer área do body fora do viewer dispara a navegação/toggle de barras
     document.body.addEventListener('click', function(e) {
       var viewer = document.getElementById('viewer');
       if (viewer && viewer.contains(e.target)) return;
       handleIframeTap(e);
     });
 
-    // timeout global: se em 15s não deu READY, avisa RN
     setTimeout(function(){
       if (!isReady) {
         console.log('[Krumer EPUB] timeout sem READY, ePub=' + (typeof ePub) + ' book=' + !!book);
@@ -168,7 +252,6 @@ const EPUB_HTML_BASE = `<!DOCTYPE html>
 
       try {
         if (base64) {
-          console.log('[Krumer EPUB] opening via base64 ArrayBuffer length=' + base64.length);
           var buffer = base64ToArrayBuffer(base64);
           book = ePub(buffer);
         } else if (path) {
@@ -177,7 +260,6 @@ const EPUB_HTML_BASE = `<!DOCTYPE html>
             var buffer = base64ToArrayBuffer(path);
             book = ePub(buffer);
           } else {
-            console.log('[Krumer EPUB] ePub() com path ' + path.slice(0, 80));
             book = ePub(path);
           }
         } else {
@@ -185,15 +267,14 @@ const EPUB_HTML_BASE = `<!DOCTYPE html>
           return;
         }
       } catch (e) {
-        console.log('[Krumer EPUB] ePub() threw', e && e.message ? e.message : e);
         post({ type: 'ERROR', message: 'Falha ao abrir arquivo EPUB: ' + (e && e.message ? e.message : String(e)) });
         return;
       }
 
       var topP = (currentInsets.top || 40);
       var botP = (currentInsets.bottom || 32);
-      var leftP = (currentInsets.left || 32);
-      var rightP = (currentInsets.right || 32);
+      var leftP = (currentInsets.left || 20);
+      var rightP = (currentInsets.right || 20);
 
       var viewerW = Math.max(100, window.innerWidth - leftP - rightP);
       var viewerH = Math.max(100, window.innerHeight - topP - botP);
@@ -204,17 +285,11 @@ const EPUB_HTML_BASE = `<!DOCTYPE html>
         flow: 'paginated'
       });
 
-      rendition.themes.default({
-        body: {
-          'font-family': 'Georgia, serif',
-          'margin': '0 !important',
-          'padding': '0 !important',
-          'box-sizing': 'border-box !important'
-        }
+      book.loaded.navigation.then(function(nav) {
+        epubToc = nav.toc || [];
       });
 
       var displayPromise = savedCfi ? rendition.display(savedCfi).catch(function(cfiErr) {
-        console.log('[Krumer EPUB] display com savedCfi falhou, tentando posição inicial', cfiErr);
         return rendition.display();
       }) : rendition.display();
 
@@ -223,13 +298,11 @@ const EPUB_HTML_BASE = `<!DOCTYPE html>
         document.getElementById('loading').classList.add('hidden');
         post({ type: 'READY' });
       }).catch(function(err) {
-        console.log('[Krumer EPUB] rendition.display failed', err && err.message ? err.message : err);
         document.getElementById('loading').classList.add('hidden');
         post({ type: 'ERROR', message: 'Falha ao renderizar conteúdo do EPUB: ' + (err && err.message ? err.message : String(err)) });
       });
 
       book.ready.catch(function(err){
-        console.log('[Krumer EPUB] book.ready failed', err && err.message ? err.message : err);
         post({ type: 'ERROR', message: 'Carregamento do EPUB falhou: ' + (err && err.message ? err.message : String(err)) });
       });
 
@@ -241,12 +314,41 @@ const EPUB_HTML_BASE = `<!DOCTYPE html>
           var found = book.locations.locationFromCfi(location.start.cfi);
           if (found >= 0) locIdx = found;
         }
+        currentLocIdx = locIdx;
+        currentTotalLocs = totalLocs;
+
+        // Tentar extrair o capítulo atual para o Running Header
+        currentChapterTitle = '';
+        try {
+          if (location.start && location.start.href) {
+            var currentHref = location.start.href.split('#')[0];
+            function findChapterLabel(items) {
+              if (!items) return null;
+              for (var i = 0; i < items.length; i++) {
+                var item = items[i];
+                if (item.href && item.href.split('#')[0] === currentHref) {
+                  return item.label;
+                }
+                if (item.subitems && item.subitems.length > 0) {
+                  var sub = findChapterLabel(item.subitems);
+                  if (sub) return sub;
+                }
+              }
+              return null;
+            }
+            currentChapterTitle = findChapterLabel(epubToc) || '';
+          }
+        } catch (e) {}
+
+        updateRunningHeaderFooter(currentChapterTitle, currentLocIdx, currentTotalLocs);
+
         post({
           type: 'LOCATION_CHANGED',
           cfi: location.start.cfi,
           percentage: location.start.percentage || 0,
           locationIndex: locIdx,
-          totalLocations: totalLocs
+          totalLocations: totalLocs,
+          chapterTitle: currentChapterTitle
         });
       });
 
@@ -254,15 +356,19 @@ const EPUB_HTML_BASE = `<!DOCTYPE html>
       book.ready.then(function() {
         book.locations.generate(1500).then(function() {
           var total = book.locations.total;
+          currentTotalLocs = total;
           post({ type: 'LOCATIONS_READY', totalLocations: total });
           if (rendition && rendition.location && rendition.location.start) {
             var loc = book.locations.locationFromCfi(rendition.location.start.cfi);
+            currentLocIdx = loc >= 0 ? loc : 0;
+            updateRunningHeaderFooter(currentChapterTitle, currentLocIdx, currentTotalLocs);
             post({
               type: 'LOCATION_CHANGED',
               cfi: rendition.location.start.cfi,
               percentage: rendition.location.start.percentage || 0,
-              locationIndex: loc >= 0 ? loc : 0,
-              totalLocations: total
+              locationIndex: currentLocIdx,
+              totalLocations: total,
+              chapterTitle: currentChapterTitle
             });
           }
         }).catch(function(locErr) {
@@ -275,6 +381,7 @@ const EPUB_HTML_BASE = `<!DOCTYPE html>
         try {
           var doc = view.document || (view.contents && view.contents.document);
           if (!doc) return;
+          _injectBookTypography(doc);
           doc.removeEventListener('click', handleIframeTap);
           doc.addEventListener('click', handleIframeTap);
 
@@ -338,17 +445,27 @@ const EPUB_HTML_BASE = `<!DOCTYPE html>
 
     function applyTheme(theme) {
       var themes = {
-        dark:  { body: { background: '#111111', color: '#f1f1f1' } },
-        light: { body: { background: '#ffffff', color: '#1a1a1a' } },
-        sepia: { body: { background: '#f4ecd8', color: '#3b2f1e' } }
+        dark:  { bg: '#181818', color: '#dedede', muted: 'rgba(255, 255, 255, 0.4)' },
+        light: { bg: '#fafafa', color: '#1c1c1c', muted: 'rgba(0, 0, 0, 0.45)' },
+        sepia: { bg: '#f4ecd8', color: '#3b2f1e', muted: 'rgba(59, 47, 30, 0.45)' }
       };
+      var current = themes[theme] || themes.dark;
       if (!rendition) return;
-      rendition.themes.register('active', themes[theme] || themes.dark);
+
+      rendition.themes.register('active', {
+        body: {
+          'background': current.bg + ' !important',
+          'color': current.color + ' !important'
+        }
+      });
       rendition.themes.select('active');
 
-      /* Atualizar fundo do body externo para combinar */
-      var bg = (themes[theme] || themes.dark).body.background;
-      document.body.style.background = bg;
+      /* Atualizar fundo do body externo e cores de rodapé/cabeçalho */
+      document.body.style.background = current.bg;
+      var h = document.getElementById('running-header');
+      var f = document.getElementById('running-footer');
+      if (h) h.style.color = current.muted;
+      if (f) f.style.color = current.muted;
     }
   </script>
 </body>
