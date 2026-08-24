@@ -43,6 +43,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
   const {
     books,
     lists,
+    preferences,
     t,
     theme,
     toggleFavorite,
@@ -330,7 +331,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
             <View
               style={{
                 alignItems: 'center',
-                aspectRatio: 5 / 7,
+                aspectRatio: 193 / 264,
                 backgroundColor: theme.card,
                 borderRadius: 18,
                 boxShadow: coverShadow(theme.name),

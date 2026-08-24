@@ -13,6 +13,8 @@ export type ThemeTokens = {
   accent: string;
   accentMuted: string;
   starEmpty: string;
+  cardShadowStack: string;
+  cardBorder3D: string;
 };
 
 export const themes: Record<ThemeName, ThemeTokens> = {
@@ -29,6 +31,8 @@ export const themes: Record<ThemeName, ThemeTokens> = {
     accent: '#f97316',
     accentMuted: '#f9731622',
     starEmpty: '#6b6b6b',
+    cardShadowStack: '#222222',
+    cardBorder3D: '#464545',
   },
   light: {
     name: 'light',
@@ -43,6 +47,8 @@ export const themes: Record<ThemeName, ThemeTokens> = {
     accent: '#f97316',
     accentMuted: '#f9731622',
     starEmpty: '#a8acb5',
+    cardShadowStack: '#000000',
+    cardBorder3D: '#000000',
   },
   sepia: {
     name: 'sepia',
@@ -57,6 +63,8 @@ export const themes: Record<ThemeName, ThemeTokens> = {
     accent: '#f97316',
     accentMuted: '#f9731622',
     starEmpty: '#a89060',
+    cardShadowStack: '#2a2014',
+    cardBorder3D: '#2a2014',
   },
 };
 
@@ -64,6 +72,7 @@ export const radii = {
   sm: 6,
   md: 10,
   lg: 16,
+  xl: 20,
 };
 
 export function coverShadow(themeName: ThemeName): string {

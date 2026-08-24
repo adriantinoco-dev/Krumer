@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
+import { FavoriteBadge } from './FavoriteBadge';
 import { VolumeBadge } from './VolumeBadge';
 import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import { coverShadow, serifFont, spacing } from '../theme';
 
 const COVER_RADIUS = 10;
+const COVER_ASPECT_RATIO = 193 / 264;
 
 export function BookCard({
   book,
@@ -18,10 +20,20 @@ export function BookCard({
   onPress: () => void;
   onLongPress?: () => void;
 }) {
-  const { theme, t } = useApp();
+  const { lists, theme, t } = useApp();
   const [coverFailed, setCoverFailed] = useState(false);
   const showCover = Boolean(book.coverPath && !coverFailed);
   const coverWidth = Math.max(0, width - spacing.sm * 2);
+  const progressPct = Math.max(0, Math.min(100, book.isRead ? 100 : (book.progressPct ?? 0)));
+
+  const favoriteList = lists.find((l) => l.isDefault || l.name === 'Favoritos');
+  const isFavorite = Boolean(
+    favoriteList && (
+      favoriteList.bookFingerprints.includes(book.fingerprint) ||
+      book.children?.some((c) => favoriteList.bookFingerprints.includes(c.fingerprint))
+    )
+  );
+
   const placeholderBackground = {
     dark: '#2d2d2d',
     light: '#ececec',
@@ -43,12 +55,13 @@ export function BookCard({
         <View
           style={{
             alignItems: 'center',
-            aspectRatio: 5 / 7,
+            aspectRatio: COVER_ASPECT_RATIO,
             backgroundColor: placeholderBackground,
             borderRadius: COVER_RADIUS,
             boxShadow: coverShadow(theme.name),
             justifyContent: 'center',
             overflow: 'hidden',
+            position: 'relative',
             width: coverWidth,
           }}
         >
@@ -75,6 +88,31 @@ export function BookCard({
             >
               {book.title}
             </Text>
+          )}
+
+          {/* Favorite Badge (top: 7, left: 7 with pop animation) */}
+          <FavoriteBadge isFavorite={isFavorite} />
+
+          {/* Bottom Progress Bar */}
+          {progressPct > 0 && (
+            <View
+              style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.15)',
+                bottom: 0,
+                height: 6,
+                left: 0,
+                position: 'absolute',
+                right: 0,
+              }}
+            >
+              <View
+                style={{
+                  backgroundColor: theme.accent,
+                  height: '100%',
+                  width: `${progressPct}%`,
+                }}
+              />
+            </View>
           )}
         </View>
         <VolumeBadge count={book.childrenCount} />

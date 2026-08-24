@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
-import { useApp } from '../context/AppContext';
+import { FavoriteBadge } from './FavoriteBadge';
 import { VolumeBadge } from './VolumeBadge';
+import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import { coverShadow, serifFont, spacing } from '../theme';
 
 const COVER_RADIUS = 10;
 const CARD_WIDTH = 140;
-const COVER_HEIGHT = 196;
+const COVER_HEIGHT = Math.round(CARD_WIDTH / (193 / 264)); // 191px
 
 export function BookCardContinue({
   book,
@@ -18,9 +19,19 @@ export function BookCardContinue({
   onPress: () => void;
   onLongPress?: () => void;
 }) {
-  const { theme, t } = useApp();
+  const { lists, theme, t } = useApp();
   const [coverFailed, setCoverFailed] = useState(false);
   const showCover = Boolean(book.coverPath && !coverFailed);
+  const progressPct = Math.max(0, Math.min(100, book.isRead ? 100 : (book.progressPct ?? 0)));
+
+  const favoriteList = lists.find((l) => l.isDefault || l.name === 'Favoritos');
+  const isFavorite = Boolean(
+    favoriteList && (
+      favoriteList.bookFingerprints.includes(book.fingerprint) ||
+      book.children?.some((c) => favoriteList.bookFingerprints.includes(c.fingerprint))
+    )
+  );
+
   const placeholderBackground = {
     dark: '#2d2d2d',
     light: '#ececec',
@@ -48,6 +59,7 @@ export function BookCardContinue({
             height: COVER_HEIGHT,
             justifyContent: 'center',
             overflow: 'hidden',
+            position: 'relative',
             width: CARD_WIDTH,
           }}
         >
@@ -74,6 +86,31 @@ export function BookCardContinue({
             >
               {book.title}
             </Text>
+          )}
+
+          {/* Favorite Badge (top: 7, left: 7 with pop animation) */}
+          <FavoriteBadge isFavorite={isFavorite} />
+
+          {/* Bottom Progress Bar */}
+          {progressPct > 0 && (
+            <View
+              style={{
+                backgroundColor: 'rgba(0, 0, 0, 0.15)',
+                bottom: 0,
+                height: 6,
+                left: 0,
+                position: 'absolute',
+                right: 0,
+              }}
+            >
+              <View
+                style={{
+                  backgroundColor: theme.accent,
+                  height: '100%',
+                  width: `${progressPct}%`,
+                }}
+              />
+            </View>
           )}
         </View>
         <VolumeBadge count={book.childrenCount} />
