@@ -28,6 +28,7 @@ function MainTabs() {
   return (
     <Tabs.Navigator
       initialRouteName="Library"
+      sceneContainerStyle={{ backgroundColor: theme.bg }}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.accent,
@@ -115,7 +116,13 @@ function AppShell() {
 
   return (
     <NavigationContainer theme={navigationTheme}>
-      <Stack.Navigator screenOptions={{ headerTintColor: theme.accent, headerStyle: { backgroundColor: theme.bg } }}>
+      <Stack.Navigator
+        screenOptions={{
+          contentStyle: { backgroundColor: theme.bg },
+          headerTintColor: theme.accent,
+          headerStyle: { backgroundColor: theme.bg },
+        }}
+      >
         <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
         <Stack.Screen name="ListDetail" component={ListDetailScreen} options={{ headerShown: false }} />
         <Stack.Screen name="BookDetail" component={BookDetailScreen} options={{ headerShown: false }} />

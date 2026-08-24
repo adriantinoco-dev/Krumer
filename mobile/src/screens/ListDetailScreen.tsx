@@ -147,8 +147,8 @@ export function ListDetailScreen({ navigation, route }: Props) {
     if (!collection.listId || collection.isFixed) return;
     const idToDelete = collection.listId;
     setDeleting(false);
-    await deleteList(idToDelete);
     navigation.goBack();
+    await deleteList(idToDelete);
   };
 
   const searchableBooks = useMemo(() => {
@@ -355,7 +355,7 @@ export function ListDetailScreen({ navigation, route }: Props) {
       </Modal>
 
       {/* Modal: Manage Books in List */}
-      <Modal animationType="slide" onRequestClose={() => setManagingBooks(false)} transparent visible={managingBooks}>
+      <Modal animationType="slide" onRequestClose={() => setManagingBooks(false)} visible={managingBooks}>
         <SafeAreaView edges={['top']} style={{ backgroundColor: theme.bg, flex: 1 }}>
           <View
             style={{

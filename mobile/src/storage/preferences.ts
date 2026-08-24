@@ -11,6 +11,7 @@ export type MobilePreferences = {
   theme: ThemeName;
   libraryFolder: string | null;
   geminiApiKey: string | null;
+  cardViewMode?: '2d' | '3d';
 };
 
 const KEYS = {
@@ -25,6 +26,7 @@ export const defaultPreferences: MobilePreferences = {
   theme: 'dark',
   libraryFolder: null,
   geminiApiKey: null,
+  cardViewMode: '3d',
 };
 
 export async function loadPreferences(): Promise<MobilePreferences> {
