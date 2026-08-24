@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Modal,
@@ -67,7 +67,17 @@ export function ListsScreen({ navigation }: Props) {
   const [managingBooks, setManagingBooks] = useState(false);
   const [bookSearchQuery, setBookSearchQuery] = useState('');
 
-  const allBooks = useMemo(() => flattenBooks(books), [books]);
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('tabPress', () => {
+      setActiveCollectionKey(null);
+      setCreating(false);
+      setRenaming(false);
+      setDeleting(false);
+      setManagingBooks(false);
+    });
+
+    return unsubscribe;
+  }, [navigation]);
 
   const collections = useMemo<CollectionItem[]>(() => {
     const favoriteList = lists.find((l) => l.isDefault || l.name === 'Favoritos');
@@ -78,7 +88,11 @@ export function ListsScreen({ navigation }: Props) {
         listId: favoriteList?.id || 'favorites',
         title: t('lists.favorites'),
         books: favoriteList
-          ? allBooks.filter((book) => favoriteList.bookFingerprints.includes(book.fingerprint))
+          ? books.filter((book) => {
+              if (favoriteList.bookFingerprints.includes(book.fingerprint)) return true;
+              if (book.children?.some((c) => favoriteList.bookFingerprints.includes(c.fingerprint))) return true;
+              return false;
+            })
           : [],
         isFixed: true,
         isFavorite: true,
@@ -92,13 +106,13 @@ export function ListsScreen({ navigation }: Props) {
       {
         key: 'read',
         title: t('lists.read'),
-        books: allBooks.filter((book) => (book.progressPct ?? 0) >= 100 || book.isRead),
+        books: books.filter((book) => (book.progressPct ?? 0) >= 100 || book.isRead),
         isFixed: true,
       },
       {
         key: 'unread',
         title: t('lists.unread'),
-        books: allBooks.filter((book) => (book.progressPct ?? 0) === 0 && !book.isRead),
+        books: books.filter((book) => (book.progressPct ?? 0) < 100 && !book.isRead),
         isFixed: true,
       },
     ];
@@ -109,12 +123,16 @@ export function ListsScreen({ navigation }: Props) {
         key: l.id,
         listId: l.id,
         title: l.name,
-        books: allBooks.filter((book) => l.bookFingerprints.includes(book.fingerprint)),
+        books: books.filter((book) => {
+          if (l.bookFingerprints.includes(book.fingerprint)) return true;
+          if (book.children?.some((c) => l.bookFingerprints.includes(c.fingerprint))) return true;
+          return false;
+        }),
         isFixed: false,
       }));
 
     return [...result, ...custom];
-  }, [allBooks, books, lists, t]);
+  }, [books, lists, t]);
 
   const activeCollection = useMemo(() => {
     if (!activeCollectionKey) return null;
@@ -152,13 +170,20 @@ export function ListsScreen({ navigation }: Props) {
 
   const searchableBooks = useMemo(() => {
     const term = bookSearchQuery.trim().toLowerCase();
-    if (!term) return allBooks;
-    return allBooks.filter(
+    if (!term) return books;
+    return books.filter(
       (b) =>
         b.title.toLowerCase().includes(term) ||
-        (b.author ?? '').toLowerCase().includes(term),
+        (b.author ?? '').toLowerCase().includes(term) ||
+        Boolean(
+          b.children?.some(
+            (c) =>
+              c.title.toLowerCase().includes(term) ||
+              (c.author ?? '').toLowerCase().includes(term),
+          ),
+        ),
     );
-  }, [allBooks, bookSearchQuery]);
+  }, [books, bookSearchQuery]);
 
   const formattedCollections = useMemo(() => {
     if (collections.length % listNumColumns === 0) return collections;
@@ -178,204 +203,165 @@ export function ListsScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView edges={['top']} style={{ backgroundColor: theme.bg, flex: 1 }}>
-      {/* Top Bar / Header */}
-      <View
-        style={{
-          alignItems: 'center',
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          padding: spacing.md,
-        }}
-      >
-        <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 26 }}>
-          {t('lists.title')}
-        </Text>
-        <Pressable hitSlop={10} onPress={() => setCreating(true)}>
-          <Plus color={theme.accent} size={24} />
-        </Pressable>
-      </View>
-
-      {/* Main List Cards Grid */}
-      {collections.every((collection) => collection.books.length === 0 && collection.isFixed && collections.length === 4) ? (
-        <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center', padding: spacing.xl }}>
-          <ListIcon color={theme.textSecondary} size={56} strokeWidth={1.2} />
-          <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 17, marginTop: spacing.md }}>
-            {t('lists.empty')}
-          </Text>
-          <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, marginTop: spacing.sm, textAlign: 'center' }}>
-            {t('lists.emptyHint')}
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          columnWrapperStyle={{ gap: spacing.md }}
-          contentContainerStyle={{ gap: spacing.md, padding: spacing.md, paddingBottom: spacing.xl }}
-          data={formattedCollections}
-          key={listNumColumns}
-          keyExtractor={(item) => item.key}
-          numColumns={listNumColumns}
-          renderItem={({ item }) => {
-            if ((item as any).isSpacer) {
-              return <View style={{ flex: 1 }} />;
-            }
-            return (
-              <View style={{ flex: 1 }}>
-                <ListCard
-                  title={item.title}
-                  books={item.books}
-                  onPress={() => setActiveCollectionKey(item.key)}
-                />
-              </View>
-            );
-          }}
-        />
-      )}
-
-      {/* Modal: Create List */}
-      <Modal transparent animationType="fade" visible={creating} onRequestClose={() => setCreating(false)}>
-        <Pressable
-          onPress={() => setCreating(false)}
-          style={{ alignItems: 'center', backgroundColor: '#00000088', flex: 1, justifyContent: 'center', padding: spacing.lg }}
-        >
-          <Pressable
-            onPress={(event) => event.stopPropagation()}
+      {activeCollection ? (
+        /* Active Collection View */
+        <View style={{ flex: 1 }}>
+          {/* Header of Detail */}
+          <View
             style={{
-              backgroundColor: theme.card,
-              borderColor: theme.border,
-              borderRadius: 12,
-              borderWidth: 1,
+              alignItems: 'center',
+              borderBottomColor: theme.border,
+              borderBottomWidth: 1,
+              flexDirection: 'row',
               gap: spacing.md,
-              padding: spacing.lg,
-              width: '100%',
+              padding: spacing.md,
             }}
           >
-            <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 18 }}>{t('lists.create')}</Text>
-            <TextInput
-              autoFocus
-              onChangeText={setCreateName}
-              onSubmitEditing={handleCreateList}
-              placeholder={t('lists.namePlaceholder')}
-              placeholderTextColor={theme.textMuted}
-              style={{ borderColor: theme.border, borderRadius: 8, borderWidth: 1, color: theme.textPrimary, padding: spacing.md }}
-              value={createName}
-            />
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.md, marginTop: spacing.sm }}>
-              <Pressable onPress={() => setCreating(false)} style={{ padding: spacing.sm }}>
-                <Text style={{ color: theme.textSecondary, fontFamily: serifFont }}>{t('common.cancel')}</Text>
-              </Pressable>
-              <Pressable onPress={handleCreateList} style={{ backgroundColor: theme.accent, borderRadius: 6, paddingHorizontal: spacing.md, paddingVertical: spacing.sm }}>
-                <Text style={{ color: '#ffffff', fontFamily: serifFont, fontWeight: '600' }}>{t('common.save')}</Text>
-              </Pressable>
+            <Pressable hitSlop={10} onPress={() => setActiveCollectionKey(null)}>
+              <ArrowLeft color={theme.textPrimary} size={24} />
+            </Pressable>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 20, fontWeight: '700' }} numberOfLines={1}>
+                {activeCollection.title}
+              </Text>
+              <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12 }}>
+                {activeCollection.books.length} {t('lists.books')}
+              </Text>
             </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
 
-      {/* Detail Modal / Screen for Active Collection */}
-      <Modal visible={Boolean(activeCollection)} animationType="slide" onRequestClose={() => setActiveCollectionKey(null)}>
-        {activeCollection && (
-          <SafeAreaView edges={['top']} style={{ backgroundColor: theme.bg, flex: 1 }}>
-            {/* Header of Detail */}
-            <View
-              style={{
-                alignItems: 'center',
-                borderBottomColor: theme.border,
-                borderBottomWidth: 1,
-                flexDirection: 'row',
-                gap: spacing.md,
-                padding: spacing.md,
-              }}
-            >
-              <Pressable hitSlop={10} onPress={() => setActiveCollectionKey(null)}>
-                <ArrowLeft color={theme.textPrimary} size={24} />
+            {/* Options for Custom Lists or Favorites */}
+            {(!activeCollection.isFixed || activeCollection.isFavorite) && (
+              <Pressable
+                hitSlop={10}
+                onPress={() => {
+                  setBookSearchQuery('');
+                  setManagingBooks(true);
+                }}
+                style={{ padding: 4 }}
+              >
+                <PlusCircle color={theme.accent} size={22} />
               </Pressable>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 20, fontWeight: '700' }} numberOfLines={1}>
-                  {activeCollection.title}
-                </Text>
-                <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12 }}>
-                  {activeCollection.books.length} {t('lists.books')}
-                </Text>
-              </View>
+            )}
 
-              {/* Options for Custom Lists or Favorites */}
-              {(!activeCollection.isFixed || activeCollection.isFavorite) && (
+            {!activeCollection.isFixed && (
+              <>
                 <Pressable
                   hitSlop={10}
+                  onPress={() => {
+                    setRenameName(activeCollection.title);
+                    setRenaming(true);
+                  }}
+                  style={{ padding: 4 }}
+                >
+                  <Edit2 color={theme.textSecondary} size={20} />
+                </Pressable>
+                <Pressable hitSlop={10} onPress={() => setDeleting(true)} style={{ padding: 4 }}>
+                  <Trash2 color="#ef4444" size={20} />
+                </Pressable>
+              </>
+            )}
+          </View>
+
+          {/* Book list inside detail */}
+          {activeCollection.books.length === 0 ? (
+            <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center', padding: spacing.xl }}>
+              <ListIcon color={theme.textSecondary} size={48} strokeWidth={1.2} />
+              <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 16, marginTop: spacing.md }}>
+                {t('lists.emptyList')}
+              </Text>
+              {(!activeCollection.isFixed || activeCollection.isFavorite) && (
+                <Pressable
                   onPress={() => {
                     setBookSearchQuery('');
                     setManagingBooks(true);
                   }}
-                  style={{ padding: 4 }}
+                  style={{ backgroundColor: theme.card, borderColor: theme.border, borderRadius: 8, borderWidth: 1, marginTop: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md }}
                 >
-                  <PlusCircle color={theme.accent} size={22} />
+                  <Text style={{ color: theme.accent, fontFamily: serifFont, fontSize: 14, fontWeight: '600' }}>
+                    {t('lists.manageBooks')}
+                  </Text>
                 </Pressable>
               )}
-
-              {!activeCollection.isFixed && (
-                <>
-                  <Pressable
-                    hitSlop={10}
-                    onPress={() => {
-                      setRenameName(activeCollection.title);
-                      setRenaming(true);
-                    }}
-                    style={{ padding: 4 }}
-                  >
-                    <Edit2 color={theme.textSecondary} size={20} />
-                  </Pressable>
-                  <Pressable hitSlop={10} onPress={() => setDeleting(true)} style={{ padding: 4 }}>
-                    <Trash2 color="#ef4444" size={20} />
-                  </Pressable>
-                </>
-              )}
             </View>
+          ) : (
+            <FlatList
+              contentContainerStyle={{ paddingTop: spacing.md, paddingBottom: spacing.xl }}
+              data={activeCollection.books}
+              key={numColumns}
+              keyExtractor={(item) => item.id}
+              numColumns={numColumns}
+              renderItem={({ item }) => (
+                <BookCard
+                  book={item}
+                  width={cardWidth}
+                  onPress={() => handleOpenBookDetail(item)}
+                  onLongPress={() => {
+                    if (activeCollection.listId) {
+                      void toggleBookInList(activeCollection.listId, item.fingerprint);
+                    }
+                  }}
+                />
+              )}
+            />
+          )}
+        </View>
+      ) : (
+        /* Main Lists Overview */
+        <View style={{ flex: 1 }}>
+          {/* Top Bar / Header */}
+          <View
+            style={{
+              alignItems: 'center',
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              padding: spacing.md,
+            }}
+          >
+            <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 26 }}>
+              {t('lists.title')}
+            </Text>
+            <Pressable hitSlop={10} onPress={() => setCreating(true)}>
+              <Plus color={theme.accent} size={24} />
+            </Pressable>
+          </View>
 
-            {/* Book list inside detail */}
-            {activeCollection.books.length === 0 ? (
-              <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center', padding: spacing.xl }}>
-                <ListIcon color={theme.textSecondary} size={48} strokeWidth={1.2} />
-                <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 16, marginTop: spacing.md }}>
-                  {t('lists.emptyList')}
-                </Text>
-                {(!activeCollection.isFixed || activeCollection.isFavorite) && (
-                  <Pressable
-                    onPress={() => {
-                      setBookSearchQuery('');
-                      setManagingBooks(true);
-                    }}
-                    style={{ backgroundColor: theme.card, borderColor: theme.border, borderRadius: 8, borderWidth: 1, marginTop: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md }}
-                  >
-                    <Text style={{ color: theme.accent, fontFamily: serifFont, fontSize: 14, fontWeight: '600' }}>
-                      {t('lists.manageBooks')}
-                    </Text>
-                  </Pressable>
-                )}
-              </View>
-            ) : (
-              <FlatList
-                contentContainerStyle={{ paddingTop: spacing.md, paddingBottom: spacing.xl }}
-                data={activeCollection.books}
-                key={numColumns}
-                keyExtractor={(item) => item.id}
-                numColumns={numColumns}
-                renderItem={({ item }) => (
-                  <BookCard
-                    book={item}
-                    width={cardWidth}
-                    onPress={() => handleOpenBookDetail(item)}
-                    onLongPress={() => {
-                      if (activeCollection.listId) {
-                        void toggleBookInList(activeCollection.listId, item.fingerprint);
-                      }
-                    }}
-                  />
-                )}
-              />
-            )}
-          </SafeAreaView>
-        )}
-      </Modal>
+          {/* Main List Cards Grid */}
+          {collections.every((collection) => collection.books.length === 0 && collection.isFixed && collections.length === 4) ? (
+            <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center', padding: spacing.xl }}>
+              <ListIcon color={theme.textSecondary} size={56} strokeWidth={1.2} />
+              <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 17, marginTop: spacing.md }}>
+                {t('lists.empty')}
+              </Text>
+              <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, marginTop: spacing.sm, textAlign: 'center' }}>
+                {t('lists.emptyHint')}
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              columnWrapperStyle={{ gap: spacing.md }}
+              contentContainerStyle={{ gap: spacing.md, padding: spacing.md, paddingBottom: spacing.xl }}
+              data={formattedCollections}
+              key={listNumColumns}
+              keyExtractor={(item) => item.key}
+              numColumns={listNumColumns}
+              renderItem={({ item }) => {
+                if ((item as any).isSpacer) {
+                  return <View style={{ flex: 1 }} />;
+                }
+                return (
+                  <View style={{ flex: 1 }}>
+                    <ListCard
+                      title={item.title}
+                      books={item.books}
+                      onPress={() => setActiveCollectionKey(item.key)}
+                    />
+                  </View>
+                );
+              }}
+            />
+          )}
+        </View>
+      )}
 
       {/* Modal: Rename List */}
       <Modal transparent animationType="fade" visible={renaming} onRequestClose={() => setRenaming(false)}>
@@ -547,8 +533,4 @@ export function ListsScreen({ navigation }: Props) {
       </Modal>
     </SafeAreaView>
   );
-}
-
-function flattenBooks(books: Book[]): Book[] {
-  return books.flatMap((book) => [book, ...flattenBooks(book.children ?? [])]);
 }

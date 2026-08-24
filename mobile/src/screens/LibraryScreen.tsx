@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FlatList, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -25,6 +25,13 @@ export function LibraryScreen({ navigation }: Props) {
 
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('recent');
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('tabPress', () => {
+      setQuery('');
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const numColumns = width >= TABLET_BREAKPOINT ? 5 : 3;
   const cardWidth = width / numColumns;
