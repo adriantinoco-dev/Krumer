@@ -113,7 +113,7 @@ export function LibraryScreen({ navigation }: Props) {
             onSortChange={setSort}
           />
         }
-        contentContainerStyle={{ flexGrow: 1, paddingBottom: 80 }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 96 }}
         data={filteredBooks}
         key={numColumns}
         keyExtractor={(item) => item.id}

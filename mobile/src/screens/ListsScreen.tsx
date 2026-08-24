@@ -285,7 +285,7 @@ export function ListsScreen({ navigation }: Props) {
             </View>
           ) : (
             <FlatList
-              contentContainerStyle={{ paddingTop: spacing.md, paddingBottom: 80 }}
+              contentContainerStyle={{ paddingTop: spacing.md, paddingBottom: 96 }}
               data={activeCollection.books}
               key={numColumns}
               keyExtractor={(item) => item.id}
@@ -339,7 +339,7 @@ export function ListsScreen({ navigation }: Props) {
           ) : (
             <FlatList
               columnWrapperStyle={{ gap: spacing.md }}
-              contentContainerStyle={{ gap: spacing.md, padding: spacing.md, paddingBottom: 80 }}
+              contentContainerStyle={{ gap: spacing.md, padding: spacing.md, paddingBottom: 96 }}
               data={formattedCollections}
               key={listNumColumns}
               keyExtractor={(item) => item.key}
