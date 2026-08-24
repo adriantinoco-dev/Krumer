@@ -8,6 +8,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Alterado
+- **Mobile — Ícone estilizado de idioma em badges sobrepostas (文A) (Android):** reformulação do componente [`LanguageIcon.tsx`](file:///c:/Projects/Krumer%20RN/mobile/src/components/LanguageIcon.tsx) com visual premium de badges geométricas com cantos arredondados, preenchimento translúcido com profundidade em camadas e tipografia nítida ("文" e "A"), integrado ao [`LangPicker.tsx`](file:///c:/Projects/Krumer%20RN/mobile/src/components/LangPicker.tsx).
+- **Mobile — Centralização e ajuste vertical das telas de detalhes de configuração (Android):** em `SettingsGroupScreen`, o título do menu permanece fixado no topo, enquanto o conteúdo interativo de cada submenu (Conta, Geral, Tema, Chave de API e Sobre) é centralizado horizontalmente (`alignItems: 'center'`, `maxWidth: 460`) e posicionado ~10% acima do centro da tela (`justifyContent: 'center'`, `paddingBottom: Math.round(height * 0.18)`), mantendo o layout limpo e ergonômico.
+- **Mobile — Animações e Transições Fluidas de Entrada/Saída na Janela de Detalhes da Lista (Android):** refatoração da visualização de detalhes de lista (`ListDetailScreen`) para uma rota de navegação nativa dedicada (`createNativeStackNavigator`). Foram eliminadas as travas e saltos secos de renderização causados pela troca síncrona de estado interno na aba `ListsScreen`, proporcionando animações nativas a 60/120fps tanto na abertura quanto no fechamento, com suporte completo ao botão de voltar nativo do Android e gestos do sistema.
 - **Mobile — Paridade do BookCard com BookCardContinue (Android):** o componente `BookCard` foi harmonizado para seguir a mesma estrutura, proporções (5:7), raio de capa (`COVER_RADIUS = 10`), tipografia do fallback e hierarquia de espaçamentos do `BookCardContinue`, mantendo alinhamento consistente e uniforme em todas as telas de grade da biblioteca e listas.
 - **Mobile — Botões redondos sem borda com fundo do tema nos detalhes do livro (Android):** na tela `BookDetailScreen`, os botões superiores flutuantes circulares (voltar, favoritos e opções) e o container de avaliação por estrelas não possuem mais bordas e agora utilizam exatamente a cor de fundo do tema ativo (`theme.bg`): `#111111` no tema escuro (Dark), `#ffffff` no tema claro (White/Light) e `#f4ecd8ff` no tema Sépia.
 - **Botões na barra superior / cabeçalho na cor padrão (laranja):** botões de ação e navegação do topo (ordenar, adicionar lista, etc.) padronizados com a cor de destaque do aplicativo (`theme.accent` / `#f97316`).
@@ -159,4 +162,5 @@ Ao lançar uma nova versão:
 1. Renomeie [Unreleased] para [X.Y.Z] com a data
 2. Crie novo bloco [Unreleased] vazio no topo
 3. Use: feat → Adicionado, fix → Corrigido, refactor → Alterado, chore → Infraestrutura
+-->
 -->

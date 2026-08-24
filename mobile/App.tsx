@@ -9,6 +9,7 @@ import { AppProvider, useApp } from './src/context/AppContext';
 import { AuthProvider } from './src/context/AuthContext';
 import { BookDetailScreen } from './src/screens/BookDetailScreen';
 import { LibraryScreen } from './src/screens/LibraryScreen';
+import { ListDetailScreen } from './src/screens/ListDetailScreen';
 import { ListsScreen } from './src/screens/ListsScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { ReaderScreen } from './src/screens/ReaderScreen';
@@ -116,6 +117,7 @@ function AppShell() {
     <NavigationContainer theme={navigationTheme}>
       <Stack.Navigator screenOptions={{ headerTintColor: theme.accent, headerStyle: { backgroundColor: theme.bg } }}>
         <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
+        <Stack.Screen name="ListDetail" component={ListDetailScreen} options={{ headerShown: false }} />
         <Stack.Screen name="BookDetail" component={BookDetailScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Reader" component={ReaderScreen} options={{ headerShown: false }} />
         <Stack.Screen name="SettingsGroup" component={SettingsGroupScreen} options={{ title: '' }} />

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
-import { Check, ChevronRight, Globe, X } from 'lucide-react-native';
+import { Check, ChevronRight, X } from 'lucide-react-native';
+import { LanguageIcon } from './LanguageIcon';
 import { useApp } from '../context/AppContext';
 import { languages, type LanguageCode } from '../i18n/translations';
 import { radii, serifFont, spacing } from '../theme';
@@ -26,8 +27,8 @@ export function LangPickerButton() {
           paddingVertical: spacing.sm,
         }}
       >
-        <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
-          <Globe color={theme.accent} size={17} />
+        <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm + 2 }}>
+          <LanguageIcon color={theme.accent} size={20} />
           <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 15 }}>{current.name}</Text>
         </View>
         <ChevronRight color={theme.textSecondary} size={18} />
