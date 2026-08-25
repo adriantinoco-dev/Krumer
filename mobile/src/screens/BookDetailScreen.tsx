@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Image,
   Modal,
   Pressable,
@@ -108,6 +109,23 @@ export function BookDetailScreen({ navigation, route }: Props) {
     () => (book.parentId ? findBookById(books, book.parentId) : null),
     [books, book.parentId],
   );
+
+  const animatedProgress = useRef(new Animated.Value(0)).current;
+  const prevProgressPctRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const target = Math.max(0, Math.min(100, book.progressPct ?? 0));
+    const isFirst = prevProgressPctRef.current === null;
+    const prev = isFirst ? 0 : prevProgressPctRef.current;
+    prevProgressPctRef.current = target;
+
+    animatedProgress.setValue(prev);
+    Animated.timing(animatedProgress, {
+      toValue: target,
+      duration: isFirst ? 600 : 500,
+      useNativeDriver: false,
+    }).start();
+  }, [book.id, book.progressPct]);
 
   const handleToggleRead = async () => {
     const nextIsRead = !book.isRead;
@@ -595,11 +613,14 @@ export function BookDetailScreen({ navigation, route }: Props) {
                 marginTop: 4,
               }}
             >
-              <View
+              <Animated.View
                 style={{
                   backgroundColor: accentColor,
                   height: '100%',
-                  width: `${Math.max(0, Math.min(100, book.progressPct ?? 0))}%`,
+                  width: animatedProgress.interpolate({
+                    inputRange: [0, 100],
+                    outputRange: ['0%', '100%'],
+                  }),
                 }}
               />
             </View>
