@@ -499,41 +499,14 @@ export function ListDetailScreen({ navigation, route }: Props) {
                   const isSelected = collection.books.some((b) => b.fingerprint === item.fingerprint);
 
                   return (
-                    <View style={{ position: 'relative', width: cardWidth }}>
-                      <BookCard
-                        book={item}
-                        onPress={() => {
-                          void toggleBookInList(collection.listId!, item.fingerprint);
-                        }}
-                        width={cardWidth}
-                      />
-                      <Pressable
-                        onPress={() => {
-                          void toggleBookInList(collection.listId!, item.fingerprint);
-                        }}
-                        style={{
-                          alignItems: 'center',
-                          backgroundColor: isSelected ? theme.accent : 'rgba(0,0,0,0.4)',
-                          borderColor: isSelected ? '#ffffff' : theme.border,
-                          borderRadius: 14,
-                          borderWidth: 1.5,
-                          elevation: 4,
-                          height: 28,
-                          justifyContent: 'center',
-                          position: 'absolute',
-                          right: spacing.sm + 6,
-                          shadowColor: '#000',
-                          shadowOffset: { width: 0, height: 2 },
-                          shadowOpacity: 0.25,
-                          shadowRadius: 3.84,
-                          top: spacing.sm + 6,
-                          width: 28,
-                          zIndex: 10,
-                        }}
-                      >
-                        {isSelected && <View style={{ backgroundColor: '#ffffff', borderRadius: 4, height: 18, width: 18 }} />}
-                      </Pressable>
-                    </View>
+                    <BookCard
+                      book={item}
+                      onPress={() => {
+                        void toggleBookInList(collection.listId!, item.fingerprint);
+                      }}
+                      selected={isSelected}
+                      width={cardWidth}
+                    />
                   );
                 }}
               />

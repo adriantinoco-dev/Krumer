@@ -32,6 +32,7 @@ export function BookListModal({ book, visible, onClose }: Props) {
 
   const [mounted, setMounted] = useState(visible && book !== null);
   const [isClosing, setIsClosing] = useState(false);
+  const [renderedBook, setRenderedBook] = useState<Book | null>(book);
 
   const backdropAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(450)).current;
@@ -41,8 +42,16 @@ export function BookListModal({ book, visible, onClose }: Props) {
 
   useEffect(() => {
     if (visible && book) {
-      setIsClosing(false);
+      setRenderedBook(book);
       setMounted(true);
+    }
+  }, [visible, book]);
+
+  useEffect(() => {
+    if (!mounted) return;
+
+    if (visible && renderedBook) {
+      setIsClosing(false);
 
       backdropAnim.stopAnimation();
       slideAnim.stopAnimation();
@@ -56,7 +65,7 @@ export function BookListModal({ book, visible, onClose }: Props) {
         }),
         Animated.timing(slideAnim, {
           toValue: 0,
-          duration: 220,
+          duration: 520,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
@@ -69,13 +78,13 @@ export function BookListModal({ book, visible, onClose }: Props) {
       Animated.parallel([
         Animated.timing(backdropAnim, {
           toValue: 0,
-          duration: 140,
+          duration: 220,
           easing: Easing.in(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(slideAnim, {
           toValue: 450,
-          duration: 160,
+          duration: 300,
           easing: Easing.in(Easing.cubic),
           useNativeDriver: true,
         }),
@@ -83,18 +92,19 @@ export function BookListModal({ book, visible, onClose }: Props) {
         if (finished) {
           setMounted(false);
           setIsClosing(false);
+          setRenderedBook(null);
         }
       });
     }
-  }, [visible, mounted]);
+  }, [visible, mounted, renderedBook]);
 
   const handleDismiss = () => {
     onCloseRef.current();
   };
 
-  if (!mounted || !book) return null;
+  if (!mounted || !renderedBook) return null;
 
-  const activeBook = findBookByFingerprint(books, book.fingerprint) ?? book;
+  const activeBook = findBookByFingerprint(books, renderedBook.fingerprint) ?? renderedBook;
 
   const favoriteList = lists.find((l) => l.isDefault || l.name === 'Favoritos');
   const customLists = lists.filter((l) => !l.isDefault && l.name !== 'Favoritos');

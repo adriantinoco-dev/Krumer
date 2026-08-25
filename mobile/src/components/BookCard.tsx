@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Image, Pressable, Text, View } from 'react-native';
+import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Check } from 'lucide-react-native';
 import { FavoriteBadge } from './FavoriteBadge';
 import { VolumeBadge } from './VolumeBadge';
 import { useApp } from '../context/AppContext';
@@ -14,11 +15,13 @@ export function BookCard({
   width,
   onPress,
   onLongPress,
+  selected,
 }: {
   book: Book;
   width: number;
   onPress: () => void;
   onLongPress?: () => void;
+  selected?: boolean;
 }) {
   const { lists, theme, t } = useApp();
   const [coverFailed, setCoverFailed] = useState(false);
@@ -134,6 +137,22 @@ export function BookCard({
               }}
             />
           </View>
+
+          {selected !== undefined && (
+            <View pointerEvents="none" style={styles.selectionOverlay}>
+              <View
+                style={[
+                  styles.selectionIndicator,
+                  {
+                    backgroundColor: selected ? theme.accent : 'rgba(0, 0, 0, 0.35)',
+                    borderColor: selected ? theme.accent : 'rgba(255, 255, 255, 0.85)',
+                  },
+                ]}
+              >
+                {selected && <Check color="#ffffff" size={12} strokeWidth={3} />}
+              </View>
+            </View>
+          )}
         </View>
         <VolumeBadge count={book.childrenCount} />
       </View>
@@ -167,3 +186,19 @@ export function BookCard({
     </Pressable>
   );
 }
+
+const styles = StyleSheet.create({
+  selectionIndicator: {
+    alignItems: 'center',
+    borderRadius: 16,
+    borderWidth: 2,
+    height: 20,
+    justifyContent: 'center',
+    width: 20,
+  },
+  selectionOverlay: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
