@@ -1,8 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
+  BackHandler,
+  Easing,
   FlatList,
   Modal,
   Pressable,
+  StyleSheet,
   Text,
   TextInput,
   useWindowDimensions,
@@ -55,8 +59,73 @@ export function ListDetailScreen({ navigation, route }: Props) {
   const [renameName, setRenameName] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [managingBooks, setManagingBooks] = useState(false);
+  const [manageMounted, setManageMounted] = useState(false);
   const [bookSearchQuery, setBookSearchQuery] = useState('');
   const [longPressBook, setLongPressBook] = useState<Book | null>(null);
+
+  const manageBackdropAnim = useRef(new Animated.Value(0)).current;
+  const manageSlideAnim = useRef(new Animated.Value(900)).current;
+  const manageContentOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (managingBooks) {
+      setManageMounted(true);
+      manageBackdropAnim.stopAnimation();
+      manageSlideAnim.stopAnimation();
+      manageContentOpacity.setValue(0);
+
+      Animated.parallel([
+        Animated.timing(manageBackdropAnim, {
+          toValue: 1,
+          duration: 750,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(manageSlideAnim, {
+          toValue: 0,
+          duration: 750,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(manageContentOpacity, {
+          toValue: 1,
+          duration: 200,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [managingBooks]);
+
+  useEffect(() => {
+    if (!managingBooks) return;
+    const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleManageBooksClose();
+      return true;
+    });
+    return () => handler.remove();
+  }, [managingBooks]);
+
+  const handleManageBooksClose = () => {
+    Animated.parallel([
+      Animated.timing(manageBackdropAnim, {
+        toValue: 0,
+        duration: 750,
+        easing: Easing.in(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.timing(manageSlideAnim, {
+        toValue: 1500,
+        duration: 750,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setManageMounted(false);
+      setManagingBooks(false);
+      setBookSearchQuery('');
+    });
+  };
 
   const collection = useMemo<CollectionData>(() => {
     const favoriteList = lists.find((l) => l.isDefault || l.name === 'Favoritos');
@@ -354,112 +423,124 @@ export function ListDetailScreen({ navigation, route }: Props) {
         </Pressable>
       </Modal>
 
-      {/* Modal: Manage Books in List */}
-      <Modal animationType="slide" onRequestClose={() => setManagingBooks(false)} visible={managingBooks}>
-        <SafeAreaView edges={['top']} style={{ backgroundColor: theme.bg, flex: 1 }}>
-          <View
-            style={{
-              alignItems: 'center',
-              borderBottomColor: theme.border,
-              borderBottomWidth: 1,
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              padding: spacing.md,
-            }}
-          >
-            <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 18, fontWeight: '700' }}>
-              {t('lists.manageBooks')}
-            </Text>
-            <Pressable
-              onPress={() => setManagingBooks(false)}
-              style={{ backgroundColor: theme.accent, borderRadius: 6, paddingHorizontal: spacing.md, paddingVertical: spacing.xs }}
-            >
-              <Text style={{ color: '#ffffff', fontFamily: serifFont, fontWeight: '600' }}>{t('common.done')}</Text>
-            </Pressable>
-          </View>
-
-          {/* Search bar inside manage books */}
-          <View
-            style={{
-              alignItems: 'center',
-              backgroundColor: theme.card,
-              borderColor: theme.border,
-              borderRadius: radii.md,
-              borderWidth: 1,
-              flexDirection: 'row',
-              margin: spacing.md,
-              paddingHorizontal: spacing.md,
-            }}
-          >
-            <Search color={theme.textMuted} size={18} />
-            <TextInput
-              onChangeText={setBookSearchQuery}
-              placeholder={t('library.search')}
-              placeholderTextColor={theme.textMuted}
-              style={{
-                color: theme.textPrimary,
-                flex: 1,
-                fontFamily: serifFont,
-                fontSize: 14,
-                paddingHorizontal: spacing.sm,
-                paddingVertical: spacing.md,
-              }}
-              value={bookSearchQuery}
-            />
-          </View>
-
-          {/* Book Grid selection */}
-          <FlatList
-            contentContainerStyle={{ paddingTop: spacing.xs, paddingBottom: spacing.xl }}
-            data={searchableBooks}
-            key={numColumns}
-            keyExtractor={(item) => item.id}
-            numColumns={numColumns}
-            renderItem={({ item }) => {
-              if (!collection.listId) return null;
-              const isSelected = collection.books.some((b) => b.fingerprint === item.fingerprint);
-
-              return (
-                <View style={{ position: 'relative', width: cardWidth }}>
-                  <BookCard
-                    book={item}
-                    onPress={() => {
-                      void toggleBookInList(collection.listId!, item.fingerprint);
-                    }}
-                    width={cardWidth}
-                  />
-                  <Pressable
-                    onPress={() => {
-                      void toggleBookInList(collection.listId!, item.fingerprint);
-                    }}
-                    style={{
-                      alignItems: 'center',
-                      backgroundColor: isSelected ? theme.accent : 'rgba(0,0,0,0.4)',
-                      borderColor: isSelected ? '#ffffff' : theme.border,
-                      borderRadius: 14,
-                      borderWidth: 1.5,
-                      elevation: 4,
-                      height: 28,
-                      justifyContent: 'center',
-                      position: 'absolute',
-                      right: spacing.sm + 6,
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.25,
-                      shadowRadius: 3.84,
-                      top: spacing.sm + 6,
-                      width: 28,
-                      zIndex: 10,
-                    }}
-                  >
-                    {isSelected && <View style={{ backgroundColor: '#ffffff', borderRadius: 4, height: 18, width: 18 }} />}
-                  </Pressable>
-                </View>
-              );
-            }}
+      {/* Manage Books — custom animated overlay (no RN Modal) */}
+      {manageMounted && (
+        <View style={StyleSheet.absoluteFill} pointerEvents={managingBooks ? 'auto' : 'none'}>
+          <Animated.View
+            style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.55)', opacity: manageBackdropAnim }]}
           />
-        </SafeAreaView>
-      </Modal>
+          <Animated.View
+            style={[StyleSheet.absoluteFill, { opacity: manageContentOpacity, transform: [{ translateY: manageSlideAnim }] }]}
+          >
+            <SafeAreaView edges={['top']} style={{ backgroundColor: theme.bg, flex: 1 }}>
+              <View
+                style={{
+                  alignItems: 'center',
+                  borderBottomColor: theme.border,
+                  borderBottomWidth: 1,
+                  flexDirection: 'row',
+                  gap: spacing.md,
+                  padding: spacing.md,
+                }}
+              >
+                <Pressable hitSlop={10} onPress={handleManageBooksClose}>
+                  <ArrowLeft color={theme.accent} size={24} />
+                </Pressable>
+                <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 18, fontWeight: '700', flex: 1 }}>
+                  {t('lists.manageBooks')}
+                </Text>
+                <Pressable
+                  onPress={handleManageBooksClose}
+                  style={{ backgroundColor: theme.accent, borderRadius: 6, paddingHorizontal: spacing.md, paddingVertical: spacing.xs }}
+                >
+                  <Text style={{ color: '#ffffff', fontFamily: serifFont, fontWeight: '600' }}>{t('common.done')}</Text>
+                </Pressable>
+              </View>
+
+              {/* Search bar inside manage books */}
+              <View
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
+                  borderRadius: radii.md,
+                  borderWidth: 1,
+                  flexDirection: 'row',
+                  margin: spacing.md,
+                  paddingHorizontal: spacing.md,
+                }}
+              >
+                <Search color={theme.textMuted} size={18} />
+                <TextInput
+                  onChangeText={setBookSearchQuery}
+                  placeholder={t('library.search')}
+                  placeholderTextColor={theme.textMuted}
+                  style={{
+                    color: theme.textPrimary,
+                    flex: 1,
+                    fontFamily: serifFont,
+                    fontSize: 14,
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: spacing.md,
+                  }}
+                  value={bookSearchQuery}
+                />
+              </View>
+
+              {/* Book Grid selection */}
+              <FlatList
+                contentContainerStyle={{ paddingTop: spacing.xs, paddingBottom: spacing.xl }}
+                data={searchableBooks}
+                key={numColumns}
+                keyExtractor={(item) => item.id}
+                numColumns={numColumns}
+                renderItem={({ item }) => {
+                  if (!collection.listId) return null;
+                  const isSelected = collection.books.some((b) => b.fingerprint === item.fingerprint);
+
+                  return (
+                    <View style={{ position: 'relative', width: cardWidth }}>
+                      <BookCard
+                        book={item}
+                        onPress={() => {
+                          void toggleBookInList(collection.listId!, item.fingerprint);
+                        }}
+                        width={cardWidth}
+                      />
+                      <Pressable
+                        onPress={() => {
+                          void toggleBookInList(collection.listId!, item.fingerprint);
+                        }}
+                        style={{
+                          alignItems: 'center',
+                          backgroundColor: isSelected ? theme.accent : 'rgba(0,0,0,0.4)',
+                          borderColor: isSelected ? '#ffffff' : theme.border,
+                          borderRadius: 14,
+                          borderWidth: 1.5,
+                          elevation: 4,
+                          height: 28,
+                          justifyContent: 'center',
+                          position: 'absolute',
+                          right: spacing.sm + 6,
+                          shadowColor: '#000',
+                          shadowOffset: { width: 0, height: 2 },
+                          shadowOpacity: 0.25,
+                          shadowRadius: 3.84,
+                          top: spacing.sm + 6,
+                          width: 28,
+                          zIndex: 10,
+                        }}
+                      >
+                        {isSelected && <View style={{ backgroundColor: '#ffffff', borderRadius: 4, height: 18, width: 18 }} />}
+                      </Pressable>
+                    </View>
+                  );
+                }}
+              />
+            </SafeAreaView>
+          </Animated.View>
+        </View>
+      )}
 
       <BookListModal
         book={longPressBook}
