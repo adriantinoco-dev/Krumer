@@ -62,7 +62,7 @@ export function SearchSortBar({ query, sort, onQueryChange, onSortChange }: Prop
       <View
         style={{
           alignItems: 'center',
-          backgroundColor: theme.surface,
+          backgroundColor: theme.cardHover,
           borderColor: theme.border,
           borderRadius: radii.lg,
           borderWidth: 1,
@@ -121,7 +121,7 @@ export function SearchSortBar({ query, sort, onQueryChange, onSortChange }: Prop
         onPress={() => setSortOpen(true)}
         style={({ pressed }) => ({
           alignItems: 'center',
-          backgroundColor: pressed ? theme.cardHover : theme.surface,
+          backgroundColor: pressed ? theme.cardHover : theme.bg,
           borderColor: theme.accent,
           borderRadius: radii.lg,
           borderWidth: 1,

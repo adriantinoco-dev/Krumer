@@ -10,7 +10,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
-import { Check, Heart, List as ListIcon } from 'lucide-react-native';
+import { Heart, List as ListIcon } from 'lucide-react-native';
 import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import { radii, serifFont, spacing } from '../theme';
@@ -220,7 +220,7 @@ export function BookListModal({ book, visible, onClose }: Props) {
                 {t('lists.favorites')}
               </Text>
               {isFavorite && (
-                <Check color={theme.accent} size={16} strokeWidth={2.5} />
+                <View style={{ backgroundColor: theme.accent, borderRadius: 4, height: 16, width: 16 }} />
               )}
             </Pressable>
 
@@ -272,7 +272,7 @@ export function BookListModal({ book, visible, onClose }: Props) {
                     {list.name}
                   </Text>
                   {isInList && (
-                    <Check color={theme.accent} size={16} strokeWidth={2.5} />
+                    <View style={{ backgroundColor: theme.accent, borderRadius: 4, height: 16, width: 16 }} />
                   )}
                 </Pressable>
               );

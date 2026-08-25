@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { Check, FolderOpen } from 'lucide-react-native';
+import { FolderOpen } from 'lucide-react-native';
 import { Directory } from 'expo-file-system';
 import { useApp } from '../context/AppContext';
 import { radii, serifFont, spacing } from '../theme';
@@ -46,7 +46,7 @@ export function FolderPickerField({
           paddingHorizontal: spacing.md,
         }}
       >
-        {value ? <Check color="#ffffff" size={18} /> : <FolderOpen color={theme.accent} size={18} />}
+        <FolderOpen color={value ? '#ffffff' : theme.accent} size={18} />
         <Text style={{ color: value ? '#ffffff' : theme.textPrimary, fontFamily: serifFont, fontSize: 15, fontWeight: '700' }}>
           {t('general.selectFolder')}
         </Text>

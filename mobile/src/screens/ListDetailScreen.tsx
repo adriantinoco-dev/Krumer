@@ -12,7 +12,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import {
   ArrowLeft,
-  Check,
   Edit2,
   List as ListIcon,
   PlusCircle,
@@ -452,7 +451,7 @@ export function ListDetailScreen({ navigation, route }: Props) {
                       zIndex: 10,
                     }}
                   >
-                    {isSelected && <Check color="#ffffff" size={18} strokeWidth={3} />}
+                    {isSelected && <View style={{ backgroundColor: '#ffffff', borderRadius: 4, height: 18, width: 18 }} />}
                   </Pressable>
                 </View>
               );

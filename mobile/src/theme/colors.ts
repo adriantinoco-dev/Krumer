@@ -21,7 +21,7 @@ export const themes: Record<ThemeName, ThemeTokens> = {
   dark: {
     name: 'dark',
     bg: '#111111',
-    surface: '#161616',
+    surface: '#3d3d3dff',
     card: '#202020',
     cardHover: '#262626',
     border: '#2e2e2e',
@@ -37,7 +37,7 @@ export const themes: Record<ThemeName, ThemeTokens> = {
   light: {
     name: 'light',
     bg: '#ffffff',
-    surface: '#f5f5f5',
+    surface: '#b2b2b2ff',
     card: '#ffffff',
     cardHover: '#ececec',
     border: '#e0e0e0',
@@ -53,7 +53,7 @@ export const themes: Record<ThemeName, ThemeTokens> = {
   sepia: {
     name: 'sepia',
     bg: '#f4ecd8ff',
-    surface: '#ece2c8',
+    surface: '#b5ae9eff',
     card: '#f0e6cc',
     cardHover: '#e6dab8',
     border: '#d8c9a3',

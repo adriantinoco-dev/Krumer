@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, Text, View } from 'react-native';
-import { Check, FolderOpen, Sparkles } from 'lucide-react-native';
+import { FolderOpen, Sparkles } from 'lucide-react-native';
 import { useApp } from '../context/AppContext';
 import { radii, serifFont, spacing } from '../theme';
 
@@ -77,7 +77,7 @@ export function FolderPickerField({
             paddingHorizontal: spacing.md,
           }}
         >
-          {hasLocalFolder ? <Check color="#ffffff" size={18} /> : <FolderOpen color={theme.accent} size={18} />}
+          {hasLocalFolder ? <FolderOpen color="#ffffff" size={18} /> : <FolderOpen color={theme.accent} size={18} />}
           <Text
             numberOfLines={1}
             style={{
@@ -115,7 +115,7 @@ export function FolderPickerField({
               fontWeight: '600',
             }}
           >
-            {isDemo ? '✓ Pasta de Demonstração Selecionada' : 'Usar pasta de demonstração (Navegador)'}
+            {isDemo ? 'Pasta de Demonstração Selecionada' : 'Usar pasta de demonstração (Navegador)'}
           </Text>
         </Pressable>
       </View>

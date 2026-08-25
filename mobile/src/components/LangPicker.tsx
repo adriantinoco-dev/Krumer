@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
-import { Check, ChevronRight, X } from 'lucide-react-native';
+import { ChevronRight, X } from 'lucide-react-native';
 import { LanguageIcon } from './LanguageIcon';
 import { useApp } from '../context/AppContext';
 import { languages, type LanguageCode } from '../i18n/translations';
@@ -109,7 +109,7 @@ export function LangPickerModal({ visible, onClose }: { visible: boolean; onClos
                   </View>
                   <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 15 }}>{language.name}</Text>
                 </View>
-                {selected ? <Check color={theme.accent} size={18} /> : <View style={{ width: 18 }} />}
+                {selected ? <View style={{ backgroundColor: theme.accent, borderRadius: 4, height: 18, width: 18 }} /> : <View style={{ width: 18 }} />}
               </Pressable>
             );
           })}

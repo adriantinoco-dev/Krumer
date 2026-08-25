@@ -183,7 +183,7 @@ export function AuthSettings() {
 }
 
 function syncMark(state?: MobileSyncStatus['state']) {
-  return ({ synced: '✓', syncing: '↻', pending: '…', error: '!', offline: '○', signed_out: '○' })[state ?? 'offline'];
+  return ({ synced: '●', syncing: '↻', pending: '…', error: '!', offline: '○', signed_out: '○' })[state ?? 'offline'];
 }
 
 function GoogleButton({ disabled, label, onPress }: { disabled?: boolean; label: string; onPress: () => void }) {

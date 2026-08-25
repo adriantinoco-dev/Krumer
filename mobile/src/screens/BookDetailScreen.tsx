@@ -366,13 +366,6 @@ export function BookDetailScreen({ navigation, route }: Props) {
               )}
             </View>
 
-            {/* Pagination Dots (as in screenshot) */}
-            <View style={{ flexDirection: 'row', gap: 6, marginTop: spacing.md, marginBottom: spacing.xs }}>
-              <View style={{ backgroundColor: heroTextColor, borderRadius: 4, height: 6, width: 6, opacity: 1 }} />
-              <View style={{ backgroundColor: heroTextColor, borderRadius: 4, height: 6, width: 6, opacity: 0.3 }} />
-              <View style={{ backgroundColor: heroTextColor, borderRadius: 4, height: 6, width: 6, opacity: 0.3 }} />
-            </View>
-
             {/* Title */}
             <Text
               style={{
@@ -564,7 +557,9 @@ export function BookDetailScreen({ navigation, route }: Props) {
                   Formato
                 </Text>
                 <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 15, fontWeight: '700', marginTop: 2 }}>
-                  {isSeries ? `${book.children?.length ?? 0} VOL'S` : (book.format ? book.format.toUpperCase() : 'PDF')}
+                  {isSeries
+                    ? [...new Set(book.children?.map((c) => c.format?.toUpperCase()).filter(Boolean))].join('/') || 'PDF'
+                    : (book.format ? book.format.toUpperCase() : 'PDF')}
                 </Text>
               </View>
             </View>
@@ -592,9 +587,9 @@ export function BookDetailScreen({ navigation, route }: Props) {
             {/* Progress track */}
             <View
               style={{
-                backgroundColor: theme.bg,
+                backgroundColor: theme.surface,
                 borderRadius: 4,
-                height: 4,
+                height: 6,
                 overflow: 'hidden',
                 width: '100%',
                 marginTop: 4,
