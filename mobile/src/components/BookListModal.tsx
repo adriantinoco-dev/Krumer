@@ -110,7 +110,12 @@ export function BookListModal({ book, visible, onClose }: Props) {
 
   const isBookRead = activeBook.isRead || (activeBook.progressPct ?? 0) >= 100;
   const handleToggleRead = () => {
-    void updateBookProgress(activeBook.id, { isRead: !isBookRead });
+    onCloseRef.current();
+    const id = activeBook.id;
+    const nextIsRead = !isBookRead;
+    setTimeout(() => {
+      void updateBookProgress(id, { isRead: nextIsRead, progressPct: nextIsRead ? 100 : 0 });
+    }, 200);
   };
 
   return (

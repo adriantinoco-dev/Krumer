@@ -24,23 +24,24 @@ export function BookCard({
   const [coverFailed, setCoverFailed] = useState(false);
   const showCover = Boolean(book.coverPath && !coverFailed);
   const coverWidth = Math.max(0, width - spacing.sm * 2);
-  const progressPct = Math.max(0, Math.min(100, book.isRead ? 100 : (book.progressPct ?? 0)));
 
   const animatedProgress = useRef(new Animated.Value(0)).current;
   const prevProgressPctRef = useRef<number | null>(null);
 
   useEffect(() => {
+    const target = Math.max(0, Math.min(100, book.progressPct ?? 0));
     const isFirst = prevProgressPctRef.current === null;
     const prev = isFirst ? 0 : prevProgressPctRef.current;
-    prevProgressPctRef.current = progressPct;
+    prevProgressPctRef.current = target;
 
-    animatedProgress.setValue(prev ?? 0);
+    const isEntrance = target >= prev;
+    animatedProgress.setValue(prev);
     Animated.timing(animatedProgress, {
-      toValue: progressPct,
-      duration: isFirst ? 600 : 500,
+      toValue: target,
+      duration: isFirst ? 350 : isEntrance ? 350 : 350,
       useNativeDriver: false,
     }).start();
-  }, [progressPct]);
+  }, [book.id, book.progressPct]);
 
   const favoriteList = lists.find((l) => l.isDefault || l.name === 'Favoritos');
   const isFavorite = Boolean(
@@ -110,29 +111,29 @@ export function BookCard({
           <FavoriteBadge isFavorite={isFavorite} />
 
           {/* Bottom Progress Bar */}
-          {progressPct > 0 && (
-            <View
+          <View
+            style={{
+              backgroundColor: 'rgba(0, 0, 0, 0.15)',
+              borderRadius: 4,
+              bottom: 0,
+              height: 6,
+              left: 0,
+              overflow: 'hidden',
+              position: 'absolute',
+              right: 0,
+            }}
+          >
+            <Animated.View
               style={{
-                backgroundColor: 'rgba(0, 0, 0, 0.15)',
-                bottom: 0,
-                height: 6,
-                left: 0,
-                position: 'absolute',
-                right: 0,
+                backgroundColor: theme.accent,
+                height: '100%',
+                width: animatedProgress.interpolate({
+                  inputRange: [0, 100],
+                  outputRange: ['0%', '100%'],
+                }),
               }}
-            >
-              <Animated.View
-                style={{
-                  backgroundColor: theme.accent,
-                  height: '100%',
-                  width: animatedProgress.interpolate({
-                    inputRange: [0, 100],
-                    outputRange: ['0%', '100%'],
-                  }),
-                }}
-              />
-            </View>
-          )}
+            />
+          </View>
         </View>
         <VolumeBadge count={book.childrenCount} />
       </View>
