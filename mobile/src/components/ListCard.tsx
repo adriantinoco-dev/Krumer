@@ -16,7 +16,7 @@ export function ListCard({
 }) {
   const { theme, t } = useApp();
   const preview = books.slice(0, 3);
-  const previewBg = theme.name === 'dark' ? '#18181b' : theme.surface;
+  const previewBg = theme.name === 'dark' ? '#252525' : theme.name === 'light' ? '#f0f0f0' : '#e8ddc0';
 
   return (
     <Pressable
@@ -35,10 +35,8 @@ export function ListCard({
         style={{
           alignItems: 'center',
           backgroundColor: previewBg,
-          borderColor: theme.border,
           borderRadius: radii.sm,
-          borderWidth: 1,
-          height: 80,
+          height: 130,
           justifyContent: 'center',
           overflow: 'hidden',
           position: 'relative',
@@ -56,18 +54,16 @@ export function ListCard({
                 key={book.id}
                 style={{
                   backgroundColor: theme.card,
-                  borderColor: theme.border,
                   borderRadius: 4,
-                  borderWidth: 1,
-                  elevation: 4,
-                  height: 62,
-                  marginLeft: index === 0 ? 0 : -14,
+                  elevation: 5,
+                  height: 100,
+                  marginLeft: index === 0 ? 0 : -12,
                   overflow: 'hidden',
                   shadowColor: '#000',
                   shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 3,
-                  width: 40,
+                  shadowOpacity: 0.4,
+                  shadowRadius: 4,
+                  width: 64,
                   zIndex: 10 - index,
                 }}
               >
@@ -75,7 +71,7 @@ export function ListCard({
                   <Image resizeMode="cover" source={{ uri: book.coverPath }} style={{ height: '100%', width: '100%' }} />
                 ) : (
                   <View style={{ alignItems: 'center', backgroundColor: theme.surface, flex: 1, justifyContent: 'center', padding: 2 }}>
-                    <Text style={{ color: theme.accent, fontFamily: serifFont, fontSize: 8, fontWeight: '800', textTransform: 'uppercase' }}>
+                    <Text style={{ color: theme.accent, fontFamily: serifFont, fontSize: 9, fontWeight: '800', textTransform: 'uppercase' }}>
                       {book.format}
                     </Text>
                   </View>
