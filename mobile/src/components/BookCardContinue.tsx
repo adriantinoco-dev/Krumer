@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Image, Pressable, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Image, Pressable, Text, View } from 'react-native';
 import { FavoriteBadge } from './FavoriteBadge';
 import { VolumeBadge } from './VolumeBadge';
 import { useApp } from '../context/AppContext';
@@ -23,6 +23,22 @@ export function BookCardContinue({
   const [coverFailed, setCoverFailed] = useState(false);
   const showCover = Boolean(book.coverPath && !coverFailed);
   const progressPct = Math.max(0, Math.min(100, book.isRead ? 100 : (book.progressPct ?? 0)));
+
+  const animatedProgress = useRef(new Animated.Value(0)).current;
+  const prevProgressPctRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const isFirst = prevProgressPctRef.current === null;
+    const prev = isFirst ? 0 : prevProgressPctRef.current;
+    prevProgressPctRef.current = progressPct;
+
+    animatedProgress.setValue(prev ?? 0);
+    Animated.timing(animatedProgress, {
+      toValue: progressPct,
+      duration: isFirst ? 600 : 500,
+      useNativeDriver: false,
+    }).start();
+  }, [progressPct]);
 
   const favoriteList = lists.find((l) => l.isDefault || l.name === 'Favoritos');
   const isFavorite = Boolean(
@@ -103,11 +119,14 @@ export function BookCardContinue({
                 right: 0,
               }}
             >
-              <View
+              <Animated.View
                 style={{
                   backgroundColor: theme.accent,
                   height: '100%',
-                  width: `${progressPct}%`,
+                  width: animatedProgress.interpolate({
+                    inputRange: [0, 100],
+                    outputRange: ['0%', '100%'],
+                  }),
                 }}
               />
             </View>

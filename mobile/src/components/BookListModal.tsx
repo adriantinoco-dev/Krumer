@@ -10,7 +10,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
-import { Heart, List as ListIcon } from 'lucide-react-native';
+import { BookOpen, Heart, List as ListIcon } from 'lucide-react-native';
 import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import { radii, serifFont, spacing } from '../theme';
@@ -28,10 +28,9 @@ type Props = {
  * Optimized for snappy consecutive openings without touch blocking.
  */
 export function BookListModal({ book, visible, onClose }: Props) {
-  const { lists, theme, t, toggleBookInList } = useApp();
+  const { books, lists, theme, t, toggleBookInList, updateBookProgress } = useApp();
 
   const [mounted, setMounted] = useState(visible && book !== null);
-  const [activeBook, setActiveBook] = useState<Book | null>(book);
   const [isClosing, setIsClosing] = useState(false);
 
   const backdropAnim = useRef(new Animated.Value(0)).current;
@@ -42,7 +41,6 @@ export function BookListModal({ book, visible, onClose }: Props) {
 
   useEffect(() => {
     if (visible && book) {
-      setActiveBook(book);
       setIsClosing(false);
       setMounted(true);
 
@@ -88,13 +86,15 @@ export function BookListModal({ book, visible, onClose }: Props) {
         }
       });
     }
-  }, [visible, book, mounted]);
+  }, [visible, mounted]);
 
   const handleDismiss = () => {
     onCloseRef.current();
   };
 
-  if (!mounted || !activeBook) return null;
+  if (!mounted || !book) return null;
+
+  const activeBook = findBookByFingerprint(books, book.fingerprint) ?? book;
 
   const favoriteList = lists.find((l) => l.isDefault || l.name === 'Favoritos');
   const customLists = lists.filter((l) => !l.isDefault && l.name !== 'Favoritos');
@@ -106,6 +106,11 @@ export function BookListModal({ book, visible, onClose }: Props) {
 
   const handleToggleList = (listId: string) => {
     void toggleBookInList(listId, activeBook.fingerprint);
+  };
+
+  const isBookRead = activeBook.isRead || (activeBook.progressPct ?? 0) >= 100;
+  const handleToggleRead = () => {
+    void updateBookProgress(activeBook.id, { isRead: !isBookRead });
   };
 
   return (
@@ -185,10 +190,51 @@ export function BookListModal({ book, visible, onClose }: Props) {
               textTransform: 'uppercase',
             }}
           >
-            {t('lists.addToList')}
+            {t('lists.bookActions')}
           </Text>
 
           <ScrollView bounces={false}>
+            {/* Toggle read/unread */}
+            <Pressable
+              onPress={handleToggleRead}
+              style={({ pressed }) => ({
+                alignItems: 'center',
+                backgroundColor: pressed ? theme.cardHover : 'transparent',
+                borderRadius: radii.md,
+                flexDirection: 'row',
+                gap: spacing.sm,
+                marginHorizontal: spacing.sm,
+                paddingHorizontal: spacing.md,
+                paddingVertical: 14,
+              })}
+            >
+              <BookOpen
+                color={isBookRead ? theme.accent : theme.textSecondary}
+                size={18}
+              />
+              <Text
+                style={{
+                  color: isBookRead ? theme.accent : theme.textPrimary,
+                  flex: 1,
+                  fontFamily: serifFont,
+                  fontSize: 15,
+                  fontWeight: isBookRead ? '700' : '400',
+                }}
+              >
+                {isBookRead ? t('details.markAsUnread') : t('details.markAsRead')}
+              </Text>
+            </Pressable>
+
+            {/* Divider */}
+            <View
+              style={{
+                backgroundColor: theme.border,
+                height: 1,
+                marginHorizontal: spacing.md,
+                marginVertical: spacing.xs,
+              }}
+            />
+
             {/* Favorites row */}
             <Pressable
               onPress={handleToggleFavorite}
@@ -219,9 +265,6 @@ export function BookListModal({ book, visible, onClose }: Props) {
               >
                 {t('lists.favorites')}
               </Text>
-              {isFavorite && (
-                <View style={{ backgroundColor: theme.accent, borderRadius: 4, height: 16, width: 16 }} />
-              )}
             </Pressable>
 
             {/* Divider */}
@@ -271,9 +314,6 @@ export function BookListModal({ book, visible, onClose }: Props) {
                   >
                     {list.name}
                   </Text>
-                  {isInList && (
-                    <View style={{ backgroundColor: theme.accent, borderRadius: 4, height: 16, width: 16 }} />
-                  )}
                 </Pressable>
               );
             })}
@@ -298,4 +338,15 @@ export function BookListModal({ book, visible, onClose }: Props) {
       </View>
     </Modal>
   );
+}
+
+function findBookByFingerprint(books: Book[], fingerprint: string): Book | null {
+  for (const book of books) {
+    if (book.fingerprint === fingerprint) return book;
+    if (book.children) {
+      const found = findBookByFingerprint(book.children, fingerprint);
+      if (found) return found;
+    }
+  }
+  return null;
 }

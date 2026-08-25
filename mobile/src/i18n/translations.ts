@@ -96,6 +96,7 @@ export type TranslationKey =
   | 'library.noResults'
   | 'library.noResultsHint'
   | 'lists.addToList'
+  | 'lists.bookActions'
   | 'lists.books'
   | 'lists.create'
   | 'lists.delete'
@@ -255,6 +256,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.noResults': 'No results.',
     'library.noResultsHint': 'Try a different search term.',
     'lists.addToList': 'Add to list',
+    'lists.bookActions': 'Actions',
     'lists.books': 'books',
     'lists.create': 'Create list',
     'lists.delete': 'Delete list',
@@ -404,6 +406,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.noResults': 'Nenhum resultado.',
     'library.noResultsHint': 'Tente outro termo de busca.',
     'lists.addToList': 'Adicionar à lista',
+    'lists.bookActions': 'Ações',
     'lists.books': 'livros',
     'lists.create': 'Criar lista',
     'lists.delete': 'Excluir lista',
@@ -561,6 +564,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'lists.emptyList': 'No hay libros en esta lista.',
     'lists.favorites': 'Favoritos',
     'lists.addToList': 'Añadir a lista',
+    'lists.bookActions': 'Acciones',
     'lists.manageBooks': 'Gestionar libros',
     'lists.namePlaceholder': 'Nombre de la lista',
     'lists.noCustomLists': 'Aún no hay listas. Crea una en la pestaña Listas.',
