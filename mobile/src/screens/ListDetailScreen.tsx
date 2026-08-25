@@ -160,7 +160,7 @@ export function ListDetailScreen({ navigation, route }: Props) {
       return {
         key: 'read',
         title: t('lists.read'),
-        books: books.filter((book) => (book.progressPct ?? 0) >= 100 || book.isRead),
+        books: getReadBooksToDisplay(books),
         isFixed: true,
       };
     }
@@ -522,4 +522,35 @@ export function ListDetailScreen({ navigation, route }: Props) {
       />
     </SafeAreaView>
   );
+}
+
+export function getReadBooksToDisplay(books: Book[]): Book[] {
+  const result: Book[] = [];
+
+  for (const book of books) {
+    if (!book.children?.length) {
+      if (isBookRead(book)) result.push(book);
+      continue;
+    }
+
+    const readChildren = book.children.filter(isBookRead);
+
+    if (readChildren.length === book.children.length) {
+      result.push(book);
+      continue;
+    }
+
+    result.push(
+      ...readChildren.map((child) => {
+        if (child.coverPath || !book.coverPath) return child;
+        return { ...child, coverPath: book.coverPath };
+      }),
+    );
+  }
+
+  return result;
+}
+
+function isBookRead(book: Book): boolean {
+  return Boolean(book.isRead || (book.progressPct ?? 0) >= 100);
 }
