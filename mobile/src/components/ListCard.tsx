@@ -16,7 +16,7 @@ export function ListCard({
 }) {
   const { theme, t } = useApp();
   const preview = books.slice(0, 3);
-  const previewBg = theme.name === 'dark' ? '#252525' : theme.name === 'light' ? '#f0f0f0' : '#e8ddc0';
+  const previewBg = theme.name === 'dark' ? '#111111' : theme.name === 'light' ? '#f0f0f0' : '#e8ddc0';
 
   return (
     <Pressable
