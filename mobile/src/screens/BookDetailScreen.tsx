@@ -119,7 +119,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
     const prev = isFirst ? 0 : prevProgressPctRef.current;
     prevProgressPctRef.current = target;
 
-    animatedProgress.setValue(prev);
+    animatedProgress.setValue(prev ?? 0);
     Animated.timing(animatedProgress, {
       toValue: target,
       duration: isFirst ? 600 : 500,
