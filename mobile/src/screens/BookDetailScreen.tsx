@@ -22,10 +22,10 @@ import {
   Check,
   Edit3,
   FileText,
-  Heart,
   Image as ImageIcon,
   MoreVertical,
   RotateCcw,
+  Star,
 } from 'lucide-react-native';
 import { RatingStars } from '../components/RatingStars';
 import { useApp } from '../context/AppContext';
@@ -293,9 +293,9 @@ export function BookDetailScreen({ navigation, route }: Props) {
                 shadowRadius: 4,
               }}
             >
-              <Heart
-                color={isFavorite ? '#ef4444' : navButtonIconColor}
-                fill={isFavorite ? '#ef4444' : 'transparent'}
+              <Star
+                color={isFavorite ? '#f97316' : navButtonIconColor}
+                fill={isFavorite ? '#f97316' : 'transparent'}
                 size={20}
               />
             </Pressable>

@@ -5,11 +5,13 @@ export type TranslationKey =
   | 'about.github'
   | 'about.licenses'
   | 'api.configured'
+  | 'api.help'
   | 'api.key'
   | 'api.metadataSubtitle'
   | 'api.metadataTitle'
   | 'api.noKey'
   | 'api.placeholder'
+  | 'api.yourKey'
   | 'auth.account'
   | 'auth.accountCreated'
   | 'auth.checkEmailConfirmation'
@@ -128,6 +130,12 @@ export type TranslationKey =
   | 'settings.general'
   | 'settings.keySaved'
   | 'settings.language'
+  | 'settings.sectionAbout'
+  | 'settings.sectionAppearance'
+  | 'settings.sectionIntegrations'
+  | 'settings.sectionLibrary'
+  | 'settings.syncDesc'
+  | 'settings.syncTitle'
   | 'settings.theme'
   | 'settings.title'
   | 'tab.library'
@@ -154,11 +162,13 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'about.github': 'GitHub',
     'about.licenses': 'Licenses',
     'api.configured': 'Key configured',
+    'api.help': 'Get a free key at aistudio.google.com. Used only for book metadata lookup - never stored in the cloud.',
     'api.key': 'Gemini API Key',
     'api.metadataSubtitle': 'Add your Gemini API key to enable automatic metadata fetching.',
     'api.metadataTitle': 'Metadata Search',
     'api.noKey': 'No key configured.',
     'api.placeholder': 'Paste your key here',
+    'api.yourKey': 'Your key',
     'auth.account': 'Account',
     'auth.accountCreated': 'Account created and signed in.',
     'auth.checkEmailConfirmation': 'Account created. Check your email to confirm your registration.',
@@ -278,6 +288,12 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'settings.general': 'General',
     'settings.keySaved': 'Key saved.',
     'settings.language': 'Language',
+    'settings.sectionAbout': 'ABOUT',
+    'settings.sectionAppearance': 'APPEARANCE',
+    'settings.sectionIntegrations': 'INTEGRATIONS',
+    'settings.sectionLibrary': 'LIBRARY',
+    'settings.syncDesc': 'Sign in to keep your library and reading progress in sync.',
+    'settings.syncTitle': 'Sync across devices',
     'settings.theme': 'Theme',
     'settings.title': 'Settings',
     'tab.library': 'Library',
@@ -293,11 +309,13 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'about.github': 'GitHub',
     'about.licenses': 'Licenças',
     'api.configured': 'Chave configurada',
+    'api.help': 'Obtenha uma chave gratuita em aistudio.google.com. Usada apenas para busca de metadados - nunca armazenada na nuvem.',
     'api.key': 'Chave da API Gemini',
     'api.metadataSubtitle': 'Adicione sua chave de API do Gemini para buscar metadados automaticamente.',
     'api.metadataTitle': 'Busca de Metadados',
     'api.noKey': 'Nenhuma chave configurada.',
     'api.placeholder': 'Cole sua chave aqui',
+    'api.yourKey': 'Sua chave',
     'auth.account': 'Conta',
     'auth.accountCreated': 'Conta criada e conectada.',
     'auth.checkEmailConfirmation': 'Conta criada. Confira seu email para confirmar o cadastro.',
@@ -417,6 +435,12 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'settings.general': 'Geral',
     'settings.keySaved': 'Chave salva.',
     'settings.language': 'Idioma',
+    'settings.sectionAbout': 'SOBRE',
+    'settings.sectionAppearance': 'APARÊNCIA',
+    'settings.sectionIntegrations': 'INTEGRAÇÕES',
+    'settings.sectionLibrary': 'BIBLIOTECA',
+    'settings.syncDesc': 'Entre para manter sua biblioteca e progresso de leitura sincronizados.',
+    'settings.syncTitle': 'Sincronizar entre dispositivos',
     'settings.theme': 'Tema',
     'settings.title': 'Configurações',
     'tab.library': 'Biblioteca',
@@ -432,11 +456,13 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'about.github': 'GitHub',
     'about.licenses': 'Licencias',
     'api.configured': 'Clave configurada',
+    'api.help': 'Obtén una clave gratuita en aistudio.google.com. Solo se usa para buscar metadatos - nunca se almacena en la nube.',
     'api.key': 'Clave API Gemini',
     'api.metadataSubtitle': 'Agrega tu clave API de Gemini para buscar metadatos automáticamente.',
     'api.metadataTitle': 'Búsqueda de Metadatos',
     'api.noKey': 'No hay clave configurada.',
     'api.placeholder': 'Pega tu clave aquí',
+    'api.yourKey': 'Tu clave',
     'auth.account': 'Cuenta',
     'auth.accountCreated': 'Cuenta creada y conectada.',
     'auth.checkEmailConfirmation': 'Cuenta creada. Revisa tu correo para confirmar el registro.',
@@ -556,6 +582,12 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'settings.general': 'General',
     'settings.keySaved': 'Clave guardada.',
     'settings.language': 'Idioma',
+    'settings.sectionAbout': 'ACERCA DE',
+    'settings.sectionAppearance': 'APARIENCIA',
+    'settings.sectionIntegrations': 'INTEGRACIONES',
+    'settings.sectionLibrary': 'BIBLIOTECA',
+    'settings.syncDesc': 'Inicia sesión para mantener tu biblioteca y progreso de lectura sincronizados.',
+    'settings.syncTitle': 'Sincronizar entre dispositivos',
     'settings.theme': 'Tema',
     'settings.title': 'Configuración',
     'tab.library': 'Biblioteca',
