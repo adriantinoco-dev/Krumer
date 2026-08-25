@@ -64,10 +64,10 @@ export function SettingsGroupScreen({ route }: Props) {
         contentContainerStyle={{
           alignItems: 'center',
           flexGrow: 1,
-          justifyContent: 'flex-start',
+          justifyContent: (group === 'account' || group === 'about') ? 'center' : 'flex-start',
           paddingHorizontal: spacing.lg,
           paddingTop: spacing.sm,
-          paddingBottom: Math.round(height * 0.18),
+          paddingBottom: (group === 'account' || group === 'about') ? Math.round(height * 0.2) : Math.round(height * 0.18),
         }}
         showsVerticalScrollIndicator={false}
       >

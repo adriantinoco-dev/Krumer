@@ -12,6 +12,7 @@ export type MobilePreferences = {
   libraryFolder: string | null;
   geminiApiKey: string | null;
   cardViewMode?: '2d' | '3d';
+  booksPerRow?: number;
 };
 
 const KEYS = {
@@ -27,6 +28,7 @@ export const defaultPreferences: MobilePreferences = {
   libraryFolder: null,
   geminiApiKey: null,
   cardViewMode: '3d',
+  booksPerRow: 3,
 };
 
 export async function loadPreferences(): Promise<MobilePreferences> {

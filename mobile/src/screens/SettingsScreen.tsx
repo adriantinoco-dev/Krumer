@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Linking, Pressable, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import { Folder, Globe, Info, KeyRound, Moon } from 'lucide-react-native';
+import { Folder, Globe, Grid3x3, Info, KeyRound, Moon } from 'lucide-react-native';
 import { AnimatedLanguageCard } from '../components/AnimatedLanguageCard';
 import { ApiKeyInput } from '../components/ApiKeyInput';
 import { FolderPickerField } from '../components/FolderPickerField';
@@ -47,13 +47,15 @@ function SectionHeader({ label }: { label: string }) {
 }
 
 export function SettingsScreen({ navigation }: Props) {
-  const { preferences, setBooks, setGeminiApiKey, setLanguage, setLibraryFolder, setThemeName, theme, t } = useApp();
+  const { preferences, setBooks, setBooksPerRow, setGeminiApiKey, setLanguage, setLibraryFolder, setThemeName, theme, t } = useApp();
   const { user } = useAuth();
 
   const [langVisible, setLangVisible] = useState(false);
   const [folderVisible, setFolderVisible] = useState(false);
   const [themeVisible, setThemeVisible] = useState(false);
   const [apiVisible, setApiVisible] = useState(false);
+  const [booksPerRowVisible, setBooksPerRowVisible] = useState(false);
+  const [tempBooksPerRow, setTempBooksPerRow] = useState(preferences.booksPerRow ?? 3);
 
   const [folder, setFolder] = useState(preferences.libraryFolder);
   const [apiKey, setApiKey] = useState(preferences.geminiApiKey ?? '');
@@ -143,6 +145,15 @@ export function SettingsScreen({ navigation }: Props) {
           subtitle={themeLabel}
           icon={Moon}
           onPress={() => setThemeVisible(true)}
+        />
+        <SettingsRow
+          title={t('settings.booksPerRow')}
+          subtitle={t('settings.booksPerRowValue').replace('{0}', String(preferences.booksPerRow ?? 3))}
+          icon={Grid3x3}
+          onPress={() => {
+            setTempBooksPerRow(preferences.booksPerRow ?? 3);
+            setBooksPerRowVisible(true);
+          }}
         />
 
         {/* LIBRARY */}
@@ -264,6 +275,56 @@ export function SettingsScreen({ navigation }: Props) {
             </Text>
             {t('api.help').split('aistudio.google.com')[1]}
           </Text>
+        </View>
+      </SettingsModal>
+
+      {/* Books per row Modal */}
+      <SettingsModal visible={booksPerRowVisible} onClose={() => setBooksPerRowVisible(false)} title={t('settings.booksPerRow')}>
+        <View style={{ gap: spacing.md }}>
+          <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+            {[3, 4, 5, 6].map((value) => (
+              <Pressable
+                key={value}
+                onPress={() => setTempBooksPerRow(value)}
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: tempBooksPerRow === value ? theme.accent : 'transparent',
+                  borderColor: tempBooksPerRow === value ? theme.accent : theme.border,
+                  borderRadius: radii.sm,
+                  borderWidth: 1,
+                  flex: 1,
+                  paddingVertical: spacing.sm + 2,
+                }}
+              >
+                <Text
+                  style={{
+                    color: tempBooksPerRow === value ? '#fff' : theme.textPrimary,
+                    fontFamily: serifFont,
+                    fontSize: 16,
+                    fontWeight: '700',
+                  }}
+                >
+                  {value}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable
+            onPress={() => {
+              setBooksPerRow(tempBooksPerRow);
+              setBooksPerRowVisible(false);
+            }}
+            style={{
+              alignItems: 'center',
+              backgroundColor: theme.accent,
+              borderRadius: radii.md,
+              paddingVertical: spacing.sm + 2,
+            }}
+          >
+            <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 15, fontWeight: '700' }}>
+              {t('common.save')}
+            </Text>
+          </Pressable>
         </View>
       </SettingsModal>
     </SafeAreaView>

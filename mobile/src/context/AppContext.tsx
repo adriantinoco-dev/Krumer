@@ -43,6 +43,7 @@ type AppContextValue = {
   setLanguage: (language: LanguageCode) => Promise<void>;
   setLibraryFolder: (libraryFolder: string | null) => Promise<void>;
   setThemeName: (theme: ThemeName) => Promise<void>;
+  setBooksPerRow: (count: number) => Promise<void>;
   t: (key: TranslationKey) => string;
   theme: (typeof themes)[ThemeName];
 };
@@ -331,6 +332,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setLanguage: (language) => persistPreferences({ language }),
       setLibraryFolder: (libraryFolder) => persistPreferences({ libraryFolder }),
       setThemeName: (theme) => persistPreferences({ theme }),
+      setBooksPerRow: (booksPerRow) => persistPreferences({ booksPerRow }),
       t: (key) => translate(language, key),
       theme: themes[preferences.theme],
     };

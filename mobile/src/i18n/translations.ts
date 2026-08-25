@@ -96,6 +96,7 @@ export type TranslationKey =
   | 'library.noResults'
   | 'library.noResultsHint'
   | 'lists.addToList'
+  | 'lists.bookActions'
   | 'lists.books'
   | 'lists.create'
   | 'lists.delete'
@@ -127,6 +128,8 @@ export type TranslationKey =
   | 'scan.scanning'
   | 'settings.about'
   | 'settings.apiKey'
+  | 'settings.booksPerRow'
+  | 'settings.booksPerRowValue'
   | 'settings.general'
   | 'settings.keySaved'
   | 'settings.language'
@@ -253,6 +256,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.noResults': 'No results.',
     'library.noResultsHint': 'Try a different search term.',
     'lists.addToList': 'Add to list',
+    'lists.bookActions': 'Actions',
     'lists.books': 'books',
     'lists.create': 'Create list',
     'lists.delete': 'Delete list',
@@ -285,6 +289,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'scan.scanning': 'Scanning',
     'settings.about': 'About',
     'settings.apiKey': 'API Key',
+    'settings.booksPerRow': 'Books per row',
+    'settings.booksPerRowValue': '{0} per row',
     'settings.general': 'General',
     'settings.keySaved': 'Key saved.',
     'settings.language': 'Language',
@@ -400,6 +406,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.noResults': 'Nenhum resultado.',
     'library.noResultsHint': 'Tente outro termo de busca.',
     'lists.addToList': 'Adicionar à lista',
+    'lists.bookActions': 'Ações',
     'lists.books': 'livros',
     'lists.create': 'Criar lista',
     'lists.delete': 'Excluir lista',
@@ -432,6 +439,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'scan.scanning': 'Escaneando',
     'settings.about': 'Sobre',
     'settings.apiKey': 'Chave de API',
+    'settings.booksPerRow': 'Livros por linha',
+    'settings.booksPerRowValue': '{0} por linha',
     'settings.general': 'Geral',
     'settings.keySaved': 'Chave salva.',
     'settings.language': 'Idioma',
@@ -555,6 +564,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'lists.emptyList': 'No hay libros en esta lista.',
     'lists.favorites': 'Favoritos',
     'lists.addToList': 'Añadir a lista',
+    'lists.bookActions': 'Acciones',
     'lists.manageBooks': 'Gestionar libros',
     'lists.namePlaceholder': 'Nombre de la lista',
     'lists.noCustomLists': 'Aún no hay listas. Crea una en la pestaña Listas.',
@@ -579,6 +589,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'scan.scanning': 'Escaneando',
     'settings.about': 'Acerca de',
     'settings.apiKey': 'Clave API',
+    'settings.booksPerRow': 'Libros por fila',
+    'settings.booksPerRowValue': '{0} por fila',
     'settings.general': 'General',
     'settings.keySaved': 'Clave guardada.',
     'settings.language': 'Idioma',
