@@ -58,7 +58,7 @@ export function SettingsScreen({ navigation }: Props) {
   const [tempBooksPerRow, setTempBooksPerRow] = useState(preferences.booksPerRow ?? 3);
 
   const [folder, setFolder] = useState(preferences.libraryFolder);
-  const [apiKey, setApiKey] = useState(preferences.geminiApiKey ?? '');
+  const [apiKey, setApiKey] = useState('');
   const [apiKeyStatus, setApiKeyStatus] = useState(
     preferences.geminiApiKey ? t('settings.keySaved') : t('api.noKey'),
   );

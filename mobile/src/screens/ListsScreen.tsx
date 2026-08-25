@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Modal,
@@ -42,7 +42,7 @@ export function ListsScreen({ navigation }: Props) {
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('tabPress', () => {
-      setCreating(false);
+      closeCreateModal();
     });
 
     return unsubscribe;
@@ -111,6 +111,11 @@ export function ListsScreen({ navigation }: Props) {
     setCreateName('');
     setCreating(false);
   };
+
+  const closeCreateModal = useCallback(() => {
+    setCreateName('');
+    setCreating(false);
+  }, []);
 
   const formattedCollections = useMemo(() => {
     if (collections.length % listNumColumns === 0) return collections;
@@ -198,9 +203,9 @@ export function ListsScreen({ navigation }: Props) {
       )}
 
       {/* Modal: Create List */}
-      <Modal animationType="fade" onRequestClose={() => setCreating(false)} transparent visible={creating}>
+      <Modal animationType="fade" onRequestClose={closeCreateModal} transparent visible={creating}>
         <Pressable
-          onPress={() => setCreating(false)}
+          onPress={closeCreateModal}
           style={{ alignItems: 'center', backgroundColor: '#00000088', flex: 1, justifyContent: 'center', padding: spacing.lg }}
         >
           <Pressable
@@ -226,7 +231,7 @@ export function ListsScreen({ navigation }: Props) {
               value={createName}
             />
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.md, marginTop: spacing.sm }}>
-              <Pressable onPress={() => setCreating(false)} style={{ padding: spacing.sm }}>
+              <Pressable onPress={closeCreateModal} style={{ padding: spacing.sm }}>
                 <Text style={{ color: theme.textSecondary, fontFamily: serifFont }}>{t('common.cancel')}</Text>
               </Pressable>
               <Pressable
