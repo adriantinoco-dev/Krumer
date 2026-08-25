@@ -30,6 +30,14 @@ O script `npm run android` reaplica automaticamente a compatibilidade do NetInfo
 12.0.1 com Gradle 9. O mesmo ajuste roda apos cada `npm install`, evitando que a
 falha de Codegen volte quando `node_modules` for recriado.
 
+## Leitor EPUB F1
+
+- Runtime web local com JSZip 3.10.1 e epub.js 0.3.93 vendorizados.
+- Bridge JSON v1 limitada aos eventos/comandos `READY`, `OPEN_BOOK`, `BOOK_OPENED`, `NEXT`, `PREVIOUS`, `LINK_PRESSED`, `CLOSE_BOOK` e `ERROR`.
+- EPUB copiado para `Paths.document/reader-books` antes da abertura; a WebView recebe somente os bytes do livro selecionado.
+- Leitura integral limitada a 16 MiB, com estimativa de pico de memoria registrada no log. Arquivos maiores sao recusados de forma controlada ate a estrategia de I/O da F7.
+- WebView sem acesso generico a arquivos, sem navegacao remota e com CSP local; links externos sao entregues ao shell nativo.
+
 Antes do build, copie `.env.example` para `.env.local` e configure `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` com o OAuth Client ID do tipo **Web application**. O projeto Google tambem precisa de um OAuth Client ID Android para o package `com.adriantinoco.krumer` e os SHA-1 de desenvolvimento/producao. O passo a passo completo fica em `../docs/arquitetura-sync-supabase.md`.
 
 ## Estrutura

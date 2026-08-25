@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Modal, Platform, Pressable, StatusBar, Text, View } from 'react-native';
+import { Animated, Linking, Modal, Platform, Pressable, StatusBar, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ArrowLeft, Minus, Plus, Settings, Type } from 'lucide-react-native';
-import { EpubReader } from '../readers/EpubReader';
+import { ArrowLeft, ChevronLeft, ChevronRight, Minus, Plus, Settings, Type } from 'lucide-react-native';
+import { EpubReader, type EpubReaderHandle } from '../readers/EpubReader';
 import { PdfReader } from '../readers/PdfReader';
 import { ThemeCard } from '../components/ThemeCard';
 import { useApp } from '../context/AppContext';
@@ -55,6 +55,8 @@ export function ReaderScreen({ navigation, route }: Props) {
   });
   const opacity = useRef(new Animated.Value(1)).current;
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const epubReaderRef = useRef<EpubReaderHandle>(null);
+  const isEpub = book.format === 'epub';
 
   useEffect(() => {
     AsyncStorage.getItem(`progress_${book.id}`).then(setSavedPosition);
@@ -62,11 +64,13 @@ export function ReaderScreen({ navigation, route }: Props) {
   }, [book.id]);
 
   useEffect(() => {
-    scheduleHide();
+    if (!isEpub) {
+      hideTimer.current = setTimeout(() => setBars(false), HIDE_DELAY);
+    }
     return () => {
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
-  }, []);
+  }, [isEpub]);
 
   const scheduleHide = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
@@ -120,7 +124,6 @@ export function ReaderScreen({ navigation, route }: Props) {
     });
   }
 
-  const isEpub = book.format === 'epub';
   const progressPercent = Math.round(progress * 100);
 
   return (
@@ -136,21 +139,24 @@ export function ReaderScreen({ navigation, route }: Props) {
           onCenterTap={toggleBars}
         />
       ) : (
-        <View style={{ flex: 1 }}>
+        <View
+          style={{
+            backgroundColor: '#ffffff',
+            flex: 1,
+            paddingBottom: Math.max(insets.bottom, 16) + 68,
+            paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 44 : 24) + 56,
+          }}
+        >
           <EpubReader
+            ref={epubReaderRef}
+            bookId={book.id}
             filePath={book.filePath}
-            savedCfi={savedPosition}
-            themeName={preferences.theme}
-            fontSize={readerSettings.fontSize}
-            lineHeight={readerSettings.lineHeight}
-            onLocationChange={(cfi, percentage, locIndex, totalLocs) => {
-              const page = locIndex !== undefined ? locIndex + 1 : undefined;
-              saveProgress(cfi, percentage, page, totalLocs);
+            fileSize={book.fileSize}
+            onExternalLink={(url) => {
+              Linking.openURL(url).catch((caught: unknown) => {
+                console.warn('[Krumer ReaderScreen] falha ao abrir link externo', caught);
+              });
             }}
-            onLocationsReady={(totalLocs) => {
-              setTotalPages(totalLocs);
-            }}
-            onCenterTap={toggleBars}
           />
         </View>
       )}
@@ -231,87 +237,124 @@ export function ReaderScreen({ navigation, route }: Props) {
           right: 0,
         }}
       >
-        {/* Progress bar */}
-        <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm }}>
-          <View
-            style={{
-              backgroundColor: theme.border,
-              borderRadius: radii.sm,
-              flex: 1,
-              height: 6,
-              overflow: 'hidden',
-            }}
-          >
-            <View
-              style={{
-                backgroundColor: theme.accent,
+        {isEpub ? (
+          <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xl, justifyContent: 'center' }}>
+            <Pressable
+              accessibilityLabel="Pagina anterior"
+              onPress={() => epubReaderRef.current?.previous()}
+              style={({ pressed }) => ({
+                alignItems: 'center',
+                backgroundColor: theme.card,
+                borderColor: theme.border,
                 borderRadius: radii.sm,
-                height: '100%',
-                width: `${progressPercent}%`,
-              }}
-            />
+                borderWidth: 1,
+                height: 42,
+                justifyContent: 'center',
+                opacity: pressed ? 0.65 : 1,
+                width: 52,
+              })}
+            >
+              <ChevronLeft color={theme.accent} size={24} />
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Proxima pagina"
+              onPress={() => epubReaderRef.current?.next()}
+              style={({ pressed }) => ({
+                alignItems: 'center',
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                borderRadius: radii.sm,
+                borderWidth: 1,
+                height: 42,
+                justifyContent: 'center',
+                opacity: pressed ? 0.65 : 1,
+                width: 52,
+              })}
+            >
+              <ChevronRight color={theme.accent} size={24} />
+            </Pressable>
           </View>
-          <Text
-            style={{
-              color: theme.accent,
-              fontFamily: serifFont,
-              fontSize: 12,
-              fontWeight: '700',
-              minWidth: 36,
-              textAlign: 'right',
-            }}
-          >
-            {progressPercent}%
-          </Text>
-        </View>
+        ) : (
+          <>
+            {/* Progress bar */}
+            <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm }}>
+              <View
+                style={{
+                  backgroundColor: theme.border,
+                  borderRadius: radii.sm,
+                  flex: 1,
+                  height: 6,
+                  overflow: 'hidden',
+                }}
+              >
+                <View
+                  style={{
+                    backgroundColor: theme.accent,
+                    borderRadius: radii.sm,
+                    height: '100%',
+                    width: `${progressPercent}%`,
+                  }}
+                />
+              </View>
+              <Text
+                style={{
+                  color: theme.accent,
+                  fontFamily: serifFont,
+                  fontSize: 12,
+                  fontWeight: '700',
+                  minWidth: 36,
+                  textAlign: 'right',
+                }}
+              >
+                {progressPercent}%
+              </Text>
+            </View>
 
-        {/* Page info + settings button */}
-        <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Text
-            style={{
-              color: theme.textMuted,
-              fontFamily: serifFont,
-              fontSize: 12,
-            }}
-          >
-            {!isEpub && totalPages
-              ? `${t('reader.page')} ${currentPage} / ${totalPages}`
-              : isEpub && totalPages && currentPage
-              ? `${t('reader.page')} ${currentPage} / ${totalPages} · ${progressPercent}%`
-              : `${progressPercent}%`}
-          </Text>
-          <Pressable
-            onPress={() => {
-              setSettingsVisible(true);
-              if (hideTimer.current) clearTimeout(hideTimer.current);
-            }}
-            hitSlop={10}
-            style={({ pressed }) => ({
-              alignItems: 'center',
-              backgroundColor: theme.card,
-              borderColor: theme.border,
-              borderRadius: radii.sm,
-              borderWidth: 1,
-              flexDirection: 'row',
-              gap: spacing.xs,
-              opacity: pressed ? 0.7 : 1,
-              paddingHorizontal: spacing.sm,
-              paddingVertical: spacing.xs,
-            })}
-          >
-            <Settings color={theme.textSecondary} size={14} />
-            <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 11 }}>
-              {t('reader.readingSettings')}
-            </Text>
-          </Pressable>
-        </View>
+            {/* Page info + settings button */}
+            <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text
+                style={{
+                  color: theme.textMuted,
+                  fontFamily: serifFont,
+                  fontSize: 12,
+                }}
+              >
+                {totalPages ? `${t('reader.page')} ${currentPage} / ${totalPages}` : `${progressPercent}%`}
+              </Text>
+              <Pressable
+                onPress={() => {
+                  setSettingsVisible(true);
+                  if (hideTimer.current) clearTimeout(hideTimer.current);
+                }}
+                hitSlop={10}
+                style={({ pressed }) => ({
+                  alignItems: 'center',
+                  backgroundColor: theme.card,
+                  borderColor: theme.border,
+                  borderRadius: radii.sm,
+                  borderWidth: 1,
+                  flexDirection: 'row',
+                  gap: spacing.xs,
+                  opacity: pressed ? 0.7 : 1,
+                  paddingHorizontal: spacing.sm,
+                  paddingVertical: spacing.xs,
+                })}
+              >
+                <Settings color={theme.textSecondary} size={14} />
+                <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 11 }}>
+                  {t('reader.readingSettings')}
+                </Text>
+              </Pressable>
+            </View>
+          </>
+        )}
       </Animated.View>
 
       {/* Settings Modal */}
       <Modal
         animationType="slide"
         transparent
-        visible={settingsVisible}
+        visible={settingsVisible && !isEpub}
         onRequestClose={() => {
           setSettingsVisible(false);
           scheduleHide();
