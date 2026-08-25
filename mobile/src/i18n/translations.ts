@@ -127,6 +127,8 @@ export type TranslationKey =
   | 'scan.scanning'
   | 'settings.about'
   | 'settings.apiKey'
+  | 'settings.booksPerRow'
+  | 'settings.booksPerRowValue'
   | 'settings.general'
   | 'settings.keySaved'
   | 'settings.language'
@@ -285,6 +287,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'scan.scanning': 'Scanning',
     'settings.about': 'About',
     'settings.apiKey': 'API Key',
+    'settings.booksPerRow': 'Books per row',
+    'settings.booksPerRowValue': '{0} per row',
     'settings.general': 'General',
     'settings.keySaved': 'Key saved.',
     'settings.language': 'Language',
@@ -432,6 +436,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'scan.scanning': 'Escaneando',
     'settings.about': 'Sobre',
     'settings.apiKey': 'Chave de API',
+    'settings.booksPerRow': 'Livros por linha',
+    'settings.booksPerRowValue': '{0} por linha',
     'settings.general': 'Geral',
     'settings.keySaved': 'Chave salva.',
     'settings.language': 'Idioma',
@@ -579,6 +585,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'scan.scanning': 'Escaneando',
     'settings.about': 'Acerca de',
     'settings.apiKey': 'Clave API',
+    'settings.booksPerRow': 'Libros por fila',
+    'settings.booksPerRowValue': '{0} por fila',
     'settings.general': 'General',
     'settings.keySaved': 'Clave guardada.',
     'settings.language': 'Idioma',

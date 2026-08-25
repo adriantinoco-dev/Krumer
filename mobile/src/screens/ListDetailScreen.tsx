@@ -24,7 +24,7 @@ import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import type { RootStackParamList } from '../navigation/types';
 import { fuzzyMatch } from '../services/fuzzySearch';
-import { radii, serifFont, spacing, TABLET_BREAKPOINT } from '../theme';
+import { radii, serifFont, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ListDetail'>;
 
@@ -44,6 +44,7 @@ export function ListDetailScreen({ navigation, route }: Props) {
     books,
     deleteList,
     lists,
+    preferences,
     renameList,
     t,
     theme,
@@ -129,7 +130,7 @@ export function ListDetailScreen({ navigation, route }: Props) {
     };
   }, [books, collectionKey, initialTitle, listId, lists, t]);
 
-  const numColumns = width >= TABLET_BREAKPOINT ? 5 : 3;
+  const numColumns = preferences.booksPerRow ?? 3;
   const cardWidth = width / numColumns;
 
   const handleOpenBookDetail = (book: Book) => {

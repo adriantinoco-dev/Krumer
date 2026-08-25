@@ -14,7 +14,7 @@ import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import type { MainTabParamList, RootStackParamList } from '../navigation/types';
 import { fuzzyMatch } from '../services/fuzzySearch';
-import { radii, serifFont, spacing, TABLET_BREAKPOINT } from '../theme';
+import { radii, serifFont, spacing } from '../theme';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Library'>,
@@ -23,7 +23,7 @@ type Props = CompositeScreenProps<
 
 export function LibraryScreen({ navigation }: Props) {
   const { width } = useWindowDimensions();
-  const { books, theme, t } = useApp();
+  const { books, preferences, theme, t } = useApp();
 
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('recent');
@@ -36,7 +36,7 @@ export function LibraryScreen({ navigation }: Props) {
     return unsubscribe;
   }, [navigation]);
 
-  const numColumns = width >= TABLET_BREAKPOINT ? 5 : 3;
+  const numColumns = preferences.booksPerRow ?? 3;
   const cardWidth = width / numColumns;
 
   const continueReading = useMemo(
