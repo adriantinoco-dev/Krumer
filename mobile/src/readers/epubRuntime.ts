@@ -52,6 +52,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
 
         var BRIDGE_VERSION = ${EPUB_BRIDGE_VERSION};
         var MAX_EPUB_BYTES = 16 * 1024 * 1024;
+        var STABLE_LOCATION_CHARS = 1600;
         var book = null;
         var rendition = null;
         var generation = 0;
@@ -59,12 +60,15 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
         var lastTouchEndAt = 0;
         var turnInFlight = false;
         var turnUnlockTimer = null;
-        var sectionPageTotals = {};
         var currentLocator = null;
         var renditionGeneration = 0;
         var appearanceUpdateQueue = Promise.resolve();
         var activeRelocationSource = 'user';
-        var pendingResizeLocator = null;
+        var paginationState = 'loading';
+        var lastViewLocation = null;
+        var readingAnchorLocator = null;
+        var lastAppliedDoubleColumn = false;
+        var viewportUpdateFrame = null;
         var registeredFontFaces = { serif: [], sans: [], mono: [] };
         var visualTheme = {
           backgroundColor: '#ffffff',
@@ -79,8 +83,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
         };
         var readerLayout = {
           displayMode: 'paginated',
-          doubleColumn: false,
-          isLandscape: false
+          doubleColumn: false
         };
 
         function eventId() {
@@ -153,8 +156,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             && (value.fontFamily === 'serif' || value.fontFamily === 'sans' || value.fontFamily === 'mono')
             && (value.fontWeight === 'light' || value.fontWeight === 'regular' || value.fontWeight === 'medium' || value.fontWeight === 'bold')
             && (value.displayMode === 'scroll' || value.displayMode === 'paginated')
-            && typeof value.doubleColumn === 'boolean'
-            && typeof value.isLandscape === 'boolean';
+            && typeof value.doubleColumn === 'boolean';
         }
 
         function fontFamilyCss() {
@@ -177,17 +179,20 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           return 400;
         }
 
+        function viewportIsLandscape() {
+          return Number(window.innerWidth) > Number(window.innerHeight);
+        }
+
         function usesDoubleColumn() {
           return readerLayout.displayMode === 'paginated'
             && readerLayout.doubleColumn
-            && readerLayout.isLandscape;
+            && viewportIsLandscape();
         }
 
-        function renditionConfigSignature() {
+        function layoutAppearanceSignature() {
           return [
             readerLayout.displayMode,
-            usesDoubleColumn() ? 'double' : 'single',
-            readerLayout.isLandscape ? 'landscape' : 'portrait',
+            readerLayout.doubleColumn ? 'double' : 'single',
             typography.fontFamily,
             typography.fontWeight,
             typography.fontSize,
@@ -320,7 +325,8 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             || !validThemeColor(theme.backgroundColor)
             || !validThemeColor(theme.textColor)
             || !validThemeColor(theme.linkColor)) return null;
-          var previousSignature = renditionConfigSignature();
+          var previousDisplayMode = readerLayout.displayMode;
+          var previousSignature = layoutAppearanceSignature();
           typography = {
             fontSize: appearance.fontSize,
             fontFamily: appearance.fontFamily,
@@ -329,12 +335,14 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           };
           readerLayout = {
             displayMode: appearance.displayMode,
-            doubleColumn: appearance.doubleColumn,
-            isLandscape: appearance.isLandscape
+            doubleColumn: appearance.doubleColumn
           };
           applyVisualTheme(theme);
           refreshReaderAppearance();
-          return { requiresRenditionReset: previousSignature !== renditionConfigSignature() };
+          return {
+            requiresLayoutRefresh: previousSignature !== layoutAppearanceSignature(),
+            requiresRenditionReset: previousDisplayMode !== readerLayout.displayMode
+          };
         }
 
         function base64ToArrayBuffer(base64) {
@@ -348,6 +356,20 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
 
         function clampProgression(value) {
           return Math.max(0, Math.min(1, Number(value) || 0));
+        }
+
+        function stableProgressionFromCfi(cfi) {
+          if (paginationState !== 'ready'
+            || !book
+            || !book.locations
+            || typeof book.locations.percentageFromCfi !== 'function'
+            || typeof cfi !== 'string') return null;
+          try {
+            var percentage = Number(book.locations.percentageFromCfi(cfi));
+            return Number.isFinite(percentage) ? clampProgression(percentage) : null;
+          } catch (_) {
+            return null;
+          }
         }
 
         function isEpubLocator(locator) {
@@ -433,9 +455,12 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             : clampProgression((displayedPage - 1) / displayedTotal);
           var spineLength = book && book.spine ? Number(book.spine.length) || 1 : 1;
           var spineIndex = Math.max(0, Number(start.index) || 0);
-          var totalProgression = typeof start.percentage === 'number'
-            ? clampProgression(start.percentage)
-            : clampProgression((spineIndex + progressionInSection) / spineLength);
+          var stableProgression = stableProgressionFromCfi(start.cfi);
+          var totalProgression = stableProgression !== null
+            ? stableProgression
+            : typeof start.percentage === 'number'
+              ? clampProgression(start.percentage)
+              : clampProgression((spineIndex + progressionInSection) / spineLength);
 
           return {
             format: 'epub',
@@ -503,31 +528,47 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
 
         function viewStatusFromLocation(location, locator) {
           var start = location && location.start ? location.start : {};
-          var displayed = start.displayed || {};
-          var spineLength = book && book.spine ? Math.max(1, Number(book.spine.length) || 1) : 1;
-          var spineIndex = Math.max(0, Math.min(spineLength - 1, Number(start.index) || 0));
-          var displayedTotal = Math.max(1, Number(displayed.total) || 1);
-          sectionPageTotals[spineIndex] = displayedTotal;
+          var currentPage = null;
+          var totalPages = null;
 
-          var measuredPages = 0;
-          var measuredSections = 0;
-          Object.keys(sectionPageTotals).forEach(function (key) {
-            measuredPages += sectionPageTotals[key];
-            measuredSections += 1;
-          });
-          var averagePages = measuredSections ? measuredPages / measuredSections : displayedTotal;
-          var totalPages = Math.max(1, Math.round(averagePages * spineLength));
-          var totalProgression = locator && typeof locator.totalProgression === 'number'
-            ? locator.totalProgression
-            : (spineIndex + clampProgression((Number(displayed.page) - 1) / displayedTotal)) / spineLength;
-          var currentPage = Math.max(1, Math.min(totalPages, Math.round(totalProgression * Math.max(0, totalPages - 1)) + 1));
-          if (location && location.atEnd) currentPage = totalPages;
+          if (paginationState === 'ready' && book && book.locations) {
+            try {
+              totalPages = Math.max(1, Number(book.locations.length()) || 1);
+              var pageCfi = locator && typeof locator.cfi === 'string' ? locator.cfi : start.cfi;
+              var locationIndex = Number(book.locations.locationFromCfi(pageCfi));
+              if (Number.isFinite(locationIndex) && locationIndex >= 0) {
+                currentPage = Math.max(1, Math.min(totalPages, Math.floor(locationIndex) + 1));
+              } else if (locator && typeof locator.totalProgression === 'number') {
+                currentPage = Math.max(1, Math.min(
+                  totalPages,
+                  Math.round(locator.totalProgression * Math.max(0, totalPages - 1)) + 1
+                ));
+              }
+              if (location && location.atEnd) currentPage = totalPages;
+              if (currentPage === null) {
+                paginationState = 'unavailable';
+                totalPages = null;
+              }
+            } catch (_) {
+              paginationState = 'unavailable';
+              currentPage = null;
+              totalPages = null;
+            }
+          }
 
           return {
             chapterTitle: tocLabelForHref(start.href),
             currentPage: currentPage,
+            paginationState: paginationState,
             totalPages: totalPages
           };
+        }
+
+        function postViewStatus(location, locator) {
+          if (location) lastViewLocation = location;
+          var activeLocation = location || lastViewLocation;
+          if (!activeLocation) return;
+          post('VIEW_STATUS', viewStatusFromLocation(activeLocation, locator || currentLocator));
         }
 
         function sectionForHref(href) {
@@ -671,7 +712,8 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             return;
           }
           try {
-            await displayLocator(locator);
+            var resolution = await displayLocator(locator);
+            if (resolution === 'cfi') alignLocatorToLeadingColumn(rendition, locator);
           } catch (error) {
             reportError('LOCATOR_NOT_FOUND', error, message.id);
           }
@@ -863,6 +905,120 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           }, true);
         }
 
+        function waitForActiveReaderFonts() {
+          if (!rendition || typeof rendition.getContents !== 'function') return Promise.resolve();
+          var contents = rendition.getContents() || [];
+          return Promise.all(contents.map(function (entry) {
+            return waitForReaderFonts(entry && entry.document);
+          }));
+        }
+
+        function locatorDrifted(anchor, candidate) {
+          if (!anchor || !candidate) return false;
+          if (normalizedHref(anchor.spineHref) !== normalizedHref(candidate.spineHref)) return true;
+          return anchor.cfi !== candidate.cfi;
+        }
+
+        function alignLocatorToLeadingColumn(activeRendition, locator) {
+          if (!activeRendition || !locator || !usesDoubleColumn()) return false;
+          var manager = activeRendition.manager;
+          var layout = manager && manager.layout;
+          var divisor = layout ? Number(layout.divisor || (layout.props && layout.props.divisor)) : 0;
+          var pageWidth = layout ? Number(layout.pageWidth || (layout.props && layout.props.pageWidth)) : 0;
+          if (!manager || !manager.views || divisor < 2 || !(pageWidth > 0)) return false;
+
+          var section = sectionForHref(locator.spineHref);
+          var view = section && typeof manager.views.find === 'function'
+            ? manager.views.find(section)
+            : null;
+          if (!view || typeof view.locationOf !== 'function' || typeof view.width !== 'function') return false;
+
+          try {
+            var point = view.locationOf(locator.cfi);
+            var viewWidth = Number(view.width());
+            var rawPageIndex = Math.floor(Math.max(0, Number(point && point.left) || 0) / pageWidth);
+            var totalVisualPages = Math.max(1, Math.ceil(viewWidth / pageWidth));
+            var direction = manager.settings && manager.settings.direction;
+            var readingPageIndex = direction === 'rtl'
+              ? Math.max(0, totalVisualPages - 1 - rawPageIndex)
+              : rawPageIndex;
+            var columnOffset = ((readingPageIndex % divisor) + divisor) % divisor;
+            if (columnOffset === 0 || typeof manager.scrollBy !== 'function') return false;
+            manager.scrollBy(columnOffset * pageWidth, 0, true);
+            return true;
+          } catch (_) {
+            return false;
+          }
+        }
+
+        async function applyViewportLayout(anchor, source) {
+          if (!book || !rendition) return;
+          var activeBook = book;
+          var activeRendition = rendition;
+          var doubleColumnLayout = usesDoubleColumn();
+          var enteringDoubleColumn = doubleColumnLayout && !lastAppliedDoubleColumn;
+          activeRelocationSource = source === 'reflow' ? 'reflow' : 'restore';
+          refreshReaderAppearance();
+          await waitForActiveReaderFonts();
+          if (activeBook !== book || activeRendition !== rendition) return;
+
+          var spread = doubleColumnLayout ? 'always' : 'none';
+          if (typeof activeRendition.spread === 'function') activeRendition.spread(spread);
+          if (typeof activeRendition.resize === 'function') {
+            await Promise.resolve(activeRendition.resize(window.innerWidth, window.innerHeight));
+          }
+          if (activeBook !== book || activeRendition !== rendition) return;
+
+          var stableLocator = await waitForStableLocator();
+          var restoredAnchor = false;
+          if (anchor && locatorDrifted(anchor, stableLocator)) {
+            try {
+              await displayLocator(anchor);
+              restoredAnchor = true;
+            } catch (_) {}
+          }
+          var alignedLeadingColumn = anchor && (restoredAnchor || enteringDoubleColumn)
+            ? alignLocatorToLeadingColumn(activeRendition, anchor)
+            : false;
+          if (restoredAnchor || alignedLeadingColumn) {
+            await waitForStableLocator();
+            stableLocator = anchor;
+          }
+          if (activeBook !== book || activeRendition !== rendition) return;
+          if (stableLocator) {
+            currentLocator = stableLocator;
+            post('POSITION_STABILIZED', {
+              locator: stableLocator,
+              resolution: 'cfi',
+              source: activeRelocationSource
+            });
+          }
+          postViewStatus(null, stableLocator);
+          lastAppliedDoubleColumn = doubleColumnLayout;
+          activeRelocationSource = 'user';
+        }
+
+        function generateStableLocations(activeBook, openGeneration) {
+          paginationState = 'loading';
+          postViewStatus(null, currentLocator);
+          if (!activeBook.locations || typeof activeBook.locations.generate !== 'function') {
+            paginationState = 'unavailable';
+            postViewStatus(null, currentLocator);
+            return;
+          }
+          Promise.resolve(activeBook.locations.generate(STABLE_LOCATION_CHARS)).then(function () {
+            if (openGeneration !== generation || activeBook !== book) return;
+            var total = Number(activeBook.locations.length());
+            paginationState = Number.isFinite(total) && total > 0 ? 'ready' : 'unavailable';
+            postViewStatus(null, currentLocator);
+          }).catch(function (error) {
+            if (openGeneration !== generation || activeBook !== book) return;
+            paginationState = 'unavailable';
+            postViewStatus(null, currentLocator);
+            console.warn('[Krumer EPUB] stable locations unavailable', safeMessage(error));
+          });
+        }
+
         async function closeBook() {
           generation += 1;
           renditionGeneration += 1;
@@ -873,10 +1029,16 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           turnInFlight = false;
           if (turnUnlockTimer) clearTimeout(turnUnlockTimer);
           turnUnlockTimer = null;
-          sectionPageTotals = {};
           currentLocator = null;
-          pendingResizeLocator = null;
+          lastViewLocation = null;
+          readingAnchorLocator = null;
+          lastAppliedDoubleColumn = false;
+          paginationState = 'loading';
           activeRelocationSource = 'user';
+          if (viewportUpdateFrame !== null) {
+            (window.cancelAnimationFrame || clearTimeout)(viewportUpdateFrame);
+            viewportUpdateFrame = null;
+          }
           setLoading(true);
 
           try {
@@ -907,12 +1069,12 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           var nextRendition = activeBook.renderTo('viewer', {
             flow: readerLayout.displayMode === 'scroll' ? 'scrolled-doc' : 'paginated',
             manager: readerLayout.displayMode === 'scroll' ? 'continuous' : 'default',
+            resizeOnOrientationChange: false,
             spread: usesDoubleColumn() ? 'always' : 'none',
             width: '100%',
             height: '100%'
           });
           rendition = nextRendition;
-          sectionPageTotals = {};
           if (nextRendition.hooks && nextRendition.hooks.content && typeof nextRendition.hooks.content.register === 'function') {
             nextRendition.hooks.content.register(function (contents) {
               var doc = contents && contents.document;
@@ -929,8 +1091,9 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             var nextLocator = locatorFromLocation(location);
             if (nextLocator) {
               currentLocator = nextLocator;
+              if (activeRelocationSource === 'user') readingAnchorLocator = nextLocator;
               post('RELOCATE', { locator: nextLocator, source: activeRelocationSource });
-              post('VIEW_STATUS', viewStatusFromLocation(location, nextLocator));
+              postViewStatus(location, nextLocator);
             }
           });
 
@@ -938,6 +1101,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           if (locator && isEpubLocator(locator)) {
             try {
               resolution = await displayLocator(locator);
+              if (resolution === 'cfi') alignLocatorToLeadingColumn(nextRendition, locator);
             } catch (_) {
               await nextRendition.display();
             }
@@ -949,27 +1113,35 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           var stableLocator = await waitForStableLocator();
           if (renderGeneration !== renditionGeneration || activeBook !== book || nextRendition !== rendition) return;
           if (stableLocator) {
-            currentLocator = stableLocator;
+            var stabilizedLocator = resolution === 'cfi' && locator ? locator : stableLocator;
+            currentLocator = stabilizedLocator;
+            if (activeRelocationSource === 'restore' || !readingAnchorLocator) {
+              readingAnchorLocator = stabilizedLocator;
+            }
             post('POSITION_STABILIZED', {
-              locator: stableLocator,
+              locator: stabilizedLocator,
               resolution: resolution,
               source: activeRelocationSource
             });
           }
+          lastAppliedDoubleColumn = usesDoubleColumn();
           activeRelocationSource = 'user';
         }
 
         async function updateAppearance(message) {
-          var locator = pendingResizeLocator || await locatorFromCurrentRendition();
-          pendingResizeLocator = null;
+          var locator = readingAnchorLocator || await locatorFromCurrentRendition();
           var result = applyAppearance(message.payload && message.payload.appearance);
           if (!result) {
             reportError('INVALID_APPEARANCE', 'The EPUB appearance settings are invalid.', message.id);
             return;
           }
-          if (!result.requiresRenditionReset || !book || !rendition) return;
+          if (!book || !rendition || !result.requiresLayoutRefresh) return;
           try {
-            await renderBookAt(locator, 'reflow');
+            if (result.requiresRenditionReset) {
+              await renderBookAt(locator, 'reflow');
+            } else {
+              await applyViewportLayout(locator, 'reflow');
+            }
           } catch (error) {
             activeRelocationSource = 'user';
             reportError('APPEARANCE_UPDATE_FAILED', error, message.id);
@@ -1006,6 +1178,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
 
             setLoading(false);
             post('BOOK_OPENED', { bookId: payload.bookId }, message.id);
+            generateStableLocations(nextBook, openGeneration);
           } catch (error) {
             if (openGeneration !== generation) return;
             await closeBook();
@@ -1048,7 +1221,19 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
 
         window.KrumerEpubBridge = { receive: receive };
         window.addEventListener('resize', function () {
-          if (currentLocator) pendingResizeLocator = currentLocator;
+          var anchor = readingAnchorLocator || currentLocator;
+          if (viewportUpdateFrame !== null) {
+            (window.cancelAnimationFrame || clearTimeout)(viewportUpdateFrame);
+          }
+          var requestFrame = window.requestAnimationFrame || function (callback) {
+            return setTimeout(callback, 0);
+          };
+          viewportUpdateFrame = requestFrame(function () {
+            viewportUpdateFrame = null;
+            appearanceUpdateQueue = appearanceUpdateQueue
+              .catch(function () {})
+              .then(function () { return applyViewportLayout(anchor, 'reflow'); });
+          });
         });
         window.addEventListener('error', function (event) {
           reportError('RUNTIME_ERROR', event.error || event.message);

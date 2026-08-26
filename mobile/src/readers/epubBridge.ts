@@ -1,7 +1,7 @@
 import { parseReaderLocator, type EpubLocator } from '../models/reader';
 import type { ReadingPreferences } from '../models/readingPreferences';
 
-export const EPUB_BRIDGE_VERSION = 4 as const;
+export const EPUB_BRIDGE_VERSION = 5 as const;
 export const EPUB_BRIDGE_QUEUE_LIMIT = 8;
 
 export type EpubFontWeight = 300 | 400 | 500 | 700;
@@ -25,15 +25,15 @@ export type EpubVisualTheme = {
 
 export type EpubAppearance = ReadingPreferences & {
   fontSize: number;
-  isLandscape: boolean;
   lineHeight: number;
   visualTheme: EpubVisualTheme;
 };
 
 export type EpubViewStatus = {
   chapterTitle: string;
-  currentPage: number;
-  totalPages: number;
+  currentPage: number | null;
+  paginationState: 'loading' | 'ready' | 'unavailable';
+  totalPages: number | null;
 };
 
 type BridgeEnvelope<Type extends string, Payload> = {
@@ -169,17 +169,22 @@ export function parseEpubBridgeEvent(raw: string): EpubBridgeEvent | null {
   if (value.type === 'VIEW_STATUS') {
     const currentPage = value.payload.currentPage;
     const totalPages = value.payload.totalPages;
-    const validPage = typeof currentPage === 'number'
+    const paginationState = value.payload.paginationState;
+    const validReadyPage = typeof currentPage === 'number'
       && Number.isInteger(currentPage)
       && currentPage >= 1;
-    const validTotal = typeof totalPages === 'number'
+    const validReadyTotal = typeof totalPages === 'number'
       && Number.isInteger(totalPages)
-      && validPage
+      && typeof currentPage === 'number'
+      && validReadyPage
       && totalPages >= currentPage;
+    const validPendingPages = currentPage === null && totalPages === null;
+    const validPagination = paginationState === 'ready'
+      ? validReadyPage && validReadyTotal
+      : (paginationState === 'loading' || paginationState === 'unavailable') && validPendingPages;
     return typeof value.payload.chapterTitle === 'string'
       && value.payload.chapterTitle.length <= 200
-      && validPage
-      && validTotal
+      && validPagination
       ? value as EpubBridgeEvent
       : null;
   }

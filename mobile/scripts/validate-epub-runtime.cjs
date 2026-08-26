@@ -42,11 +42,24 @@ async function main() {
   const postedEvents = [];
   const activeReaderDocuments = [];
   const renditionConfigs = [];
+  const generatedLocationChunks = [];
+  const columnAlignmentCalls = [];
+  const resizeCalls = [];
+  const spreadCalls = [];
+  let renditionDestroyCount = 0;
+  let viewerReplaceCount = 0;
   let renderedHandler = null;
   let relocatedHandler = null;
   let contentHook = null;
   let currentRenditionLocation = null;
-  const viewer = { className: '', replaceChildren() {}, style: {} };
+  let shiftOnNextResize = false;
+  const viewer = {
+    className: '',
+    replaceChildren() {
+      viewerReplaceCount += 1;
+    },
+    style: {},
+  };
   const loading = { className: '', style: {} };
   const loadedFontFaces = [];
   const registeredDocumentFonts = [];
@@ -90,7 +103,9 @@ async function main() {
   };
   const rendition = {
     currentLocation: () => currentRenditionLocation,
-    destroy() {},
+    destroy() {
+      renditionDestroyCount += 1;
+    },
     display: (target) => {
       displayTargets.push(target || 'BOOK_START');
       if (String(target || '').includes('invalid-cfi')) {
@@ -114,6 +129,22 @@ async function main() {
         },
       },
     },
+    manager: {
+      layout: {
+        divisor: 2,
+        pageWidth: 600,
+      },
+      scrollBy: (left, top, silent) => {
+        columnAlignmentCalls.push({ left, silent, top });
+      },
+      settings: { direction: 'ltr' },
+      views: {
+        find: () => ({
+          locationOf: () => ({ left: 600, top: 0 }),
+          width: () => 12000,
+        }),
+      },
+    },
     next: () => {
       turns.next += 1;
       return Promise.resolve();
@@ -126,10 +157,45 @@ async function main() {
       turns.previous += 1;
       return Promise.resolve();
     },
+    resize: (width, height) => {
+      resizeCalls.push([width, height]);
+      if (shiftOnNextResize) {
+        shiftOnNextResize = false;
+        currentRenditionLocation = {
+          start: {
+            cfi: 'epubcfi(/shifted-after-resize)',
+            displayed: { page: 3, total: 4 },
+            href: progressionSection.href,
+            index: 0,
+          },
+        };
+      }
+      return Promise.resolve();
+    },
+    spread: (value) => {
+      spreadCalls.push(value);
+    },
   };
   const book = {
     destroy() {},
     load() {},
+    locations: {
+      generate: (characters) => {
+        generatedLocationChunks.push(characters);
+        return Promise.resolve();
+      },
+      length: () => 182,
+      locationFromCfi: (cfi) => {
+        const value = String(cfi || '');
+        if (value.includes('book-end')) return 181;
+        if (value.includes('excerpt')) return 135;
+        if (value.includes('spine-progression')) return 45;
+        if (value.includes('shifted')) return 57;
+        if (value.includes('relocated')) return 56;
+        return 0;
+      },
+      percentageFromCfi: (cfi) => book.locations.locationFromCfi(cfi) / 181,
+    },
     navigation: {
       toc: [{ href: progressionSection.href, label: 'Chapter Two', subitems: [] }],
     },
@@ -173,8 +239,11 @@ async function main() {
       windowListeners[type] = handler;
     },
     atob,
+    cancelAnimationFrame: clearTimeout,
     ePub: () => book,
+    innerHeight: 600,
     innerWidth: 1000,
+    requestAnimationFrame: (callback) => setTimeout(callback, 0),
     screen: { height: 1000, width: 1000 },
   };
 
@@ -232,13 +301,20 @@ async function main() {
       bookId: 'test-book',
       byteLength: 1,
       dataBase64: 'AA==',
+      initialLocator: {
+        format: 'epub',
+        cfi: 'epubcfi(/relocated)',
+        spineHref: progressionSection.href,
+        progressionInSection: 0.25,
+        excerpt: '',
+        totalProgression: 0.25,
+      },
       appearance: {
         displayMode: 'paginated',
-        doubleColumn: false,
+        doubleColumn: true,
         fontSize: 18,
         fontFamily: 'serif',
         fontWeight: 'regular',
-        isLandscape: false,
         lineHeight: 1.5,
         visualTheme: { backgroundColor: '#202020', linkColor: '#f59a5a', textColor: '#e7e7e7' },
       },
@@ -250,6 +326,18 @@ async function main() {
   if (!contentHook) throw new Error('The pre-layout content hook was not registered.');
   if (outerDocument.body.style.backgroundColor !== '#202020') {
     throw new Error('The visual theme was not applied without changing the rendition flow.');
+  }
+  if (
+    renditionConfigs.length !== 1
+    || renditionConfigs[0].spread !== 'always'
+    || renditionConfigs[0].resizeOnOrientationChange !== false
+    || columnAlignmentCalls.length !== 1
+    || columnAlignmentCalls[0].left !== 600
+  ) {
+    throw new Error('An EPUB opened at a saved CFI in landscape did not align it in the leading column.');
+  }
+  if (generatedLocationChunks.length !== 1 || generatedLocationChunks[0] !== 1600) {
+    throw new Error('Stable EPUB locations were not generated with fixed 1,600-character blocks.');
   }
 
   currentRenditionLocation = {
@@ -294,14 +382,61 @@ async function main() {
   ) {
     throw new Error('GET_CURRENT_LOCATOR did not return the live rendition position.');
   }
-  const viewStatusEnvelope = postedEvents.find((event) => event.type === 'VIEW_STATUS');
+  const viewStatusEnvelope = postedEvents.filter((event) => event.type === 'VIEW_STATUS').at(-1);
   if (
     !viewStatusEnvelope
     || viewStatusEnvelope.payload.chapterTitle !== 'Chapter Two'
+    || viewStatusEnvelope.payload.paginationState !== 'ready'
+    || viewStatusEnvelope.payload.currentPage !== 57
+    || viewStatusEnvelope.payload.totalPages !== 182
     || !bridge.parseEpubBridgeEvent(JSON.stringify(viewStatusEnvelope))
   ) {
-    throw new Error('VIEW_STATUS did not emit a valid chapter label and estimated page count.');
+    throw new Error('VIEW_STATUS did not emit the stable current page and fixed total from the relocated CFI.');
   }
+
+  const boundaryLocations = [
+    {
+      expectedPage: 1,
+      location: {
+        atStart: true,
+        start: {
+          cfi: 'epubcfi(/book-start)',
+          displayed: { page: 1, total: 4 },
+          href: progressionSection.href,
+          index: 0,
+        },
+      },
+    },
+    {
+      expectedPage: 182,
+      location: {
+        atEnd: true,
+        start: {
+          cfi: 'epubcfi(/book-end)',
+          displayed: { page: 4, total: 4 },
+          href: progressionSection.href,
+          index: 0,
+        },
+      },
+    },
+  ];
+  for (const boundary of boundaryLocations) {
+    currentRenditionLocation = boundary.location;
+    relocatedHandler(boundary.location);
+    const status = postedEvents.filter((event) => event.type === 'VIEW_STATUS').at(-1);
+    if (status.payload.currentPage !== boundary.expectedPage || status.payload.totalPages !== 182) {
+      throw new Error(`Stable EPUB page boundary did not resolve to ${boundary.expectedPage} / 182.`);
+    }
+  }
+  currentRenditionLocation = {
+    start: {
+      cfi: 'epubcfi(/relocated)',
+      displayed: { page: 2, total: 4 },
+      href: progressionSection.href,
+      index: 0,
+    },
+  };
+  relocatedHandler(currentRenditionLocation);
 
   runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
     version: bridge.EPUB_BRIDGE_VERSION,
@@ -415,11 +550,10 @@ async function main() {
   }
 
   const anchorBeforeReflow = 'epubcfi(/relocated)';
-  windowListeners.resize();
   currentRenditionLocation = {
     start: {
-      cfi: 'epubcfi(/shifted-after-resize)',
-      displayed: { page: 4, total: 4 },
+      cfi: anchorBeforeReflow,
+      displayed: { page: 2, total: 4 },
       href: progressionSection.href,
       index: 0,
     },
@@ -435,7 +569,6 @@ async function main() {
         fontSize: 24,
         fontFamily: 'sans',
         fontWeight: 'bold',
-        isLandscape: false,
         lineHeight: 1.8,
         visualTheme: { backgroundColor: '#f4ecd8', linkColor: '#a94f12', textColor: '#3b2f1e' },
       },
@@ -466,6 +599,8 @@ async function main() {
     throw new Error('Horizontal gestures still changed pages while scroll mode was active.');
   }
 
+  runtimeWindow.innerWidth = 700;
+  runtimeWindow.innerHeight = 1200;
   runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
     version: bridge.EPUB_BRIDGE_VERSION,
     id: 'test-double-column',
@@ -477,15 +612,93 @@ async function main() {
         fontSize: 24,
         fontFamily: 'mono',
         fontWeight: 'medium',
-        isLandscape: true,
         lineHeight: 1.8,
         visualTheme: { backgroundColor: '#202020', linkColor: '#f59a5a', textColor: '#e7e7e7' },
       },
     },
   }));
   await wait(0);
-  if (renditionConfigs.at(-1).flow !== 'paginated' || renditionConfigs.at(-1).spread !== 'always') {
-    throw new Error('Landscape double-column mode did not create a paginated spread.');
+  if (renditionConfigs.at(-1).flow !== 'paginated' || renditionConfigs.at(-1).spread !== 'none') {
+    throw new Error('Portrait mode did not recreate the paginated manager with a single-column spread.');
+  }
+
+  const renderCountBeforeRotation = renditionConfigs.length;
+  const destroyCountBeforeRotation = renditionDestroyCount;
+  const replaceCountBeforeRotation = viewerReplaceCount;
+  const displayCountBeforeRotation = displayTargets.length;
+
+  runtimeWindow.innerWidth = 1200;
+  runtimeWindow.innerHeight = 700;
+  shiftOnNextResize = true;
+  windowListeners.resize();
+  await wait(10);
+  if (
+    spreadCalls.at(-1) !== 'always'
+    || resizeCalls.at(-1)[0] !== 1200
+    || resizeCalls.at(-1)[1] !== 700
+    || columnAlignmentCalls.length !== 2
+    || columnAlignmentCalls.at(-1).left !== 600
+    || columnAlignmentCalls.at(-1).top !== 0
+    || columnAlignmentCalls.at(-1).silent !== true
+  ) {
+    throw new Error('Landscape rotation did not keep the saved CFI in the leading column of the active rendition.');
+  }
+  if (
+    renditionConfigs.length !== renderCountBeforeRotation
+    || renditionDestroyCount !== destroyCountBeforeRotation
+    || viewerReplaceCount !== replaceCountBeforeRotation
+    || displayTargets.length !== displayCountBeforeRotation + 1
+    || displayTargets.at(-1) !== anchorBeforeReflow
+  ) {
+    throw new Error('Rotation did not recover the exact CFI without recreating or clearing the active rendition.');
+  }
+  const displayCountAfterRecovery = displayTargets.length;
+
+  runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
+    version: bridge.EPUB_BRIDGE_VERSION,
+    id: 'test-in-place-typography',
+    type: 'SET_APPEARANCE',
+    payload: {
+      appearance: {
+        displayMode: 'paginated',
+        doubleColumn: true,
+        fontSize: 28,
+        fontFamily: 'serif',
+        fontWeight: 'bold',
+        lineHeight: 2,
+        visualTheme: { backgroundColor: '#202020', linkColor: '#f59a5a', textColor: '#e7e7e7' },
+      },
+    },
+  }));
+  await wait(10);
+  if (
+    renditionConfigs.length !== renderCountBeforeRotation
+    || renditionDestroyCount !== destroyCountBeforeRotation
+    || viewerReplaceCount !== replaceCountBeforeRotation
+    || columnAlignmentCalls.length !== 2
+  ) {
+    throw new Error('Typography reflow recreated, cleared, or advanced the aligned EPUB columns.');
+  }
+
+  runtimeWindow.innerWidth = 700;
+  runtimeWindow.innerHeight = 1200;
+  windowListeners.resize();
+  await wait(10);
+  if (
+    spreadCalls.at(-1) !== 'none'
+    || resizeCalls.at(-1)[0] !== 700
+    || resizeCalls.at(-1)[1] !== 1200
+  ) {
+    throw new Error('Portrait rotation did not return the active rendition to one column.');
+  }
+  if (
+    renditionConfigs.length !== renderCountBeforeRotation
+    || renditionDestroyCount !== destroyCountBeforeRotation
+    || viewerReplaceCount !== replaceCountBeforeRotation
+    || displayTargets.length !== displayCountAfterRecovery
+    || columnAlignmentCalls.length !== 2
+  ) {
+    throw new Error('Repeated rotation recreated, cleared, or redisplayed the EPUB rendition.');
   }
 
   const reflowEnvelope = postedEvents.filter((event) => event.type === 'POSITION_STABILIZED').at(-1);
@@ -497,7 +710,32 @@ async function main() {
     throw new Error('Appearance reflow did not preserve and stabilize the current text anchor.');
   }
 
-  console.log('EPUB runtime fonts, live locator capture, stabilized reflow, display modes, spreads, and navigation are valid.');
+  const stablePageStatuses = postedEvents
+    .filter((event) => event.type === 'VIEW_STATUS' && event.payload.paginationState === 'ready');
+  if (
+    stablePageStatuses.length < 3
+    || stablePageStatuses.some((event) => event.payload.totalPages !== 182)
+    || stablePageStatuses.at(-1).payload.currentPage !== 57
+  ) {
+    throw new Error('Stable page totals changed after typography or viewport reflow.');
+  }
+
+  const unavailableStatus = bridge.parseEpubBridgeEvent(JSON.stringify({
+    version: bridge.EPUB_BRIDGE_VERSION,
+    id: 'test-unavailable-status',
+    type: 'VIEW_STATUS',
+    payload: {
+      chapterTitle: 'Fallback chapter',
+      currentPage: null,
+      paginationState: 'unavailable',
+      totalPages: null,
+    },
+  }));
+  if (!unavailableStatus) {
+    throw new Error('VIEW_STATUS did not accept the non-fatal pagination fallback state.');
+  }
+
+  console.log('EPUB runtime stable pagination, in-place rotation, first-frame spreads, typography, and navigation are valid.');
 }
 
 main().catch((error) => {

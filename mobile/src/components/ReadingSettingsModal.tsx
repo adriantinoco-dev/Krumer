@@ -59,7 +59,14 @@ export function ReadingSettingsModal({
   const insets = useSafeAreaInsets();
 
   return (
-    <Modal animationType="slide" onRequestClose={onClose} statusBarTranslucent transparent visible={visible}>
+    <Modal
+      animationType="slide"
+      navigationBarTranslucent
+      onRequestClose={onClose}
+      statusBarTranslucent
+      transparent
+      visible={visible}
+    >
       <Pressable onPress={onClose} style={{ backgroundColor: '#00000066', flex: 1, justifyContent: 'flex-end' }}>
         <Pressable
           onPress={(event) => event.stopPropagation()}

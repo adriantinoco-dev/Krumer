@@ -46,7 +46,6 @@ type EpubReaderProps = {
   fileSize?: number;
   fontSize?: number;
   initialLocator?: EpubLocator | null;
-  isLandscape?: boolean;
   lineHeight?: number;
   onCenterTap?: () => void;
   onExternalLink?: (url: string) => void;
@@ -63,7 +62,6 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     fileSize,
     fontSize = 18,
     initialLocator,
-    isLandscape = false,
     lineHeight = 1.5,
     onCenterTap,
     onExternalLink,
@@ -104,7 +102,6 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       return {
         ...readingPreferences,
         fontSize,
-        isLandscape,
         lineHeight,
         visualTheme: { backgroundColor: '#202020', linkColor: '#f59a5a', textColor: '#e7e7e7' },
       };
@@ -113,7 +110,6 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       return {
         ...readingPreferences,
         fontSize,
-        isLandscape,
         lineHeight,
         visualTheme: { backgroundColor: '#f4ecd8', linkColor: '#a94f12', textColor: '#3b2f1e' },
       };
@@ -121,11 +117,10 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     return {
       ...readingPreferences,
       fontSize,
-      isLandscape,
       lineHeight,
       visualTheme: { backgroundColor: '#ffffff', linkColor: '#c2570a', textColor: '#222222' },
     };
-  }, [fontSize, isLandscape, lineHeight, readingPreferences, theme.name]);
+  }, [fontSize, lineHeight, readingPreferences, theme.name]);
   const appearanceRef = useRef(appearance);
   appearanceRef.current = appearance;
   const visualTheme = appearance.visualTheme;

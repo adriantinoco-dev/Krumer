@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Check } from 'lucide-react-native';
 import { FavoriteBadge } from './FavoriteBadge';
 import { VolumeBadge } from './VolumeBadge';
@@ -28,8 +28,47 @@ export function BookCard({
   const showCover = Boolean(book.coverPath && !coverFailed);
   const coverWidth = Math.max(0, width - spacing.sm * 2);
 
+  const progressPct = Math.max(0, Math.min(100, book.isRead ? 100 : (book.progressPct ?? 0)));
+  const showProgressBar = progressPct > 1 && progressPct <= 100;
+
+  const [progressVisible, setProgressVisible] = useState(showProgressBar);
+  const slideAnim = useRef(new Animated.Value(showProgressBar ? 0 : 0)).current;
+  const bgOpacity = useRef(new Animated.Value(0)).current;
+
   const animatedProgress = useRef(new Animated.Value(0)).current;
   const prevProgressPctRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (showProgressBar) {
+      setProgressVisible(true);
+      slideAnim.stopAnimation();
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 350,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }).start();
+
+      // Dark track fades in slower than the orange fill so it never appears ahead.
+      bgOpacity.stopAnimation();
+      Animated.timing(bgOpacity, {
+        toValue: 0,
+        duration: 350,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }).start();
+    } else if (progressVisible) {
+      slideAnim.stopAnimation();
+      Animated.timing(slideAnim, {
+        toValue: -coverWidth,
+        duration: 350,
+        easing: Easing.in(Easing.ease),
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) setProgressVisible(false);
+      });
+    }
+  }, [showProgressBar, progressVisible, coverWidth, slideAnim]);
 
   useEffect(() => {
     const target = Math.max(0, Math.min(100, book.progressPct ?? 0));
@@ -113,30 +152,44 @@ export function BookCard({
           {/* Favorite Badge (top: 7, left: 7 with pop animation) */}
           <FavoriteBadge isFavorite={isFavorite} />
 
-          {/* Bottom Progress Bar */}
-          <View
-            style={{
-              backgroundColor: 'rgba(0, 0, 0, 0.15)',
-              borderRadius: 4,
-              bottom: 0,
-              height: 6,
-              left: 0,
-              overflow: 'hidden',
-              position: 'absolute',
-              right: 0,
-            }}
-          >
+          {/* Bottom Progress Bar — only when there is real progress (1 < pct <= 100) */}
+          {progressVisible && (
             <Animated.View
               style={{
-                backgroundColor: theme.accent,
-                height: '100%',
-                width: animatedProgress.interpolate({
-                  inputRange: [0, 100],
-                  outputRange: ['0%', '100%'],
-                }),
+                borderRadius: 4,
+                bottom: 0,
+                height: 6,
+                left: 0,
+                overflow: 'hidden',
+                position: 'absolute',
+                right: 0,
+                transform: [{ translateX: slideAnim }],
               }}
-            />
-          </View>
+            >
+              {/* Dark track — fades in slower than the orange fill */}
+              <Animated.View
+                style={{
+                  backgroundColor: 'rgba(0, 0, 0, 0.15)',
+                  borderRadius: 4,
+                  height: '100%',
+                  opacity: bgOpacity,
+                  position: 'absolute',
+                  width: '100%',
+                }}
+              />
+              {/* Orange fill */}
+              <Animated.View
+                style={{
+                  backgroundColor: theme.accent,
+                  height: '100%',
+                  width: animatedProgress.interpolate({
+                    inputRange: [0, 100],
+                    outputRange: ['0%', '100%'],
+                  }),
+                }}
+              />
+            </Animated.View>
+          )}
 
           {selected !== undefined && (
             <View pointerEvents="none" style={styles.selectionOverlay}>

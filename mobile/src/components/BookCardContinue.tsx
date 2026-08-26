@@ -107,8 +107,8 @@ export function BookCardContinue({
           {/* Favorite Badge (top: 7, left: 7 with pop animation) */}
           <FavoriteBadge isFavorite={isFavorite} />
 
-          {/* Bottom Progress Bar */}
-          {progressPct > 0 && (
+          {/* Bottom Progress Bar — only when there is real progress (1 < pct <= 100) */}
+          {progressPct > 1 && progressPct <= 100 && (
             <View
               style={{
                 backgroundColor: 'rgba(0, 0, 0, 0.15)',

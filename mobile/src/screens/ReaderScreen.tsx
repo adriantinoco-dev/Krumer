@@ -28,7 +28,12 @@ const LINE_HEIGHT_MAX = 2.4;
 const LINE_HEIGHT_DEFAULT = 1.5;
 const HIDE_DELAY = 4000;
 const EPUB_CONTENT_TOP_OFFSET = 72;
+const EPUB_CHROME_VERTICAL_SCALE = 0.6;
 const READER_SETTINGS_KEY = 'krumer.reader.settings';
+
+function scaleEpubChrome(value: number) {
+  return Math.round(value * EPUB_CHROME_VERTICAL_SCALE);
+}
 
 type ReaderSettings = {
   fontSize: number;
@@ -206,10 +211,19 @@ export function ReaderScreen({ navigation, route }: Props) {
   }
 
   const progressPercent = Math.round(progress * 100);
+  const epubProgressLabel = readingPreferences.preferences.displayMode === 'scroll'
+    ? `${progressPercent}%`
+    : !epubViewStatus || epubViewStatus.paginationState === 'loading'
+      ? '— / —'
+      : epubViewStatus.paginationState === 'ready'
+        && epubViewStatus.currentPage !== null
+        && epubViewStatus.totalPages !== null
+        ? `${epubViewStatus.currentPage} / ${epubViewStatus.totalPages}`
+        : `${progressPercent}%`;
 
   return (
     <View style={{ backgroundColor: theme.bg, flex: 1 }}>
-      <StatusBar hidden={!barsVisible} animated />
+      <StatusBar hidden={isEpub || !barsVisible} animated={!isEpub} />
 
       {/* Reader content */}
       {book.format === 'pdf' ? (
@@ -237,7 +251,6 @@ export function ReaderScreen({ navigation, route }: Props) {
               fileSize={book.fileSize}
               fontSize={readerSettings.fontSize}
               initialLocator={epubPersistence.initialLocator}
-              isLandscape={isLandscape}
               lineHeight={readerSettings.lineHeight}
               onCenterTap={toggleBars}
               onPositionStabilized={handleEpubPositionStabilized}
@@ -265,7 +278,7 @@ export function ReaderScreen({ navigation, route }: Props) {
             style={{
               color: epubMuted,
               fontFamily: serifFont,
-              fontSize: 11,
+              fontSize: 14,
               left: Math.max(insets.left, 0) + 24,
               maxWidth: '72%',
               opacity: 0.68,
@@ -282,15 +295,13 @@ export function ReaderScreen({ navigation, route }: Props) {
                 bottom: Math.max(insets.bottom, 0) + 16,
                 color: epubMuted,
                 fontFamily: serifFont,
-                fontSize: 11,
+                fontSize: 14,
                 opacity: 0.62,
                 position: 'absolute',
                 right: Math.max(insets.right, 0) + 24,
               }}
             >
-              {readingPreferences.preferences.displayMode === 'scroll'
-                ? `${progressPercent}%`
-                : `${epubViewStatus.currentPage} / ${epubViewStatus.totalPages}`}
+              {epubProgressLabel}
             </Text>
           ) : null}
         </View>
@@ -307,10 +318,12 @@ export function ReaderScreen({ navigation, route }: Props) {
           elevation: isEpub ? 20 : 0,
           left: 0,
           opacity: isEpub ? (barsVisible ? 1 : 0) : opacity,
-          paddingBottom: spacing.sm,
+          paddingBottom: isEpub ? scaleEpubChrome(spacing.sm) : spacing.sm,
           paddingLeft: Math.max(insets.left, spacing.md),
           paddingRight: Math.max(insets.right, spacing.md),
-          paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 44 : 24) + spacing.xs,
+          paddingTop: isEpub
+            ? Math.max(insets.top, scaleEpubChrome(Platform.OS === 'ios' ? 44 : 24)) + scaleEpubChrome(spacing.xs)
+            : Math.max(insets.top, Platform.OS === 'ios' ? 44 : 24) + spacing.xs,
           position: 'absolute',
           right: 0,
           top: 0,
@@ -323,7 +336,7 @@ export function ReaderScreen({ navigation, route }: Props) {
               alignItems: 'center',
               backgroundColor: epubTopChrome,
               flexDirection: 'row',
-              minHeight: 44,
+              minHeight: scaleEpubChrome(44),
               position: 'relative',
               zIndex: 101,
             }}
@@ -340,7 +353,7 @@ export function ReaderScreen({ navigation, route }: Props) {
               }}
               style={({ pressed }) => ({
                 alignItems: 'center',
-                height: 40,
+                height: scaleEpubChrome(40),
                 justifyContent: 'center',
                 opacity: !epubPersistence.currentLocator || bookmarkBusy ? 0.32 : pressed ? 0.55 : 1,
                 width: 44,
@@ -357,7 +370,7 @@ export function ReaderScreen({ navigation, route }: Props) {
               }}
               style={({ pressed }) => ({
                 alignItems: 'center',
-                height: 40,
+                height: scaleEpubChrome(40),
                 justifyContent: 'center',
                 opacity: pressed ? 0.55 : 1,
                 width: 44,
@@ -396,7 +409,7 @@ export function ReaderScreen({ navigation, route }: Props) {
               onPress={() => navigation.goBack()}
               style={({ pressed }) => ({
                 alignItems: 'center',
-                height: 40,
+                height: scaleEpubChrome(40),
                 justifyContent: 'center',
                 opacity: pressed ? 0.5 : 1,
                 width: 44,
@@ -458,23 +471,25 @@ export function ReaderScreen({ navigation, route }: Props) {
           bottom: 0,
           left: 0,
           opacity,
-          paddingBottom: Math.max(insets.bottom, 16) + spacing.xs,
+          paddingBottom: isEpub
+            ? Math.max(insets.bottom, scaleEpubChrome(16)) + scaleEpubChrome(spacing.xs)
+            : Math.max(insets.bottom, 16) + spacing.xs,
           paddingLeft: Math.max(insets.left, spacing.md),
           paddingRight: Math.max(insets.right, spacing.md),
-          paddingTop: spacing.sm,
+          paddingTop: isEpub ? scaleEpubChrome(spacing.sm) : spacing.sm,
           position: 'absolute',
           right: 0,
         }}
       >
         {isEpub ? (
-          <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.md, minHeight: 48 }}>
+          <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.md, minHeight: scaleEpubChrome(48) }}>
             {readingPreferences.preferences.displayMode === 'paginated' ? (
               <Pressable
                 accessibilityLabel={t('reader.previousPage')}
                 hitSlop={8}
                 onPress={() => epubReaderRef.current?.previous()}
                 style={({ pressed }) => ({
-                  alignItems: 'center', height: 44, justifyContent: 'center', opacity: pressed ? 0.5 : 1, width: 48,
+                  alignItems: 'center', height: scaleEpubChrome(44), justifyContent: 'center', opacity: pressed ? 0.5 : 1, width: 48,
                 })}
               >
                 <ChevronLeft color={epubText} size={24} strokeWidth={1.8} />
@@ -485,11 +500,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                 <View style={{ backgroundColor: theme.accent, height: '100%', width: `${progressPercent}%` }} />
               </View>
               <Text style={{ color: epubMuted, fontFamily: serifFont, fontSize: 10, textAlign: 'center' }}>
-                {readingPreferences.preferences.displayMode === 'scroll'
-                  ? `${progressPercent}%`
-                  : epubViewStatus
-                  ? `${epubViewStatus.currentPage} / ${epubViewStatus.totalPages}`
-                  : `${progressPercent}%`}
+                {epubProgressLabel}
               </Text>
             </View>
             {readingPreferences.preferences.displayMode === 'paginated' ? (
@@ -498,7 +509,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                 hitSlop={8}
                 onPress={() => epubReaderRef.current?.next()}
                 style={({ pressed }) => ({
-                  alignItems: 'center', height: 44, justifyContent: 'center', opacity: pressed ? 0.5 : 1, width: 48,
+                  alignItems: 'center', height: scaleEpubChrome(44), justifyContent: 'center', opacity: pressed ? 0.5 : 1, width: 48,
                 })}
               >
                 <ChevronRight color={epubText} size={24} strokeWidth={1.8} />

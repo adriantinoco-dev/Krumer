@@ -18,6 +18,7 @@ import { SettingsScreen } from './src/screens/SettingsScreen';
 import type { MainTabParamList, RootStackParamList } from './src/navigation/types';
 import { serifFont } from './src/theme';
 import { SyncCoordinator } from './src/sync/SyncCoordinator';
+import { usePortraitOrientation } from './src/readers/useOrientation';
 
 const Tabs = createBottomTabNavigator<MainTabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -89,6 +90,7 @@ function MainTabs() {
 
 function AppShell() {
   const { preferences, ready, theme } = useApp();
+  usePortraitOrientation();
   const navigationTheme = {
     ...DefaultTheme,
     colors: {

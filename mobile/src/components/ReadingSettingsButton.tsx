@@ -13,7 +13,7 @@ export function ReadingSettingsButton({ color, onPress }: { color: string; onPre
       onPress={onPress}
       style={({ pressed }) => ({
         alignItems: 'center',
-        height: 40,
+        height: 36,
         justifyContent: 'center',
         opacity: pressed ? 0.55 : 1,
         width: 44,

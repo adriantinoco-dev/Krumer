@@ -66,15 +66,34 @@ async function main() {
   }
 
   const orientationSource = fs.readFileSync('src/readers/useOrientation.ts', 'utf8');
+  const readerScreenSource = fs.readFileSync('src/screens/ReaderScreen.tsx', 'utf8');
+  const settingsModalSource = fs.readFileSync('src/components/ReadingSettingsModal.tsx', 'utf8');
+  const settingsButtonSource = fs.readFileSync('src/components/ReadingSettingsButton.tsx', 'utf8');
+  const appSource = fs.readFileSync('App.tsx', 'utf8');
   const appConfig = JSON.parse(fs.readFileSync('app.json', 'utf8'));
-  if (appConfig.expo.orientation !== 'portrait') {
-    throw new Error('Non-reader screens must remain locked to portrait.');
+  const androidManifest = fs.readFileSync('android/app/src/main/AndroidManifest.xml', 'utf8');
+  if (appConfig.expo.orientation !== 'default' || !androidManifest.includes('android:screenOrientation="unspecified"')) {
+    throw new Error('The native app must permit landscape before the reader can rotate at runtime.');
   }
-  if (!orientationSource.includes('unlockAsync()') || !orientationSource.includes('lockAsync(previousLock)')) {
+  if (
+    !orientationSource.includes('OrientationLock.ALL')
+    || !orientationSource.includes('lockAsync(previousLock)')
+    || !appSource.includes('usePortraitOrientation()')
+  ) {
     throw new Error('Reader-only orientation unlock/restore lifecycle is missing.');
   }
+  if (
+    !readerScreenSource.includes('hidden={isEpub || !barsVisible}')
+    || !readerScreenSource.includes('animated={!isEpub}')
+    || !readerScreenSource.includes('EPUB_CHROME_VERTICAL_SCALE = 0.9')
+    || !settingsModalSource.includes('statusBarTranslucent')
+    || !settingsModalSource.includes('navigationBarTranslucent')
+    || !settingsButtonSource.includes('height: 36')
+  ) {
+    throw new Error('EPUB chrome or settings modal can still resize the underlying reader viewport.');
+  }
 
-  console.log('Reading preferences, embedded font weights, and reader-only orientation lifecycle are valid.');
+  console.log('Reading preferences, embedded fonts, reader-only orientation, and viewport-stable chrome are valid.');
 }
 
 main().catch((error) => {
