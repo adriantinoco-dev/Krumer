@@ -25,6 +25,7 @@ const LINE_HEIGHT_MAX = 2.4;
 const LINE_HEIGHT_STEP = 0.2;
 const LINE_HEIGHT_DEFAULT = 1.5;
 const HIDE_DELAY = 4000;
+const EPUB_CONTENT_TOP_OFFSET = 72;
 const READER_SETTINGS_KEY = 'krumer.reader.settings';
 
 type ReaderSettings = {
@@ -68,7 +69,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const epubBackground = theme.name === 'dark' ? '#202020' : theme.name === 'sepia' ? '#f4ecd8' : '#ffffff';
   const epubText = theme.name === 'dark' ? '#e7e7e7' : theme.name === 'sepia' ? '#3b2f1e' : '#222222';
   const epubMuted = theme.name === 'dark' ? '#a2a2a2' : theme.name === 'sepia' ? '#796c52' : '#6f6f6f';
-  const epubTopChrome = theme.name === 'dark' ? '#202020f5' : theme.name === 'sepia' ? '#f4ecd8f5' : '#fffffff5';
+  const epubTopChrome = theme.name === 'dark' ? '#202020' : theme.name === 'sepia' ? '#f4ecd8' : '#ffffff';
   const epubBottomChrome = theme.name === 'dark' ? '#2a2a2af5' : theme.name === 'sepia' ? '#e6dab8f5' : '#f4f4f4f5';
 
   const syncDurableEpubProgress = useCallback(async (locator: EpubLocator) => {
@@ -213,7 +214,7 @@ export function ReaderScreen({ navigation, route }: Props) {
             flex: 1,
             paddingBottom: Math.max(insets.bottom, 0) + 48,
             paddingHorizontal: 24,
-            paddingTop: Math.max(insets.top, 0) + 40,
+            paddingTop: Math.max(insets.top, 0) + EPUB_CONTENT_TOP_OFFSET,
           }}
         >
           {epubPersistence.hydrated ? (
@@ -286,8 +287,9 @@ export function ReaderScreen({ navigation, route }: Props) {
           backgroundColor: isEpub ? epubTopChrome : theme.surface + 'ee',
           borderBottomColor: theme.border,
           borderBottomWidth: isEpub ? 0 : 1,
+          elevation: isEpub ? 20 : 0,
           left: 0,
-          opacity,
+          opacity: isEpub ? (barsVisible ? 1 : 0) : opacity,
           paddingBottom: spacing.sm,
           paddingLeft: Math.max(insets.left, spacing.md),
           paddingRight: Math.max(insets.right, spacing.md),
@@ -295,10 +297,20 @@ export function ReaderScreen({ navigation, route }: Props) {
           position: 'absolute',
           right: 0,
           top: 0,
+          zIndex: 100,
         }}
       >
         {isEpub ? (
-          <View style={{ alignItems: 'center', flexDirection: 'row', minHeight: 44 }}>
+          <View
+            style={{
+              alignItems: 'center',
+              backgroundColor: epubTopChrome,
+              flexDirection: 'row',
+              minHeight: 44,
+              position: 'relative',
+              zIndex: 101,
+            }}
+          >
             <Pressable
               accessibilityLabel={t('reader.addBookmark')}
               disabled={!epubPersistence.currentLocator || bookmarkBusy}
@@ -379,7 +391,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                 alignItems: 'center',
                 height: 40,
                 justifyContent: 'center',
-                opacity: pressed ? 0.5 : 0.8,
+                opacity: pressed ? 0.5 : 1,
                 width: 44,
               })}
             >
