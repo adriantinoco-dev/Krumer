@@ -3,6 +3,18 @@ import { parseReaderLocator, type EpubLocator } from '../models/reader';
 export const EPUB_BRIDGE_VERSION = 2 as const;
 export const EPUB_BRIDGE_QUEUE_LIMIT = 8;
 
+export type EpubVisualTheme = {
+  backgroundColor: string;
+  linkColor: string;
+  textColor: string;
+};
+
+export type EpubViewStatus = {
+  chapterTitle: string;
+  currentPage: number;
+  totalPages: number;
+};
+
 type BridgeEnvelope<Type extends string, Payload> = {
   version: typeof EPUB_BRIDGE_VERSION;
   id: string;
@@ -16,6 +28,7 @@ export type EpubBridgeCommand =
       dataBase64: string;
       byteLength: number;
       initialLocator?: EpubLocator | null;
+      visualTheme?: EpubVisualTheme;
     }>
   | BridgeEnvelope<'NEXT', Record<string, never>>
   | BridgeEnvelope<'PREVIOUS', Record<string, never>>
@@ -25,7 +38,9 @@ export type EpubBridgeCommand =
 export type EpubBridgeEvent =
   | BridgeEnvelope<'READY', { engine: 'epub.js'; engineVersion: '0.3.93' }>
   | BridgeEnvelope<'BOOK_OPENED', { bookId: string }>
+  | BridgeEnvelope<'CENTER_TAP', Record<string, never>>
   | BridgeEnvelope<'RELOCATE', { locator: EpubLocator }>
+  | BridgeEnvelope<'VIEW_STATUS', EpubViewStatus>
   | BridgeEnvelope<'LINK_PRESSED', { url: string }>
   | BridgeEnvelope<'ERROR', { code: string; message: string; requestId?: string }>;
 
@@ -77,9 +92,29 @@ export function parseEpubBridgeEvent(raw: string): EpubBridgeEvent | null {
     return typeof value.payload.bookId === 'string' ? value as EpubBridgeEvent : null;
   }
 
+  if (value.type === 'CENTER_TAP') return value as EpubBridgeEvent;
+
   if (value.type === 'RELOCATE') {
     const locator = parseReaderLocator(value.payload.locator);
     return locator?.format === 'epub' ? value as EpubBridgeEvent : null;
+  }
+
+  if (value.type === 'VIEW_STATUS') {
+    const currentPage = value.payload.currentPage;
+    const totalPages = value.payload.totalPages;
+    const validPage = typeof currentPage === 'number'
+      && Number.isInteger(currentPage)
+      && currentPage >= 1;
+    const validTotal = typeof totalPages === 'number'
+      && Number.isInteger(totalPages)
+      && validPage
+      && totalPages >= currentPage;
+    return typeof value.payload.chapterTitle === 'string'
+      && value.payload.chapterTitle.length <= 200
+      && validPage
+      && validTotal
+      ? value as EpubBridgeEvent
+      : null;
   }
 
   if (value.type === 'LINK_PRESSED') {

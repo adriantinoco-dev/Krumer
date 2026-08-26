@@ -42,8 +42,8 @@ async function main() {
   const postedEvents = [];
   let renderedHandler = null;
   let relocatedHandler = null;
-  const viewer = { className: '', replaceChildren() {} };
-  const loading = { className: '' };
+  const viewer = { className: '', replaceChildren() {}, style: {} };
+  const loading = { className: '', style: {} };
 
   function createSectionDocument(text) {
     const root = { nodeType: 1 };
@@ -105,6 +105,9 @@ async function main() {
   const book = {
     destroy() {},
     load() {},
+    navigation: {
+      toc: [{ href: progressionSection.href, label: 'Chapter Two', subitems: [] }],
+    },
     ready: Promise.resolve(),
     renderTo: () => rendition,
     spine: {
@@ -118,6 +121,8 @@ async function main() {
     },
   };
   const outerDocument = {
+    body: { style: {} },
+    documentElement: { style: {} },
     getElementById: (id) => (id === 'viewer' ? viewer : loading),
   };
   const runtimeWindow = {
@@ -128,7 +133,7 @@ async function main() {
     atob,
     ePub: () => book,
     innerWidth: 1000,
-    screen: { width: 1000 },
+    screen: { height: 1000, width: 1000 },
   };
 
   vm.runInNewContext(scripts[1], {
@@ -149,11 +154,19 @@ async function main() {
     version: bridge.EPUB_BRIDGE_VERSION,
     id: 'test-open',
     type: 'OPEN_BOOK',
-    payload: { bookId: 'test-book', byteLength: 1, dataBase64: 'AA==' },
+    payload: {
+      bookId: 'test-book',
+      byteLength: 1,
+      dataBase64: 'AA==',
+      visualTheme: { backgroundColor: '#202020', linkColor: '#f59a5a', textColor: '#e7e7e7' },
+    },
   }));
   await wait(0);
   if (!renderedHandler) throw new Error('The rendered document handler was not registered.');
   if (!relocatedHandler) throw new Error('The relocated handler was not registered.');
+  if (outerDocument.body.style.backgroundColor !== '#202020') {
+    throw new Error('The visual theme was not applied without changing the rendition flow.');
+  }
 
   relocatedHandler({
     start: {
@@ -166,6 +179,14 @@ async function main() {
   const relocateEnvelope = postedEvents.find((event) => event.type === 'RELOCATE');
   if (!relocateEnvelope || !bridge.parseEpubBridgeEvent(JSON.stringify(relocateEnvelope))) {
     throw new Error('RELOCATE did not emit a valid EPUB locator envelope.');
+  }
+  const viewStatusEnvelope = postedEvents.find((event) => event.type === 'VIEW_STATUS');
+  if (
+    !viewStatusEnvelope
+    || viewStatusEnvelope.payload.chapterTitle !== 'Chapter Two'
+    || !bridge.parseEpubBridgeEvent(JSON.stringify(viewStatusEnvelope))
+  ) {
+    throw new Error('VIEW_STATUS did not emit a valid chapter label and estimated page count.');
   }
 
   runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
@@ -256,7 +277,18 @@ async function main() {
   chapter.listeners.touchend(touchEvent(100, 'end'));
   if (turns.previous !== 1) throw new Error('One left tap did not go back exactly once.');
 
-  console.log('EPUB runtime syntax, navigation, relocation, and locator fallbacks are valid.');
+  await wait(120);
+  chapter.listeners.touchstart(touchEvent(500, 'start'));
+  chapter.listeners.touchend(touchEvent(500, 'end'));
+  const centerTapEnvelope = postedEvents.find((event) => event.type === 'CENTER_TAP');
+  if (!centerTapEnvelope || !bridge.parseEpubBridgeEvent(JSON.stringify(centerTapEnvelope))) {
+    throw new Error('A center tap did not emit a valid visual chrome toggle event.');
+  }
+  if (turns.next !== 2 || turns.previous !== 1) {
+    throw new Error('A center tap changed the EPUB navigation state.');
+  }
+
+  console.log('EPUB runtime navigation, locators, visual status, theme, and center tap are valid.');
 }
 
 main().catch((error) => {

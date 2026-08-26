@@ -59,6 +59,12 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
         var lastTouchEndAt = 0;
         var turnInFlight = false;
         var turnUnlockTimer = null;
+        var sectionPageTotals = {};
+        var visualTheme = {
+          backgroundColor: '#ffffff',
+          linkColor: '#c2570a',
+          textColor: '#171717'
+        };
 
         function eventId() {
           nextEventId += 1;
@@ -93,6 +99,28 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           var viewer = document.getElementById('viewer');
           if (loading) loading.className = visible ? '' : 'hidden';
           if (viewer) viewer.className = visible ? '' : 'ready';
+        }
+
+        function validThemeColor(value) {
+          return typeof value === 'string' && /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(value);
+        }
+
+        function applyVisualTheme(theme) {
+          if (!theme
+            || !validThemeColor(theme.backgroundColor)
+            || !validThemeColor(theme.textColor)
+            || !validThemeColor(theme.linkColor)) return;
+          visualTheme = {
+            backgroundColor: theme.backgroundColor,
+            linkColor: theme.linkColor,
+            textColor: theme.textColor
+          };
+          var viewer = document.getElementById('viewer');
+          var loading = document.getElementById('loading');
+          if (document.documentElement) document.documentElement.style.backgroundColor = visualTheme.backgroundColor;
+          if (document.body) document.body.style.backgroundColor = visualTheme.backgroundColor;
+          if (viewer) viewer.style.backgroundColor = visualTheme.backgroundColor;
+          if (loading) loading.style.backgroundColor = visualTheme.backgroundColor;
         }
 
         function base64ToArrayBuffer(base64) {
@@ -202,6 +230,63 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             progressionInSection: progressionInSection,
             excerpt: renderedContext ? renderedContext.excerpt : '',
             totalProgression: totalProgression
+          };
+        }
+
+        function normalizedHref(value) {
+          var href = String(value || '').split('#')[0].replace(/^\.\//, '');
+          try { href = decodeURIComponent(href); } catch (_) {}
+          return href;
+        }
+
+        function tocLabelForHref(href) {
+          if (!book || !book.navigation || !book.navigation.toc) return '';
+          var targetHref = normalizedHref(href);
+          var firstSectionMatch = '';
+
+          function visit(items) {
+            for (var index = 0; index < (items || []).length; index += 1) {
+              var item = items[index];
+              var itemHref = normalizedHref(item.href);
+              if (itemHref === targetHref && item.label) {
+                firstSectionMatch = String(item.label).replace(/\s+/g, ' ').trim();
+                return true;
+              }
+              if (visit(item.subitems || [])) return true;
+            }
+            return false;
+          }
+
+          visit(book.navigation.toc);
+          return firstSectionMatch.slice(0, 200);
+        }
+
+        function viewStatusFromLocation(location, locator) {
+          var start = location && location.start ? location.start : {};
+          var displayed = start.displayed || {};
+          var spineLength = book && book.spine ? Math.max(1, Number(book.spine.length) || 1) : 1;
+          var spineIndex = Math.max(0, Math.min(spineLength - 1, Number(start.index) || 0));
+          var displayedTotal = Math.max(1, Number(displayed.total) || 1);
+          sectionPageTotals[spineIndex] = displayedTotal;
+
+          var measuredPages = 0;
+          var measuredSections = 0;
+          Object.keys(sectionPageTotals).forEach(function (key) {
+            measuredPages += sectionPageTotals[key];
+            measuredSections += 1;
+          });
+          var averagePages = measuredSections ? measuredPages / measuredSections : displayedTotal;
+          var totalPages = Math.max(1, Math.round(averagePages * spineLength));
+          var totalProgression = locator && typeof locator.totalProgression === 'number'
+            ? locator.totalProgression
+            : (spineIndex + clampProgression((Number(displayed.page) - 1) / displayedTotal)) / spineLength;
+          var currentPage = Math.max(1, Math.min(totalPages, Math.round(totalProgression * Math.max(0, totalPages - 1)) + 1));
+          if (location && location.atEnd) currentPage = totalPages;
+
+          return {
+            chapterTitle: tocLabelForHref(start.href),
+            currentPage: currentPage,
+            totalPages: totalPages
           };
         }
 
@@ -381,6 +466,18 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             : 0.5;
         }
 
+        function verticalRatio(point, doc) {
+          var screenHeight = window.screen && window.screen.height;
+          if (typeof point.screenY === 'number' && screenHeight > 0) {
+            return point.screenY / screenHeight;
+          }
+
+          var viewportHeight = window.innerHeight || (doc.documentElement && doc.documentElement.clientHeight);
+          return viewportHeight && typeof point.clientY === 'number'
+            ? point.clientY / viewportHeight
+            : 0.5;
+        }
+
         function pointX(point) {
           return typeof point.screenX === 'number' ? point.screenX : point.clientX;
         }
@@ -428,8 +525,9 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
 
           var style = doc.createElement('style');
           style.textContent = [
-            'html, body { background: #ffffff !important; color: #171717 !important; }',
-            'body { font-family: Georgia, "Times New Roman", serif !important; font-size: 18px !important; line-height: 1.6 !important; }',
+            'html, body { background: ' + visualTheme.backgroundColor + ' !important; color: ' + visualTheme.textColor + ' !important; }',
+            'body { font-family: Georgia, "Times New Roman", serif !important; font-size: 18px !important; line-height: 1.6 !important; margin: 0 !important; padding: 0 !important; }',
+            'a { color: ' + visualTheme.linkColor + ' !important; }',
             'img, svg, video { max-width: 100% !important; height: auto !important; }'
           ].join('');
           (doc.head || doc.documentElement).appendChild(style);
@@ -469,6 +567,13 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
               event.preventDefault();
               event.stopImmediatePropagation();
               turn(ratio <= 0.3 ? 'PREVIOUS' : 'NEXT');
+              return;
+            }
+            var yRatio = verticalRatio(touch, doc);
+            if (yRatio >= 0.2 && yRatio <= 0.8) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              post('CENTER_TAP', {});
             }
           }, { passive: false });
 
@@ -493,6 +598,13 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
               event.preventDefault();
               event.stopImmediatePropagation();
               turn(ratio <= 0.3 ? 'PREVIOUS' : 'NEXT');
+              return;
+            }
+            var yRatio = verticalRatio(event, doc);
+            if (yRatio >= 0.2 && yRatio <= 0.8) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              post('CENTER_TAP', {});
             }
           }, true);
         }
@@ -506,6 +618,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           turnInFlight = false;
           if (turnUnlockTimer) clearTimeout(turnUnlockTimer);
           turnUnlockTimer = null;
+          sectionPageTotals = {};
           setLoading(true);
 
           try {
@@ -534,6 +647,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           var openGeneration = generation;
 
           try {
+            applyVisualTheme(payload.visualTheme);
             var buffer = base64ToArrayBuffer(payload.dataBase64);
             if (buffer.byteLength !== payload.byteLength || buffer.byteLength > MAX_EPUB_BYTES) {
               throw new Error('EPUB payload size does not match its envelope.');
@@ -555,7 +669,10 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             nextRendition.on('relocated', function (location) {
               if (nextBook !== book || nextRendition !== rendition) return;
               var locator = locatorFromLocation(location);
-              if (locator) post('RELOCATE', { locator: locator });
+              if (locator) {
+                post('RELOCATE', { locator: locator });
+                post('VIEW_STATUS', viewStatusFromLocation(location, locator));
+              }
             });
 
             await nextBook.ready;

@@ -18,6 +18,8 @@ import {
   createEpubBridgeCommand,
   parseEpubBridgeEvent,
   type EpubBridgeCommand,
+  type EpubViewStatus,
+  type EpubVisualTheme,
 } from './epubBridge';
 import { EpubFileError, prepareEpubFile, type PreparedEpub } from './epubFile';
 import { EPUB_RUNTIME_HANDSHAKE_SCRIPT, EPUB_RUNTIME_HTML } from './epubRuntime';
@@ -37,12 +39,14 @@ type EpubReaderProps = {
   filePath: string;
   fileSize?: number;
   initialLocator?: EpubLocator | null;
+  onCenterTap?: () => void;
   onExternalLink?: (url: string) => void;
   onRelocate?: (locator: EpubLocator) => void;
+  onViewStatus?: (status: EpubViewStatus) => void;
 };
 
 export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function EpubReader(
-  { bookId, filePath, fileSize, initialLocator, onExternalLink, onRelocate },
+  { bookId, filePath, fileSize, initialLocator, onCenterTap, onExternalLink, onRelocate, onViewStatus },
   forwardedRef,
 ) {
   const { theme } = useApp();
@@ -56,6 +60,15 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const source = useMemo(() => ({ html: EPUB_RUNTIME_HTML, baseUrl: RUNTIME_ORIGIN }), []);
+  const visualTheme = useMemo<EpubVisualTheme>(() => {
+    if (theme.name === 'dark') {
+      return { backgroundColor: '#202020', linkColor: '#f59a5a', textColor: '#e7e7e7' };
+    }
+    if (theme.name === 'sepia') {
+      return { backgroundColor: '#f4ecd8', linkColor: '#a94f12', textColor: '#3b2f1e' };
+    }
+    return { backgroundColor: '#ffffff', linkColor: '#c2570a', textColor: '#222222' };
+  }, [theme.name]);
 
   const injectCommand = useCallback((command: EpubBridgeCommand) => {
     const serialized = JSON.stringify(command);
@@ -145,8 +158,9 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       byteLength: prepared.byteLength,
       dataBase64: prepared.base64,
       initialLocator,
+      visualTheme,
     }));
-  }, [bookId, initialLocator, prepared, sendCommand]);
+  }, [bookId, initialLocator, prepared, sendCommand, visualTheme]);
 
   useEffect(() => () => {
     if (readyTimerRef.current) clearTimeout(readyTimerRef.current);
@@ -204,8 +218,18 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       return;
     }
 
+    if (message.type === 'CENTER_TAP') {
+      onCenterTap?.();
+      return;
+    }
+
     if (message.type === 'RELOCATE') {
       onRelocate?.(message.payload.locator);
+      return;
+    }
+
+    if (message.type === 'VIEW_STATUS') {
+      onViewStatus?.(message.payload);
       return;
     }
 
@@ -213,7 +237,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     if (message.payload.code === 'LOCATOR_NOT_FOUND' || message.payload.code === 'INVALID_LOCATOR') return;
     setLoading(false);
     setError(message.payload.message || 'Falha ao abrir EPUB.');
-  }, [bookId, flushPendingCommands, onExternalLink, onRelocate]);
+  }, [bookId, flushPendingCommands, onCenterTap, onExternalLink, onRelocate, onViewStatus]);
 
   const handleNavigationRequest = useCallback((request: { url: string }) => {
     const { url } = request;
@@ -250,16 +274,16 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
 
   if (preparing) {
     return (
-      <View style={{ alignItems: 'center', backgroundColor: '#ffffff', flex: 1, justifyContent: 'center' }}>
+      <View style={{ alignItems: 'center', backgroundColor: visualTheme.backgroundColor, flex: 1, justifyContent: 'center' }}>
         <ActivityIndicator color="#f97316" size="large" />
       </View>
     );
   }
 
   return (
-    <View style={{ backgroundColor: '#ffffff', flex: 1 }}>
+    <View style={{ backgroundColor: visualTheme.backgroundColor, flex: 1 }}>
       {loading ? (
-        <View style={{ alignItems: 'center', backgroundColor: '#ffffff', bottom: 0, justifyContent: 'center', left: 0, position: 'absolute', right: 0, top: 0, zIndex: 1 }}>
+        <View style={{ alignItems: 'center', backgroundColor: visualTheme.backgroundColor, bottom: 0, justifyContent: 'center', left: 0, position: 'absolute', right: 0, top: 0, zIndex: 1 }}>
           <ActivityIndicator color="#f97316" size="large" />
         </View>
       ) : null}
@@ -282,7 +306,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
         mixedContentMode="never"
         scrollEnabled={false}
         setSupportMultipleWindows={false}
-        style={{ backgroundColor: '#ffffff', flex: 1, opacity: loading ? 0 : 1 }}
+        style={{ backgroundColor: visualTheme.backgroundColor, flex: 1, opacity: loading ? 0 : 1 }}
         onError={(event) => {
           console.warn('[Krumer EpubReader] WebView error', event.nativeEvent);
           setLoading(false);
