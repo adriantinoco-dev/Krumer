@@ -41,10 +41,16 @@ async function main() {
   const displayTargets = [];
   const postedEvents = [];
   const activeReaderDocuments = [];
+  const renditionConfigs = [];
   let renderedHandler = null;
   let relocatedHandler = null;
+  let contentHook = null;
+  let currentRenditionLocation = null;
   const viewer = { className: '', replaceChildren() {}, style: {} };
   const loading = { className: '', style: {} };
+  const loadedFontFaces = [];
+  const registeredDocumentFonts = [];
+  const windowListeners = {};
 
   function createSectionDocument(text) {
     const root = { nodeType: 1 };
@@ -83,14 +89,31 @@ async function main() {
     unload() {},
   };
   const rendition = {
+    currentLocation: () => currentRenditionLocation,
     destroy() {},
     display: (target) => {
       displayTargets.push(target || 'BOOK_START');
-      return String(target || '').includes('invalid-cfi')
-        ? Promise.reject(new Error('Invalid CFI fixture'))
-        : Promise.resolve();
+      if (String(target || '').includes('invalid-cfi')) {
+        return Promise.reject(new Error('Invalid CFI fixture'));
+      }
+      currentRenditionLocation = {
+        start: {
+          cfi: target || 'epubcfi(/book-start)',
+          displayed: { page: 1, total: 4 },
+          href: progressionSection.href,
+          index: 0,
+        },
+      };
+      return Promise.resolve();
     },
     getContents: () => activeReaderDocuments.map((document) => ({ document })),
+    hooks: {
+      content: {
+        register: (handler) => {
+          contentHook = handler;
+        },
+      },
+    },
     next: () => {
       turns.next += 1;
       return Promise.resolve();
@@ -111,7 +134,10 @@ async function main() {
       toc: [{ href: progressionSection.href, label: 'Chapter Two', subitems: [] }],
     },
     ready: Promise.resolve(),
-    renderTo: () => rendition,
+    renderTo: (_target, config) => {
+      renditionConfigs.push(config);
+      return rendition;
+    },
     spine: {
       get: (href) => {
         if (href === progressionSection.href) return progressionSection;
@@ -125,13 +151,27 @@ async function main() {
   const outerDocument = {
     body: { style: {} },
     documentElement: { style: {} },
+    fonts: { add: (fontFace) => registeredDocumentFonts.push(fontFace) },
     getElementById: (id) => (id === 'viewer' ? viewer : loading),
   };
   const runtimeWindow = {
+    FontFace: class FontFace {
+      constructor(family, source, descriptors) {
+        this.descriptors = descriptors;
+        this.family = family;
+        this.source = source;
+      }
+      load() {
+        loadedFontFaces.push(this);
+        return Promise.resolve(this);
+      }
+    },
     ReactNativeWebView: {
       postMessage: (raw) => postedEvents.push(JSON.parse(raw)),
     },
-    addEventListener() {},
+    addEventListener: (type, handler) => {
+      windowListeners[type] = handler;
+    },
     atob,
     ePub: () => book,
     innerWidth: 1000,
@@ -152,6 +192,38 @@ async function main() {
     window: runtimeWindow,
   });
 
+  function registerFontFamily(family, fontFamily) {
+    runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
+      version: bridge.EPUB_BRIDGE_VERSION,
+      id: `register-${family}`,
+      type: 'REGISTER_FONT_FACES',
+      payload: {
+        family,
+        faces: [300, 400, 500, 700].map((weight) => ({
+          dataBase64: 'AA==',
+          family,
+          fontFamily,
+          mimeType: 'font/ttf',
+          weight,
+        })),
+      },
+    }));
+  }
+
+  registerFontFamily('serif', 'Krumer Noto Serif');
+  registerFontFamily('sans', 'Krumer Noto Sans');
+  registerFontFamily('mono', 'Krumer Noto Sans Mono');
+  await wait(0);
+  const fontReadyEvents = postedEvents.filter((event) => event.type === 'FONT_FACES_READY');
+  if (
+    fontReadyEvents.length !== 3
+    || loadedFontFaces.length !== 12
+    || registeredDocumentFonts.length !== 12
+    || fontReadyEvents.some((event) => !bridge.parseEpubBridgeEvent(JSON.stringify(event)))
+  ) {
+    throw new Error('The three embedded font families were not acknowledged by the runtime bridge.');
+  }
+
   runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
     version: bridge.EPUB_BRIDGE_VERSION,
     id: 'test-open',
@@ -161,7 +233,12 @@ async function main() {
       byteLength: 1,
       dataBase64: 'AA==',
       appearance: {
+        displayMode: 'paginated',
+        doubleColumn: false,
         fontSize: 18,
+        fontFamily: 'serif',
+        fontWeight: 'regular',
+        isLandscape: false,
         lineHeight: 1.5,
         visualTheme: { backgroundColor: '#202020', linkColor: '#f59a5a', textColor: '#e7e7e7' },
       },
@@ -170,21 +247,52 @@ async function main() {
   await wait(0);
   if (!renderedHandler) throw new Error('The rendered document handler was not registered.');
   if (!relocatedHandler) throw new Error('The relocated handler was not registered.');
+  if (!contentHook) throw new Error('The pre-layout content hook was not registered.');
   if (outerDocument.body.style.backgroundColor !== '#202020') {
     throw new Error('The visual theme was not applied without changing the rendition flow.');
   }
 
-  relocatedHandler({
+  currentRenditionLocation = {
     start: {
       cfi: 'epubcfi(/relocated)',
       displayed: { page: 2, total: 4 },
       href: progressionSection.href,
       index: 0,
     },
-  });
+  };
+  relocatedHandler(currentRenditionLocation);
   const relocateEnvelope = postedEvents.find((event) => event.type === 'RELOCATE');
-  if (!relocateEnvelope || !bridge.parseEpubBridgeEvent(JSON.stringify(relocateEnvelope))) {
+  if (
+    !relocateEnvelope
+    || relocateEnvelope.payload.source !== 'user'
+    || !bridge.parseEpubBridgeEvent(JSON.stringify(relocateEnvelope))
+  ) {
     throw new Error('RELOCATE did not emit a valid EPUB locator envelope.');
+  }
+  const restoredEnvelope = postedEvents.find((event) => event.type === 'POSITION_STABILIZED');
+  if (
+    !restoredEnvelope
+    || restoredEnvelope.payload.source !== 'restore'
+    || !bridge.parseEpubBridgeEvent(JSON.stringify(restoredEnvelope))
+  ) {
+    throw new Error('Opening the EPUB did not emit a stabilized restore position.');
+  }
+
+  runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
+    version: bridge.EPUB_BRIDGE_VERSION,
+    id: 'test-current-locator',
+    type: 'GET_CURRENT_LOCATOR',
+    payload: {},
+  }));
+  await wait(0);
+  const currentLocatorEnvelope = postedEvents.find((event) => event.type === 'CURRENT_LOCATOR');
+  if (
+    !currentLocatorEnvelope
+    || currentLocatorEnvelope.payload.requestId !== 'test-current-locator'
+    || currentLocatorEnvelope.payload.locator.cfi !== 'epubcfi(/relocated)'
+    || !bridge.parseEpubBridgeEvent(JSON.stringify(currentLocatorEnvelope))
+  ) {
+    throw new Error('GET_CURRENT_LOCATOR did not return the live rendition position.');
   }
   const viewStatusEnvelope = postedEvents.find((event) => event.type === 'VIEW_STATUS');
   if (
@@ -237,16 +345,26 @@ async function main() {
 
   function createReaderDocument(contentWidth) {
     const listeners = {};
+    const appliedTypography = {};
+    const typographyStyle = {
+      setProperty: (name, value, priority) => {
+        appliedTypography[name] = { priority, value };
+      },
+    };
     return {
+      appliedTypography,
       listeners,
       document: {
         addEventListener: (type, handler) => {
           listeners[type] = handler;
         },
+        body: { style: typographyStyle },
         createElement: () => ({ style: {}, textContent: '' }),
         defaultView: { innerWidth: contentWidth },
         documentElement: { clientWidth: contentWidth },
+        fonts: { load: () => Promise.resolve([]) },
         head: { appendChild() {} },
+        querySelectorAll: () => [{ style: typographyStyle }],
       },
     };
   }
@@ -296,28 +414,90 @@ async function main() {
     throw new Error('A center tap changed the EPUB navigation state.');
   }
 
+  const anchorBeforeReflow = 'epubcfi(/relocated)';
+  windowListeners.resize();
+  currentRenditionLocation = {
+    start: {
+      cfi: 'epubcfi(/shifted-after-resize)',
+      displayed: { page: 4, total: 4 },
+      href: progressionSection.href,
+      index: 0,
+    },
+  };
   runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
     version: bridge.EPUB_BRIDGE_VERSION,
     id: 'test-appearance',
     type: 'SET_APPEARANCE',
     payload: {
       appearance: {
+        displayMode: 'scroll',
+        doubleColumn: true,
         fontSize: 24,
+        fontFamily: 'sans',
+        fontWeight: 'bold',
+        isLandscape: false,
         lineHeight: 1.8,
         visualTheme: { backgroundColor: '#f4ecd8', linkColor: '#a94f12', textColor: '#3b2f1e' },
       },
     },
   }));
+  await wait(0);
   if (
     !chapter.document.__krumerVisualStyle
     || !chapter.document.__krumerVisualStyle.textContent.includes('font-size: 24px')
+    || !chapter.document.__krumerVisualStyle.textContent.includes('font-family: "Krumer Noto Sans"')
+    || !chapter.document.__krumerVisualStyle.textContent.includes('font-weight: 700')
+    || !chapter.document.__krumerVisualStyle.textContent.includes('@font-face')
+    || !chapter.document.__krumerVisualStyle.textContent.includes('body, p, div, span')
+    || chapter.appliedTypography['font-family'].value !== '"Krumer Noto Sans", sans-serif'
+    || chapter.appliedTypography['font-family'].priority !== 'important'
+    || chapter.appliedTypography['font-weight'].value !== '700'
     || !chapter.document.__krumerVisualStyle.textContent.includes('line-height: 1.8')
     || outerDocument.body.style.backgroundColor !== '#f4ecd8'
+    || renditionConfigs.at(-1).flow !== 'scrolled-doc'
+    || renditionConfigs.at(-1).manager !== 'continuous'
+    || renditionConfigs.at(-1).spread !== 'none'
   ) {
     throw new Error('Live EPUB appearance updates were not applied to the rendered chapter.');
   }
+  chapter.listeners.touchstart(touchEvent(900, 'start'));
+  chapter.listeners.touchend(touchEvent(100, 'end'));
+  if (turns.next !== 2 || turns.previous !== 1) {
+    throw new Error('Horizontal gestures still changed pages while scroll mode was active.');
+  }
 
-  console.log('EPUB runtime navigation, locators, visual status, live appearance, and center tap are valid.');
+  runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
+    version: bridge.EPUB_BRIDGE_VERSION,
+    id: 'test-double-column',
+    type: 'SET_APPEARANCE',
+    payload: {
+      appearance: {
+        displayMode: 'paginated',
+        doubleColumn: true,
+        fontSize: 24,
+        fontFamily: 'mono',
+        fontWeight: 'medium',
+        isLandscape: true,
+        lineHeight: 1.8,
+        visualTheme: { backgroundColor: '#202020', linkColor: '#f59a5a', textColor: '#e7e7e7' },
+      },
+    },
+  }));
+  await wait(0);
+  if (renditionConfigs.at(-1).flow !== 'paginated' || renditionConfigs.at(-1).spread !== 'always') {
+    throw new Error('Landscape double-column mode did not create a paginated spread.');
+  }
+
+  const reflowEnvelope = postedEvents.filter((event) => event.type === 'POSITION_STABILIZED').at(-1);
+  if (
+    !reflowEnvelope
+    || reflowEnvelope.payload.source !== 'reflow'
+    || reflowEnvelope.payload.locator.cfi !== anchorBeforeReflow
+  ) {
+    throw new Error('Appearance reflow did not preserve and stabilize the current text anchor.');
+  }
+
+  console.log('EPUB runtime fonts, live locator capture, stabilized reflow, display modes, spreads, and navigation are valid.');
 }
 
 main().catch((error) => {

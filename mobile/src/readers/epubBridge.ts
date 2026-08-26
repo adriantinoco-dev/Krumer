@@ -1,7 +1,21 @@
 import { parseReaderLocator, type EpubLocator } from '../models/reader';
+import type { ReadingPreferences } from '../models/readingPreferences';
 
-export const EPUB_BRIDGE_VERSION = 2 as const;
+export const EPUB_BRIDGE_VERSION = 4 as const;
 export const EPUB_BRIDGE_QUEUE_LIMIT = 8;
+
+export type EpubFontWeight = 300 | 400 | 500 | 700;
+
+export type EpubFontFace = {
+  dataBase64: string;
+  family: ReadingPreferences['fontFamily'];
+  fontFamily: string;
+  mimeType: 'font/ttf';
+  weight: EpubFontWeight;
+};
+
+export type EpubRelocationSource = 'user' | 'restore' | 'reflow';
+export type EpubLocatorResolution = 'cfi' | 'spine-progression' | 'spine-start' | 'excerpt' | 'start';
 
 export type EpubVisualTheme = {
   backgroundColor: string;
@@ -9,8 +23,9 @@ export type EpubVisualTheme = {
   textColor: string;
 };
 
-export type EpubAppearance = {
+export type EpubAppearance = ReadingPreferences & {
   fontSize: number;
+  isLandscape: boolean;
   lineHeight: number;
   visualTheme: EpubVisualTheme;
 };
@@ -38,15 +53,27 @@ export type EpubBridgeCommand =
     }>
   | BridgeEnvelope<'NEXT', Record<string, never>>
   | BridgeEnvelope<'PREVIOUS', Record<string, never>>
+  | BridgeEnvelope<'REGISTER_FONT_FACES', {
+      family: ReadingPreferences['fontFamily'];
+      faces: EpubFontFace[];
+    }>
   | BridgeEnvelope<'SET_APPEARANCE', { appearance: EpubAppearance }>
   | BridgeEnvelope<'GO_TO_LOCATOR', { locator: EpubLocator }>
+  | BridgeEnvelope<'GET_CURRENT_LOCATOR', Record<string, never>>
   | BridgeEnvelope<'CLOSE_BOOK', Record<string, never>>;
 
 export type EpubBridgeEvent =
   | BridgeEnvelope<'READY', { engine: 'epub.js'; engineVersion: '0.3.93' }>
   | BridgeEnvelope<'BOOK_OPENED', { bookId: string }>
+  | BridgeEnvelope<'FONT_FACES_READY', { family: ReadingPreferences['fontFamily']; requestId: string }>
   | BridgeEnvelope<'CENTER_TAP', Record<string, never>>
-  | BridgeEnvelope<'RELOCATE', { locator: EpubLocator }>
+  | BridgeEnvelope<'RELOCATE', { locator: EpubLocator; source: EpubRelocationSource }>
+  | BridgeEnvelope<'POSITION_STABILIZED', {
+      locator: EpubLocator;
+      resolution: EpubLocatorResolution;
+      source: 'restore' | 'reflow';
+    }>
+  | BridgeEnvelope<'CURRENT_LOCATOR', { locator: EpubLocator | null; requestId: string }>
   | BridgeEnvelope<'VIEW_STATUS', EpubViewStatus>
   | BridgeEnvelope<'LINK_PRESSED', { url: string }>
   | BridgeEnvelope<'ERROR', { code: string; message: string; requestId?: string }>;
@@ -99,11 +126,44 @@ export function parseEpubBridgeEvent(raw: string): EpubBridgeEvent | null {
     return typeof value.payload.bookId === 'string' ? value as EpubBridgeEvent : null;
   }
 
+  if (value.type === 'FONT_FACES_READY') {
+    const validFamily = value.payload.family === 'serif'
+      || value.payload.family === 'sans'
+      || value.payload.family === 'mono';
+    return validFamily && typeof value.payload.requestId === 'string'
+      ? value as EpubBridgeEvent
+      : null;
+  }
+
   if (value.type === 'CENTER_TAP') return value as EpubBridgeEvent;
 
   if (value.type === 'RELOCATE') {
     const locator = parseReaderLocator(value.payload.locator);
-    return locator?.format === 'epub' ? value as EpubBridgeEvent : null;
+    const validSource = value.payload.source === 'user'
+      || value.payload.source === 'restore'
+      || value.payload.source === 'reflow';
+    return locator?.format === 'epub' && validSource ? value as EpubBridgeEvent : null;
+  }
+
+  if (value.type === 'POSITION_STABILIZED') {
+    const locator = parseReaderLocator(value.payload.locator);
+    const validSource = value.payload.source === 'restore' || value.payload.source === 'reflow';
+    const validResolution = value.payload.resolution === 'cfi'
+      || value.payload.resolution === 'spine-progression'
+      || value.payload.resolution === 'spine-start'
+      || value.payload.resolution === 'excerpt'
+      || value.payload.resolution === 'start';
+    return locator?.format === 'epub' && validSource && validResolution
+      ? value as EpubBridgeEvent
+      : null;
+  }
+
+  if (value.type === 'CURRENT_LOCATOR') {
+    const explicitNull = value.payload.locator === null;
+    const locator = explicitNull ? null : parseReaderLocator(value.payload.locator);
+    return (explicitNull || locator?.format === 'epub') && typeof value.payload.requestId === 'string'
+      ? value as EpubBridgeEvent
+      : null;
   }
 
   if (value.type === 'VIEW_STATUS') {

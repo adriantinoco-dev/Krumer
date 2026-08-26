@@ -3,11 +3,15 @@ import { ActivityIndicator, Animated, Linking, Modal, Platform, Pressable, Scrol
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ArrowLeft, Bookmark, BookmarkPlus, ChevronLeft, ChevronRight, Minus, Plus, Settings, Trash2, Type, X } from 'lucide-react-native';
+import { ArrowLeft, Bookmark, BookmarkPlus, ChevronLeft, ChevronRight, Settings, Trash2, X } from 'lucide-react-native';
+import { ReadingSettingsButton } from '../components/ReadingSettingsButton';
+import { ReadingSettingsModal } from '../components/ReadingSettingsModal';
 import { EpubReader, type EpubReaderHandle } from '../readers/EpubReader';
-import type { EpubViewStatus } from '../readers/epubBridge';
+import type { EpubRelocationSource, EpubViewStatus } from '../readers/epubBridge';
 import { PdfReader } from '../readers/PdfReader';
 import { useEpubPersistence } from '../readers/useEpubPersistence';
+import { useOrientation } from '../readers/useOrientation';
+import { useReadingPreferences } from '../readers/useReadingPreferences';
 import { ThemeCard } from '../components/ThemeCard';
 import { useApp } from '../context/AppContext';
 import type { EpubLocator } from '../models/reader';
@@ -18,11 +22,9 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Reader'>;
 
 const FONT_SIZE_MIN = 12;
 const FONT_SIZE_MAX = 32;
-const FONT_SIZE_STEP = 2;
 const FONT_SIZE_DEFAULT = 18;
 const LINE_HEIGHT_MIN = 1.0;
 const LINE_HEIGHT_MAX = 2.4;
-const LINE_HEIGHT_STEP = 0.2;
 const LINE_HEIGHT_DEFAULT = 1.5;
 const HIDE_DELAY = 4000;
 const EPUB_CONTENT_TOP_OFFSET = 72;
@@ -45,8 +47,11 @@ async function saveReaderSettings(settings: ReaderSettings) {
 
 export function ReaderScreen({ navigation, route }: Props) {
   const { book } = route.params;
+  const isEpub = book.format === 'epub';
   const { preferences, setThemeName, theme, t, updateBookProgress } = useApp();
   const insets = useSafeAreaInsets();
+  const { isLandscape } = useOrientation();
+  const readingPreferences = useReadingPreferences(isEpub);
   const [progress, setProgress] = useState((book.progressPct ?? 0) / 100);
   const [savedPosition, setSavedPosition] = useState<string | null>(book.progress);
   const [barsVisible, setBarsVisible] = useState(book.format !== 'epub');
@@ -65,7 +70,6 @@ export function ReaderScreen({ navigation, route }: Props) {
   const epubReaderRef = useRef<EpubReaderHandle>(null);
   const allowControlledCloseRef = useRef(false);
   const controlledCloseInFlightRef = useRef(false);
-  const isEpub = book.format === 'epub';
   const epubBackground = theme.name === 'dark' ? '#202020' : theme.name === 'sepia' ? '#f4ecd8' : '#ffffff';
   const epubText = theme.name === 'dark' ? '#e7e7e7' : theme.name === 'sepia' ? '#3b2f1e' : '#222222';
   const epubMuted = theme.name === 'dark' ? '#a2a2a2' : theme.name === 'sepia' ? '#796c52' : '#6f6f6f';
@@ -89,10 +93,15 @@ export function ReaderScreen({ navigation, route }: Props) {
     onDurableProgress: syncDurableEpubProgress,
   });
 
-  const handleEpubRelocate = useCallback((locator: EpubLocator) => {
+  const handleEpubRelocate = useCallback((locator: EpubLocator, source: EpubRelocationSource) => {
     if (locator.totalProgression !== null) setProgress(locator.totalProgression);
-    epubPersistence.handleRelocate(locator);
+    epubPersistence.handleRelocate(locator, source);
   }, [epubPersistence.handleRelocate]);
+
+  const handleEpubPositionStabilized = useCallback((locator: EpubLocator) => {
+    if (locator.totalProgression !== null) setProgress(locator.totalProgression);
+    epubPersistence.handlePositionStabilized(locator);
+  }, [epubPersistence.handlePositionStabilized]);
 
   const handleEpubViewStatus = useCallback((status: EpubViewStatus) => {
     setEpubViewStatus(status);
@@ -111,7 +120,10 @@ export function ReaderScreen({ navigation, route }: Props) {
       event.preventDefault();
       if (controlledCloseInFlightRef.current) return;
       controlledCloseInFlightRef.current = true;
-      void epubPersistence.flush()
+      const locatorRequest = epubReaderRef.current?.getCurrentLocator() ?? Promise.resolve(null);
+      void locatorRequest
+        .catch(() => null)
+        .then((locator) => epubPersistence.flush(locator))
         .catch((error) => {
           console.warn('[Krumer ReaderScreen] falha no flush ao fechar EPUB', error);
         })
@@ -217,7 +229,7 @@ export function ReaderScreen({ navigation, route }: Props) {
             paddingTop: Math.max(insets.top, 0) + EPUB_CONTENT_TOP_OFFSET,
           }}
         >
-          {epubPersistence.hydrated ? (
+          {epubPersistence.hydrated && readingPreferences.hydrated ? (
             <EpubReader
               ref={epubReaderRef}
               bookId={book.id}
@@ -225,10 +237,13 @@ export function ReaderScreen({ navigation, route }: Props) {
               fileSize={book.fileSize}
               fontSize={readerSettings.fontSize}
               initialLocator={epubPersistence.initialLocator}
+              isLandscape={isLandscape}
               lineHeight={readerSettings.lineHeight}
               onCenterTap={toggleBars}
+              onPositionStabilized={handleEpubPositionStabilized}
               onRelocate={handleEpubRelocate}
               onViewStatus={handleEpubViewStatus}
+              readingPreferences={readingPreferences.preferences}
               onExternalLink={(url) => {
                 Linking.openURL(url).catch((caught: unknown) => {
                   console.warn('[Krumer ReaderScreen] falha ao abrir link externo', caught);
@@ -273,7 +288,9 @@ export function ReaderScreen({ navigation, route }: Props) {
                 right: Math.max(insets.right, 0) + 24,
               }}
             >
-              {epubViewStatus.currentPage} / {epubViewStatus.totalPages}
+              {readingPreferences.preferences.displayMode === 'scroll'
+                ? `${progressPercent}%`
+                : `${epubViewStatus.currentPage} / ${epubViewStatus.totalPages}`}
             </Text>
           ) : null}
         </View>
@@ -366,23 +383,13 @@ export function ReaderScreen({ navigation, route }: Props) {
             >
               {book.title}
             </Text>
-            <Pressable
-              accessibilityLabel={t('reader.readingSettings')}
-              hitSlop={6}
+            <ReadingSettingsButton
+              color={epubText}
               onPress={() => {
                 if (hideTimer.current) clearTimeout(hideTimer.current);
                 setSettingsVisible(true);
               }}
-              style={({ pressed }) => ({
-                alignItems: 'center',
-                height: 40,
-                justifyContent: 'center',
-                opacity: pressed ? 0.55 : 1,
-                width: 44,
-              })}
-            >
-              <Type color={epubText} size={20} strokeWidth={1.7} />
-            </Pressable>
+            />
             <Pressable
               accessibilityLabel={t('common.cancel')}
               hitSlop={8}
@@ -461,44 +468,42 @@ export function ReaderScreen({ navigation, route }: Props) {
       >
         {isEpub ? (
           <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.md, minHeight: 48 }}>
-            <Pressable
-              accessibilityLabel={t('reader.previousPage')}
-              hitSlop={8}
-              onPress={() => epubReaderRef.current?.previous()}
-              style={({ pressed }) => ({
-                alignItems: 'center',
-                height: 44,
-                justifyContent: 'center',
-                opacity: pressed ? 0.5 : 1,
-                width: 48,
-              })}
-            >
-              <ChevronLeft color={epubText} size={24} strokeWidth={1.8} />
-            </Pressable>
+            {readingPreferences.preferences.displayMode === 'paginated' ? (
+              <Pressable
+                accessibilityLabel={t('reader.previousPage')}
+                hitSlop={8}
+                onPress={() => epubReaderRef.current?.previous()}
+                style={({ pressed }) => ({
+                  alignItems: 'center', height: 44, justifyContent: 'center', opacity: pressed ? 0.5 : 1, width: 48,
+                })}
+              >
+                <ChevronLeft color={epubText} size={24} strokeWidth={1.8} />
+              </Pressable>
+            ) : null}
             <View style={{ flex: 1, gap: 6 }}>
               <View style={{ backgroundColor: epubMuted + '55', borderRadius: 2, height: 3, overflow: 'hidden' }}>
                 <View style={{ backgroundColor: theme.accent, height: '100%', width: `${progressPercent}%` }} />
               </View>
               <Text style={{ color: epubMuted, fontFamily: serifFont, fontSize: 10, textAlign: 'center' }}>
-                {epubViewStatus
+                {readingPreferences.preferences.displayMode === 'scroll'
+                  ? `${progressPercent}%`
+                  : epubViewStatus
                   ? `${epubViewStatus.currentPage} / ${epubViewStatus.totalPages}`
                   : `${progressPercent}%`}
               </Text>
             </View>
-            <Pressable
-              accessibilityLabel={t('reader.nextPage')}
-              hitSlop={8}
-              onPress={() => epubReaderRef.current?.next()}
-              style={({ pressed }) => ({
-                alignItems: 'center',
-                height: 44,
-                justifyContent: 'center',
-                opacity: pressed ? 0.5 : 1,
-                width: 48,
-              })}
-            >
-              <ChevronRight color={epubText} size={24} strokeWidth={1.8} />
-            </Pressable>
+            {readingPreferences.preferences.displayMode === 'paginated' ? (
+              <Pressable
+                accessibilityLabel={t('reader.nextPage')}
+                hitSlop={8}
+                onPress={() => epubReaderRef.current?.next()}
+                style={({ pressed }) => ({
+                  alignItems: 'center', height: 44, justifyContent: 'center', opacity: pressed ? 0.5 : 1, width: 48,
+                })}
+              >
+                <ChevronRight color={epubText} size={24} strokeWidth={1.8} />
+              </Pressable>
+            ) : null}
           </View>
         ) : (
           <>
@@ -682,11 +687,36 @@ export function ReaderScreen({ navigation, route }: Props) {
         </Pressable>
       </Modal>
 
-      {/* Settings Modal */}
+      <ReadingSettingsModal
+        fontSize={readerSettings.fontSize}
+        fontSizeMax={FONT_SIZE_MAX}
+        fontSizeMin={FONT_SIZE_MIN}
+        isLandscape={isLandscape}
+        lineHeight={readerSettings.lineHeight}
+        lineHeightMax={LINE_HEIGHT_MAX}
+        lineHeightMin={LINE_HEIGHT_MIN}
+        onChangeFontSize={changeFontSize}
+        onChangeLineHeight={changeLineHeight}
+        onClose={() => {
+          setSettingsVisible(false);
+          scheduleHide();
+        }}
+        onReset={() => {
+          const defaults = { fontSize: FONT_SIZE_DEFAULT, lineHeight: LINE_HEIGHT_DEFAULT };
+          setReaderSettings(defaults);
+          void saveReaderSettings(defaults);
+          readingPreferences.resetPreferences();
+        }}
+        onUpdatePreferences={readingPreferences.updatePreferences}
+        preferences={readingPreferences.preferences}
+        visible={settingsVisible && isEpub}
+      />
+
+      {/* PDF settings modal */}
       <Modal
         animationType="slide"
         transparent
-        visible={settingsVisible}
+        visible={settingsVisible && !isEpub}
         onRequestClose={() => {
           setSettingsVisible(false);
           scheduleHide();
@@ -727,146 +757,6 @@ export function ReaderScreen({ navigation, route }: Props) {
               {t('reader.readingSettings')}
             </Text>
 
-            {/* Font size controls — only for EPUB */}
-            {isEpub ? (
-              <View style={{ gap: spacing.md }}>
-                {/* Font size */}
-                <View style={{ gap: spacing.sm }}>
-                  <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
-                      <Type color={theme.textSecondary} size={14} />
-                      <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13 }}>
-                        {t('reader.fontSize')}
-                      </Text>
-                    </View>
-                    <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12 }}>
-                      {readerSettings.fontSize}px
-                    </Text>
-                  </View>
-                  <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
-                    <Pressable
-                      onPress={() => changeFontSize(-FONT_SIZE_STEP)}
-                      disabled={readerSettings.fontSize <= FONT_SIZE_MIN}
-                      style={({ pressed }) => ({
-                        alignItems: 'center',
-                        backgroundColor: theme.surface,
-                        borderColor: theme.border,
-                        borderRadius: radii.sm,
-                        borderWidth: 1,
-                        height: 36,
-                        justifyContent: 'center',
-                        opacity: pressed ? 0.6 : readerSettings.fontSize <= FONT_SIZE_MIN ? 0.3 : 1,
-                        width: 36,
-                      })}
-                    >
-                      <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 16, fontWeight: '700' }}>A</Text>
-                    </Pressable>
-                    <View
-                      style={{
-                        backgroundColor: theme.border,
-                        borderRadius: radii.sm,
-                        flex: 1,
-                        height: 6,
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <View
-                        style={{
-                          backgroundColor: theme.accent,
-                          borderRadius: radii.sm,
-                          height: '100%',
-                          width: `${((readerSettings.fontSize - FONT_SIZE_MIN) / (FONT_SIZE_MAX - FONT_SIZE_MIN)) * 100}%`,
-                        }}
-                      />
-                    </View>
-                    <Pressable
-                      onPress={() => changeFontSize(FONT_SIZE_STEP)}
-                      disabled={readerSettings.fontSize >= FONT_SIZE_MAX}
-                      style={({ pressed }) => ({
-                        alignItems: 'center',
-                        backgroundColor: theme.surface,
-                        borderColor: theme.border,
-                        borderRadius: radii.sm,
-                        borderWidth: 1,
-                        height: 36,
-                        justifyContent: 'center',
-                        opacity: pressed ? 0.6 : readerSettings.fontSize >= FONT_SIZE_MAX ? 0.3 : 1,
-                        width: 36,
-                      })}
-                    >
-                      <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 20, fontWeight: '700' }}>A</Text>
-                    </Pressable>
-                  </View>
-                </View>
-
-                {/* Line spacing */}
-                <View style={{ gap: spacing.sm }}>
-                  <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13 }}>
-                      {t('reader.spacing')}
-                    </Text>
-                    <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12 }}>
-                      {readerSettings.lineHeight.toFixed(1)}
-                    </Text>
-                  </View>
-                  <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
-                    <Pressable
-                      onPress={() => changeLineHeight(-LINE_HEIGHT_STEP)}
-                      disabled={readerSettings.lineHeight <= LINE_HEIGHT_MIN}
-                      style={({ pressed }) => ({
-                        alignItems: 'center',
-                        backgroundColor: theme.surface,
-                        borderColor: theme.border,
-                        borderRadius: radii.sm,
-                        borderWidth: 1,
-                        height: 36,
-                        justifyContent: 'center',
-                        opacity: pressed ? 0.6 : readerSettings.lineHeight <= LINE_HEIGHT_MIN ? 0.3 : 1,
-                        width: 36,
-                      })}
-                    >
-                      <Minus color={theme.textPrimary} size={16} />
-                    </Pressable>
-                    <View
-                      style={{
-                        backgroundColor: theme.border,
-                        borderRadius: radii.sm,
-                        flex: 1,
-                        height: 6,
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <View
-                        style={{
-                          backgroundColor: theme.accent,
-                          borderRadius: radii.sm,
-                          height: '100%',
-                          width: `${((readerSettings.lineHeight - LINE_HEIGHT_MIN) / (LINE_HEIGHT_MAX - LINE_HEIGHT_MIN)) * 100}%`,
-                        }}
-                      />
-                    </View>
-                    <Pressable
-                      onPress={() => changeLineHeight(LINE_HEIGHT_STEP)}
-                      disabled={readerSettings.lineHeight >= LINE_HEIGHT_MAX}
-                      style={({ pressed }) => ({
-                        alignItems: 'center',
-                        backgroundColor: theme.surface,
-                        borderColor: theme.border,
-                        borderRadius: radii.sm,
-                        borderWidth: 1,
-                        height: 36,
-                        justifyContent: 'center',
-                        opacity: pressed ? 0.6 : readerSettings.lineHeight >= LINE_HEIGHT_MAX ? 0.3 : 1,
-                        width: 36,
-                      })}
-                    >
-                      <Plus color={theme.textPrimary} size={16} />
-                    </Pressable>
-                  </View>
-                </View>
-              </View>
-            ) : null}
-
             {/* Theme selector */}
             <View style={{ gap: spacing.sm }}>
               <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13 }}>
@@ -879,29 +769,6 @@ export function ReaderScreen({ navigation, route }: Props) {
               </View>
             </View>
 
-            {/* Reset button for EPUB */}
-            {isEpub ? (
-              <Pressable
-                onPress={() => {
-                  const defaults = { fontSize: FONT_SIZE_DEFAULT, lineHeight: LINE_HEIGHT_DEFAULT };
-                  setReaderSettings(defaults);
-                  saveReaderSettings(defaults);
-                }}
-                style={({ pressed }) => ({
-                  alignItems: 'center',
-                  backgroundColor: theme.surface,
-                  borderColor: theme.border,
-                  borderRadius: radii.md,
-                  borderWidth: 1,
-                  opacity: pressed ? 0.6 : 1,
-                  paddingVertical: spacing.sm,
-                })}
-              >
-                <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13 }}>
-                  {t('reader.resetDefaults')}
-                </Text>
-              </Pressable>
-            ) : null}
           </Pressable>
         </Pressable>
       </Modal>

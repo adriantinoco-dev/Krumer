@@ -12,6 +12,7 @@ import {
   saveReaderProgress,
   tombstoneReaderBookmark,
 } from '../storage/readerDatabase';
+import type { EpubRelocationSource } from './epubBridge';
 
 const PROGRESS_DEBOUNCE_MS = 1000;
 
@@ -114,17 +115,21 @@ export function useEpubPersistence({ bookId, enabled, legacyCfi, onDurableProgre
     return write;
   }, [bookId]);
 
-  const flush = useCallback(async () => {
+  const flush = useCallback(async (locatorOverride?: EpubLocator | null) => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
     }
-    const locator = latestLocatorRef.current;
+    const locator = locatorOverride ?? latestLocatorRef.current;
+    if (locatorOverride) {
+      latestLocatorRef.current = locatorOverride;
+      setCurrentLocator(locatorOverride);
+    }
     if (enabled && locator) await enqueueProgressWrite(locator);
     await writeChainRef.current;
   }, [enabled, enqueueProgressWrite]);
 
-  const handleRelocate = useCallback((locator: EpubLocator) => {
+  const handleRelocate = useCallback((locator: EpubLocator, source: EpubRelocationSource) => {
     relocationEvents += 1;
     if (__DEV__ && relocationEvents % 10 === 0) {
       console.info('[Krumer EPUB] relocalizacoes recebidas', { relocationEvents });
@@ -132,10 +137,22 @@ export function useEpubPersistence({ bookId, enabled, legacyCfi, onDurableProgre
     latestLocatorRef.current = locator;
     setCurrentLocator(locator);
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = null;
+    if (source !== 'user') return;
     debounceTimerRef.current = setTimeout(() => {
       debounceTimerRef.current = null;
       void enqueueProgressWrite(locator).catch(() => undefined);
     }, PROGRESS_DEBOUNCE_MS);
+  }, [enqueueProgressWrite]);
+
+  const handlePositionStabilized = useCallback((locator: EpubLocator) => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    latestLocatorRef.current = locator;
+    setCurrentLocator(locator);
+    void enqueueProgressWrite(locator).catch(() => undefined);
   }, [enqueueProgressWrite]);
 
   useEffect(() => {
@@ -171,6 +188,7 @@ export function useEpubPersistence({ bookId, enabled, legacyCfi, onDurableProgre
     currentLocator,
     flush,
     handleRelocate,
+    handlePositionStabilized,
     hydrated,
     initialLocator,
     removeBookmark,

@@ -12,6 +12,7 @@ import { WebView } from 'react-native-webview';
 import type { WebView as WebViewType } from 'react-native-webview';
 import { useApp } from '../context/AppContext';
 import type { EpubLocator } from '../models/reader';
+import { DEFAULT_READING_PREFERENCES, type ReadingPreferences } from '../models/readingPreferences';
 import { radii, serifFont, spacing } from '../theme';
 import {
   EPUB_BRIDGE_QUEUE_LIMIT,
@@ -19,16 +20,21 @@ import {
   parseEpubBridgeEvent,
   type EpubAppearance,
   type EpubBridgeCommand,
+  type EpubRelocationSource,
   type EpubViewStatus,
 } from './epubBridge';
 import { EpubFileError, prepareEpubFile, type PreparedEpub } from './epubFile';
+import { loadEpubFontFaces, useReaderFonts } from './readerFonts';
 import { EPUB_RUNTIME_HANDSHAKE_SCRIPT, EPUB_RUNTIME_HTML } from './epubRuntime';
 import { subscribeToEpubVolumeKeys } from './epubVolumeKeys';
 
 const RUNTIME_ORIGIN = 'https://krumer.local/';
 const RUNTIME_READY_TIMEOUT_MS = 12_000;
+const LOCATOR_REQUEST_TIMEOUT_MS = 1_000;
+const FONT_REGISTRATION_TIMEOUT_MS = 5_000;
 
 export type EpubReaderHandle = {
+  getCurrentLocator: () => Promise<EpubLocator | null>;
   goToLocator: (locator: EpubLocator) => void;
   next: () => void;
   previous: () => void;
@@ -40,11 +46,14 @@ type EpubReaderProps = {
   fileSize?: number;
   fontSize?: number;
   initialLocator?: EpubLocator | null;
+  isLandscape?: boolean;
   lineHeight?: number;
   onCenterTap?: () => void;
   onExternalLink?: (url: string) => void;
-  onRelocate?: (locator: EpubLocator) => void;
+  onPositionStabilized?: (locator: EpubLocator, source: 'restore' | 'reflow') => void;
+  onRelocate?: (locator: EpubLocator, source: EpubRelocationSource) => void;
   onViewStatus?: (status: EpubViewStatus) => void;
+  readingPreferences?: ReadingPreferences;
 };
 
 export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function EpubReader(
@@ -54,20 +63,37 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     fileSize,
     fontSize = 18,
     initialLocator,
+    isLandscape = false,
     lineHeight = 1.5,
     onCenterTap,
     onExternalLink,
+    onPositionStabilized,
     onRelocate,
     onViewStatus,
+    readingPreferences = DEFAULT_READING_PREFERENCES,
   },
   forwardedRef,
 ) {
   const { theme } = useApp();
+  const readerFonts = useReaderFonts();
   const webviewRef = useRef<WebViewType>(null);
   const runtimeReadyRef = useRef(false);
   const bookOpenedRef = useRef(false);
   const pendingCommandsRef = useRef<EpubBridgeCommand[]>([]);
   const readyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fontRegistrationPromisesRef = useRef(new Map<ReadingPreferences['fontFamily'], Promise<void>>());
+  const pendingFontRequestsRef = useRef(new Map<string, {
+    reject: (error: Error) => void;
+    resolve: () => void;
+    timer: ReturnType<typeof setTimeout>;
+  }>());
+  const pendingLocatorRequestsRef = useRef(new Map<string, {
+    resolve: (locator: EpubLocator | null) => void;
+    timer: ReturnType<typeof setTimeout>;
+  }>());
+  const registeredFontFamiliesRef = useRef(new Set<ReadingPreferences['fontFamily']>());
+  const openGenerationRef = useRef(0);
+  const appearanceGenerationRef = useRef(0);
   const [prepared, setPrepared] = useState<PreparedEpub | null>(null);
   const [preparing, setPreparing] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -76,24 +102,30 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   const appearance = useMemo<EpubAppearance>(() => {
     if (theme.name === 'dark') {
       return {
+        ...readingPreferences,
         fontSize,
+        isLandscape,
         lineHeight,
         visualTheme: { backgroundColor: '#202020', linkColor: '#f59a5a', textColor: '#e7e7e7' },
       };
     }
     if (theme.name === 'sepia') {
       return {
+        ...readingPreferences,
         fontSize,
+        isLandscape,
         lineHeight,
         visualTheme: { backgroundColor: '#f4ecd8', linkColor: '#a94f12', textColor: '#3b2f1e' },
       };
     }
     return {
+      ...readingPreferences,
       fontSize,
+      isLandscape,
       lineHeight,
       visualTheme: { backgroundColor: '#ffffff', linkColor: '#c2570a', textColor: '#222222' },
     };
-  }, [fontSize, lineHeight, theme.name]);
+  }, [fontSize, isLandscape, lineHeight, readingPreferences, theme.name]);
   const appearanceRef = useRef(appearance);
   appearanceRef.current = appearance;
   const visualTheme = appearance.visualTheme;
@@ -120,12 +152,46 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     pendingCommandsRef.current.push(command);
   }, [injectCommand]);
 
+  const registerFontFamily = useCallback((family: ReadingPreferences['fontFamily']) => {
+    if (registeredFontFamiliesRef.current.has(family)) return Promise.resolve();
+    const inFlight = fontRegistrationPromisesRef.current.get(family);
+    if (inFlight) return inFlight;
+
+    const registration = loadEpubFontFaces(family).then((faces) => new Promise<void>((resolve, reject) => {
+      const command = createEpubBridgeCommand('REGISTER_FONT_FACES', { family, faces });
+      const timer = setTimeout(() => {
+        pendingFontRequestsRef.current.delete(command.id);
+        reject(new Error(`Timeout ao registrar a familia ${family} no EPUB.`));
+      }, FONT_REGISTRATION_TIMEOUT_MS);
+      pendingFontRequestsRef.current.set(command.id, { reject, resolve, timer });
+      sendCommand(command);
+    })).then(() => {
+      registeredFontFamiliesRef.current.add(family);
+    }).finally(() => {
+      fontRegistrationPromisesRef.current.delete(family);
+    });
+    fontRegistrationPromisesRef.current.set(family, registration);
+    return registration;
+  }, [sendCommand]);
+
   const flushPendingCommands = useCallback(() => {
     const commands = pendingCommandsRef.current.splice(0, EPUB_BRIDGE_QUEUE_LIMIT);
     commands.forEach(injectCommand);
   }, [injectCommand]);
 
   useImperativeHandle(forwardedRef, () => ({
+    getCurrentLocator: () => {
+      if (!bookOpenedRef.current) return Promise.resolve(null);
+      const command = createEpubBridgeCommand('GET_CURRENT_LOCATOR', {});
+      return new Promise<EpubLocator | null>((resolve) => {
+        const timer = setTimeout(() => {
+          pendingLocatorRequestsRef.current.delete(command.id);
+          resolve(null);
+        }, LOCATOR_REQUEST_TIMEOUT_MS);
+        pendingLocatorRequestsRef.current.set(command.id, { resolve, timer });
+        sendCommand(command);
+      });
+    },
     goToLocator: (locator) => {
       if (bookOpenedRef.current) {
         sendCommand(createEpubBridgeCommand('GO_TO_LOCATOR', { locator }));
@@ -151,6 +217,8 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       injectCommand(createEpubBridgeCommand('CLOSE_BOOK', {}));
     }
     bookOpenedRef.current = false;
+    openGenerationRef.current += 1;
+    appearanceGenerationRef.current += 1;
     setPrepared(null);
     setPreparing(true);
     setLoading(true);
@@ -180,27 +248,66 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   }, [filePath, fileSize, injectCommand]);
 
   useEffect(() => {
-    if (!prepared) return;
-    sendCommand(createEpubBridgeCommand('OPEN_BOOK', {
-      bookId,
-      byteLength: prepared.byteLength,
-      dataBase64: prepared.base64,
-      initialLocator,
-      appearance: appearanceRef.current,
-    }));
-  }, [bookId, initialLocator, prepared, sendCommand]);
+    if (!prepared || !readerFonts.loaded) return;
+    const openGeneration = openGenerationRef.current + 1;
+    openGenerationRef.current = openGeneration;
+    pendingCommandsRef.current = pendingCommandsRef.current.filter((command) => command.type !== 'OPEN_BOOK');
+    const initialFontFamily = appearanceRef.current.fontFamily;
+    void registerFontFamily(initialFontFamily).then(() => {
+      if (openGeneration !== openGenerationRef.current) return;
+      sendCommand(createEpubBridgeCommand('OPEN_BOOK', {
+        bookId,
+        byteLength: prepared.byteLength,
+        dataBase64: prepared.base64,
+        initialLocator,
+        appearance: appearanceRef.current,
+      }));
+    }).catch((caught: unknown) => {
+      if (openGeneration !== openGenerationRef.current) return;
+      setLoading(false);
+      setError(caught instanceof Error ? caught.message : 'Falha ao carregar fontes do leitor EPUB.');
+    });
+  }, [bookId, initialLocator, prepared, readerFonts.loaded, registerFontFamily, sendCommand]);
 
   useEffect(() => {
     if (!bookOpenedRef.current) return;
-    sendCommand(createEpubBridgeCommand('SET_APPEARANCE', { appearance }));
-  }, [appearance, sendCommand]);
+    const appearanceGeneration = appearanceGenerationRef.current + 1;
+    appearanceGenerationRef.current = appearanceGeneration;
+    void registerFontFamily(appearance.fontFamily).then(() => {
+      if (appearanceGeneration !== appearanceGenerationRef.current || !bookOpenedRef.current) return;
+      sendCommand(createEpubBridgeCommand('SET_APPEARANCE', { appearance }));
+    }).catch((caught: unknown) => {
+      if (appearanceGeneration !== appearanceGenerationRef.current) return;
+      console.warn('[Krumer EpubReader] falha ao aplicar fonte', caught);
+    });
+  }, [appearance, registerFontFamily, sendCommand]);
+
+  useEffect(() => {
+    if (!readerFonts.error) return;
+    setLoading(false);
+    setError(`Falha ao carregar fontes do leitor: ${readerFonts.error.message}`);
+  }, [readerFonts.error]);
 
   useEffect(() => () => {
+    openGenerationRef.current += 1;
+    appearanceGenerationRef.current += 1;
     if (readyTimerRef.current) clearTimeout(readyTimerRef.current);
     if (runtimeReadyRef.current) {
       injectCommand(createEpubBridgeCommand('CLOSE_BOOK', {}));
     }
     pendingCommandsRef.current = [];
+    pendingFontRequestsRef.current.forEach((pending) => {
+      clearTimeout(pending.timer);
+      pending.reject(new Error('O leitor EPUB foi fechado antes de registrar as fontes.'));
+    });
+    pendingFontRequestsRef.current.clear();
+    pendingLocatorRequestsRef.current.forEach((pending) => {
+      clearTimeout(pending.timer);
+      pending.resolve(null);
+    });
+    pendingLocatorRequestsRef.current.clear();
+    fontRegistrationPromisesRef.current.clear();
+    registeredFontFamiliesRef.current.clear();
     runtimeReadyRef.current = false;
     bookOpenedRef.current = false;
   }, [injectCommand]);
@@ -244,6 +351,24 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       return;
     }
 
+    if (message.type === 'FONT_FACES_READY') {
+      const pending = pendingFontRequestsRef.current.get(message.payload.requestId);
+      if (!pending) return;
+      clearTimeout(pending.timer);
+      pendingFontRequestsRef.current.delete(message.payload.requestId);
+      pending.resolve();
+      return;
+    }
+
+    if (message.type === 'CURRENT_LOCATOR') {
+      const pending = pendingLocatorRequestsRef.current.get(message.payload.requestId);
+      if (!pending) return;
+      clearTimeout(pending.timer);
+      pendingLocatorRequestsRef.current.delete(message.payload.requestId);
+      pending.resolve(message.payload.locator);
+      return;
+    }
+
     if (message.type === 'LINK_PRESSED') {
       if (/^(https?:|mailto:|tel:)/i.test(message.payload.url)) {
         onExternalLink?.(message.payload.url);
@@ -257,7 +382,12 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     }
 
     if (message.type === 'RELOCATE') {
-      onRelocate?.(message.payload.locator);
+      onRelocate?.(message.payload.locator, message.payload.source);
+      return;
+    }
+
+    if (message.type === 'POSITION_STABILIZED') {
+      onPositionStabilized?.(message.payload.locator, message.payload.source);
       return;
     }
 
@@ -266,11 +396,25 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       return;
     }
 
+    if (message.payload.requestId) {
+      const pendingFont = pendingFontRequestsRef.current.get(message.payload.requestId);
+      if (pendingFont) {
+        clearTimeout(pendingFont.timer);
+        pendingFontRequestsRef.current.delete(message.payload.requestId);
+        pendingFont.reject(new Error(message.payload.message));
+      }
+      const pendingLocator = pendingLocatorRequestsRef.current.get(message.payload.requestId);
+      if (pendingLocator) {
+        clearTimeout(pendingLocator.timer);
+        pendingLocatorRequestsRef.current.delete(message.payload.requestId);
+        pendingLocator.resolve(null);
+      }
+    }
     console.warn('[Krumer EpubReader] runtime error', message.payload.code, message.payload.message);
     if (message.payload.code === 'LOCATOR_NOT_FOUND' || message.payload.code === 'INVALID_LOCATOR') return;
     setLoading(false);
     setError(message.payload.message || 'Falha ao abrir EPUB.');
-  }, [bookId, flushPendingCommands, onCenterTap, onExternalLink, onRelocate, onViewStatus]);
+  }, [bookId, flushPendingCommands, onCenterTap, onExternalLink, onPositionStabilized, onRelocate, onViewStatus]);
 
   const handleNavigationRequest = useCallback((request: { url: string }) => {
     const { url } = request;
@@ -305,7 +449,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     );
   }
 
-  if (preparing) {
+  if (preparing || !readerFonts.loaded) {
     return (
       <View style={{ alignItems: 'center', backgroundColor: visualTheme.backgroundColor, flex: 1, justifyContent: 'center' }}>
         <ActivityIndicator color="#f97316" size="large" />

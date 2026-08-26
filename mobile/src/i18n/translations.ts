@@ -118,10 +118,24 @@ export type TranslationKey =
   | 'reader.addBookmark'
   | 'reader.bookmarks'
   | 'reader.chapters'
+  | 'reader.columns'
+  | 'reader.displayMode'
+  | 'reader.doubleColumn'
+  | 'reader.doubleColumnPortraitHint'
+  | 'reader.fontBold'
+  | 'reader.fontFamily'
+  | 'reader.fontLight'
+  | 'reader.fontMedium'
+  | 'reader.fontMono'
+  | 'reader.fontRegular'
+  | 'reader.fontSans'
+  | 'reader.fontSerif'
   | 'reader.fontSize'
+  | 'reader.fontWeight'
   | 'reader.nextPage'
   | 'reader.noBookmarks'
   | 'reader.page'
+  | 'reader.paginatedMode'
   | 'reader.pdfWebUnavailableDescription'
   | 'reader.pdfWebUnavailableTitle'
   | 'reader.readingSettings'
@@ -129,6 +143,7 @@ export type TranslationKey =
   | 'reader.resetDefaults'
   | 'reader.previousPage'
   | 'reader.spacing'
+  | 'reader.scrollMode'
   | 'scan.action'
   | 'scan.scanning'
   | 'settings.about'
@@ -283,10 +298,24 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.addBookmark': 'Add bookmark',
     'reader.bookmarks': 'Bookmarks',
     'reader.chapters': 'Go to chapter',
+    'reader.columns': 'Columns',
+    'reader.displayMode': 'Display mode',
+    'reader.doubleColumn': 'Two-page spread in landscape',
+    'reader.doubleColumnPortraitHint': 'It will switch to two columns when the device is in landscape.',
+    'reader.fontBold': 'Bold',
+    'reader.fontFamily': 'Font family',
+    'reader.fontLight': 'Light',
+    'reader.fontMedium': 'Medium',
+    'reader.fontMono': 'Mono',
+    'reader.fontRegular': 'Regular',
+    'reader.fontSans': 'Sans',
+    'reader.fontSerif': 'Serif',
     'reader.fontSize': 'Font size',
+    'reader.fontWeight': 'Font weight',
     'reader.nextPage': 'Next page',
     'reader.noBookmarks': 'No bookmarks yet.',
     'reader.page': 'Page',
+    'reader.paginatedMode': 'Paginated',
     'reader.pdfWebUnavailableDescription':
       'PDF reading uses a native module (react-native-pdf) and does not work in the browser. Open on Android to read this file.',
     'reader.pdfWebUnavailableTitle': 'PDF unavailable on web',
@@ -295,6 +324,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.resetDefaults': 'Reset to defaults',
     'reader.previousPage': 'Previous page',
     'reader.spacing': 'Spacing',
+    'reader.scrollMode': 'Scroll',
     'scan.action': 'Scan',
     'scan.scanning': 'Scanning',
     'settings.about': 'About',
@@ -438,10 +468,24 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.addBookmark': 'Adicionar marcador',
     'reader.bookmarks': 'Marcadores',
     'reader.chapters': 'Ir para capítulo',
+    'reader.columns': 'Colunas',
+    'reader.displayMode': 'Modo de exibição',
+    'reader.doubleColumn': 'Duas páginas em modo paisagem',
+    'reader.doubleColumnPortraitHint': 'As duas colunas serão aplicadas ao girar o dispositivo para a horizontal.',
+    'reader.fontBold': 'Negrito',
+    'reader.fontFamily': 'Família da fonte',
+    'reader.fontLight': 'Leve',
+    'reader.fontMedium': 'Médio',
+    'reader.fontMono': 'Mono',
+    'reader.fontRegular': 'Regular',
+    'reader.fontSans': 'Sem serifa',
+    'reader.fontSerif': 'Serifa',
     'reader.fontSize': 'Tamanho da fonte',
+    'reader.fontWeight': 'Peso da fonte',
     'reader.nextPage': 'Próxima página',
     'reader.noBookmarks': 'Nenhum marcador ainda.',
     'reader.page': 'Página',
+    'reader.paginatedMode': 'Paginado',
     'reader.pdfWebUnavailableDescription':
       'A leitura de PDF usa um módulo nativo (react-native-pdf) e não funciona no navegador. Abra no Android para ler este arquivo.',
     'reader.pdfWebUnavailableTitle': 'PDF indisponível na web',
@@ -450,6 +494,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.resetDefaults': 'Restaurar padrão',
     'reader.previousPage': 'Página anterior',
     'reader.spacing': 'Espaçamento',
+    'reader.scrollMode': 'Rolagem',
     'scan.action': 'Escanear',
     'scan.scanning': 'Escaneando',
     'settings.about': 'Sobre',
@@ -593,10 +638,24 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.addBookmark': 'Añadir marcador',
     'reader.bookmarks': 'Marcadores',
     'reader.chapters': 'Ir al capítulo',
+    'reader.columns': 'Columnas',
+    'reader.displayMode': 'Modo de visualización',
+    'reader.doubleColumn': 'Dos páginas en horizontal',
+    'reader.doubleColumnPortraitHint': 'Las dos columnas se aplicarán al girar el dispositivo a horizontal.',
+    'reader.fontBold': 'Negrita',
+    'reader.fontFamily': 'Familia tipográfica',
+    'reader.fontLight': 'Ligera',
+    'reader.fontMedium': 'Media',
+    'reader.fontMono': 'Mono',
+    'reader.fontRegular': 'Regular',
+    'reader.fontSans': 'Sin serifa',
+    'reader.fontSerif': 'Serifa',
     'reader.fontSize': 'Tamaño de fuente',
+    'reader.fontWeight': 'Peso de fuente',
     'reader.nextPage': 'Página siguiente',
     'reader.noBookmarks': 'Aún no hay marcadores.',
     'reader.page': 'Página',
+    'reader.paginatedMode': 'Paginado',
     'reader.pdfWebUnavailableDescription':
       'La lectura de PDF usa un módulo nativo (react-native-pdf) y no funciona en el navegador. Ábrelo en Android para leer este archivo.',
     'reader.pdfWebUnavailableTitle': 'PDF no disponible en web',
@@ -605,6 +664,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.resetDefaults': 'Restaurar valores predeterminados',
     'reader.previousPage': 'Página anterior',
     'reader.spacing': 'Espaciado',
+    'reader.scrollMode': 'Desplazamiento',
     'scan.action': 'Escanear',
     'scan.scanning': 'Escaneando',
     'settings.about': 'Acerca de',
