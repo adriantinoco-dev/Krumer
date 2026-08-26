@@ -17,9 +17,9 @@ import {
   EPUB_BRIDGE_QUEUE_LIMIT,
   createEpubBridgeCommand,
   parseEpubBridgeEvent,
+  type EpubAppearance,
   type EpubBridgeCommand,
   type EpubViewStatus,
-  type EpubVisualTheme,
 } from './epubBridge';
 import { EpubFileError, prepareEpubFile, type PreparedEpub } from './epubFile';
 import { EPUB_RUNTIME_HANDSHAKE_SCRIPT, EPUB_RUNTIME_HTML } from './epubRuntime';
@@ -38,7 +38,9 @@ type EpubReaderProps = {
   bookId: string;
   filePath: string;
   fileSize?: number;
+  fontSize?: number;
   initialLocator?: EpubLocator | null;
+  lineHeight?: number;
   onCenterTap?: () => void;
   onExternalLink?: (url: string) => void;
   onRelocate?: (locator: EpubLocator) => void;
@@ -46,7 +48,18 @@ type EpubReaderProps = {
 };
 
 export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function EpubReader(
-  { bookId, filePath, fileSize, initialLocator, onCenterTap, onExternalLink, onRelocate, onViewStatus },
+  {
+    bookId,
+    filePath,
+    fileSize,
+    fontSize = 18,
+    initialLocator,
+    lineHeight = 1.5,
+    onCenterTap,
+    onExternalLink,
+    onRelocate,
+    onViewStatus,
+  },
   forwardedRef,
 ) {
   const { theme } = useApp();
@@ -60,15 +73,30 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const source = useMemo(() => ({ html: EPUB_RUNTIME_HTML, baseUrl: RUNTIME_ORIGIN }), []);
-  const visualTheme = useMemo<EpubVisualTheme>(() => {
+  const appearance = useMemo<EpubAppearance>(() => {
     if (theme.name === 'dark') {
-      return { backgroundColor: '#202020', linkColor: '#f59a5a', textColor: '#e7e7e7' };
+      return {
+        fontSize,
+        lineHeight,
+        visualTheme: { backgroundColor: '#202020', linkColor: '#f59a5a', textColor: '#e7e7e7' },
+      };
     }
     if (theme.name === 'sepia') {
-      return { backgroundColor: '#f4ecd8', linkColor: '#a94f12', textColor: '#3b2f1e' };
+      return {
+        fontSize,
+        lineHeight,
+        visualTheme: { backgroundColor: '#f4ecd8', linkColor: '#a94f12', textColor: '#3b2f1e' },
+      };
     }
-    return { backgroundColor: '#ffffff', linkColor: '#c2570a', textColor: '#222222' };
-  }, [theme.name]);
+    return {
+      fontSize,
+      lineHeight,
+      visualTheme: { backgroundColor: '#ffffff', linkColor: '#c2570a', textColor: '#222222' },
+    };
+  }, [fontSize, lineHeight, theme.name]);
+  const appearanceRef = useRef(appearance);
+  appearanceRef.current = appearance;
+  const visualTheme = appearance.visualTheme;
 
   const injectCommand = useCallback((command: EpubBridgeCommand) => {
     const serialized = JSON.stringify(command);
@@ -158,9 +186,14 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       byteLength: prepared.byteLength,
       dataBase64: prepared.base64,
       initialLocator,
-      visualTheme,
+      appearance: appearanceRef.current,
     }));
-  }, [bookId, initialLocator, prepared, sendCommand, visualTheme]);
+  }, [bookId, initialLocator, prepared, sendCommand]);
+
+  useEffect(() => {
+    if (!bookOpenedRef.current) return;
+    sendCommand(createEpubBridgeCommand('SET_APPEARANCE', { appearance }));
+  }, [appearance, sendCommand]);
 
   useEffect(() => () => {
     if (readyTimerRef.current) clearTimeout(readyTimerRef.current);

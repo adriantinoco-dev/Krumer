@@ -40,6 +40,7 @@ async function main() {
   const turns = { next: 0, previous: 0 };
   const displayTargets = [];
   const postedEvents = [];
+  const activeReaderDocuments = [];
   let renderedHandler = null;
   let relocatedHandler = null;
   const viewer = { className: '', replaceChildren() {}, style: {} };
@@ -89,6 +90,7 @@ async function main() {
         ? Promise.reject(new Error('Invalid CFI fixture'))
         : Promise.resolve();
     },
+    getContents: () => activeReaderDocuments.map((document) => ({ document })),
     next: () => {
       turns.next += 1;
       return Promise.resolve();
@@ -158,7 +160,11 @@ async function main() {
       bookId: 'test-book',
       byteLength: 1,
       dataBase64: 'AA==',
-      visualTheme: { backgroundColor: '#202020', linkColor: '#f59a5a', textColor: '#e7e7e7' },
+      appearance: {
+        fontSize: 18,
+        lineHeight: 1.5,
+        visualTheme: { backgroundColor: '#202020', linkColor: '#f59a5a', textColor: '#e7e7e7' },
+      },
     },
   }));
   await wait(0);
@@ -246,6 +252,7 @@ async function main() {
   }
 
   const presentation = createReaderDocument(1000);
+  activeReaderDocuments.push(presentation.document);
   renderedHandler(null, { document: presentation.document });
 
   const target = { nodeType: 1, parentElement: null, tagName: 'P' };
@@ -262,6 +269,7 @@ async function main() {
   presentation.listeners.touchend(touchEvent(900, 'end'));
 
   const chapter = createReaderDocument(12000);
+  activeReaderDocuments.splice(0, activeReaderDocuments.length, chapter.document);
   renderedHandler(null, { document: chapter.document });
   chapter.listeners.click({ clientX: 0, screenX: 0, preventDefault() {}, stopImmediatePropagation() {}, target });
   if (turns.next !== 1) throw new Error(`One right tap produced ${turns.next} next turns.`);
@@ -288,7 +296,28 @@ async function main() {
     throw new Error('A center tap changed the EPUB navigation state.');
   }
 
-  console.log('EPUB runtime navigation, locators, visual status, theme, and center tap are valid.');
+  runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
+    version: bridge.EPUB_BRIDGE_VERSION,
+    id: 'test-appearance',
+    type: 'SET_APPEARANCE',
+    payload: {
+      appearance: {
+        fontSize: 24,
+        lineHeight: 1.8,
+        visualTheme: { backgroundColor: '#f4ecd8', linkColor: '#a94f12', textColor: '#3b2f1e' },
+      },
+    },
+  }));
+  if (
+    !chapter.document.__krumerVisualStyle
+    || !chapter.document.__krumerVisualStyle.textContent.includes('font-size: 24px')
+    || !chapter.document.__krumerVisualStyle.textContent.includes('line-height: 1.8')
+    || outerDocument.body.style.backgroundColor !== '#f4ecd8'
+  ) {
+    throw new Error('Live EPUB appearance updates were not applied to the rendered chapter.');
+  }
+
+  console.log('EPUB runtime navigation, locators, visual status, live appearance, and center tap are valid.');
 }
 
 main().catch((error) => {

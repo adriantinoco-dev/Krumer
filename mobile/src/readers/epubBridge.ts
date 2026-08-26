@@ -9,6 +9,12 @@ export type EpubVisualTheme = {
   textColor: string;
 };
 
+export type EpubAppearance = {
+  fontSize: number;
+  lineHeight: number;
+  visualTheme: EpubVisualTheme;
+};
+
 export type EpubViewStatus = {
   chapterTitle: string;
   currentPage: number;
@@ -28,10 +34,11 @@ export type EpubBridgeCommand =
       dataBase64: string;
       byteLength: number;
       initialLocator?: EpubLocator | null;
-      visualTheme?: EpubVisualTheme;
+      appearance: EpubAppearance;
     }>
   | BridgeEnvelope<'NEXT', Record<string, never>>
   | BridgeEnvelope<'PREVIOUS', Record<string, never>>
+  | BridgeEnvelope<'SET_APPEARANCE', { appearance: EpubAppearance }>
   | BridgeEnvelope<'GO_TO_LOCATOR', { locator: EpubLocator }>
   | BridgeEnvelope<'CLOSE_BOOK', Record<string, never>>;
 

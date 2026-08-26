@@ -222,7 +222,9 @@ export function ReaderScreen({ navigation, route }: Props) {
               bookId={book.id}
               filePath={book.filePath}
               fileSize={book.fileSize}
+              fontSize={readerSettings.fontSize}
               initialLocator={epubPersistence.initialLocator}
+              lineHeight={readerSettings.lineHeight}
               onCenterTap={toggleBars}
               onRelocate={handleEpubRelocate}
               onViewStatus={handleEpubViewStatus}
@@ -352,6 +354,23 @@ export function ReaderScreen({ navigation, route }: Props) {
             >
               {book.title}
             </Text>
+            <Pressable
+              accessibilityLabel={t('reader.readingSettings')}
+              hitSlop={6}
+              onPress={() => {
+                if (hideTimer.current) clearTimeout(hideTimer.current);
+                setSettingsVisible(true);
+              }}
+              style={({ pressed }) => ({
+                alignItems: 'center',
+                height: 40,
+                justifyContent: 'center',
+                opacity: pressed ? 0.55 : 1,
+                width: 44,
+              })}
+            >
+              <Type color={epubText} size={20} strokeWidth={1.7} />
+            </Pressable>
             <Pressable
               accessibilityLabel={t('common.cancel')}
               hitSlop={8}
@@ -655,7 +674,7 @@ export function ReaderScreen({ navigation, route }: Props) {
       <Modal
         animationType="slide"
         transparent
-        visible={settingsVisible && !isEpub}
+        visible={settingsVisible}
         onRequestClose={() => {
           setSettingsVisible(false);
           scheduleHide();
@@ -666,7 +685,7 @@ export function ReaderScreen({ navigation, route }: Props) {
             setSettingsVisible(false);
             scheduleHide();
           }}
-          style={{ flex: 1, justifyContent: 'flex-end' }}
+          style={{ backgroundColor: '#00000088', flex: 1, justifyContent: 'flex-end' }}
         >
           <Pressable
             onPress={(e) => e.stopPropagation()}

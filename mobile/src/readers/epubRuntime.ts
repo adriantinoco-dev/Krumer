@@ -65,6 +65,10 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           linkColor: '#c2570a',
           textColor: '#171717'
         };
+        var typography = {
+          fontSize: 18,
+          lineHeight: 1.5
+        };
 
         function eventId() {
           nextEventId += 1;
@@ -121,6 +125,64 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           if (document.body) document.body.style.backgroundColor = visualTheme.backgroundColor;
           if (viewer) viewer.style.backgroundColor = visualTheme.backgroundColor;
           if (loading) loading.style.backgroundColor = visualTheme.backgroundColor;
+        }
+
+        function validTypography(value) {
+          return value
+            && typeof value.fontSize === 'number'
+            && Number.isFinite(value.fontSize)
+            && value.fontSize >= 12
+            && value.fontSize <= 32
+            && typeof value.lineHeight === 'number'
+            && Number.isFinite(value.lineHeight)
+            && value.lineHeight >= 1
+            && value.lineHeight <= 2.4;
+        }
+
+        function readerStyleText() {
+          return [
+            'html, body { background: ' + visualTheme.backgroundColor + ' !important; color: ' + visualTheme.textColor + ' !important; }',
+            'body { font-family: Georgia, "Times New Roman", serif !important; font-size: ' + typography.fontSize + 'px !important; line-height: ' + typography.lineHeight + ' !important; margin: 0 !important; padding: 0 !important; }',
+            'a { color: ' + visualTheme.linkColor + ' !important; }',
+            'p { hyphens: auto; text-align: justify; }',
+            'img, svg, video { max-width: 100% !important; height: auto !important; }'
+          ].join('');
+        }
+
+        function styleReaderDocument(doc) {
+          if (!doc) return;
+          var style = doc.__krumerVisualStyle;
+          if (!style) {
+            style = doc.createElement('style');
+            style.id = 'krumer-reader-appearance';
+            doc.__krumerVisualStyle = style;
+            (doc.head || doc.documentElement).appendChild(style);
+          }
+          style.textContent = readerStyleText();
+        }
+
+        function refreshReaderAppearance() {
+          if (!rendition || typeof rendition.getContents !== 'function') return;
+          var contents = rendition.getContents() || [];
+          for (var index = 0; index < contents.length; index += 1) {
+            styleReaderDocument(contents[index] && contents[index].document);
+          }
+        }
+
+        function applyAppearance(appearance) {
+          if (!appearance || !validTypography(appearance)) return false;
+          var theme = appearance.visualTheme;
+          if (!theme
+            || !validThemeColor(theme.backgroundColor)
+            || !validThemeColor(theme.textColor)
+            || !validThemeColor(theme.linkColor)) return false;
+          typography = {
+            fontSize: appearance.fontSize,
+            lineHeight: appearance.lineHeight
+          };
+          applyVisualTheme(theme);
+          refreshReaderAppearance();
+          return true;
         }
 
         function base64ToArrayBuffer(base64) {
@@ -520,17 +582,10 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
         }
 
         function bindReaderDocument(doc) {
-          if (!doc || doc.__krumerF1Bound) return;
+          if (!doc) return;
+          styleReaderDocument(doc);
+          if (doc.__krumerF1Bound) return;
           doc.__krumerF1Bound = true;
-
-          var style = doc.createElement('style');
-          style.textContent = [
-            'html, body { background: ' + visualTheme.backgroundColor + ' !important; color: ' + visualTheme.textColor + ' !important; }',
-            'body { font-family: Georgia, "Times New Roman", serif !important; font-size: 18px !important; line-height: 1.6 !important; margin: 0 !important; padding: 0 !important; }',
-            'a { color: ' + visualTheme.linkColor + ' !important; }',
-            'img, svg, video { max-width: 100% !important; height: auto !important; }'
-          ].join('');
-          (doc.head || doc.documentElement).appendChild(style);
 
           var touchStartX = 0;
           var touchStartY = 0;
@@ -647,7 +702,9 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           var openGeneration = generation;
 
           try {
-            applyVisualTheme(payload.visualTheme);
+            if (!applyAppearance(payload.appearance)) {
+              throw new Error('The EPUB appearance settings are invalid.');
+            }
             var buffer = base64ToArrayBuffer(payload.dataBase64);
             if (buffer.byteLength !== payload.byteLength || buffer.byteLength > MAX_EPUB_BYTES) {
               throw new Error('EPUB payload size does not match its envelope.');
@@ -713,6 +770,11 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           if (message.type === 'OPEN_BOOK') openBook(message);
           else if (message.type === 'NEXT') turn('NEXT', message.id);
           else if (message.type === 'PREVIOUS') turn('PREVIOUS', message.id);
+          else if (message.type === 'SET_APPEARANCE') {
+            if (!applyAppearance(message.payload.appearance)) {
+              reportError('INVALID_APPEARANCE', 'The EPUB appearance settings are invalid.', message.id);
+            }
+          }
           else if (message.type === 'GO_TO_LOCATOR') goToLocator(message);
           else if (message.type === 'CLOSE_BOOK') closeBook();
           else reportError('UNKNOWN_COMMAND', 'Unsupported bridge command.', message.id);
