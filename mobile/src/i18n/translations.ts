@@ -115,14 +115,19 @@ export type TranslationKey =
   | 'lists.toRead'
   | 'lists.unread'
   | 'onboarding.setup'
+  | 'reader.addBookmark'
   | 'reader.bookmarks'
   | 'reader.chapters'
   | 'reader.fontSize'
+  | 'reader.nextPage'
+  | 'reader.noBookmarks'
   | 'reader.page'
   | 'reader.pdfWebUnavailableDescription'
   | 'reader.pdfWebUnavailableTitle'
   | 'reader.readingSettings'
+  | 'reader.removeBookmark'
   | 'reader.resetDefaults'
+  | 'reader.previousPage'
   | 'reader.spacing'
   | 'scan.action'
   | 'scan.scanning'
@@ -275,15 +280,20 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'lists.toRead': 'To Read',
     'lists.unread': 'Unread',
     'onboarding.setup': 'Set up Krumer',
+    'reader.addBookmark': 'Add bookmark',
     'reader.bookmarks': 'Bookmarks',
     'reader.chapters': 'Go to chapter',
     'reader.fontSize': 'Font size',
+    'reader.nextPage': 'Next page',
+    'reader.noBookmarks': 'No bookmarks yet.',
     'reader.page': 'Page',
     'reader.pdfWebUnavailableDescription':
       'PDF reading uses a native module (react-native-pdf) and does not work in the browser. Open on Android to read this file.',
     'reader.pdfWebUnavailableTitle': 'PDF unavailable on web',
     'reader.readingSettings': 'Reading settings',
+    'reader.removeBookmark': 'Remove bookmark',
     'reader.resetDefaults': 'Reset to defaults',
+    'reader.previousPage': 'Previous page',
     'reader.spacing': 'Spacing',
     'scan.action': 'Scan',
     'scan.scanning': 'Scanning',
@@ -425,15 +435,20 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'lists.toRead': 'Para ler',
     'lists.unread': 'Não lidos',
     'onboarding.setup': 'Configurar Krumer',
+    'reader.addBookmark': 'Adicionar marcador',
     'reader.bookmarks': 'Marcadores',
     'reader.chapters': 'Ir para capítulo',
     'reader.fontSize': 'Tamanho da fonte',
+    'reader.nextPage': 'Próxima página',
+    'reader.noBookmarks': 'Nenhum marcador ainda.',
     'reader.page': 'Página',
     'reader.pdfWebUnavailableDescription':
       'A leitura de PDF usa um módulo nativo (react-native-pdf) e não funciona no navegador. Abra no Android para ler este arquivo.',
     'reader.pdfWebUnavailableTitle': 'PDF indisponível na web',
     'reader.readingSettings': 'Configurações de leitura',
+    'reader.removeBookmark': 'Remover marcador',
     'reader.resetDefaults': 'Restaurar padrão',
+    'reader.previousPage': 'Página anterior',
     'reader.spacing': 'Espaçamento',
     'scan.action': 'Escanear',
     'scan.scanning': 'Escaneando',
@@ -575,15 +590,20 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'lists.toRead': 'Por leer',
     'lists.unread': 'No leídos',
     'onboarding.setup': 'Configurar Krumer',
+    'reader.addBookmark': 'Añadir marcador',
     'reader.bookmarks': 'Marcadores',
     'reader.chapters': 'Ir al capítulo',
     'reader.fontSize': 'Tamaño de fuente',
+    'reader.nextPage': 'Página siguiente',
+    'reader.noBookmarks': 'Aún no hay marcadores.',
     'reader.page': 'Página',
     'reader.pdfWebUnavailableDescription':
       'La lectura de PDF usa un módulo nativo (react-native-pdf) y no funciona en el navegador. Ábrelo en Android para leer este archivo.',
     'reader.pdfWebUnavailableTitle': 'PDF no disponible en web',
     'reader.readingSettings': 'Configuración de lectura',
+    'reader.removeBookmark': 'Eliminar marcador',
     'reader.resetDefaults': 'Restaurar valores predeterminados',
+    'reader.previousPage': 'Página anterior',
     'reader.spacing': 'Espaciado',
     'scan.action': 'Escanear',
     'scan.scanning': 'Escaneando',

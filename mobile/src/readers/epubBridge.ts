@@ -1,4 +1,6 @@
-export const EPUB_BRIDGE_VERSION = 1 as const;
+import { parseReaderLocator, type EpubLocator } from '../models/reader';
+
+export const EPUB_BRIDGE_VERSION = 2 as const;
 export const EPUB_BRIDGE_QUEUE_LIMIT = 8;
 
 type BridgeEnvelope<Type extends string, Payload> = {
@@ -9,14 +11,21 @@ type BridgeEnvelope<Type extends string, Payload> = {
 };
 
 export type EpubBridgeCommand =
-  | BridgeEnvelope<'OPEN_BOOK', { bookId: string; dataBase64: string; byteLength: number }>
+  | BridgeEnvelope<'OPEN_BOOK', {
+      bookId: string;
+      dataBase64: string;
+      byteLength: number;
+      initialLocator?: EpubLocator | null;
+    }>
   | BridgeEnvelope<'NEXT', Record<string, never>>
   | BridgeEnvelope<'PREVIOUS', Record<string, never>>
+  | BridgeEnvelope<'GO_TO_LOCATOR', { locator: EpubLocator }>
   | BridgeEnvelope<'CLOSE_BOOK', Record<string, never>>;
 
 export type EpubBridgeEvent =
   | BridgeEnvelope<'READY', { engine: 'epub.js'; engineVersion: '0.3.93' }>
   | BridgeEnvelope<'BOOK_OPENED', { bookId: string }>
+  | BridgeEnvelope<'RELOCATE', { locator: EpubLocator }>
   | BridgeEnvelope<'LINK_PRESSED', { url: string }>
   | BridgeEnvelope<'ERROR', { code: string; message: string; requestId?: string }>;
 
@@ -66,6 +75,11 @@ export function parseEpubBridgeEvent(raw: string): EpubBridgeEvent | null {
 
   if (value.type === 'BOOK_OPENED') {
     return typeof value.payload.bookId === 'string' ? value as EpubBridgeEvent : null;
+  }
+
+  if (value.type === 'RELOCATE') {
+    const locator = parseReaderLocator(value.payload.locator);
+    return locator?.format === 'epub' ? value as EpubBridgeEvent : null;
   }
 
   if (value.type === 'LINK_PRESSED') {

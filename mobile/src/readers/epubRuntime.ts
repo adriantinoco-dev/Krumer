@@ -104,6 +104,254 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           return bytes.buffer;
         }
 
+        function clampProgression(value) {
+          return Math.max(0, Math.min(1, Number(value) || 0));
+        }
+
+        function isEpubLocator(locator) {
+          return locator
+            && locator.format === 'epub'
+            && (locator.cfi === null || typeof locator.cfi === 'string')
+            && typeof locator.spineHref === 'string'
+            && typeof locator.progressionInSection === 'number'
+            && locator.progressionInSection >= 0
+            && locator.progressionInSection <= 1
+            && typeof locator.excerpt === 'string'
+            && locator.excerpt.length <= 240
+            && (locator.totalProgression === null
+              || (typeof locator.totalProgression === 'number'
+                && locator.totalProgression >= 0
+                && locator.totalProgression <= 1));
+        }
+
+        function firstTextNode(node) {
+          if (!node) return null;
+          if (node.nodeType === 3) return node;
+          var walker = node.ownerDocument && node.ownerDocument.createTreeWalker
+            ? node.ownerDocument.createTreeWalker(node, 4)
+            : null;
+          return walker ? walker.nextNode() : null;
+        }
+
+        function contextForCfi(cfi) {
+          if (!rendition || !cfi || !rendition.getContents) return null;
+          var contentList = rendition.getContents() || [];
+          for (var contentIndex = 0; contentIndex < contentList.length; contentIndex += 1) {
+            var contents = contentList[contentIndex];
+            try {
+              var range = contents.range(cfi);
+              var doc = contents.document;
+              var root = doc && (doc.body || doc.documentElement);
+              if (!range || !root || !doc.createTreeWalker) continue;
+
+              var startNode = range.startContainer;
+              var startOffset = range.startOffset || 0;
+              if (startNode && startNode.nodeType !== 3) {
+                startNode = firstTextNode(startNode.childNodes && startNode.childNodes[startOffset])
+                  || firstTextNode(startNode);
+                startOffset = 0;
+              }
+
+              var walker = doc.createTreeWalker(root, 4);
+              var nodes = [];
+              var totalLength = 0;
+              var currentLength = null;
+              var node;
+              while ((node = walker.nextNode())) {
+                var textLength = String(node.textContent || '').length;
+                if (node === startNode) {
+                  currentLength = totalLength + Math.min(startOffset, textLength);
+                }
+                nodes.push(node);
+                totalLength += textLength;
+              }
+              if (currentLength === null || !startNode) continue;
+
+              var sourceText = String(startNode.textContent || '');
+              var excerptStart = Math.max(0, Math.min(startOffset, sourceText.length) - 90);
+              var excerpt = sourceText.slice(excerptStart, excerptStart + 180).trim();
+              return {
+                excerpt: excerpt.slice(0, 240),
+                progression: totalLength > 0 ? clampProgression(currentLength / totalLength) : 0
+              };
+            } catch (_) {}
+          }
+          return null;
+        }
+
+        function locatorFromLocation(location) {
+          if (!location || !location.start || typeof location.start.cfi !== 'string') return null;
+          var start = location.start;
+          var displayed = start.displayed || {};
+          var displayedTotal = Number(displayed.total) || 1;
+          var displayedPage = Number(displayed.page) || 1;
+          var renderedContext = contextForCfi(start.cfi);
+          var progressionInSection = renderedContext
+            ? renderedContext.progression
+            : clampProgression((displayedPage - 1) / displayedTotal);
+          var spineLength = book && book.spine ? Number(book.spine.length) || 1 : 1;
+          var spineIndex = Math.max(0, Number(start.index) || 0);
+          var totalProgression = typeof start.percentage === 'number'
+            ? clampProgression(start.percentage)
+            : clampProgression((spineIndex + progressionInSection) / spineLength);
+
+          return {
+            format: 'epub',
+            cfi: start.cfi,
+            spineHref: typeof start.href === 'string' ? start.href : '',
+            progressionInSection: progressionInSection,
+            excerpt: renderedContext ? renderedContext.excerpt : '',
+            totalProgression: totalProgression
+          };
+        }
+
+        function sectionForHref(href) {
+          if (!book || !book.spine || !href) return null;
+          var direct = book.spine.get(href);
+          if (direct) return direct;
+          var decodedHref = href;
+          try { decodedHref = decodeURIComponent(href); } catch (_) {}
+          var sections = book.spine.spineItems || [];
+          for (var index = 0; index < sections.length; index += 1) {
+            var sectionHref = String(sections[index].href || '');
+            var decodedSectionHref = sectionHref;
+            try { decodedSectionHref = decodeURIComponent(sectionHref); } catch (_) {}
+            if (sectionHref === href || decodedSectionHref === decodedHref) return sections[index];
+          }
+          return null;
+        }
+
+        async function cfiAtSectionProgression(section, progression) {
+          if (!section || !book || !section.load || !section.cfiFromRange) return null;
+          var doc;
+          try {
+            doc = await section.load(book.load.bind(book));
+            var root = doc && (doc.body || doc.documentElement);
+            if (!root || !doc.createTreeWalker || !doc.createRange) return null;
+            var walker = doc.createTreeWalker(root, 4);
+            var nodes = [];
+            var totalLength = 0;
+            var node;
+            while ((node = walker.nextNode())) {
+              var textLength = String(node.textContent || '').length;
+              if (textLength > 0) {
+                nodes.push({ node: node, start: totalLength, length: textLength });
+                totalLength += textLength;
+              }
+            }
+            if (!nodes.length) return null;
+
+            var target = Math.floor(clampProgression(progression) * Math.max(0, totalLength - 1));
+            var selected = nodes[nodes.length - 1];
+            for (var index = 0; index < nodes.length; index += 1) {
+              if (target < nodes[index].start + nodes[index].length) {
+                selected = nodes[index];
+                break;
+              }
+            }
+            var offset = Math.max(0, Math.min(selected.length, target - selected.start));
+            var range = doc.createRange();
+            range.setStart(selected.node, offset);
+            range.collapse(true);
+            return section.cfiFromRange(range);
+          } finally {
+            try { section.unload(); } catch (_) {}
+          }
+        }
+
+        function excerptQueries(excerpt) {
+          var value = String(excerpt || '').trim();
+          if (!value) return [];
+          var queries = [value];
+          if (value.length > 100) {
+            var middle = Math.floor(value.length / 2);
+            queries.push(value.slice(Math.max(0, middle - 50), middle + 50).trim());
+          }
+          var words = value.split(/\s+/).filter(Boolean);
+          if (words.length > 6) queries.push(words.slice(1, 7).join(' '));
+          return queries.filter(function (query, index, all) {
+            return query.length >= 12 && all.indexOf(query) === index;
+          });
+        }
+
+        async function cfiFromExcerpt(excerpt, preferredHref) {
+          if (!book || !book.spine) return null;
+          var preferred = sectionForHref(preferredHref);
+          var sections = book.spine.spineItems || [];
+          var candidates = preferred
+            ? [preferred].concat(sections.filter(function (section) { return section !== preferred; }))
+            : sections.slice();
+          var queries = excerptQueries(excerpt);
+
+          for (var sectionIndex = 0; sectionIndex < candidates.length; sectionIndex += 1) {
+            var section = candidates[sectionIndex];
+            try {
+              await section.load(book.load.bind(book));
+              for (var queryIndex = 0; queryIndex < queries.length; queryIndex += 1) {
+                var matches = section.find(queries[queryIndex]);
+                if (matches && matches[0] && matches[0].cfi) return matches[0].cfi;
+              }
+            } catch (_) {
+              // Continue through the fallback chain and remaining spine items.
+            } finally {
+              try { section.unload(); } catch (_) {}
+            }
+          }
+          return null;
+        }
+
+        async function displayLocator(locator) {
+          if (!rendition || !book || !isEpubLocator(locator)) {
+            throw new Error('The EPUB locator is invalid or no book is open.');
+          }
+
+          if (locator.cfi) {
+            try {
+              await rendition.display(locator.cfi);
+              return 'cfi';
+            } catch (_) {}
+          }
+
+          var section = sectionForHref(locator.spineHref);
+          if (section) {
+            try {
+              var sectionCfi = await cfiAtSectionProgression(section, locator.progressionInSection);
+              if (sectionCfi) {
+                await rendition.display(sectionCfi);
+                return 'spine-progression';
+              }
+              if (locator.progressionInSection === 0) {
+                await rendition.display(section.href);
+                return 'spine-start';
+              }
+            } catch (_) {}
+          }
+
+          var excerptCfi = await cfiFromExcerpt(locator.excerpt, locator.spineHref);
+          if (excerptCfi) {
+            await rendition.display(excerptCfi);
+            return 'excerpt';
+          }
+          throw new Error('No EPUB fallback could resolve the saved locator.');
+        }
+
+        async function goToLocator(message) {
+          if (!rendition) {
+            reportError('BOOK_NOT_OPEN', 'No EPUB is currently open.', message.id);
+            return;
+          }
+          var locator = message.payload && message.payload.locator;
+          if (!isEpubLocator(locator)) {
+            reportError('INVALID_LOCATOR', 'GO_TO_LOCATOR payload is invalid.', message.id);
+            return;
+          }
+          try {
+            await displayLocator(locator);
+          } catch (error) {
+            reportError('LOCATOR_NOT_FOUND', error, message.id);
+          }
+        }
+
         function findAnchor(target) {
           var node = target;
           while (node && node.nodeType === 1) {
@@ -304,9 +552,22 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             nextRendition.on('rendered', function (_section, view) {
               bindReaderDocument(view && (view.document || (view.contents && view.contents.document)));
             });
+            nextRendition.on('relocated', function (location) {
+              if (nextBook !== book || nextRendition !== rendition) return;
+              var locator = locatorFromLocation(location);
+              if (locator) post('RELOCATE', { locator: locator });
+            });
 
             await nextBook.ready;
-            await nextRendition.display();
+            if (payload.initialLocator && isEpubLocator(payload.initialLocator)) {
+              try {
+                await displayLocator(payload.initialLocator);
+              } catch (_) {
+                await nextRendition.display();
+              }
+            } else {
+              await nextRendition.display();
+            }
             if (openGeneration !== generation || nextBook !== book) return;
 
             setLoading(false);
@@ -335,6 +596,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           if (message.type === 'OPEN_BOOK') openBook(message);
           else if (message.type === 'NEXT') turn('NEXT', message.id);
           else if (message.type === 'PREVIOUS') turn('PREVIOUS', message.id);
+          else if (message.type === 'GO_TO_LOCATOR') goToLocator(message);
           else if (message.type === 'CLOSE_BOOK') closeBook();
           else reportError('UNKNOWN_COMMAND', 'Unsupported bridge command.', message.id);
         }

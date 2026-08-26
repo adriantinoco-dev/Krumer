@@ -11,6 +11,7 @@ import { ActivityIndicator, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import type { WebView as WebViewType } from 'react-native-webview';
 import { useApp } from '../context/AppContext';
+import type { EpubLocator } from '../models/reader';
 import { radii, serifFont, spacing } from '../theme';
 import {
   EPUB_BRIDGE_QUEUE_LIMIT,
@@ -26,6 +27,7 @@ const RUNTIME_ORIGIN = 'https://krumer.local/';
 const RUNTIME_READY_TIMEOUT_MS = 12_000;
 
 export type EpubReaderHandle = {
+  goToLocator: (locator: EpubLocator) => void;
   next: () => void;
   previous: () => void;
 };
@@ -34,11 +36,13 @@ type EpubReaderProps = {
   bookId: string;
   filePath: string;
   fileSize?: number;
+  initialLocator?: EpubLocator | null;
   onExternalLink?: (url: string) => void;
+  onRelocate?: (locator: EpubLocator) => void;
 };
 
 export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function EpubReader(
-  { bookId, filePath, fileSize, onExternalLink },
+  { bookId, filePath, fileSize, initialLocator, onExternalLink, onRelocate },
   forwardedRef,
 ) {
   const { theme } = useApp();
@@ -81,6 +85,11 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   }, [injectCommand]);
 
   useImperativeHandle(forwardedRef, () => ({
+    goToLocator: (locator) => {
+      if (bookOpenedRef.current) {
+        sendCommand(createEpubBridgeCommand('GO_TO_LOCATOR', { locator }));
+      }
+    },
     next: () => {
       if (bookOpenedRef.current) sendCommand(createEpubBridgeCommand('NEXT', {}));
     },
@@ -135,8 +144,9 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       bookId,
       byteLength: prepared.byteLength,
       dataBase64: prepared.base64,
+      initialLocator,
     }));
-  }, [bookId, prepared, sendCommand]);
+  }, [bookId, initialLocator, prepared, sendCommand]);
 
   useEffect(() => () => {
     if (readyTimerRef.current) clearTimeout(readyTimerRef.current);
@@ -194,10 +204,16 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       return;
     }
 
+    if (message.type === 'RELOCATE') {
+      onRelocate?.(message.payload.locator);
+      return;
+    }
+
     console.warn('[Krumer EpubReader] runtime error', message.payload.code, message.payload.message);
+    if (message.payload.code === 'LOCATOR_NOT_FOUND' || message.payload.code === 'INVALID_LOCATOR') return;
     setLoading(false);
     setError(message.payload.message || 'Falha ao abrir EPUB.');
-  }, [bookId, flushPendingCommands, onExternalLink]);
+  }, [bookId, flushPendingCommands, onExternalLink, onRelocate]);
 
   const handleNavigationRequest = useCallback((request: { url: string }) => {
     const { url } = request;

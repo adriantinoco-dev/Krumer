@@ -22,7 +22,10 @@ function wait(milliseconds) {
 
 async function main() {
   const vendor = loadTypeScriptModule('src/readers/epubVendorScript.ts');
-  const bridge = loadTypeScriptModule('src/readers/epubBridge.ts');
+  const readerModels = loadTypeScriptModule('src/models/reader.ts');
+  const bridge = loadTypeScriptModule('src/readers/epubBridge.ts', {
+    '../models/reader': readerModels,
+  });
   const runtime = loadTypeScriptModule('src/readers/epubRuntime.ts', {
     './epubBridge': bridge,
     './epubVendorScript': vendor,
@@ -35,18 +38,64 @@ async function main() {
   new Function(runtime.EPUB_RUNTIME_HANDSHAKE_SCRIPT);
 
   const turns = { next: 0, previous: 0 };
+  const displayTargets = [];
+  const postedEvents = [];
   let renderedHandler = null;
+  let relocatedHandler = null;
   const viewer = { className: '', replaceChildren() {} };
   const loading = { className: '' };
+
+  function createSectionDocument(text) {
+    const root = { nodeType: 1 };
+    const textNode = { nodeType: 3, textContent: text };
+    return {
+      body: root,
+      createRange: () => ({
+        collapse() {},
+        setStart() {},
+      }),
+      createTreeWalker: () => {
+        let delivered = false;
+        return {
+          nextNode: () => {
+            if (delivered || !text) return null;
+            delivered = true;
+            return textNode;
+          },
+        };
+      },
+    };
+  }
+
+  const progressionSection = {
+    cfiFromRange: () => 'epubcfi(/spine-progression)',
+    find: () => [],
+    href: 'chapter-progression.xhtml',
+    load: () => Promise.resolve(createSectionDocument('A sufficiently long chapter used for progression fallback testing.')),
+    unload() {},
+  };
+  const excerptSection = {
+    cfiFromRange: () => null,
+    find: () => [{ cfi: 'epubcfi(/excerpt-match)' }],
+    href: 'chapter-excerpt.xhtml',
+    load: () => Promise.resolve(createSectionDocument('')),
+    unload() {},
+  };
   const rendition = {
     destroy() {},
-    display: () => Promise.resolve(),
+    display: (target) => {
+      displayTargets.push(target || 'BOOK_START');
+      return String(target || '').includes('invalid-cfi')
+        ? Promise.reject(new Error('Invalid CFI fixture'))
+        : Promise.resolve();
+    },
     next: () => {
       turns.next += 1;
       return Promise.resolve();
     },
     on: (type, handler) => {
       if (type === 'rendered') renderedHandler = handler;
+      if (type === 'relocated') relocatedHandler = handler;
     },
     prev: () => {
       turns.previous += 1;
@@ -55,14 +104,26 @@ async function main() {
   };
   const book = {
     destroy() {},
+    load() {},
     ready: Promise.resolve(),
     renderTo: () => rendition,
+    spine: {
+      get: (href) => {
+        if (href === progressionSection.href) return progressionSection;
+        if (href === excerptSection.href) return excerptSection;
+        return null;
+      },
+      length: 2,
+      spineItems: [progressionSection, excerptSection],
+    },
   };
   const outerDocument = {
     getElementById: (id) => (id === 'viewer' ? viewer : loading),
   };
   const runtimeWindow = {
-    ReactNativeWebView: { postMessage() {} },
+    ReactNativeWebView: {
+      postMessage: (raw) => postedEvents.push(JSON.parse(raw)),
+    },
     addEventListener() {},
     atob,
     ePub: () => book,
@@ -85,13 +146,67 @@ async function main() {
   });
 
   runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
-    version: 1,
+    version: bridge.EPUB_BRIDGE_VERSION,
     id: 'test-open',
     type: 'OPEN_BOOK',
     payload: { bookId: 'test-book', byteLength: 1, dataBase64: 'AA==' },
   }));
   await wait(0);
   if (!renderedHandler) throw new Error('The rendered document handler was not registered.');
+  if (!relocatedHandler) throw new Error('The relocated handler was not registered.');
+
+  relocatedHandler({
+    start: {
+      cfi: 'epubcfi(/relocated)',
+      displayed: { page: 2, total: 4 },
+      href: progressionSection.href,
+      index: 0,
+    },
+  });
+  const relocateEnvelope = postedEvents.find((event) => event.type === 'RELOCATE');
+  if (!relocateEnvelope || !bridge.parseEpubBridgeEvent(JSON.stringify(relocateEnvelope))) {
+    throw new Error('RELOCATE did not emit a valid EPUB locator envelope.');
+  }
+
+  runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
+    version: bridge.EPUB_BRIDGE_VERSION,
+    id: 'test-spine-fallback',
+    type: 'GO_TO_LOCATOR',
+    payload: {
+      locator: {
+        format: 'epub',
+        cfi: 'epubcfi(/invalid-cfi-progression)',
+        spineHref: progressionSection.href,
+        progressionInSection: 0.5,
+        excerpt: 'A sufficiently long excerpt for the final fallback.',
+        totalProgression: 0.25,
+      },
+    },
+  }));
+  await wait(0);
+  if (displayTargets.at(-2) !== 'epubcfi(/invalid-cfi-progression)' || displayTargets.at(-1) !== 'epubcfi(/spine-progression)') {
+    throw new Error('Invalid CFI did not fall back to spineHref + progressionInSection.');
+  }
+
+  runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
+    version: bridge.EPUB_BRIDGE_VERSION,
+    id: 'test-excerpt-fallback',
+    type: 'GO_TO_LOCATOR',
+    payload: {
+      locator: {
+        format: 'epub',
+        cfi: 'epubcfi(/invalid-cfi-excerpt)',
+        spineHref: excerptSection.href,
+        progressionInSection: 0.5,
+        excerpt: 'A sufficiently long excerpt for the final fallback.',
+        totalProgression: 0.75,
+      },
+    },
+  }));
+  await wait(0);
+  if (displayTargets.at(-2) !== 'epubcfi(/invalid-cfi-excerpt)' || displayTargets.at(-1) !== 'epubcfi(/excerpt-match)') {
+    throw new Error('Invalid CFI and spine progression did not fall back to excerpt.');
+  }
 
   function createReaderDocument(contentWidth) {
     const listeners = {};
@@ -141,7 +256,7 @@ async function main() {
   chapter.listeners.touchend(touchEvent(100, 'end'));
   if (turns.previous !== 1) throw new Error('One left tap did not go back exactly once.');
 
-  console.log('EPUB runtime syntax and one-turn-per-tap behavior are valid.');
+  console.log('EPUB runtime syntax, navigation, relocation, and locator fallbacks are valid.');
 }
 
 main().catch((error) => {
