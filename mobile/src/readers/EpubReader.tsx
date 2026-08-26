@@ -461,6 +461,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       ) : null}
       <WebView
         ref={webviewRef}
+        androidLayerType="none"
         source={source}
         injectedJavaScript={EPUB_RUNTIME_HANDSHAKE_SCRIPT}
         onLoad={() => console.info('[Krumer EpubReader] runtime HTML carregado')}
@@ -476,9 +477,10 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
         javaScriptCanOpenWindowsAutomatically={false}
         javaScriptEnabled
         mixedContentMode="never"
+        overScrollMode="never"
         scrollEnabled={false}
         setSupportMultipleWindows={false}
-        style={{ backgroundColor: visualTheme.backgroundColor, flex: 1, opacity: loading ? 0 : 1 }}
+        style={{ backgroundColor: '#00000000', flex: 1, opacity: loading ? 0 : 1 }}
         onError={(event) => {
           console.warn('[Krumer EpubReader] WebView error', event.nativeEvent);
           setLoading(false);

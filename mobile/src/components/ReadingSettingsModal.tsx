@@ -6,8 +6,6 @@ import { useApp } from '../context/AppContext';
 import type { ReadingPreferences } from '../models/readingPreferences';
 import { useReaderFonts } from '../readers/readerFonts';
 import { radii, serifFont, spacing, type ThemeName } from '../theme';
-import { DisplayModeToggle } from './DisplayModeToggle';
-import { DoubleColumnToggle } from './DoubleColumnToggle';
 import { FontFamilySelector } from './FontFamilySelector';
 import { FontWeightSlider } from './FontWeightSlider';
 import { ThemeCard } from './ThemeCard';
@@ -16,7 +14,6 @@ type Props = {
   fontSize: number;
   fontSizeMax: number;
   fontSizeMin: number;
-  isLandscape: boolean;
   lineHeight: number;
   lineHeightMax: number;
   lineHeightMin: number;
@@ -42,7 +39,6 @@ export function ReadingSettingsModal({
   fontSize,
   fontSizeMax,
   fontSizeMin,
-  isLandscape,
   lineHeight,
   lineHeightMax,
   lineHeightMin,
@@ -85,7 +81,7 @@ export function ReadingSettingsModal({
             <View style={{ alignSelf: 'center', backgroundColor: theme.border, borderRadius: 2, height: 4, marginBottom: spacing.sm, width: 36 }} />
             <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
               <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 18, fontWeight: '700' }}>
-                {t('reader.readingSettings')}
+                {t('reader.fontSettings')}
               </Text>
               <Pressable accessibilityLabel={t('common.cancel')} hitSlop={10} onPress={onClose} style={({ pressed }) => ({ opacity: pressed ? 0.55 : 1, padding: spacing.xs })}>
                 <X color={theme.textSecondary} size={20} />
@@ -94,24 +90,6 @@ export function ReadingSettingsModal({
           </View>
 
           <ScrollView contentContainerStyle={{ gap: spacing.lg, padding: spacing.lg }} showsVerticalScrollIndicator={false}>
-            <View style={{ gap: spacing.sm }}>
-              <SectionTitle>{t('reader.displayMode')}</SectionTitle>
-              <DisplayModeToggle
-                onChange={(displayMode) => onUpdatePreferences({ displayMode })}
-                value={readingPreferences.displayMode}
-              />
-            </View>
-
-            <View style={{ gap: spacing.sm }}>
-              <SectionTitle>{t('reader.columns')}</SectionTitle>
-              <DoubleColumnToggle
-                disabled={readingPreferences.displayMode === 'scroll'}
-                isLandscape={isLandscape}
-                onChange={(doubleColumn) => onUpdatePreferences({ doubleColumn })}
-                value={readingPreferences.doubleColumn}
-              />
-            </View>
-
             <View style={{ gap: spacing.sm }}>
               <SectionTitle>{t('reader.fontFamily')}</SectionTitle>
               <FontFamilySelector

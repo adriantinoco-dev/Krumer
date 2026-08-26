@@ -121,6 +121,7 @@ export type TranslationKey =
   | 'reader.columns'
   | 'reader.displayMode'
   | 'reader.doubleColumn'
+  | 'reader.doubleColumnShort'
   | 'reader.doubleColumnPortraitHint'
   | 'reader.fontBold'
   | 'reader.fontFamily'
@@ -131,19 +132,26 @@ export type TranslationKey =
   | 'reader.fontSans'
   | 'reader.fontSerif'
   | 'reader.fontSize'
+  | 'reader.fontSettings'
   | 'reader.fontWeight'
   | 'reader.nextPage'
   | 'reader.noBookmarks'
   | 'reader.page'
+  | 'reader.paginationSettings'
   | 'reader.paginatedMode'
   | 'reader.pdfWebUnavailableDescription'
   | 'reader.pdfWebUnavailableTitle'
   | 'reader.readingSettings'
+  | 'reader.orientation'
+  | 'reader.orientationFree'
+  | 'reader.orientationLandscape'
+  | 'reader.orientationPortrait'
   | 'reader.removeBookmark'
   | 'reader.resetDefaults'
   | 'reader.previousPage'
   | 'reader.spacing'
   | 'reader.scrollMode'
+  | 'reader.singleColumn'
   | 'scan.action'
   | 'scan.scanning'
   | 'settings.about'
@@ -301,6 +309,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.columns': 'Columns',
     'reader.displayMode': 'Display mode',
     'reader.doubleColumn': 'Two-page spread in landscape',
+    'reader.doubleColumnShort': 'Double',
     'reader.doubleColumnPortraitHint': 'It will switch to two columns when the device is in landscape.',
     'reader.fontBold': 'Bold',
     'reader.fontFamily': 'Font family',
@@ -311,20 +320,27 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.fontSans': 'Sans',
     'reader.fontSerif': 'Serif',
     'reader.fontSize': 'Font size',
+    'reader.fontSettings': 'Font & theme',
     'reader.fontWeight': 'Font weight',
     'reader.nextPage': 'Next page',
     'reader.noBookmarks': 'No bookmarks yet.',
     'reader.page': 'Page',
+    'reader.paginationSettings': 'Pagination',
     'reader.paginatedMode': 'Paginated',
     'reader.pdfWebUnavailableDescription':
       'PDF reading uses a native module (react-native-pdf) and does not work in the browser. Open on Android to read this file.',
     'reader.pdfWebUnavailableTitle': 'PDF unavailable on web',
     'reader.readingSettings': 'Reading settings',
+    'reader.orientation': 'Orientation',
+    'reader.orientationFree': 'Free',
+    'reader.orientationLandscape': 'Landscape',
+    'reader.orientationPortrait': 'Portrait',
     'reader.removeBookmark': 'Remove bookmark',
     'reader.resetDefaults': 'Reset to defaults',
     'reader.previousPage': 'Previous page',
     'reader.spacing': 'Spacing',
     'reader.scrollMode': 'Scroll',
+    'reader.singleColumn': 'Single',
     'scan.action': 'Scan',
     'scan.scanning': 'Scanning',
     'settings.about': 'About',
@@ -471,6 +487,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.columns': 'Colunas',
     'reader.displayMode': 'Modo de exibição',
     'reader.doubleColumn': 'Duas páginas em modo paisagem',
+    'reader.doubleColumnShort': 'Dupla',
     'reader.doubleColumnPortraitHint': 'As duas colunas serão aplicadas ao girar o dispositivo para a horizontal.',
     'reader.fontBold': 'Negrito',
     'reader.fontFamily': 'Família da fonte',
@@ -481,20 +498,27 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.fontSans': 'Sem serifa',
     'reader.fontSerif': 'Serifa',
     'reader.fontSize': 'Tamanho da fonte',
+    'reader.fontSettings': 'Fonte e tema',
     'reader.fontWeight': 'Peso da fonte',
     'reader.nextPage': 'Próxima página',
     'reader.noBookmarks': 'Nenhum marcador ainda.',
     'reader.page': 'Página',
+    'reader.paginationSettings': 'Paginação',
     'reader.paginatedMode': 'Paginado',
     'reader.pdfWebUnavailableDescription':
       'A leitura de PDF usa um módulo nativo (react-native-pdf) e não funciona no navegador. Abra no Android para ler este arquivo.',
     'reader.pdfWebUnavailableTitle': 'PDF indisponível na web',
     'reader.readingSettings': 'Configurações de leitura',
+    'reader.orientation': 'Orientação',
+    'reader.orientationFree': 'Livre',
+    'reader.orientationLandscape': 'Horizontal',
+    'reader.orientationPortrait': 'Vertical',
     'reader.removeBookmark': 'Remover marcador',
     'reader.resetDefaults': 'Restaurar padrão',
     'reader.previousPage': 'Página anterior',
     'reader.spacing': 'Espaçamento',
     'reader.scrollMode': 'Rolagem',
+    'reader.singleColumn': 'Simples',
     'scan.action': 'Escanear',
     'scan.scanning': 'Escaneando',
     'settings.about': 'Sobre',
@@ -641,6 +665,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.columns': 'Columnas',
     'reader.displayMode': 'Modo de visualización',
     'reader.doubleColumn': 'Dos páginas en horizontal',
+    'reader.doubleColumnShort': 'Doble',
     'reader.doubleColumnPortraitHint': 'Las dos columnas se aplicarán al girar el dispositivo a horizontal.',
     'reader.fontBold': 'Negrita',
     'reader.fontFamily': 'Familia tipográfica',
@@ -651,20 +676,27 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.fontSans': 'Sin serifa',
     'reader.fontSerif': 'Serifa',
     'reader.fontSize': 'Tamaño de fuente',
+    'reader.fontSettings': 'Fuente y tema',
     'reader.fontWeight': 'Peso de fuente',
     'reader.nextPage': 'Página siguiente',
     'reader.noBookmarks': 'Aún no hay marcadores.',
     'reader.page': 'Página',
+    'reader.paginationSettings': 'Paginación',
     'reader.paginatedMode': 'Paginado',
     'reader.pdfWebUnavailableDescription':
       'La lectura de PDF usa un módulo nativo (react-native-pdf) y no funciona en el navegador. Ábrelo en Android para leer este archivo.',
     'reader.pdfWebUnavailableTitle': 'PDF no disponible en web',
     'reader.readingSettings': 'Configuración de lectura',
+    'reader.orientation': 'Orientación',
+    'reader.orientationFree': 'Libre',
+    'reader.orientationLandscape': 'Horizontal',
+    'reader.orientationPortrait': 'Vertical',
     'reader.removeBookmark': 'Eliminar marcador',
     'reader.resetDefaults': 'Restaurar valores predeterminados',
     'reader.previousPage': 'Página anterior',
     'reader.spacing': 'Espaciado',
     'reader.scrollMode': 'Desplazamiento',
+    'reader.singleColumn': 'Simple',
     'scan.action': 'Escanear',
     'scan.scanning': 'Escaneando',
     'settings.about': 'Acerca de',

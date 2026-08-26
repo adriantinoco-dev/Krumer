@@ -3,6 +3,7 @@ package com.adriantinoco.krumer
 import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
+import android.view.WindowManager
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -19,6 +20,14 @@ class MainActivity : ReactActivity() {
     // This is required for expo-splash-screen.
     setTheme(R.style.AppTheme);
     super.onCreate(null)
+
+    window.attributes = window.attributes.apply {
+      rotationAnimation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        WindowManager.LayoutParams.ROTATION_ANIMATION_SEAMLESS
+      } else {
+        WindowManager.LayoutParams.ROTATION_ANIMATION_JUMPCUT
+      }
+    }
   }
 
   /**

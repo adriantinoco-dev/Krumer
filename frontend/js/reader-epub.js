@@ -1006,24 +1006,6 @@ function setupEpubControls() {
   if (!controlsContainer) return;
 
   controlsContainer.innerHTML = `
-    <div class="reader-controls-group">
-      <button id="epub-btn-prev" class="btn-reader-ctrl" title="${I18N.t('reader.epub.prev')}">
-        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-        </svg>
-      </button>
-
-      <div class="reader-page-indicator">
-        <span id="epub-progress-label" style="font-size:12px; color:var(--text-muted);"></span>
-      </div>
-
-      <button id="epub-btn-next" class="btn-reader-ctrl" title="${I18N.t('reader.epub.next')}">
-        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-        </svg>
-      </button>
-    </div>
-
     <!-- Botão Tela Cheia -->
     <button id="btn-fullscreen" class="btn-mode-toggle" title="${I18N.t('reader.fullscreen')}">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -1091,10 +1073,6 @@ function setupEpubControls() {
       </div>
     </div>
   `;
-
-  // Navegação anterior / próxima
-  document.getElementById('epub-btn-prev')?.addEventListener('click', () => epubPrev());
-  document.getElementById('epub-btn-next')?.addEventListener('click', () => epubNext());
 
   // Fullscreen toggle logic
   document.getElementById('btn-fullscreen')?.addEventListener('click', () => {

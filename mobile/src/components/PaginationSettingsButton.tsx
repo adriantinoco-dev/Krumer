@@ -1,13 +1,13 @@
 import React from 'react';
 import { Pressable } from 'react-native';
-import { Feather } from 'lucide-react-native';
+import { PanelsTopLeft } from 'lucide-react-native';
 import { useApp } from '../context/AppContext';
 
-export function ReadingSettingsButton({ color, onPress }: { color: string; onPress: () => void }) {
+export function PaginationSettingsButton({ color, onPress }: { color: string; onPress: () => void }) {
   const { t } = useApp();
   return (
     <Pressable
-      accessibilityLabel={t('reader.fontSettings')}
+      accessibilityLabel={t('reader.paginationSettings')}
       accessibilityRole="button"
       hitSlop={6}
       onPress={onPress}
@@ -19,7 +19,7 @@ export function ReadingSettingsButton({ color, onPress }: { color: string; onPre
         width: 44,
       })}
     >
-      <Feather color={color} size={20} strokeWidth={1.7} />
+      <PanelsTopLeft color={color} size={20} strokeWidth={1.7} />
     </Pressable>
   );
 }

@@ -34,6 +34,7 @@ async function main() {
   const expected = {
     displayMode: 'scroll',
     doubleColumn: true,
+    orientation: 'landscape',
     fontFamily: 'mono',
     fontWeight: 'bold',
   };
@@ -47,6 +48,14 @@ async function main() {
   const invalid = await hooks.loadStoredReadingPreferences(storage);
   if (JSON.stringify(invalid) !== JSON.stringify(models.DEFAULT_READING_PREFERENCES)) {
     throw new Error('Invalid stored preferences were not rejected.');
+  }
+
+  const legacy = { ...expected };
+  delete legacy.orientation;
+  memory.set('krumer.reading.preferences.v1', JSON.stringify(legacy));
+  const migrated = await hooks.loadStoredReadingPreferences(storage);
+  if (migrated.orientation !== 'free') {
+    throw new Error('Legacy reading preferences did not migrate to free orientation.');
   }
 
   const fontPackages = [
@@ -69,14 +78,26 @@ async function main() {
   const readerScreenSource = fs.readFileSync('src/screens/ReaderScreen.tsx', 'utf8');
   const settingsModalSource = fs.readFileSync('src/components/ReadingSettingsModal.tsx', 'utf8');
   const settingsButtonSource = fs.readFileSync('src/components/ReadingSettingsButton.tsx', 'utf8');
+  const paginationModalSource = fs.readFileSync('src/components/PaginationSettingsModal.tsx', 'utf8');
+  const paginationButtonSource = fs.readFileSync('src/components/PaginationSettingsButton.tsx', 'utf8');
+  const epubReaderSource = fs.readFileSync('src/readers/EpubReader.tsx', 'utf8');
   const appSource = fs.readFileSync('App.tsx', 'utf8');
   const appConfig = JSON.parse(fs.readFileSync('app.json', 'utf8'));
   const androidManifest = fs.readFileSync('android/app/src/main/AndroidManifest.xml', 'utf8');
+  const mainActivitySource = fs.readFileSync('android/app/src/main/java/com/adriantinoco/krumer/MainActivity.kt', 'utf8');
   if (appConfig.expo.orientation !== 'default' || !androidManifest.includes('android:screenOrientation="unspecified"')) {
     throw new Error('The native app must permit landscape before the reader can rotate at runtime.');
   }
   if (
+    !mainActivitySource.includes('ROTATION_ANIMATION_SEAMLESS')
+    || !mainActivitySource.includes('ROTATION_ANIMATION_JUMPCUT')
+  ) {
+    throw new Error('The Android activity must avoid crossfade frames while rotating the reader.');
+  }
+  if (
     !orientationSource.includes('OrientationLock.ALL')
+    || !orientationSource.includes('OrientationLock.LANDSCAPE')
+    || !orientationSource.includes('OrientationLock.PORTRAIT')
     || !orientationSource.includes('lockAsync(previousLock)')
     || !appSource.includes('usePortraitOrientation()')
   ) {
@@ -85,10 +106,17 @@ async function main() {
   if (
     !readerScreenSource.includes('hidden={isEpub || !barsVisible}')
     || !readerScreenSource.includes('animated={!isEpub}')
-    || !readerScreenSource.includes('EPUB_CHROME_VERTICAL_SCALE = 0.9')
+    || !readerScreenSource.includes('EPUB_CHROME_VERTICAL_SCALE = ')
     || !settingsModalSource.includes('statusBarTranslucent')
     || !settingsModalSource.includes('navigationBarTranslucent')
     || !settingsButtonSource.includes('height: 36')
+    || !paginationModalSource.includes('StyleSheet.absoluteFill')
+    || paginationModalSource.includes('<Modal')
+    || !paginationModalSource.includes('reader.orientationLandscape')
+    || !paginationButtonSource.includes('height: 36')
+    || !epubReaderSource.includes('androidLayerType="none"')
+    || epubReaderSource.includes('renderToHardwareTextureAndroid')
+    || !epubReaderSource.includes("backgroundColor: '#00000000'")
   ) {
     throw new Error('EPUB chrome or settings modal can still resize the underlying reader viewport.');
   }

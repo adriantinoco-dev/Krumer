@@ -202,6 +202,15 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           ].join('|');
         }
 
+        function typographyAppearanceSignature() {
+          return [
+            typography.fontFamily,
+            typography.fontWeight,
+            typography.fontSize,
+            typography.lineHeight
+          ].join('|');
+        }
+
         function readerStyleText() {
           var textSelectors = 'body, p, div, span, li, blockquote, td, th, h1, h2, h3, h4, h5, h6, a, em, strong, b, i, cite, figcaption';
           return [
@@ -329,6 +338,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             || !validThemeColor(theme.linkColor)) return null;
           var previousDisplayMode = readerLayout.displayMode;
           var previousSignature = layoutAppearanceSignature();
+          var previousTypographySignature = typographyAppearanceSignature();
           typography = {
             fontSize: appearance.fontSize,
             fontFamily: appearance.fontFamily,
@@ -342,6 +352,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           applyVisualTheme(theme);
           refreshReaderAppearance();
           return {
+            requiresAnchorRestore: previousTypographySignature !== typographyAppearanceSignature(),
             requiresLayoutRefresh: previousSignature !== layoutAppearanceSignature(),
             requiresRenditionReset: previousDisplayMode !== readerLayout.displayMode
           };
@@ -973,7 +984,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           }
         }
 
-        async function applyViewportLayout(anchor, source) {
+        async function applyViewportLayout(anchor, source, forceAnchorRestore) {
           if (!book || !rendition) return;
           clearUserRelocationExpectation();
           var activeBook = book;
@@ -982,8 +993,10 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           var enteringDoubleColumn = doubleColumnLayout && !lastAppliedDoubleColumn;
           activeRelocationSource = source === 'reflow' ? 'reflow' : 'restore';
           refreshReaderAppearance();
-          await waitForActiveReaderFonts();
-          if (activeBook !== book || activeRendition !== rendition) return;
+          if (forceAnchorRestore) {
+            await waitForActiveReaderFonts();
+            if (activeBook !== book || activeRendition !== rendition) return;
+          }
 
           var spread = doubleColumnLayout ? 'always' : 'none';
           if (typeof activeRendition.spread === 'function') activeRendition.spread(spread);
@@ -991,10 +1004,14 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             await Promise.resolve(activeRendition.resize(window.innerWidth, window.innerHeight));
           }
           if (activeBook !== book || activeRendition !== rendition) return;
+          if (!forceAnchorRestore) {
+            await waitForActiveReaderFonts();
+            if (activeBook !== book || activeRendition !== rendition) return;
+          }
 
           var stableLocator = await waitForStableLocator();
           var restoredAnchor = false;
-          if (anchor && locatorDrifted(anchor, stableLocator)) {
+          if (anchor && (forceAnchorRestore || locatorDrifted(anchor, stableLocator))) {
             try {
               await displayLocator(anchor);
               restoredAnchor = true;
@@ -1175,7 +1192,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             if (result.requiresRenditionReset) {
               await renderBookAt(locator, 'reflow');
             } else {
-              await applyViewportLayout(locator, 'reflow');
+              await applyViewportLayout(locator, 'reflow', result.requiresAnchorRestore);
             }
           } catch (error) {
             activeRelocationSource = 'user';

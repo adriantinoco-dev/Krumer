@@ -3,9 +3,11 @@ import { ActivityIndicator, Animated, Linking, Modal, Platform, Pressable, Scrol
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ArrowLeft, Bookmark, BookmarkPlus, ChevronLeft, ChevronRight, Settings, Trash2, X } from 'lucide-react-native';
+import { ArrowLeft, Bookmark, BookmarkPlus, Settings, Trash2, X } from 'lucide-react-native';
 import { ReadingSettingsButton } from '../components/ReadingSettingsButton';
 import { ReadingSettingsModal } from '../components/ReadingSettingsModal';
+import { PaginationSettingsButton } from '../components/PaginationSettingsButton';
+import { PaginationSettingsModal } from '../components/PaginationSettingsModal';
 import { EpubReader, type EpubReaderHandle } from '../readers/EpubReader';
 import type { EpubRelocationSource, EpubViewStatus } from '../readers/epubBridge';
 import { PdfReader } from '../readers/PdfReader';
@@ -55,14 +57,15 @@ export function ReaderScreen({ navigation, route }: Props) {
   const isEpub = book.format === 'epub';
   const { preferences, setThemeName, theme, t, updateBookProgress } = useApp();
   const insets = useSafeAreaInsets();
-  const { isLandscape } = useOrientation();
   const readingPreferences = useReadingPreferences(isEpub);
+  const { isLandscape } = useOrientation(isEpub ? readingPreferences.preferences.orientation : 'free');
   const [progress, setProgress] = useState((book.progressPct ?? 0) / 100);
   const [savedPosition, setSavedPosition] = useState<string | null>(book.progress);
   const [barsVisible, setBarsVisible] = useState(book.format !== 'epub');
   const [bookmarksVisible, setBookmarksVisible] = useState(false);
   const [bookmarkBusy, setBookmarkBusy] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [paginationSettingsVisible, setPaginationSettingsVisible] = useState(false);
   const [currentPage, setCurrentPage] = useState(book.currentPage ?? 1);
   const [totalPages, setTotalPages] = useState(book.totalPages ?? 0);
   const [epubViewStatus, setEpubViewStatus] = useState<EpubViewStatus | null>(null);
@@ -79,7 +82,6 @@ export function ReaderScreen({ navigation, route }: Props) {
   const epubText = theme.name === 'dark' ? '#e7e7e7' : theme.name === 'sepia' ? '#3b2f1e' : '#222222';
   const epubMuted = theme.name === 'dark' ? '#a2a2a2' : theme.name === 'sepia' ? '#796c52' : '#6f6f6f';
   const epubTopChrome = theme.name === 'dark' ? '#202020' : theme.name === 'sepia' ? '#f4ecd8' : '#ffffff';
-  const epubBottomChrome = theme.name === 'dark' ? '#2a2a2af5' : theme.name === 'sepia' ? '#e6dab8f5' : '#f4f4f4f5';
 
   const syncDurableEpubProgress = useCallback(async (locator: EpubLocator) => {
     const nextProgress = locator.totalProgression ?? (book.progressPct ?? 0) / 100;
@@ -211,15 +213,6 @@ export function ReaderScreen({ navigation, route }: Props) {
   }
 
   const progressPercent = Math.round(progress * 100);
-  const epubProgressLabel = readingPreferences.preferences.displayMode === 'scroll'
-    ? `${progressPercent}%`
-    : !epubViewStatus || epubViewStatus.paginationState === 'loading'
-      ? '— / —'
-      : epubViewStatus.paginationState === 'ready'
-        && epubViewStatus.currentPage !== null
-        && epubViewStatus.totalPages !== null
-        ? `${epubViewStatus.currentPage} / ${epubViewStatus.totalPages}`
-        : `${progressPercent}%`;
 
   return (
     <View style={{ backgroundColor: theme.bg, flex: 1 }}>
@@ -289,21 +282,6 @@ export function ReaderScreen({ navigation, route }: Props) {
           >
             {epubViewStatus?.chapterTitle || book.title}
           </Text>
-          {epubViewStatus ? (
-            <Text
-              style={{
-                bottom: Math.max(insets.bottom, 0) + 16,
-                color: epubMuted,
-                fontFamily: serifFont,
-                fontSize: 14,
-                opacity: 0.62,
-                position: 'absolute',
-                right: Math.max(insets.right, 0) + 32,
-              }}
-            >
-              {epubProgressLabel}
-            </Text>
-          ) : null}
         </View>
       ) : null}
 
@@ -403,6 +381,13 @@ export function ReaderScreen({ navigation, route }: Props) {
                 setSettingsVisible(true);
               }}
             />
+            <PaginationSettingsButton
+              color={epubText}
+              onPress={() => {
+                if (hideTimer.current) clearTimeout(hideTimer.current);
+                setPaginationSettingsVisible(true);
+              }}
+            />
             <Pressable
               accessibilityLabel={t('common.cancel')}
               hitSlop={8}
@@ -460,63 +445,26 @@ export function ReaderScreen({ navigation, route }: Props) {
         )}
       </Animated.View>
 
-      {/* Bottom bar */}
-      <Animated.View
-        onTouchStart={scheduleHide}
-        pointerEvents={barsVisible ? 'auto' : 'none'}
-        style={{
-          backgroundColor: isEpub ? epubBottomChrome : theme.surface + 'ee',
-          borderTopColor: theme.border,
-          borderTopWidth: isEpub ? 0 : 1,
-          bottom: 0,
-          left: 0,
-          opacity,
-          paddingBottom: isEpub
-            ? Math.max(insets.bottom, scaleEpubChrome(16)) + scaleEpubChrome(spacing.xs)
-            : Math.max(insets.bottom, 16) + spacing.xs,
-          paddingLeft: Math.max(insets.left, spacing.md),
-          paddingRight: Math.max(insets.right, spacing.md),
-          paddingTop: isEpub ? scaleEpubChrome(spacing.sm) : spacing.sm,
-          position: 'absolute',
-          right: 0,
-        }}
-      >
-        {isEpub ? (
-          <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.md, minHeight: scaleEpubChrome(48) }}>
-            {readingPreferences.preferences.displayMode === 'paginated' ? (
-              <Pressable
-                accessibilityLabel={t('reader.previousPage')}
-                hitSlop={8}
-                onPress={() => epubReaderRef.current?.previous()}
-                style={({ pressed }) => ({
-                  alignItems: 'center', height: scaleEpubChrome(44), justifyContent: 'center', opacity: pressed ? 0.5 : 1, width: 48,
-                })}
-              >
-                <ChevronLeft color={epubText} size={24} strokeWidth={1.8} />
-              </Pressable>
-            ) : null}
-            <View style={{ flex: 1, gap: 6, marginTop: scaleEpubChrome(spacing.xs) }}>
-              <View style={{ backgroundColor: epubMuted + '55', borderRadius: 2, height: 3, overflow: 'hidden' }}>
-                <View style={{ backgroundColor: theme.accent, height: '100%', width: `${progressPercent}%` }} />
-              </View>
-              <Text style={{ color: epubMuted, fontFamily: serifFont, fontSize: 10, textAlign: 'center' }}>
-                {epubProgressLabel}
-              </Text>
-            </View>
-            {readingPreferences.preferences.displayMode === 'paginated' ? (
-              <Pressable
-                accessibilityLabel={t('reader.nextPage')}
-                hitSlop={8}
-                onPress={() => epubReaderRef.current?.next()}
-                style={({ pressed }) => ({
-                  alignItems: 'center', height: scaleEpubChrome(44), justifyContent: 'center', opacity: pressed ? 0.5 : 1, width: 48,
-                })}
-              >
-                <ChevronRight color={epubText} size={24} strokeWidth={1.8} />
-              </Pressable>
-            ) : null}
-          </View>
-        ) : (
+      {/* Bottom bar - apenas PDF (EPUB sem barra/setas) */}
+      {!isEpub && (
+        <Animated.View
+          onTouchStart={scheduleHide}
+          pointerEvents={barsVisible ? 'auto' : 'none'}
+          style={{
+            backgroundColor: theme.surface + 'ee',
+            borderTopColor: theme.border,
+            borderTopWidth: 1,
+            bottom: 0,
+            left: 0,
+            opacity,
+            paddingBottom: Math.max(insets.bottom, 16) + spacing.xs,
+            paddingLeft: Math.max(insets.left, spacing.md),
+            paddingRight: Math.max(insets.right, spacing.md),
+            paddingTop: spacing.sm,
+            position: 'absolute',
+            right: 0,
+          }}
+        >
           <>
             {/* Progress bar */}
             <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm }}>
@@ -589,8 +537,8 @@ export function ReaderScreen({ navigation, route }: Props) {
               </Pressable>
             </View>
           </>
-        )}
-      </Animated.View>
+        </Animated.View>
+      )}
 
       <Modal
         animationType="slide"
@@ -702,7 +650,6 @@ export function ReaderScreen({ navigation, route }: Props) {
         fontSize={readerSettings.fontSize}
         fontSizeMax={FONT_SIZE_MAX}
         fontSizeMin={FONT_SIZE_MIN}
-        isLandscape={isLandscape}
         lineHeight={readerSettings.lineHeight}
         lineHeightMax={LINE_HEIGHT_MAX}
         lineHeightMin={LINE_HEIGHT_MIN}
@@ -716,11 +663,25 @@ export function ReaderScreen({ navigation, route }: Props) {
           const defaults = { fontSize: FONT_SIZE_DEFAULT, lineHeight: LINE_HEIGHT_DEFAULT };
           setReaderSettings(defaults);
           void saveReaderSettings(defaults);
-          readingPreferences.resetPreferences();
+          readingPreferences.updatePreferences({
+            fontFamily: 'serif',
+            fontWeight: 'regular',
+          });
         }}
         onUpdatePreferences={readingPreferences.updatePreferences}
         preferences={readingPreferences.preferences}
         visible={settingsVisible && isEpub}
+      />
+
+      <PaginationSettingsModal
+        isLandscape={isLandscape}
+        onClose={() => {
+          setPaginationSettingsVisible(false);
+          scheduleHide();
+        }}
+        onUpdatePreferences={readingPreferences.updatePreferences}
+        preferences={readingPreferences.preferences}
+        visible={paginationSettingsVisible && isEpub}
       />
 
       {/* PDF settings modal */}

@@ -1,10 +1,12 @@
 export type DisplayMode = 'scroll' | 'paginated';
+export type ReaderOrientation = 'free' | 'landscape' | 'portrait';
 export type ReadingFontFamily = 'serif' | 'sans' | 'mono';
 export type ReadingFontWeight = 'light' | 'regular' | 'medium' | 'bold';
 
 export type ReadingPreferences = {
   displayMode: DisplayMode;
   doubleColumn: boolean;
+  orientation: ReaderOrientation;
   fontFamily: ReadingFontFamily;
   fontWeight: ReadingFontWeight;
 };
@@ -12,6 +14,7 @@ export type ReadingPreferences = {
 export const DEFAULT_READING_PREFERENCES: ReadingPreferences = {
   displayMode: 'paginated',
   doubleColumn: false,
+  orientation: 'free',
   fontFamily: 'serif',
   fontWeight: 'regular',
 };
@@ -21,6 +24,12 @@ export function parseReadingPreferences(value: unknown): ReadingPreferences | nu
   const candidate = value as Partial<ReadingPreferences>;
   if (candidate.displayMode !== 'scroll' && candidate.displayMode !== 'paginated') return null;
   if (typeof candidate.doubleColumn !== 'boolean') return null;
+  if (
+    candidate.orientation !== undefined
+    && candidate.orientation !== 'free'
+    && candidate.orientation !== 'landscape'
+    && candidate.orientation !== 'portrait'
+  ) return null;
   if (candidate.fontFamily !== 'serif' && candidate.fontFamily !== 'sans' && candidate.fontFamily !== 'mono') return null;
   if (
     candidate.fontWeight !== 'light'
@@ -28,5 +37,11 @@ export function parseReadingPreferences(value: unknown): ReadingPreferences | nu
     && candidate.fontWeight !== 'medium'
     && candidate.fontWeight !== 'bold'
   ) return null;
-  return candidate as ReadingPreferences;
+  return {
+    displayMode: candidate.displayMode,
+    doubleColumn: candidate.doubleColumn,
+    orientation: candidate.orientation ?? DEFAULT_READING_PREFERENCES.orientation,
+    fontFamily: candidate.fontFamily,
+    fontWeight: candidate.fontWeight,
+  };
 }

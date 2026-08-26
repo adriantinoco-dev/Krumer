@@ -364,7 +364,7 @@ async function main() {
       index: 0,
     },
   };
-  relocatedHandler(currentRenditionLocation);
+  await emitUserRelocation(currentRenditionLocation);
   const relocateEnvelope = postedEvents.filter((event) => event.type === 'RELOCATE').at(-1);
   if (
     !relocateEnvelope
@@ -690,10 +690,13 @@ async function main() {
     renditionConfigs.length !== renderCountBeforeRotation
     || renditionDestroyCount !== destroyCountBeforeRotation
     || viewerReplaceCount !== replaceCountBeforeRotation
-    || columnAlignmentCalls.length !== 2
+    || displayTargets.length !== displayCountAfterRecovery + 1
+    || displayTargets.at(-1) !== anchorBeforeReflow
+    || columnAlignmentCalls.length !== 3
   ) {
-    throw new Error('Typography reflow recreated, cleared, or advanced the aligned EPUB columns.');
+    throw new Error('Typography reflow did not redisplay the exact CFI in the leading EPUB column.');
   }
+  const displayCountAfterTypography = displayTargets.length;
 
   runtimeWindow.innerWidth = 700;
   runtimeWindow.innerHeight = 1200;
@@ -710,8 +713,8 @@ async function main() {
     renditionConfigs.length !== renderCountBeforeRotation
     || renditionDestroyCount !== destroyCountBeforeRotation
     || viewerReplaceCount !== replaceCountBeforeRotation
-    || displayTargets.length !== displayCountAfterRecovery
-    || columnAlignmentCalls.length !== 2
+    || displayTargets.length !== displayCountAfterTypography
+    || columnAlignmentCalls.length !== 3
   ) {
     throw new Error('Repeated rotation recreated, cleared, or redisplayed the EPUB rendition.');
   }
