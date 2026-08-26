@@ -60,6 +60,8 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
         var lastTouchEndAt = 0;
         var turnInFlight = false;
         var turnUnlockTimer = null;
+        var userRelocationPending = false;
+        var userRelocationTimer = null;
         var currentLocator = null;
         var renditionGeneration = 0;
         var appearanceUpdateQueue = Promise.resolve();
@@ -712,9 +714,11 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             return;
           }
           try {
+            expectUserRelocation();
             var resolution = await displayLocator(locator);
             if (resolution === 'cfi') alignLocatorToLeadingColumn(rendition, locator);
           } catch (error) {
+            clearUserRelocationExpectation();
             reportError('LOCATOR_NOT_FOUND', error, message.id);
           }
         }
@@ -768,6 +772,21 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           return typeof point.screenY === 'number' ? point.screenY : point.clientY;
         }
 
+        function clearUserRelocationExpectation() {
+          userRelocationPending = false;
+          if (userRelocationTimer) clearTimeout(userRelocationTimer);
+          userRelocationTimer = null;
+        }
+
+        function expectUserRelocation() {
+          userRelocationPending = true;
+          if (userRelocationTimer) clearTimeout(userRelocationTimer);
+          userRelocationTimer = setTimeout(function () {
+            userRelocationPending = false;
+            userRelocationTimer = null;
+          }, 2000);
+        }
+
         function turn(type, requestId) {
           if (!rendition) {
             if (requestId) reportError('BOOK_NOT_OPEN', 'No EPUB is currently open.', requestId);
@@ -776,6 +795,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           if (turnInFlight) return;
 
           turnInFlight = true;
+          expectUserRelocation();
           if (turnUnlockTimer) clearTimeout(turnUnlockTimer);
 
           function unlock() {
@@ -789,6 +809,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             var operation = type === 'NEXT' ? rendition.next() : rendition.prev();
             if (operation && operation.then) {
               operation.then(unlock, function (error) {
+                clearUserRelocationExpectation();
                 unlock();
                 reportError('PAGE_TURN_FAILED', error, requestId);
               });
@@ -796,6 +817,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
               unlock();
             }
           } catch (error) {
+            clearUserRelocationExpectation();
             unlock();
             reportError('PAGE_TURN_FAILED', error, requestId);
           }
@@ -953,6 +975,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
 
         async function applyViewportLayout(anchor, source) {
           if (!book || !rendition) return;
+          clearUserRelocationExpectation();
           var activeBook = book;
           var activeRendition = rendition;
           var doubleColumnLayout = usesDoubleColumn();
@@ -1029,6 +1052,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           turnInFlight = false;
           if (turnUnlockTimer) clearTimeout(turnUnlockTimer);
           turnUnlockTimer = null;
+          clearUserRelocationExpectation();
           currentLocator = null;
           lastViewLocation = null;
           readingAnchorLocator = null;
@@ -1054,6 +1078,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
 
         async function renderBookAt(locator, source) {
           if (!book) throw new Error('No EPUB is currently open.');
+          clearUserRelocationExpectation();
           activeRelocationSource = source === 'reflow' ? 'reflow' : 'restore';
           renditionGeneration += 1;
           var renderGeneration = renditionGeneration;
@@ -1090,10 +1115,20 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             if (activeBook !== book || nextRendition !== rendition) return;
             var nextLocator = locatorFromLocation(location);
             if (nextLocator) {
-              currentLocator = nextLocator;
-              if (activeRelocationSource === 'user') readingAnchorLocator = nextLocator;
-              post('RELOCATE', { locator: nextLocator, source: activeRelocationSource });
-              postViewStatus(location, nextLocator);
+              var acceptsUserRelocation = activeRelocationSource === 'user'
+                && (readerLayout.displayMode === 'scroll' || userRelocationPending);
+              var relocationSource = acceptsUserRelocation ? 'user' : activeRelocationSource;
+              if (relocationSource === 'user' && !acceptsUserRelocation) relocationSource = 'reflow';
+              var emittedLocator = acceptsUserRelocation
+                ? nextLocator
+                : readingAnchorLocator || nextLocator;
+              currentLocator = emittedLocator;
+              if (acceptsUserRelocation) {
+                readingAnchorLocator = nextLocator;
+                clearUserRelocationExpectation();
+              }
+              post('RELOCATE', { locator: emittedLocator, source: relocationSource });
+              postViewStatus(location, emittedLocator);
             }
           });
 

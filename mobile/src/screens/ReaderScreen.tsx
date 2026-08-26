@@ -279,7 +279,7 @@ export function ReaderScreen({ navigation, route }: Props) {
               color: epubMuted,
               fontFamily: serifFont,
               fontSize: 14,
-              left: Math.max(insets.left, 0) + 24,
+              left: Math.max(insets.left, 0) + 32,
               maxWidth: '72%',
               opacity: 0.68,
               position: 'absolute',
@@ -298,7 +298,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                 fontSize: 14,
                 opacity: 0.62,
                 position: 'absolute',
-                right: Math.max(insets.right, 0) + 24,
+                right: Math.max(insets.right, 0) + 32,
               }}
             >
               {epubProgressLabel}
@@ -495,7 +495,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                 <ChevronLeft color={epubText} size={24} strokeWidth={1.8} />
               </Pressable>
             ) : null}
-            <View style={{ flex: 1, gap: 6 }}>
+            <View style={{ flex: 1, gap: 6, marginTop: scaleEpubChrome(spacing.xs) }}>
               <View style={{ backgroundColor: epubMuted + '55', borderRadius: 2, height: 3, overflow: 'hidden' }}>
                 <View style={{ backgroundColor: theme.accent, height: '100%', width: `${progressPercent}%` }} />
               </View>

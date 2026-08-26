@@ -261,6 +261,22 @@ async function main() {
     window: runtimeWindow,
   });
 
+  let userRelocationId = 0;
+  async function emitUserRelocation(location) {
+    userRelocationId += 1;
+    runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
+      version: bridge.EPUB_BRIDGE_VERSION,
+      id: `test-user-relocation-${userRelocationId}`,
+      type: 'NEXT',
+      payload: {},
+    }));
+    if (turns.next !== 1) throw new Error('The validator could not arm a user relocation.');
+    currentRenditionLocation = location;
+    relocatedHandler(location);
+    await wait(120);
+    turns.next = 0;
+  }
+
   function registerFontFamily(family, fontFamily) {
     runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
       version: bridge.EPUB_BRIDGE_VERSION,
@@ -349,13 +365,13 @@ async function main() {
     },
   };
   relocatedHandler(currentRenditionLocation);
-  const relocateEnvelope = postedEvents.find((event) => event.type === 'RELOCATE');
+  const relocateEnvelope = postedEvents.filter((event) => event.type === 'RELOCATE').at(-1);
   if (
     !relocateEnvelope
     || relocateEnvelope.payload.source !== 'user'
     || !bridge.parseEpubBridgeEvent(JSON.stringify(relocateEnvelope))
   ) {
-    throw new Error('RELOCATE did not emit a valid EPUB locator envelope.');
+    throw new Error(`RELOCATE did not emit a valid EPUB locator envelope: ${JSON.stringify({ relocateEnvelope, turns })}`);
   }
   const restoredEnvelope = postedEvents.find((event) => event.type === 'POSITION_STABILIZED');
   if (
@@ -421,8 +437,7 @@ async function main() {
     },
   ];
   for (const boundary of boundaryLocations) {
-    currentRenditionLocation = boundary.location;
-    relocatedHandler(boundary.location);
+    await emitUserRelocation(boundary.location);
     const status = postedEvents.filter((event) => event.type === 'VIEW_STATUS').at(-1);
     if (status.payload.currentPage !== boundary.expectedPage || status.payload.totalPages !== 182) {
       throw new Error(`Stable EPUB page boundary did not resolve to ${boundary.expectedPage} / 182.`);
@@ -436,7 +451,7 @@ async function main() {
       index: 0,
     },
   };
-  relocatedHandler(currentRenditionLocation);
+  await emitUserRelocation(currentRenditionLocation);
 
   runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
     version: bridge.EPUB_BRIDGE_VERSION,
