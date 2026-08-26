@@ -11,6 +11,7 @@ import com.facebook.react.ReactHost
 import com.facebook.react.common.ReleaseLevel
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint
 import com.adriantinoco.krumer.pdf.KrumerPdfThumbnailPackage
+import com.adriantinoco.krumer.volume.KrumerVolumeKeysPackage
 
 import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ExpoReactHostFactory
@@ -23,6 +24,7 @@ class MainApplication : Application(), ReactApplication {
       packageList =
         PackageList(this).packages.apply {
           add(KrumerPdfThumbnailPackage())
+          add(KrumerVolumeKeysPackage())
         }
     )
   }

@@ -2,11 +2,13 @@ package com.adriantinoco.krumer
 
 import android.os.Build
 import android.os.Bundle
+import android.view.KeyEvent
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
+import com.adriantinoco.krumer.volume.KrumerVolumeKeysModule
 
 import expo.modules.ReactActivityDelegateWrapper
 
@@ -38,6 +40,24 @@ class MainActivity : ReactActivity() {
               mainComponentName,
               fabricEnabled
           ){})
+  }
+
+  override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+    val isVolumeKey = event.keyCode == KeyEvent.KEYCODE_VOLUME_UP ||
+      event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN
+
+    if (KrumerVolumeKeysModule.enabled && isVolumeKey) {
+      if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+        val direction = if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) "next" else "previous"
+        (application as? MainApplication)
+          ?.reactHost
+          ?.currentReactContext
+          ?.emitDeviceEvent(KrumerVolumeKeysModule.EVENT_NAME, direction)
+      }
+      return true
+    }
+
+    return super.dispatchKeyEvent(event)
   }
 
   /**

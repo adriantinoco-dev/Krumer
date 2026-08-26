@@ -20,6 +20,7 @@ import {
 } from './epubBridge';
 import { EpubFileError, prepareEpubFile, type PreparedEpub } from './epubFile';
 import { EPUB_RUNTIME_HANDSHAKE_SCRIPT, EPUB_RUNTIME_HTML } from './epubRuntime';
+import { subscribeToEpubVolumeKeys } from './epubVolumeKeys';
 
 const RUNTIME_ORIGIN = 'https://krumer.local/';
 const RUNTIME_READY_TIMEOUT_MS = 12_000;
@@ -86,6 +87,11 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     previous: () => {
       if (bookOpenedRef.current) sendCommand(createEpubBridgeCommand('PREVIOUS', {}));
     },
+  }), [sendCommand]);
+
+  useEffect(() => subscribeToEpubVolumeKeys((direction) => {
+    if (!bookOpenedRef.current) return;
+    sendCommand(createEpubBridgeCommand(direction === 'next' ? 'NEXT' : 'PREVIOUS', {}));
   }), [sendCommand]);
 
   useEffect(() => {
