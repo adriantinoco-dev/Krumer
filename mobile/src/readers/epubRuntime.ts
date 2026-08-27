@@ -1238,6 +1238,46 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           }
         }
 
+        function normalizeToc(items) {
+          return (items || []).map(function (item) {
+            return {
+              label: String(item.label || '').trim().slice(0, 200),
+              href: String(item.href || '').trim().slice(0, 500),
+              subitems: normalizeToc(item.subitems || [])
+            };
+          }).filter(function (item) { return item.label && item.href; });
+        }
+
+        async function getToc(message) {
+          if (!book) {
+            reportError('BOOK_NOT_OPEN', 'No EPUB is currently open.', message.id);
+            return;
+          }
+          try {
+            try { await book.loaded.navigation; } catch (_) {}
+            var toc = book.navigation && book.navigation.toc ? book.navigation.toc : [];
+            var normalized = normalizeToc(toc);
+            post('TOC', { toc: normalized, requestId: message.id }, message.id);
+          } catch (error) {
+            reportError('TOC_FAILED', error, message.id);
+          }
+        }
+
+        async function goToHref(message) {
+          var href = message.payload && message.payload.href;
+          if (!rendition || !book || typeof href !== 'string' || !href) {
+            reportError('INVALID_HREF', 'GO_TO_HREF payload is invalid.', message.id);
+            return;
+          }
+          try {
+            expectUserRelocation();
+            await rendition.display(href);
+          } catch (error) {
+            clearUserRelocationExpectation();
+            reportError('NAVIGATION_FAILED', error, message.id);
+          }
+        }
+
         function receive(raw) {
           var message;
           try {
@@ -1267,6 +1307,8 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           }
           else if (message.type === 'GO_TO_LOCATOR') goToLocator(message);
           else if (message.type === 'GET_CURRENT_LOCATOR') sendCurrentLocator(message);
+          else if (message.type === 'GET_TOC') getToc(message);
+          else if (message.type === 'GO_TO_HREF') goToHref(message);
           else if (message.type === 'CLOSE_BOOK') closeBook();
           else reportError('UNKNOWN_COMMAND', 'Unsupported bridge command.', message.id);
         }

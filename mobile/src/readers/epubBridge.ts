@@ -29,6 +29,12 @@ export type EpubAppearance = ReadingPreferences & {
   visualTheme: EpubVisualTheme;
 };
 
+export type EpubTocItem = {
+  label: string;
+  href: string;
+  subitems: EpubTocItem[];
+};
+
 export type EpubViewStatus = {
   chapterTitle: string;
   currentPage: number | null;
@@ -60,6 +66,8 @@ export type EpubBridgeCommand =
   | BridgeEnvelope<'SET_APPEARANCE', { appearance: EpubAppearance }>
   | BridgeEnvelope<'GO_TO_LOCATOR', { locator: EpubLocator }>
   | BridgeEnvelope<'GET_CURRENT_LOCATOR', Record<string, never>>
+  | BridgeEnvelope<'GET_TOC', Record<string, never>>
+  | BridgeEnvelope<'GO_TO_HREF', { href: string }>
   | BridgeEnvelope<'CLOSE_BOOK', Record<string, never>>;
 
 export type EpubBridgeEvent =
@@ -74,6 +82,7 @@ export type EpubBridgeEvent =
       source: 'restore' | 'reflow';
     }>
   | BridgeEnvelope<'CURRENT_LOCATOR', { locator: EpubLocator | null; requestId: string }>
+  | BridgeEnvelope<'TOC', { toc: EpubTocItem[]; requestId: string }>
   | BridgeEnvelope<'VIEW_STATUS', EpubViewStatus>
   | BridgeEnvelope<'LINK_PRESSED', { url: string }>
   | BridgeEnvelope<'ERROR', { code: string; message: string; requestId?: string }>;
@@ -185,6 +194,12 @@ export function parseEpubBridgeEvent(raw: string): EpubBridgeEvent | null {
     return typeof value.payload.chapterTitle === 'string'
       && value.payload.chapterTitle.length <= 200
       && validPagination
+      ? value as EpubBridgeEvent
+      : null;
+  }
+
+  if (value.type === 'TOC') {
+    return Array.isArray(value.payload.toc) && typeof value.payload.requestId === 'string'
       ? value as EpubBridgeEvent
       : null;
   }

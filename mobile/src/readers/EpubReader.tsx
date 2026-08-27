@@ -21,6 +21,7 @@ import {
   type EpubAppearance,
   type EpubBridgeCommand,
   type EpubRelocationSource,
+  type EpubTocItem,
   type EpubViewStatus,
 } from './epubBridge';
 import { EpubFileError, prepareEpubFile, type PreparedEpub } from './epubFile';
@@ -31,10 +32,13 @@ import { subscribeToEpubVolumeKeys } from './epubVolumeKeys';
 const RUNTIME_ORIGIN = 'https://krumer.local/';
 const RUNTIME_READY_TIMEOUT_MS = 12_000;
 const LOCATOR_REQUEST_TIMEOUT_MS = 1_000;
+const TOC_REQUEST_TIMEOUT_MS = 2_000;
 const FONT_REGISTRATION_TIMEOUT_MS = 5_000;
 
 export type EpubReaderHandle = {
   getCurrentLocator: () => Promise<EpubLocator | null>;
+  getToc: () => Promise<EpubTocItem[] | null>;
+  goToHref: (href: string) => void;
   goToLocator: (locator: EpubLocator) => void;
   next: () => void;
   previous: () => void;
@@ -87,6 +91,10 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   }>());
   const pendingLocatorRequestsRef = useRef(new Map<string, {
     resolve: (locator: EpubLocator | null) => void;
+    timer: ReturnType<typeof setTimeout>;
+  }>());
+  const pendingTocRequestsRef = useRef(new Map<string, {
+    resolve: (toc: EpubTocItem[] | null) => void;
     timer: ReturnType<typeof setTimeout>;
   }>());
   const registeredFontFamiliesRef = useRef(new Set<ReadingPreferences['fontFamily']>());
@@ -186,6 +194,23 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
         pendingLocatorRequestsRef.current.set(command.id, { resolve, timer });
         sendCommand(command);
       });
+    },
+    getToc: () => {
+      if (!bookOpenedRef.current) return Promise.resolve(null);
+      const command = createEpubBridgeCommand('GET_TOC', {});
+      return new Promise<EpubTocItem[] | null>((resolve) => {
+        const timer = setTimeout(() => {
+          pendingTocRequestsRef.current.delete(command.id);
+          resolve(null);
+        }, TOC_REQUEST_TIMEOUT_MS);
+        pendingTocRequestsRef.current.set(command.id, { resolve, timer });
+        sendCommand(command);
+      });
+    },
+    goToHref: (href) => {
+      if (bookOpenedRef.current && href) {
+        sendCommand(createEpubBridgeCommand('GO_TO_HREF', { href }));
+      }
     },
     goToLocator: (locator) => {
       if (bookOpenedRef.current) {
@@ -301,6 +326,11 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       pending.resolve(null);
     });
     pendingLocatorRequestsRef.current.clear();
+    pendingTocRequestsRef.current.forEach((pending) => {
+      clearTimeout(pending.timer);
+      pending.resolve(null);
+    });
+    pendingTocRequestsRef.current.clear();
     fontRegistrationPromisesRef.current.clear();
     registeredFontFamiliesRef.current.clear();
     runtimeReadyRef.current = false;
@@ -364,6 +394,15 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       return;
     }
 
+    if (message.type === 'TOC') {
+      const pending = pendingTocRequestsRef.current.get(message.payload.requestId);
+      if (!pending) return;
+      clearTimeout(pending.timer);
+      pendingTocRequestsRef.current.delete(message.payload.requestId);
+      pending.resolve(message.payload.toc);
+      return;
+    }
+
     if (message.type === 'LINK_PRESSED') {
       if (/^(https?:|mailto:|tel:)/i.test(message.payload.url)) {
         onExternalLink?.(message.payload.url);
@@ -403,6 +442,12 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
         clearTimeout(pendingLocator.timer);
         pendingLocatorRequestsRef.current.delete(message.payload.requestId);
         pendingLocator.resolve(null);
+      }
+      const pendingToc = pendingTocRequestsRef.current.get(message.payload.requestId);
+      if (pendingToc) {
+        clearTimeout(pendingToc.timer);
+        pendingTocRequestsRef.current.delete(message.payload.requestId);
+        pendingToc.resolve(null);
       }
     }
     console.warn('[Krumer EpubReader] runtime error', message.payload.code, message.payload.message);

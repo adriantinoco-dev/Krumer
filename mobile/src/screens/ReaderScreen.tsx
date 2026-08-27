@@ -1,15 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Linking, Modal, Platform, Pressable, ScrollView, StatusBar, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, StatusBar, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ArrowLeft, Bookmark, BookmarkPlus, Settings, Trash2, X } from 'lucide-react-native';
+import { ArrowLeft, Bookmark, BookmarkPlus, ListTree, Settings, Sun, Trash2, X } from 'lucide-react-native';
+import * as Brightness from 'expo-brightness';
 import { ReadingSettingsButton } from '../components/ReadingSettingsButton';
 import { ReadingSettingsModal } from '../components/ReadingSettingsModal';
 import { PaginationSettingsButton } from '../components/PaginationSettingsButton';
 import { PaginationSettingsModal } from '../components/PaginationSettingsModal';
 import { EpubReader, type EpubReaderHandle } from '../readers/EpubReader';
-import type { EpubRelocationSource, EpubViewStatus } from '../readers/epubBridge';
+import type { EpubRelocationSource, EpubTocItem, EpubViewStatus } from '../readers/epubBridge';
 import { PdfReader } from '../readers/PdfReader';
 import { useEpubPersistence } from '../readers/useEpubPersistence';
 import { useOrientation } from '../readers/useOrientation';
@@ -73,6 +74,19 @@ export function ReaderScreen({ navigation, route }: Props) {
     fontSize: FONT_SIZE_DEFAULT,
     lineHeight: LINE_HEIGHT_DEFAULT,
   });
+  const [tocVisible, setTocVisible] = useState(false);
+  const [tocItems, setTocItems] = useState<EpubTocItem[] | null>(null);
+  const [tocLoading, setTocLoading] = useState(false);
+  const [brightnessVisible, setBrightnessVisible] = useState(false);
+  const [brightness, setBrightnessState] = useState(0.7);
+  const [brightnessSupported, setBrightnessSupported] = useState(true);
+  const originalBrightnessRef = useRef<number | null>(null);
+  const brightnessSupportedRef = useRef(true);
+  const lastBrightnessApplyRef = useRef(0);
+  const pendingBrightnessRef = useRef(0.7);
+  const sliderWidthRef = useRef(0);
+  const [trackWidthState, setTrackWidthState] = useState(300);
+  const brightnessAnim = useRef(new Animated.Value(0.7)).current;
   const opacity = useRef(new Animated.Value(book.format === 'epub' ? 0 : 1)).current;
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const epubReaderRef = useRef<EpubReaderHandle>(null);
@@ -210,6 +224,162 @@ export function ReaderScreen({ navigation, route }: Props) {
       saveReaderSettings(next);
       return next;
     });
+  }
+
+  // Brightness initialization (isAvailable + getBrightness)
+  useEffect(() => {
+    if (!isEpub) return;
+    let mounted = true;
+    (async () => {
+      try {
+        const available = await Brightness.isAvailableAsync();
+        if (!mounted) return;
+        if (!available) {
+          setBrightnessSupported(false);
+          brightnessSupportedRef.current = false;
+          return;
+        }
+        const current = await Brightness.getBrightnessAsync();
+        if (mounted && Number.isFinite(current)) {
+          const clamped = Math.max(0.1, Math.min(1, current));
+          setBrightnessState(clamped);
+          brightnessAnim.setValue(clamped);
+          pendingBrightnessRef.current = clamped;
+          originalBrightnessRef.current = current;
+        }
+      } catch {
+        if (mounted) setBrightnessSupported(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [isEpub]);
+
+  // Restore original brightness when leaving reader
+  useEffect(() => {
+    return () => {
+      const original = originalBrightnessRef.current;
+      if (original !== null && Number.isFinite(original)) {
+        Brightness.setBrightnessAsync(original).catch(() => {});
+      }
+    };
+  }, []);
+
+  const applyDeviceBrightness = useCallback((value: number) => {
+    if (!brightnessSupportedRef.current) return;
+    pendingBrightnessRef.current = value;
+    Brightness.setBrightnessAsync(value).catch((err) =>
+      console.warn('[Krumer ReaderScreen] falha ao ajustar brilho', err)
+    );
+  }, []);
+
+  const updateBrightness = useCallback((value: number) => {
+    const clamped = Math.max(0.1, Math.min(1, Math.round(value * 100) / 100));
+    setBrightnessState(clamped);
+    pendingBrightnessRef.current = clamped;
+    // animação visual imediata com easing suave (não bloqueia o toque)
+    Animated.timing(brightnessAnim, {
+      toValue: clamped,
+      duration: 90,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+    if (!brightnessSupportedRef.current) return;
+    const now = Date.now();
+    if (now - lastBrightnessApplyRef.current < 16) return;
+    lastBrightnessApplyRef.current = now;
+    applyDeviceBrightness(clamped);
+  }, [applyDeviceBrightness, brightnessAnim]);
+
+  const openToc = useCallback(async () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    setTocVisible(true);
+    setTocLoading(true);
+    try {
+      const toc = await epubReaderRef.current?.getToc();
+      setTocItems(toc ?? []);
+    } catch (err) {
+      console.warn('[Krumer ReaderScreen] falha ao carregar sumário', err);
+      setTocItems([]);
+    } finally {
+      setTocLoading(false);
+    }
+  }, []);
+
+  const closeToc = useCallback(() => {
+    setTocVisible(false);
+    scheduleHide();
+  }, [scheduleHide]);
+
+  const handleTocSelect = useCallback((href: string) => {
+    if (!href) return;
+    epubReaderRef.current?.goToHref(href);
+    setTocVisible(false);
+    scheduleHide();
+  }, [scheduleHide]);
+
+  const openBrightness = useCallback(() => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    setBrightnessVisible(true);
+  }, []);
+
+  const closeBrightness = useCallback(() => {
+    setBrightnessVisible(false);
+    scheduleHide();
+  }, [scheduleHide]);
+
+  const brightnessPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderMove: (evt) => {
+        const w = sliderWidthRef.current || 1;
+        const x = evt.nativeEvent.locationX;
+        updateBrightness(Math.max(0.1, Math.min(1, x / w)));
+      },
+      onPanResponderRelease: () => {
+        applyDeviceBrightness(pendingBrightnessRef.current);
+      },
+      onPanResponderTerminate: () => {
+        applyDeviceBrightness(pendingBrightnessRef.current);
+      },
+    })
+  ).current;
+
+  function renderTocItems(items: EpubTocItem[], depth = 0): React.ReactNode {
+    return items.map((item, index) => (
+      <View key={`${item.href}-${index}-${depth}`}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => handleTocSelect(item.href)}
+          style={({ pressed }) => ({
+            backgroundColor: pressed ? theme.card : 'transparent',
+            borderBottomColor: theme.border,
+            borderBottomWidth: 1,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.sm,
+            paddingVertical: spacing.md,
+            paddingHorizontal: spacing.md,
+            paddingLeft: spacing.md + depth * 16,
+          })}
+        >
+          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: theme.accent, opacity: 0.8 }} />
+          <Text numberOfLines={2} style={{ flex: 1, color: theme.textPrimary, fontFamily: serifFont, fontSize: 13, lineHeight: 18 }}>
+            {item.label}
+          </Text>
+        </Pressable>
+        {item.subitems && item.subitems.length ? renderTocItems(item.subitems, depth + 1) : null}
+      </View>
+    ));
+  }
+
+  function countTocItems(items: EpubTocItem[]): number {
+    let count = 0;
+    for (const item of items) {
+      count += 1;
+      if (item.subitems?.length) count += countTocItems(item.subitems);
+    }
+    return count;
   }
 
   const progressPercent = Math.round(progress * 100);
@@ -540,6 +710,58 @@ export function ReaderScreen({ navigation, route }: Props) {
         </Animated.View>
       )}
 
+      {/* Bottom bar EPUB - Tópicos (esquerda) e Brilho (direita) */}
+      {isEpub && (
+        <Animated.View
+          onTouchStart={scheduleHide}
+          pointerEvents={barsVisible ? 'auto' : 'none'}
+          style={{
+            backgroundColor: theme.card,
+            borderTopColor: theme.border,
+            borderTopWidth: 1,
+            bottom: 0,
+            left: 0,
+            opacity,
+            paddingBottom: Math.max(insets.bottom, scaleEpubChrome(12)) + scaleEpubChrome(spacing.xs),
+            paddingLeft: Math.max(insets.left, spacing.md),
+            paddingRight: Math.max(insets.right, spacing.md),
+            paddingTop: scaleEpubChrome(spacing.sm),
+            position: 'absolute',
+            right: 0,
+          }}
+        >
+          <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: scaleEpubChrome(44) }}>
+            <Pressable
+              accessibilityLabel="Tópicos"
+              hitSlop={12}
+              onPress={openToc}
+              style={({ pressed }) => ({
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: pressed ? 0.5 : 1,
+                padding: 12,
+              })}
+            >
+              <ListTree color={epubText} size={24} strokeWidth={1.9} />
+            </Pressable>
+
+            <Pressable
+              accessibilityLabel="Brilho"
+              hitSlop={12}
+              onPress={openBrightness}
+              style={({ pressed }) => ({
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: pressed ? 0.5 : 1,
+                padding: 12,
+              })}
+            >
+              <Sun color={epubText} size={24} strokeWidth={1.9} />
+            </Pressable>
+          </View>
+        </Animated.View>
+      )}
+
       <Modal
         animationType="slide"
         transparent
@@ -640,6 +862,201 @@ export function ReaderScreen({ navigation, route }: Props) {
                 <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 13 }}>
                   {t('reader.noBookmarks')}
                 </Text>
+              </View>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* TOC Modal - Sumário do EPUB */}
+      <Modal
+        animationType="slide"
+        navigationBarTranslucent
+        onRequestClose={closeToc}
+        statusBarTranslucent
+        transparent
+        visible={tocVisible && isEpub}
+      >
+        <Pressable
+          onPress={closeToc}
+          style={{ backgroundColor: '#00000066', flex: 1, justifyContent: 'flex-end' }}
+        >
+          <Pressable
+            onPress={(event) => event.stopPropagation()}
+            style={{
+              backgroundColor: theme.card,
+              borderColor: theme.border,
+              borderTopLeftRadius: radii.lg,
+              borderTopRightRadius: radii.lg,
+              borderWidth: 1,
+              maxHeight: '78%',
+              overflow: 'hidden',
+              paddingBottom: Math.max(insets.bottom, spacing.lg),
+              paddingHorizontal: spacing.lg,
+              paddingTop: spacing.md,
+            }}
+          >
+            <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md }}>
+              <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
+                <ListTree color={theme.accent} size={19} />
+                <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 18, fontWeight: '700' }}>
+                  Tópicos
+                </Text>
+                {tocItems && !tocLoading ? (
+                  <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12 }}>
+                    ({countTocItems(tocItems)})
+                  </Text>
+                ) : null}
+              </View>
+              <Pressable
+                accessibilityLabel={t('common.cancel')}
+                hitSlop={10}
+                onPress={closeToc}
+                style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: spacing.xs })}
+              >
+                <X color={theme.textSecondary} size={20} />
+              </Pressable>
+            </View>
+
+            {tocLoading ? (
+              <View style={{ alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xl }}>
+                <ActivityIndicator color={theme.accent} />
+                <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 13 }}>Carregando tópicos...</Text>
+              </View>
+            ) : tocItems && tocItems.length ? (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {renderTocItems(tocItems)}
+              </ScrollView>
+            ) : (
+              <View style={{ alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xl }}>
+                <ListTree color={theme.textMuted} size={26} />
+                <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 13, textAlign: 'center' }}>
+                  Nenhum tópico disponível para este livro.
+                </Text>
+                <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 11, textAlign: 'center', opacity: 0.7 }}>
+                  O sumário não foi encontrado no arquivo EPUB.
+                </Text>
+              </View>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Brightness Modal - Controle de brilho */}
+      <Modal
+        animationType="slide"
+        navigationBarTranslucent
+        onRequestClose={closeBrightness}
+        statusBarTranslucent
+        transparent
+        visible={brightnessVisible && isEpub}
+      >
+        <Pressable
+          onPress={closeBrightness}
+          style={{ backgroundColor: '#00000066', flex: 1, justifyContent: 'flex-end' }}
+        >
+          <Pressable
+            onPress={(event) => event.stopPropagation()}
+            style={{
+              backgroundColor: theme.card,
+              borderColor: theme.border,
+              borderTopLeftRadius: radii.lg,
+              borderTopRightRadius: radii.lg,
+              borderWidth: 1,
+              overflow: 'hidden',
+              paddingBottom: Math.max(insets.bottom, spacing.lg),
+              paddingHorizontal: spacing.lg,
+              paddingTop: spacing.md,
+            }}
+          >
+            <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md }}>
+              <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
+                <Sun color={theme.accent} size={19} />
+                <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 18, fontWeight: '700' }}>
+                  Brilho
+                </Text>
+              </View>
+              <Pressable
+                accessibilityLabel={t('common.cancel')}
+                hitSlop={10}
+                onPress={closeBrightness}
+                style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: spacing.xs })}
+              >
+                <X color={theme.textSecondary} size={20} />
+              </Pressable>
+            </View>
+
+            {!brightnessSupported ? (
+              <View style={{ alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.lg }}>
+                <Sun color={theme.textMuted} size={26} />
+                <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 13, textAlign: 'center' }}>
+                  Controle de brilho não disponível neste dispositivo.
+                </Text>
+              </View>
+            ) : (
+              <View style={{ gap: spacing.xl, paddingBottom: spacing.sm, paddingTop: spacing.md }}>
+                <View style={{ height: 56, justifyContent: 'center', paddingHorizontal: 12 }}>
+                  <View
+                    onLayout={(event) => {
+                      const w = event.nativeEvent.layout.width;
+                      sliderWidthRef.current = w;
+                      setTrackWidthState(w);
+                    }}
+                    {...brightnessPanResponder.panHandlers}
+                    style={{ height: 56, justifyContent: 'center' }}
+                  >
+                    <View style={{ backgroundColor: theme.border, borderRadius: 10, height: 14, overflow: 'hidden', width: '100%' }}>
+                      <Animated.View
+                        style={{
+                          backgroundColor: theme.accent,
+                          borderRadius: 10,
+                          height: '100%',
+                          width: '100%',
+                          transform: [{ scaleX: brightnessAnim }],
+                          transformOrigin: 'left center',
+                        }}
+                      />
+                    </View>
+                    <Animated.View
+                      pointerEvents="none"
+                      style={{
+                        alignItems: 'center',
+                        backgroundColor: theme.accent,
+                        borderColor: theme.card,
+                        borderRadius: 22,
+                        borderWidth: 3,
+                        elevation: 4,
+                        height: 44,
+                        justifyContent: 'center',
+                        left: 0,
+                        position: 'absolute',
+                        shadowColor: '#000',
+                        shadowOpacity: 0.25,
+                        shadowRadius: 6,
+                        top: 6,
+                        width: 44,
+                        transform: [
+                          {
+                            translateX: brightnessAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [-22, trackWidthState - 22],
+                              extrapolate: 'clamp',
+                            }),
+                          },
+                        ],
+                      }}
+                    >
+                      <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 13, fontWeight: '700' }}>
+                        {Math.round(brightness * 100)}
+                      </Text>
+                    </Animated.View>
+                  </View>
+                </View>
+
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12 }}>
+                  <Sun color={theme.textMuted} size={14} strokeWidth={1.8} />
+                  <Sun color={theme.accent} size={18} strokeWidth={1.8} />
+                </View>
               </View>
             )}
           </Pressable>
