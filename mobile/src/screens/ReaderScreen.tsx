@@ -22,7 +22,6 @@ import { useReaderLayoutSettings } from '../readers/useReaderLayoutSettings';
 import { ThemeCard } from '../components/ThemeCard';
 import { useApp } from '../context/AppContext';
 import type { EpubLocator, ReaderNote } from '../models/reader';
-import { DEFAULT_READER_LAYOUT_SETTINGS } from '../models/readerLayoutSettings';
 import type { RootStackParamList } from '../navigation/types';
 import { radii, serifFont, spacing, type ThemeName } from '../theme';
 
@@ -35,7 +34,7 @@ const LINE_HEIGHT_MIN = 1.0;
 const LINE_HEIGHT_MAX = 2.4;
 const LINE_HEIGHT_DEFAULT = 1.5;
 const HIDE_DELAY = 4000;
-const EPUB_CONTENT_TOP_OFFSET = 72;
+const EPUB_CONTENT_VERTICAL_OFFSET = 26;
 const EPUB_CHROME_VERTICAL_SCALE = 0.6;
 const READER_SETTINGS_KEY = 'krumer.reader.settings';
 
@@ -111,18 +110,14 @@ export function ReaderScreen({ navigation, route }: Props) {
   const epubText = theme.name === 'dark' ? '#e7e7e7' : theme.name === 'sepia' ? '#3b2f1e' : '#222222';
   const epubMuted = theme.name === 'dark' ? '#a2a2a2' : theme.name === 'sepia' ? '#796c52' : '#6f6f6f';
   const epubTopChrome = theme.name === 'dark' ? '#202020' : theme.name === 'sepia' ? '#f4ecd8' : '#ffffff';
-  const epubHorizontalMargin = readerLayout.settings.useBookMargins
-    ? DEFAULT_READER_LAYOUT_SETTINGS.marginHorizontal
-    : readerLayout.settings.marginHorizontal;
+  const epubContentVerticalInset = Math.max(insets.top, insets.bottom, 0) + EPUB_CONTENT_VERTICAL_OFFSET;
   const previewCardWidth = Math.max(1, Math.min(windowDimensions.width - spacing.lg * 2, 520));
   const previewCardMaxHeight = Math.max(1, windowDimensions.height * 0.88);
   const previewHeaderHeight = 54;
-  const previewReaderWidth = Math.max(1, windowDimensions.width - epubHorizontalMargin * 2);
+  const previewReaderWidth = Math.max(1, windowDimensions.width);
   const previewReaderHeight = Math.max(
     1,
-    windowDimensions.height
-      - (Math.max(insets.top, 0) + EPUB_CONTENT_TOP_OFFSET)
-      - (Math.max(insets.bottom, 0) + 48),
+    windowDimensions.height - epubContentVerticalInset * 2,
   );
   const previewAvailableWidth = Math.max(1, previewCardWidth - spacing.md * 2);
   const previewAvailableHeight = Math.max(1, previewCardMaxHeight - previewHeaderHeight - spacing.md * 2);
@@ -520,9 +515,9 @@ export function ReaderScreen({ navigation, route }: Props) {
           style={{
             backgroundColor: epubBackground,
             flex: 1,
-            paddingBottom: Math.max(insets.bottom, 0) + 48,
-            paddingHorizontal: epubHorizontalMargin,
-            paddingTop: Math.max(insets.top, 0) + EPUB_CONTENT_TOP_OFFSET,
+            paddingBottom: epubContentVerticalInset,
+            paddingHorizontal: 0,
+            paddingTop: epubContentVerticalInset,
           }}
         >
           {epubPersistence.hydrated && readingPreferences.hydrated && readerLayout.hydrated ? (

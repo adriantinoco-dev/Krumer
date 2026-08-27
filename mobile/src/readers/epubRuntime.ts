@@ -19,7 +19,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
       * { box-sizing: border-box; }
       html, body, #viewer { height: 100%; margin: 0; width: 100%; }
       html, body { background: #ffffff; overflow: hidden; }
-      #viewer { opacity: 0; transition: opacity 120ms linear; }
+      #viewer { bottom: 0; opacity: 0; position: absolute; top: 0; transition: opacity 120ms linear; width: auto; }
       #viewer.ready { opacity: 1; }
       #loading {
         align-items: center;
@@ -220,13 +220,30 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           ].join('|');
         }
 
+        function horizontalReaderMargin() {
+          return readerLayout.useBookMargins ? 20 : readerLayout.marginHorizontal;
+        }
+
+        function applyReaderFrame() {
+          var viewer = document.getElementById('viewer');
+          if (!viewer) return;
+          var margin = horizontalReaderMargin();
+          viewer.style.left = margin + 'px';
+          viewer.style.right = margin + 'px';
+          viewer.style.top = margin + 'px';
+          viewer.style.bottom = margin + 'px';
+        }
+
+        function readerViewportWidth() {
+          return Math.max(1, Number(window.innerWidth) - horizontalReaderMargin() * 2);
+        }
+
         function readerStyleText() {
           var textSelectors = 'body, p, div, span, li, blockquote, td, th, h1, h2, h3, h4, h5, h6, a, em, strong, b, i, cite, figcaption';
           var lineHeightRule = readerLayout.useBookMargins
             ? ''
             : ' line-height: ' + typography.lineHeight + ' !important;';
           return [
-            fontFaceStyleText(),
             'html, body { background: ' + visualTheme.backgroundColor + ' !important; color: ' + visualTheme.textColor + ' !important; }',
             textSelectors + ' { font-family: ' + fontFamilyCss() + ' !important; font-weight: ' + fontWeightCss()
               + ' !important;' + lineHeightRule + ' }',
@@ -238,11 +255,13 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
         }
 
         function fontFaceStyleText() {
-          var faces = registeredFontFaces[typography.fontFamily] || [];
-          return faces.map(function (face) {
-            return '@font-face { font-family: "' + face.fontFamily + '"; src: url("data:'
-              + face.mimeType + ';base64,' + face.dataBase64
-              + '") format("truetype"); font-style: normal; font-weight: ' + face.weight + '; font-display: block; }';
+          return ['serif', 'sans', 'mono'].map(function (family) {
+            var faces = registeredFontFaces[family] || [];
+            return faces.map(function (face) {
+              return '@font-face { font-family: "' + face.fontFamily + '"; src: url("data:'
+                + face.mimeType + ';base64,' + face.dataBase64
+                + '") format("truetype"); font-style: normal; font-weight: ' + face.weight + '; font-display: swap; }';
+            }).join('');
           }).join('');
         }
 
@@ -260,6 +279,15 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
 
         function styleReaderDocument(doc) {
           if (!doc) return;
+          var fontStyle = doc.__krumerFontFaceStyle;
+          if (!fontStyle) {
+            fontStyle = doc.createElement('style');
+            fontStyle.id = 'krumer-reader-font-faces';
+            doc.__krumerFontFaceStyle = fontStyle;
+            (doc.head || doc.documentElement).appendChild(fontStyle);
+          }
+          var nextFontStyleText = fontFaceStyleText();
+          if (fontStyle.textContent !== nextFontStyleText) fontStyle.textContent = nextFontStyleText;
           var style = doc.__krumerVisualStyle;
           if (!style) {
             style = doc.createElement('style');
@@ -267,8 +295,20 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             doc.__krumerVisualStyle = style;
             (doc.head || doc.documentElement).appendChild(style);
           }
-          style.textContent = readerStyleText();
+          var nextStyleText = readerStyleText();
+          if (style.textContent !== nextStyleText) style.textContent = nextStyleText;
           applyInlineReaderTypography(doc);
+        }
+
+        function setImportantStyle(style, property, value) {
+          if (!style || typeof style.setProperty !== 'function') return;
+          if (
+            typeof style.getPropertyValue === 'function'
+            && typeof style.getPropertyPriority === 'function'
+            && style.getPropertyValue(property) === value
+            && style.getPropertyPriority(property) === 'important'
+          ) return;
+          style.setProperty(property, value, 'important');
         }
 
         function applyInlineReaderTypography(doc) {
@@ -277,12 +317,12 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           for (var index = 0; index < nodes.length; index += 1) {
             var node = nodes[index];
             if (!node || !node.style || typeof node.style.setProperty !== 'function') continue;
-            node.style.setProperty('font-family', fontFamilyCss(), 'important');
-            node.style.setProperty('font-weight', String(fontWeightCss()), 'important');
+            setImportantStyle(node.style, 'font-family', fontFamilyCss());
+            setImportantStyle(node.style, 'font-weight', String(fontWeightCss()));
           }
           var body = doc.body;
           if (body && body.style && typeof body.style.setProperty === 'function') {
-            body.style.setProperty('font-size', String(typography.fontSize) + 'px', 'important');
+            setImportantStyle(body.style, 'font-size', String(typography.fontSize) + 'px');
           }
         }
 
@@ -364,7 +404,6 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             useBookMargins: appearance.useBookMargins
           };
           applyVisualTheme(theme);
-          refreshReaderAppearance();
           return {
             requiresAnchorRestore: previousTypographySignature !== typographyAppearanceSignature(),
             requiresLayoutRefresh: previousSignature !== layoutAppearanceSignature(),
@@ -998,6 +1037,25 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           }
         }
 
+        function moveToLocatorInPlace(activeRendition, locator) {
+          if (!activeRendition || !locator || !locator.cfi) return false;
+          var manager = activeRendition.manager;
+          var section = sectionForHref(locator.spineHref);
+          var view = section && manager && manager.views && typeof manager.views.find === 'function'
+            ? manager.views.find(section)
+            : null;
+          if (!view || typeof view.locationOf !== 'function' || typeof view.width !== 'function') return false;
+          if (!manager || typeof manager.moveTo !== 'function') return false;
+          try {
+            var point = view.locationOf(locator.cfi);
+            if (!point) return false;
+            manager.moveTo(point, view.width());
+            return true;
+          } catch (_) {
+            return false;
+          }
+        }
+
         async function applyViewportLayout(anchor, source, forceAnchorRestore) {
           if (!book || !rendition) return;
           clearUserRelocationExpectation();
@@ -1006,16 +1064,17 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           var doubleColumnLayout = usesDoubleColumn();
           var enteringDoubleColumn = doubleColumnLayout && !lastAppliedDoubleColumn;
           activeRelocationSource = source === 'reflow' ? 'reflow' : 'restore';
-          refreshReaderAppearance();
           if (forceAnchorRestore) {
             await waitForActiveReaderFonts();
             if (activeBook !== book || activeRendition !== rendition) return;
           }
+          applyReaderFrame();
+          refreshReaderAppearance();
 
           var spread = doubleColumnLayout ? 'always' : 'none';
           if (typeof activeRendition.spread === 'function') activeRendition.spread(spread);
           if (typeof activeRendition.resize === 'function') {
-            await Promise.resolve(activeRendition.resize(window.innerWidth, window.innerHeight));
+            await Promise.resolve(activeRendition.resize(readerViewportWidth(), window.innerHeight));
           }
           if (activeBook !== book || activeRendition !== rendition) return;
           if (!forceAnchorRestore) {
@@ -1026,10 +1085,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           var stableLocator = await waitForStableLocator();
           var restoredAnchor = false;
           if (anchor && (forceAnchorRestore || locatorDrifted(anchor, stableLocator))) {
-            try {
-              await displayLocator(anchor);
-              restoredAnchor = true;
-            } catch (_) {}
+            restoredAnchor = moveToLocatorInPlace(activeRendition, anchor);
           }
           var alignedLeadingColumn = anchor && (restoredAnchor || enteringDoubleColumn)
             ? alignLocatorToLeadingColumn(activeRendition, anchor)
@@ -1109,6 +1165,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
 
         async function renderBookAt(locator, source) {
           if (!book) throw new Error('No EPUB is currently open.');
+          applyReaderFrame();
           clearUserRelocationExpectation();
           activeRelocationSource = source === 'reflow' ? 'reflow' : 'restore';
           renditionGeneration += 1;
@@ -1201,7 +1258,11 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             reportError('INVALID_APPEARANCE', 'The EPUB appearance settings are invalid.', message.id);
             return;
           }
-          if (!book || !rendition || !result.requiresLayoutRefresh) return;
+          if (!book || !rendition) return;
+          if (!result.requiresLayoutRefresh) {
+            refreshReaderAppearance();
+            return;
+          }
           try {
             if (result.requiresRenditionReset) {
               await renderBookAt(locator, 'reflow');

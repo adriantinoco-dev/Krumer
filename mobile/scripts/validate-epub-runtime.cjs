@@ -44,6 +44,7 @@ async function main() {
   const renditionConfigs = [];
   const generatedLocationChunks = [];
   const columnAlignmentCalls = [];
+  const inPlaceMoveCalls = [];
   const resizeCalls = [];
   const spreadCalls = [];
   let renditionDestroyCount = 0;
@@ -133,6 +134,9 @@ async function main() {
       layout: {
         divisor: 2,
         pageWidth: 600,
+      },
+      moveTo: (point, width) => {
+        inPlaceMoveCalls.push({ point, width });
       },
       scrollBy: (left, top, silent) => {
         columnAlignmentCalls.push({ left, silent, top });
@@ -344,6 +348,9 @@ async function main() {
   if (!contentHook) throw new Error('The pre-layout content hook was not registered.');
   if (outerDocument.body.style.backgroundColor !== '#202020') {
     throw new Error('The visual theme was not applied without changing the rendition flow.');
+  }
+  if (viewer.style.left !== '20px' || viewer.style.right !== '20px') {
+    throw new Error('The default EPUB reader frame did not apply the 20px book margin.');
   }
   if (
     renditionConfigs.length !== 1
@@ -599,7 +606,9 @@ async function main() {
     || !chapter.document.__krumerVisualStyle.textContent.includes('font-size: 24px')
     || !chapter.document.__krumerVisualStyle.textContent.includes('font-family: "Krumer Noto Sans"')
     || !chapter.document.__krumerVisualStyle.textContent.includes('font-weight: 700')
-    || !chapter.document.__krumerVisualStyle.textContent.includes('@font-face')
+    || !chapter.document.__krumerFontFaceStyle.textContent.includes('@font-face')
+    || !chapter.document.__krumerFontFaceStyle.textContent.includes('font-display: swap')
+    || chapter.document.__krumerFontFaceStyle.textContent.includes('font-display: block')
     || !chapter.document.__krumerVisualStyle.textContent.includes('body, p, div, span')
     || chapter.appliedTypography['font-family'].value !== '"Krumer Noto Sans", sans-serif'
     || chapter.appliedTypography['font-family'].priority !== 'important'
@@ -609,6 +618,8 @@ async function main() {
     || renditionConfigs.at(-1).flow !== 'scrolled-doc'
     || renditionConfigs.at(-1).manager !== 'continuous'
     || renditionConfigs.at(-1).spread !== 'none'
+    || viewer.style.left !== '24px'
+    || viewer.style.right !== '24px'
   ) {
     throw new Error('Live EPUB appearance updates were not applied to the rendered chapter.');
   }
@@ -657,7 +668,7 @@ async function main() {
   await wait(10);
   if (
     spreadCalls.at(-1) !== 'always'
-    || resizeCalls.at(-1)[0] !== 1200
+    || resizeCalls.at(-1)[0] !== 1160
     || resizeCalls.at(-1)[1] !== 700
     || columnAlignmentCalls.length !== 2
     || columnAlignmentCalls.at(-1).left !== 600
@@ -670,10 +681,10 @@ async function main() {
     renditionConfigs.length !== renderCountBeforeRotation
     || renditionDestroyCount !== destroyCountBeforeRotation
     || viewerReplaceCount !== replaceCountBeforeRotation
-    || displayTargets.length !== displayCountBeforeRotation + 1
-    || displayTargets.at(-1) !== anchorBeforeReflow
+    || displayTargets.length !== displayCountBeforeRotation
+    || inPlaceMoveCalls.length !== 1
   ) {
-    throw new Error('Rotation did not recover the exact CFI without recreating or clearing the active rendition.');
+    throw new Error('Rotation did not recover the exact CFI in place without redisplaying or clearing the active rendition.');
   }
   const displayCountAfterRecovery = displayTargets.length;
 
@@ -700,11 +711,11 @@ async function main() {
     renditionConfigs.length !== renderCountBeforeRotation
     || renditionDestroyCount !== destroyCountBeforeRotation
     || viewerReplaceCount !== replaceCountBeforeRotation
-    || displayTargets.length !== displayCountAfterRecovery + 1
-    || displayTargets.at(-1) !== anchorBeforeReflow
+    || displayTargets.length !== displayCountAfterRecovery
+    || inPlaceMoveCalls.length !== 2
     || columnAlignmentCalls.length !== 3
   ) {
-    throw new Error('Typography reflow did not redisplay the exact CFI in the leading EPUB column.');
+    throw new Error('Typography reflow did not preserve the exact CFI in place in the leading EPUB column.');
   }
   const displayCountAfterTypography = displayTargets.length;
 
@@ -714,7 +725,7 @@ async function main() {
   await wait(10);
   if (
     spreadCalls.at(-1) !== 'none'
-    || resizeCalls.at(-1)[0] !== 700
+    || resizeCalls.at(-1)[0] !== 660
     || resizeCalls.at(-1)[1] !== 1200
   ) {
     throw new Error('Portrait rotation did not return the active rendition to one column.');

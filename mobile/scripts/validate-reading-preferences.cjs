@@ -120,6 +120,15 @@ async function main() {
   ) {
     throw new Error('EPUB chrome or settings modal can still resize the underlying reader viewport.');
   }
+  if (
+    !/const EPUB_CONTENT_VERTICAL_OFFSET = \d+;/.test(readerScreenSource)
+    || !readerScreenSource.includes('const epubContentVerticalInset = Math.max(insets.top, insets.bottom, 0) + EPUB_CONTENT_VERTICAL_OFFSET;')
+    || !readerScreenSource.includes('windowDimensions.height - epubContentVerticalInset * 2')
+    || !readerScreenSource.includes('paddingBottom: epubContentVerticalInset')
+    || !readerScreenSource.includes('paddingTop: epubContentVerticalInset')
+  ) {
+    throw new Error('EPUB content must keep equal top and bottom safe-area spacing.');
+  }
 
   console.log('Reading preferences, embedded fonts, reader-only orientation, and viewport-stable chrome are valid.');
 }

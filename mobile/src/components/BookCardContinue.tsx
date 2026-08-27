@@ -113,7 +113,7 @@ export function BookCardContinue({
               style={{
                 borderRadius: 4,
                 bottom: 0,
-                height: 6,
+                height: 4,
                 left: 0,
                 overflow: 'hidden',
                 position: 'absolute',
