@@ -152,6 +152,8 @@ export function ReaderScreen({ navigation, route }: Props) {
 
   const handleEpubViewStatus = useCallback((status: EpubViewStatus) => {
     setEpubViewStatus(status);
+    if (status.currentPage != null) setCurrentPage(status.currentPage);
+    if (status.totalPages != null) setTotalPages(status.totalPages);
   }, []);
 
   useEffect(() => {
@@ -558,6 +560,25 @@ export function ReaderScreen({ navigation, route }: Props) {
             }}
           >
             {epubViewStatus?.chapterTitle || book.title}
+          </Text>
+        </View>
+      ) : null}
+
+      {isEpub && totalPages > 0 ? (
+        <View pointerEvents="none" style={{ bottom: 0, left: 0, position: 'absolute', right: 0, top: 0 }}>
+          <Text
+            numberOfLines={1}
+            style={{
+              color: epubMuted,
+              fontFamily: serifFont,
+              fontSize: 12,
+              opacity: 0.68,
+              position: 'absolute',
+              bottom: Math.max(insets.bottom, 0) + 36,
+              right: Math.max(insets.right, 0) + 16,
+            }}
+          >
+            {currentPage} / {totalPages}
           </Text>
         </View>
       ) : null}
