@@ -56,6 +56,7 @@ type EpubReaderProps = {
   onPositionStabilized?: (locator: EpubLocator, source: 'restore' | 'reflow') => void;
   onRelocate?: (locator: EpubLocator, source: EpubRelocationSource) => void;
   onViewStatus?: (status: EpubViewStatus) => void;
+  readOnly?: boolean;
   readingPreferences?: ReadingPreferences;
 };
 
@@ -72,6 +73,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     onPositionStabilized,
     onRelocate,
     onViewStatus,
+    readOnly = false,
     readingPreferences = DEFAULT_READING_PREFERENCES,
   },
   forwardedRef,
@@ -225,10 +227,13 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     },
   }), [sendCommand]);
 
-  useEffect(() => subscribeToEpubVolumeKeys((direction) => {
+  useEffect(() => {
+    if (readOnly) return undefined;
+    return subscribeToEpubVolumeKeys((direction) => {
     if (!bookOpenedRef.current) return;
     sendCommand(createEpubBridgeCommand(direction === 'next' ? 'NEXT' : 'PREVIOUS', {}));
-  }), [sendCommand]);
+    });
+  }, [readOnly, sendCommand]);
 
   useEffect(() => {
     let cancelled = false;
@@ -525,6 +530,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
         overScrollMode="never"
         scrollEnabled={false}
         setSupportMultipleWindows={false}
+        pointerEvents={readOnly ? 'none' : 'auto'}
         style={{ backgroundColor: '#00000000', flex: 1, opacity: loading ? 0 : 1 }}
         onError={(event) => {
           console.warn('[Krumer EpubReader] WebView error', event.nativeEvent);

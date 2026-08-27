@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, StatusBar, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, StatusBar, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ArrowLeft, Bookmark, BookmarkPlus, ListTree, Settings, Sun, Trash2, X } from 'lucide-react-native';
+import { Anchor, ArrowLeft, Bookmark, BookmarkPlus, Feather, ListTree, Settings, StickyNote, Sun, Trash2, X } from 'lucide-react-native';
 import * as Brightness from 'expo-brightness';
 import { ReadingSettingsButton } from '../components/ReadingSettingsButton';
 import { ReadingSettingsModal } from '../components/ReadingSettingsModal';
@@ -13,11 +13,12 @@ import { EpubReader, type EpubReaderHandle } from '../readers/EpubReader';
 import type { EpubRelocationSource, EpubTocItem, EpubViewStatus } from '../readers/epubBridge';
 import { PdfReader } from '../readers/PdfReader';
 import { useEpubPersistence } from '../readers/useEpubPersistence';
+import { useEpubNotes } from '../readers/useEpubNotes';
 import { useOrientation } from '../readers/useOrientation';
 import { useReadingPreferences } from '../readers/useReadingPreferences';
 import { ThemeCard } from '../components/ThemeCard';
 import { useApp } from '../context/AppContext';
-import type { EpubLocator } from '../models/reader';
+import type { EpubLocator, ReaderNote } from '../models/reader';
 import type { RootStackParamList } from '../navigation/types';
 import { radii, serifFont, spacing, type ThemeName } from '../theme';
 
@@ -58,6 +59,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const isEpub = book.format === 'epub';
   const { preferences, setThemeName, theme, t, updateBookProgress } = useApp();
   const insets = useSafeAreaInsets();
+  const windowDimensions = useWindowDimensions();
   const readingPreferences = useReadingPreferences(isEpub);
   const { isLandscape } = useOrientation(isEpub ? readingPreferences.preferences.orientation : 'free');
   const [progress, setProgress] = useState((book.progressPct ?? 0) / 100);
@@ -80,6 +82,13 @@ export function ReaderScreen({ navigation, route }: Props) {
   const [brightnessVisible, setBrightnessVisible] = useState(false);
   const [brightness, setBrightnessState] = useState(0.7);
   const [brightnessSupported, setBrightnessSupported] = useState(true);
+  const [notesVisible, setNotesVisible] = useState(false);
+  const [selectedNote, setSelectedNote] = useState<ReaderNote | null>(null);
+  const [previewNote, setPreviewNote] = useState<ReaderNote | null>(null);
+  const [detailVisible, setDetailVisible] = useState(false);
+  const [editorVisible, setEditorVisible] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const originalBrightnessRef = useRef<number | null>(null);
   const brightnessSupportedRef = useRef(true);
   const lastBrightnessApplyRef = useRef(0);
@@ -96,6 +105,21 @@ export function ReaderScreen({ navigation, route }: Props) {
   const epubText = theme.name === 'dark' ? '#e7e7e7' : theme.name === 'sepia' ? '#3b2f1e' : '#222222';
   const epubMuted = theme.name === 'dark' ? '#a2a2a2' : theme.name === 'sepia' ? '#796c52' : '#6f6f6f';
   const epubTopChrome = theme.name === 'dark' ? '#202020' : theme.name === 'sepia' ? '#f4ecd8' : '#ffffff';
+  const previewCardWidth = Math.max(1, Math.min(windowDimensions.width - spacing.lg * 2, 520));
+  const previewCardMaxHeight = Math.max(1, windowDimensions.height * 0.88);
+  const previewHeaderHeight = 54;
+  const previewReaderWidth = Math.max(1, windowDimensions.width - 48);
+  const previewReaderHeight = Math.max(
+    1,
+    windowDimensions.height
+      - (Math.max(insets.top, 0) + EPUB_CONTENT_TOP_OFFSET)
+      - (Math.max(insets.bottom, 0) + 48),
+  );
+  const previewAvailableWidth = Math.max(1, previewCardWidth - spacing.md * 2);
+  const previewAvailableHeight = Math.max(1, previewCardMaxHeight - previewHeaderHeight - spacing.md * 2);
+  const previewScale = Math.min(1, previewAvailableWidth / previewReaderWidth, previewAvailableHeight / previewReaderHeight);
+  const previewFrameWidth = previewReaderWidth * previewScale;
+  const previewFrameHeight = previewReaderHeight * previewScale;
 
   const syncDurableEpubProgress = useCallback(async (locator: EpubLocator) => {
     const nextProgress = locator.totalProgression ?? (book.progressPct ?? 0) / 100;
@@ -113,6 +137,8 @@ export function ReaderScreen({ navigation, route }: Props) {
     legacyCfi: book.cfi ?? book.progress,
     onDurableProgress: syncDurableEpubProgress,
   });
+
+  const epubNotes = useEpubNotes(isEpub ? book.id : null, isEpub ? 'epub' : 'pdf');
 
   const handleEpubRelocate = useCallback((locator: EpubLocator, source: EpubRelocationSource) => {
     if (locator.totalProgression !== null) setProgress(locator.totalProgression);
@@ -174,6 +200,87 @@ export function ReaderScreen({ navigation, route }: Props) {
     setBookmarksVisible(false);
     scheduleHide();
   }, [scheduleHide]);
+
+  const openNotes = useCallback(() => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    setNotesVisible(true);
+  }, []);
+
+  const closeNotes = useCallback(() => {
+    setNotesVisible(false);
+    scheduleHide();
+  }, [scheduleHide]);
+
+  const handleSelectNote = useCallback((note: ReaderNote) => {
+    setSelectedNote(note);
+    setDetailVisible(true);
+  }, []);
+
+  const closeDetail = useCallback(() => {
+    setDetailVisible(false);
+    setSelectedNote(null);
+    scheduleHide();
+  }, [scheduleHide]);
+
+  const handleAnchorPress = useCallback((note: ReaderNote) => {
+    if (note.locator.format === 'epub') setPreviewNote(note);
+    setNotesVisible(false);
+    setDetailVisible(false);
+    setEditorVisible(false);
+    scheduleHide();
+  }, [scheduleHide]);
+
+  const closePreview = useCallback(() => {
+    setPreviewNote(null);
+    scheduleHide();
+  }, [scheduleHide]);
+
+  const handleCreateNote = useCallback(() => {
+    setNotesVisible(false);
+    setDetailVisible(false);
+    setEditingNoteId(null);
+    setNoteDraft('');
+    setEditorVisible(true);
+  }, []);
+
+  const handleEditNote = useCallback((note: ReaderNote) => {
+    setNotesVisible(false);
+    setEditingNoteId(note.id);
+    setNoteDraft(note.content);
+    setEditorVisible(true);
+  }, []);
+
+  const closeEditor = useCallback(() => {
+    setEditorVisible(false);
+    setEditingNoteId(null);
+    setNoteDraft('');
+    scheduleHide();
+  }, [scheduleHide]);
+
+  const handleSaveNote = useCallback(async () => {
+    const content = noteDraft.trim();
+    if (!content) return;
+    const locator = epubPersistence.currentLocator;
+    if (!locator) return;
+    const pageNumber = epubViewStatus?.currentPage ?? 1;
+    if (editingNoteId) {
+      await epubNotes.editNote(editingNoteId, content);
+      setSelectedNote((current) => current && current.id === editingNoteId
+        ? { ...current, content, updatedAt: new Date().toISOString() }
+        : current);
+    } else {
+      await epubNotes.addNote(locator, content, pageNumber);
+    }
+    closeEditor();
+  }, [noteDraft, editingNoteId, epubPersistence.currentLocator, epubViewStatus?.currentPage, epubNotes, closeEditor]);
+
+  const handleDeleteNote = useCallback(async (id: string) => {
+    await epubNotes.removeNote(id);
+    if (selectedNote?.id === id) {
+      setDetailVisible(false);
+      setSelectedNote(null);
+    }
+  }, [epubNotes, selectedNote?.id]);
 
   function setBars(visible: boolean) {
     if (!visible && hideTimer.current) {
@@ -544,6 +651,20 @@ export function ReaderScreen({ navigation, route }: Props) {
             >
               {book.title}
             </Text>
+            <Pressable
+              accessibilityLabel="Notas"
+              hitSlop={8}
+              onPress={openNotes}
+              style={({ pressed }) => ({
+                alignItems: 'center',
+                height: scaleEpubChrome(40),
+                justifyContent: 'center',
+                opacity: pressed ? 0.5 : 1,
+                paddingHorizontal: 4,
+              })}
+            >
+              <Feather color={epubText} size={20} strokeWidth={1.7} />
+            </Pressable>
             <ReadingSettingsButton
               color={epubText}
               onPress={() => {
@@ -1160,6 +1281,424 @@ export function ReaderScreen({ navigation, route }: Props) {
 
           </Pressable>
         </Pressable>
+      </Modal>
+
+      {/* Notes List Modal */}
+      <Modal
+        animationType="fade"
+        navigationBarTranslucent
+        onRequestClose={closeNotes}
+        statusBarTranslucent
+        transparent
+        visible={notesVisible && isEpub}
+      >
+        <View style={{ backgroundColor: 'rgba(0, 0, 0, 0.15)', flex: 1 }}>
+          <Pressable onPress={closeNotes} style={{ alignItems: 'center', flex: 1, justifyContent: 'center', padding: spacing.lg }}>
+            <Pressable
+              onPress={(e) => e.stopPropagation()}
+              style={{
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                borderRadius: radii.lg,
+                borderWidth: 1,
+                maxHeight: '88%',
+                maxWidth: 480,
+                minHeight: epubNotes.notes.length === 0 ? 300 : undefined,
+                overflow: 'hidden',
+                paddingBottom: spacing.lg,
+                paddingHorizontal: spacing.lg,
+                paddingTop: spacing.md,
+                width: '94%',
+              }}
+            >
+              <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md }}>
+                <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
+                  <Feather color={theme.accent} size={19} strokeWidth={1.7} />
+                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 18, fontWeight: '700' }}>Notas</Text>
+                  <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12 }}>({epubNotes.notes.length})</Text>
+                </View>
+                <Pressable hitSlop={10} onPress={closeNotes} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: spacing.xs })}>
+                  <X color={theme.textSecondary} size={20} />
+                </Pressable>
+              </View>
+
+              {epubNotes.notes.length === 0 ? (
+                <View style={{ alignItems: 'center', flex: 1, gap: spacing.sm, justifyContent: 'center', paddingVertical: spacing.xl }}>
+                  <StickyNote color={theme.textMuted} size={32} strokeWidth={1.5} />
+                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 14, fontWeight: '700', textAlign: 'center' }}>Nenhuma nota ainda.</Text>
+                  <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12, lineHeight: 17, opacity: 0.8, textAlign: 'center' }}>Crie uma nota vinculada à página atual.</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={handleCreateNote}
+                    style={({ pressed }) => ({
+                      alignItems: 'center',
+                      backgroundColor: theme.accent,
+                      borderRadius: radii.md,
+                      flexDirection: 'row',
+                      gap: spacing.sm,
+                      marginTop: spacing.md,
+                      opacity: pressed ? 0.85 : 1,
+                      paddingHorizontal: spacing.lg,
+                      paddingVertical: spacing.sm,
+                    })}
+                  >
+                    <Feather color="#fff" size={16} strokeWidth={1.8} />
+                    <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 13, fontWeight: '700' }}>Nova Nota</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <>
+                  <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
+                    {epubNotes.notes.map((note, index) => {
+                      const preview = note.content.length > 80 ? note.content.slice(0, 80).trim() + '…' : note.content;
+                      const pageLabel = note.pageNumber ? `Página ${note.pageNumber}` : 'Página —';
+                      const dateLabel = new Date(note.createdAt).toLocaleDateString();
+                      return (
+                        <Pressable
+                          key={note.id}
+                          accessibilityRole="button"
+                          onPress={() => handleSelectNote(note)}
+                          style={({ pressed }) => ({
+                            backgroundColor: pressed ? theme.surface : 'transparent',
+                            borderBottomColor: theme.border,
+                            borderBottomWidth: index === epubNotes.notes.length - 1 ? 0 : 1,
+                            flexDirection: 'row',
+                            gap: spacing.md,
+                            paddingVertical: spacing.md,
+                            paddingHorizontal: spacing.xs,
+                          })}
+                        >
+                          <View style={{ flex: 1, gap: 4 }}>
+                            <Text numberOfLines={2} style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 13, lineHeight: 18 }}>
+                              {preview}
+                            </Text>
+                            <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 11 }}>
+                              {pageLabel} · {dateLabel}
+                            </Text>
+                          </View>
+                          <Pressable
+                            hitSlop={8}
+                            onPress={(e) => { e.stopPropagation(); void handleDeleteNote(note.id); }}
+                            style={({ pressed }) => ({ opacity: pressed ? 0.55 : 1, padding: spacing.xs })}
+                          >
+                            <Trash2 color={theme.textMuted} size={16} />
+                          </Pressable>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={handleCreateNote}
+                    style={({ pressed }) => ({
+                      alignItems: 'center',
+                      alignSelf: 'center',
+                      backgroundColor: theme.accent,
+                      borderRadius: radii.md,
+                      flexDirection: 'row',
+                      gap: spacing.sm,
+                      marginTop: spacing.md,
+                      opacity: pressed ? 0.85 : 1,
+                      paddingHorizontal: spacing.lg,
+                      paddingVertical: spacing.sm,
+                    })}
+                  >
+                    <Feather color="#fff" size={16} strokeWidth={1.8} />
+                    <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 13, fontWeight: '700' }}>Nova Nota</Text>
+                  </Pressable>
+                </>
+              )}
+            </Pressable>
+          </Pressable>
+        </View>
+      </Modal>
+
+      {/* Note Detail Modal */}
+      <Modal
+        animationType="fade"
+        navigationBarTranslucent
+        onRequestClose={closeDetail}
+        statusBarTranslucent
+        transparent
+        visible={detailVisible && !!selectedNote}
+      >
+        <View style={{ backgroundColor: 'rgba(0, 0, 0, 0.15)', flex: 1 }}>
+          <Pressable onPress={closeDetail} style={{ alignItems: 'center', flex: 1, justifyContent: 'center', padding: spacing.lg }}>
+            <Pressable
+              onPress={(e) => e.stopPropagation()}
+              style={{
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                borderRadius: radii.lg,
+                borderWidth: 1,
+                maxHeight: '72%',
+                maxWidth: 480,
+                overflow: 'hidden',
+                paddingBottom: spacing.lg,
+                paddingHorizontal: spacing.lg,
+                paddingTop: spacing.md,
+                width: '94%',
+              }}
+            >
+              <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md }}>
+                <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
+                  <Feather color={theme.accent} size={18} strokeWidth={1.7} />
+                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 16, fontWeight: '700' }}>Nota</Text>
+                  {selectedNote?.pageNumber ? (
+                    <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 11 }}>Página {selectedNote.pageNumber}</Text>
+                  ) : null}
+                </View>
+                <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
+                  <Pressable
+                    accessibilityLabel="Ir para página da nota"
+                    hitSlop={10}
+                    onPress={() => selectedNote && handleAnchorPress(selectedNote)}
+                    style={({ pressed }) => ({
+                      alignItems: 'center',
+                      backgroundColor: pressed ? theme.surface : theme.card,
+                      borderColor: theme.border,
+                      borderRadius: radii.sm,
+                      borderWidth: 1,
+                      height: 36,
+                      justifyContent: 'center',
+                      opacity: pressed ? 0.7 : 1,
+                      width: 36,
+                    })}
+                  >
+                    <Anchor color={theme.accent} size={18} strokeWidth={1.8} />
+                  </Pressable>
+                  <Pressable hitSlop={10} onPress={closeDetail} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: spacing.xs })}>
+                    <X color={theme.textSecondary} size={20} />
+                  </Pressable>
+                </View>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 320 }}>
+                <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 15, lineHeight: 22 }}>
+                  {selectedNote?.content ?? ''}
+                </Text>
+                {selectedNote ? (
+                  <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 11, marginTop: spacing.md }}>
+                    {new Date(selectedNote.createdAt).toLocaleString()} {selectedNote.pageNumber ? `· Página ${selectedNote.pageNumber}` : ''}
+                  </Text>
+                ) : null}
+              </ScrollView>
+
+              <View style={{ flexDirection: 'row', gap: spacing.sm, justifyContent: 'flex-end', marginTop: spacing.lg }}>
+                <Pressable
+                  onPress={() => selectedNote && handleEditNote(selectedNote)}
+                  style={({ pressed }) => ({
+                    alignItems: 'center',
+                    backgroundColor: pressed ? theme.border : theme.surface,
+                    borderColor: theme.border,
+                    borderRadius: radii.sm,
+                    borderWidth: 1,
+                    opacity: pressed ? 0.8 : 1,
+                    paddingHorizontal: spacing.md,
+                    paddingVertical: spacing.sm,
+                  })}
+                >
+                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 13, fontWeight: '600' }}>Editar</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => selectedNote && handleDeleteNote(selectedNote.id)}
+                  style={({ pressed }) => ({
+                    alignItems: 'center',
+                    backgroundColor: pressed ? '#991b1b' : '#dc2626',
+                    borderRadius: radii.sm,
+                    opacity: pressed ? 0.85 : 1,
+                    paddingHorizontal: spacing.md,
+                    paddingVertical: spacing.sm,
+                  })}
+                >
+                  <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 13, fontWeight: '700' }}>Excluir</Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </View>
+      </Modal>
+
+      {/* Note Editor Modal */}
+      <Modal
+        animationType="fade"
+        navigationBarTranslucent
+        onRequestClose={closeEditor}
+        statusBarTranslucent
+        transparent
+        visible={editorVisible}
+      >
+        <View style={{ backgroundColor: 'rgba(0, 0, 0, 0.15)', flex: 1 }}>
+          <Pressable onPress={closeEditor} style={{ alignItems: 'center', flex: 1, justifyContent: 'center', padding: spacing.lg }}>
+            <Pressable
+              onPress={(e) => e.stopPropagation()}
+              style={{
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                borderRadius: radii.lg,
+                borderWidth: 1,
+                maxHeight: 420,
+                maxWidth: 480,
+                overflow: 'hidden',
+                paddingBottom: spacing.lg,
+                paddingHorizontal: spacing.lg,
+                paddingTop: spacing.md,
+                width: '94%',
+              }}
+            >
+              <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md }}>
+                <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
+                  <Feather color={theme.accent} size={18} strokeWidth={1.7} />
+                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 16, fontWeight: '700' }}>
+                    {editingNoteId ? 'Editar nota' : 'Nova nota'}
+                  </Text>
+                </View>
+                <Pressable hitSlop={10} onPress={closeEditor} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: spacing.xs })}>
+                  <X color={theme.textSecondary} size={20} />
+                </Pressable>
+              </View>
+
+              <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 11, marginBottom: spacing.sm }}>
+                {editingNoteId && selectedNote?.pageNumber ? `Página ${selectedNote.pageNumber}` : epubViewStatus?.currentPage ? `Página ${epubViewStatus.currentPage}` : 'Página atual'}
+                {' · '}será salva com esta anotação
+              </Text>
+
+              <View style={{ backgroundColor: theme.surface, borderColor: theme.border, borderRadius: radii.md, borderWidth: 1, height: 180, padding: spacing.sm }}>
+                <TextInput
+                  autoFocus
+                  multiline
+                  onChangeText={setNoteDraft}
+                  placeholder="Escreva sua anotação..."
+                  placeholderTextColor={theme.textMuted}
+                  scrollEnabled
+                  style={{ color: theme.textPrimary, flex: 1, fontFamily: serifFont, fontSize: 14, lineHeight: 20, textAlignVertical: 'top' }}
+                  value={noteDraft}
+                />
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: spacing.sm, justifyContent: 'flex-end', marginTop: spacing.lg }}>
+                <Pressable
+                  onPress={closeEditor}
+                  style={({ pressed }) => ({
+                    alignItems: 'center',
+                    backgroundColor: pressed ? theme.border : theme.surface,
+                    borderColor: theme.border,
+                    borderRadius: radii.sm,
+                    borderWidth: 1,
+                    opacity: pressed ? 0.8 : 1,
+                    paddingHorizontal: spacing.lg,
+                    paddingVertical: spacing.sm,
+                  })}
+                >
+                  <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, fontWeight: '600' }}>Cancelar</Text>
+                </Pressable>
+                <Pressable
+                  disabled={!noteDraft.trim()}
+                  onPress={() => void handleSaveNote()}
+                  style={({ pressed }) => ({
+                    alignItems: 'center',
+                    backgroundColor: !noteDraft.trim() ? theme.border : theme.accent,
+                    borderRadius: radii.sm,
+                    opacity: pressed ? 0.85 : 1,
+                    paddingHorizontal: spacing.lg,
+                    paddingVertical: spacing.sm,
+                  })}
+                >
+                  <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 13, fontWeight: '700' }}>{editingNoteId ? 'Salvar' : 'Criar'}</Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </View>
+      </Modal>
+
+      {/* Page Preview Modal */}
+      <Modal
+        animationType="fade"
+        navigationBarTranslucent
+        onRequestClose={closePreview}
+        statusBarTranslucent
+        transparent
+        visible={!!previewNote && isEpub}
+      >
+        <View style={{ backgroundColor: 'rgba(0, 0, 0, 0.15)', flex: 1 }}>
+          <Pressable onPress={closePreview} style={{ alignItems: 'center', flex: 1, justifyContent: 'center', padding: spacing.lg }}>
+            <Pressable
+              onPress={(e) => e.stopPropagation()}
+              style={{
+                backgroundColor: epubBackground,
+                borderColor: theme.border,
+                borderRadius: radii.lg,
+                borderWidth: 1,
+                height: previewHeaderHeight + previewFrameHeight + spacing.md * 2,
+                maxHeight: previewCardMaxHeight,
+                overflow: 'hidden',
+                width: previewCardWidth,
+              }}
+            >
+              <View
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: epubTopChrome,
+                  borderBottomColor: theme.border,
+                  borderBottomWidth: 1,
+                  flexDirection: 'row',
+                  height: previewHeaderHeight,
+                  justifyContent: 'space-between',
+                  paddingHorizontal: spacing.md,
+                }}
+              >
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text numberOfLines={1} style={{ color: epubText, fontFamily: serifFont, fontSize: 14, fontWeight: '700' }}>
+                    Página da nota
+                  </Text>
+                  <Text numberOfLines={1} style={{ color: epubMuted, fontFamily: serifFont, fontSize: 11 }}>
+                    {previewNote?.pageNumber ? `Página ${previewNote.pageNumber}` : 'Página salva'}
+                  </Text>
+                </View>
+                <Pressable hitSlop={10} onPress={closePreview} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: spacing.xs })}>
+                  <X color={epubText} size={20} strokeWidth={1.7} />
+                </Pressable>
+              </View>
+
+              {previewNote?.locator.format === 'epub' ? (
+                <View style={{ alignItems: 'center', backgroundColor: epubBackground, flex: 1, justifyContent: 'center', padding: spacing.md }}>
+                  <View
+                    style={{
+                      backgroundColor: epubBackground,
+                      height: previewFrameHeight,
+                      overflow: 'hidden',
+                      width: previewFrameWidth,
+                    }}
+                  >
+                    <View
+                      style={{
+                        height: previewReaderHeight,
+                        left: 0,
+                        position: 'absolute',
+                        top: 0,
+                        transform: [{ scale: previewScale }],
+                        transformOrigin: 'top left',
+                        width: previewReaderWidth,
+                      }}
+                    >
+                      <EpubReader
+                        bookId={`${book.id}-note-preview-${previewNote.id}`}
+                        filePath={book.filePath}
+                        fileSize={book.fileSize}
+                        fontSize={readerSettings.fontSize}
+                        initialLocator={previewNote.locator}
+                        lineHeight={readerSettings.lineHeight}
+                        readOnly
+                        readingPreferences={readingPreferences.preferences}
+                      />
+                    </View>
+                  </View>
+                </View>
+              ) : null}
+            </Pressable>
+          </Pressable>
+        </View>
       </Modal>
     </View>
   );

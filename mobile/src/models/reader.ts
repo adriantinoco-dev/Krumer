@@ -96,3 +96,14 @@ export function parseReaderLocator(value: unknown): ReaderLocator | null {
 export function locatorFingerprint(locator: ReaderLocator) {
   return JSON.stringify(locator);
 }
+
+export type ReaderNote = {
+  id: string;
+  bookId: string;
+  locator: ReaderLocator;
+  pageNumber: number;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+};

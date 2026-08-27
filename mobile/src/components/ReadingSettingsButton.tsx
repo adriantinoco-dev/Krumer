@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable } from 'react-native';
-import { Feather } from 'lucide-react-native';
+import { Type } from 'lucide-react-native';
 import { useApp } from '../context/AppContext';
 
 export function ReadingSettingsButton({ color, onPress }: { color: string; onPress: () => void }) {
@@ -19,7 +19,7 @@ export function ReadingSettingsButton({ color, onPress }: { color: string; onPre
         width: 44,
       })}
     >
-      <Feather color={color} size={20} strokeWidth={1.7} />
+      <Type color={color} size={20} strokeWidth={1.7} />
     </Pressable>
   );
 }

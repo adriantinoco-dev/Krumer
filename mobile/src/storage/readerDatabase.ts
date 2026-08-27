@@ -3,9 +3,14 @@ import {
   parseReaderLocator,
   type ReaderBookmark,
   type ReaderLocator,
+  type ReaderNote,
   type ReaderProgress,
 } from '../models/reader';
-import { READER_DATABASE_MIGRATION_V1, READER_DATABASE_VERSION } from './readerMigrations';
+import {
+  READER_DATABASE_MIGRATION_V1,
+  READER_DATABASE_MIGRATION_V2,
+  READER_DATABASE_VERSION,
+} from './readerMigrations';
 
 const DATABASE_NAME = 'krumer-reader.db';
 
@@ -34,8 +39,19 @@ type BookmarkRow = LocatorRow & {
   deleted_at: number | null;
 };
 
+type NoteRow = LocatorRow & {
+  id: string;
+  book_id: string;
+  page_number: number;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+};
+
 const metrics = {
   bookmarkWrites: 0,
+  noteWrites: 0,
   progressWrites: 0,
 };
 
@@ -48,8 +64,9 @@ async function migrate(database: SQLiteDatabase) {
 
   await database.withExclusiveTransactionAsync(async (transaction) => {
     const insideTransaction = await transaction.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
-    if ((insideTransaction?.user_version ?? 0) >= READER_DATABASE_VERSION) return;
-    await transaction.execAsync(READER_DATABASE_MIGRATION_V1);
+    const version = insideTransaction?.user_version ?? 0;
+    if (version < 1) await transaction.execAsync(READER_DATABASE_MIGRATION_V1);
+    if (version < 2) await transaction.execAsync(READER_DATABASE_MIGRATION_V2);
   });
 }
 
@@ -232,6 +249,105 @@ export async function tombstoneReaderBookmark(id: string) {
     id,
   );
   metrics.bookmarkWrites += 1;
+}
+
+export async function listReaderNotes(
+  bookId: string,
+  format: ReaderLocator['format'],
+): Promise<ReaderNote[]> {
+  const database = await getDatabase();
+  const rows = await database.getAllAsync<NoteRow>(
+    `SELECT * FROM reader_notes
+      WHERE book_id = ? AND format = ? AND deleted_at IS NULL
+      ORDER BY created_at DESC`,
+    bookId,
+    format,
+  );
+  return rows.flatMap((row) => {
+    const locator = rowToLocator(row);
+    return locator ? [{
+      id: row.id,
+      bookId: row.book_id,
+      locator,
+      pageNumber: row.page_number,
+      content: row.content,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      deletedAt: row.deleted_at,
+    }] : [];
+  });
+}
+
+export async function createReaderNote(
+  bookId: string,
+  locator: ReaderLocator,
+  content: string,
+  pageNumber: number,
+): Promise<ReaderNote> {
+  const database = await getDatabase();
+  const columns = locatorColumns(locator);
+  const now = new Date().toISOString();
+  const id = `note-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+  await database.runAsync(
+    `INSERT INTO reader_notes (
+      id, book_id, format, cfi, spine_href, progression_in_section, excerpt,
+      total_progression, page, progression_in_page, page_number, content,
+      created_at, updated_at, deleted_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+    id,
+    bookId,
+    locator.format,
+    columns.cfi,
+    columns.spineHref,
+    columns.progressionInSection,
+    columns.excerpt,
+    columns.totalProgression,
+    columns.page,
+    columns.progressionInPage,
+    Math.max(1, Math.floor(pageNumber)),
+    content,
+    now,
+    now,
+  );
+  metrics.noteWrites += 1;
+  return {
+    id,
+    bookId,
+    locator,
+    pageNumber: Math.max(1, Math.floor(pageNumber)),
+    content,
+    createdAt: now,
+    updatedAt: now,
+    deletedAt: null,
+  };
+}
+
+export async function updateReaderNote(id: string, content: string) {
+  const database = await getDatabase();
+  const updatedAt = new Date().toISOString();
+  await database.runAsync(
+    `UPDATE reader_notes
+      SET content = ?, updated_at = ?
+      WHERE id = ? AND deleted_at IS NULL`,
+    content,
+    updatedAt,
+    id,
+  );
+  metrics.noteWrites += 1;
+}
+
+export async function tombstoneReaderNote(id: string) {
+  const database = await getDatabase();
+  const deletedAt = new Date().toISOString();
+  await database.runAsync(
+    `UPDATE reader_notes
+      SET deleted_at = ?, updated_at = ?
+      WHERE id = ? AND deleted_at IS NULL`,
+    deletedAt,
+    deletedAt,
+    id,
+  );
+  metrics.noteWrites += 1;
 }
 
 export function getReaderPersistenceMetrics() {

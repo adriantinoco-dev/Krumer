@@ -73,7 +73,7 @@ export function BookCard({
   useEffect(() => {
     const target = Math.max(0, Math.min(100, book.progressPct ?? 0));
     const isFirst = prevProgressPctRef.current === null;
-    const prev = isFirst ? 0 : prevProgressPctRef.current;
+    const prev = prevProgressPctRef.current ?? 0;
     prevProgressPctRef.current = target;
 
     const isEntrance = target >= prev;
@@ -169,7 +169,7 @@ export function BookCard({
               {/* Dark track — fades in slower than the orange fill */}
               <Animated.View
                 style={{
-                  backgroundColor: 'rgba(0, 0, 0, 0.15)',
+                  backgroundColor: 'transparent',
                   borderRadius: 4,
                   height: '100%',
                   opacity: bgOpacity,
