@@ -51,6 +51,7 @@ type EpubReaderProps = {
   fontSize?: number;
   initialLocator?: EpubLocator | null;
   lineHeight?: number;
+  marginHorizontal?: number;
   onCenterTap?: () => void;
   onExternalLink?: (url: string) => void;
   onPositionStabilized?: (locator: EpubLocator, source: 'restore' | 'reflow') => void;
@@ -58,6 +59,7 @@ type EpubReaderProps = {
   onViewStatus?: (status: EpubViewStatus) => void;
   readOnly?: boolean;
   readingPreferences?: ReadingPreferences;
+  useBookMargins?: boolean;
 };
 
 export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function EpubReader(
@@ -68,6 +70,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     fontSize = 18,
     initialLocator,
     lineHeight = 1.5,
+    marginHorizontal = 20,
     onCenterTap,
     onExternalLink,
     onPositionStabilized,
@@ -75,6 +78,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     onViewStatus,
     readOnly = false,
     readingPreferences = DEFAULT_READING_PREFERENCES,
+    useBookMargins = true,
   },
   forwardedRef,
 ) {
@@ -113,6 +117,8 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
         ...readingPreferences,
         fontSize,
         lineHeight,
+        marginHorizontal,
+        useBookMargins,
         visualTheme: { backgroundColor: '#202020', linkColor: '#f59a5a', textColor: '#e7e7e7' },
       };
     }
@@ -121,6 +127,8 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
         ...readingPreferences,
         fontSize,
         lineHeight,
+        marginHorizontal,
+        useBookMargins,
         visualTheme: { backgroundColor: '#f4ecd8', linkColor: '#a94f12', textColor: '#3b2f1e' },
       };
     }
@@ -128,9 +136,11 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       ...readingPreferences,
       fontSize,
       lineHeight,
+      marginHorizontal,
+      useBookMargins,
       visualTheme: { backgroundColor: '#ffffff', linkColor: '#c2570a', textColor: '#222222' },
     };
-  }, [fontSize, lineHeight, readingPreferences, theme.name]);
+  }, [fontSize, lineHeight, marginHorizontal, readingPreferences, theme.name, useBookMargins]);
   const appearanceRef = useRef(appearance);
   appearanceRef.current = appearance;
   const visualTheme = appearance.visualTheme;

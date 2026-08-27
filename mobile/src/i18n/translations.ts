@@ -134,6 +134,11 @@ export type TranslationKey =
   | 'reader.fontSize'
   | 'reader.fontSettings'
   | 'reader.fontWeight'
+  | 'reader.layoutSettings'
+  | 'reader.margins'
+  | 'reader.bookMargins'
+  | 'reader.customMargins'
+  | 'reader.horizontalMargin'
   | 'reader.nextPage'
   | 'reader.noBookmarks'
   | 'reader.page'
@@ -322,6 +327,11 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.fontSize': 'Font size',
     'reader.fontSettings': 'Font & theme',
     'reader.fontWeight': 'Font weight',
+    'reader.layoutSettings': 'Spacing & margins',
+    'reader.margins': 'Margins',
+    'reader.bookMargins': 'Book',
+    'reader.customMargins': 'My margins',
+    'reader.horizontalMargin': 'Horizontal margin',
     'reader.nextPage': 'Next page',
     'reader.noBookmarks': 'No bookmarks yet.',
     'reader.page': 'Page',
@@ -500,6 +510,11 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.fontSize': 'Tamanho da fonte',
     'reader.fontSettings': 'Fonte e tema',
     'reader.fontWeight': 'Peso da fonte',
+    'reader.layoutSettings': 'Espaçamento e margens',
+    'reader.margins': 'Margens',
+    'reader.bookMargins': 'Livro',
+    'reader.customMargins': 'Minhas margens',
+    'reader.horizontalMargin': 'Margem horizontal',
     'reader.nextPage': 'Próxima página',
     'reader.noBookmarks': 'Nenhum marcador ainda.',
     'reader.page': 'Página',
@@ -678,6 +693,11 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.fontSize': 'Tamaño de fuente',
     'reader.fontSettings': 'Fuente y tema',
     'reader.fontWeight': 'Peso de fuente',
+    'reader.layoutSettings': 'Espaciado y márgenes',
+    'reader.margins': 'Márgenes',
+    'reader.bookMargins': 'Libro',
+    'reader.customMargins': 'Mis márgenes',
+    'reader.horizontalMargin': 'Margen horizontal',
     'reader.nextPage': 'Página siguiente',
     'reader.noBookmarks': 'Aún no hay marcadores.',
     'reader.page': 'Página',

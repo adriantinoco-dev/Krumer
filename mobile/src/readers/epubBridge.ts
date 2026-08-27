@@ -26,6 +26,8 @@ export type EpubVisualTheme = {
 export type EpubAppearance = ReadingPreferences & {
   fontSize: number;
   lineHeight: number;
+  marginHorizontal: number;
+  useBookMargins: boolean;
   visualTheme: EpubVisualTheme;
 };
 

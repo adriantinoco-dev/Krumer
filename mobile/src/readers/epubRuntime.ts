@@ -85,7 +85,9 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
         };
         var readerLayout = {
           displayMode: 'paginated',
-          doubleColumn: false
+          doubleColumn: false,
+          marginHorizontal: 20,
+          useBookMargins: true
         };
 
         function eventId() {
@@ -155,6 +157,11 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             && Number.isFinite(value.lineHeight)
             && value.lineHeight >= 1
             && value.lineHeight <= 2.4
+            && typeof value.useBookMargins === 'boolean'
+            && typeof value.marginHorizontal === 'number'
+            && Number.isFinite(value.marginHorizontal)
+            && value.marginHorizontal >= 0
+            && value.marginHorizontal <= 48
             && (value.fontFamily === 'serif' || value.fontFamily === 'sans' || value.fontFamily === 'mono')
             && (value.fontWeight === 'light' || value.fontWeight === 'regular' || value.fontWeight === 'medium' || value.fontWeight === 'bold')
             && (value.displayMode === 'scroll' || value.displayMode === 'paginated')
@@ -198,7 +205,8 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             typography.fontFamily,
             typography.fontWeight,
             typography.fontSize,
-            typography.lineHeight
+            typography.lineHeight,
+            readerLayout.useBookMargins ? 'book-margins' : readerLayout.marginHorizontal
           ].join('|');
         }
 
@@ -207,17 +215,22 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             typography.fontFamily,
             typography.fontWeight,
             typography.fontSize,
-            typography.lineHeight
+            typography.lineHeight,
+            readerLayout.useBookMargins ? 'book-margins' : readerLayout.marginHorizontal
           ].join('|');
         }
 
         function readerStyleText() {
           var textSelectors = 'body, p, div, span, li, blockquote, td, th, h1, h2, h3, h4, h5, h6, a, em, strong, b, i, cite, figcaption';
+          var lineHeightRule = readerLayout.useBookMargins
+            ? ''
+            : ' line-height: ' + typography.lineHeight + ' !important;';
           return [
             fontFaceStyleText(),
             'html, body { background: ' + visualTheme.backgroundColor + ' !important; color: ' + visualTheme.textColor + ' !important; }',
-            textSelectors + ' { font-family: ' + fontFamilyCss() + ' !important; font-weight: ' + fontWeightCss() + ' !important; }',
-            'body { font-size: ' + typography.fontSize + 'px !important; line-height: ' + typography.lineHeight + ' !important; margin: 0 !important; padding: 0 !important; }',
+            textSelectors + ' { font-family: ' + fontFamilyCss() + ' !important; font-weight: ' + fontWeightCss()
+              + ' !important;' + lineHeightRule + ' }',
+            'body { font-size: ' + typography.fontSize + 'px !important; }',
             'a { color: ' + visualTheme.linkColor + ' !important; }',
             'p { hyphens: auto; text-align: justify; }',
             'img, svg, video { max-width: 100% !important; height: auto !important; }'
@@ -270,7 +283,6 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           var body = doc.body;
           if (body && body.style && typeof body.style.setProperty === 'function') {
             body.style.setProperty('font-size', String(typography.fontSize) + 'px', 'important');
-            body.style.setProperty('line-height', String(typography.lineHeight), 'important');
           }
         }
 
@@ -347,7 +359,9 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           };
           readerLayout = {
             displayMode: appearance.displayMode,
-            doubleColumn: appearance.doubleColumn
+            doubleColumn: appearance.doubleColumn,
+            marginHorizontal: appearance.marginHorizontal,
+            useBookMargins: appearance.useBookMargins
           };
           applyVisualTheme(theme);
           refreshReaderAppearance();

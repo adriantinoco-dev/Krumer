@@ -111,10 +111,11 @@ export function BookCardContinue({
           {progressPct > 1 && progressPct <= 100 && (
             <View
               style={{
-                backgroundColor: 'transparent',
+                borderRadius: 4,
                 bottom: 0,
                 height: 6,
                 left: 0,
+                overflow: 'hidden',
                 position: 'absolute',
                 right: 0,
               }}

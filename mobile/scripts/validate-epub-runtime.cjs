@@ -332,6 +332,8 @@ async function main() {
         fontFamily: 'serif',
         fontWeight: 'regular',
         lineHeight: 1.5,
+        marginHorizontal: 16,
+        useBookMargins: true,
         visualTheme: { backgroundColor: '#202020', linkColor: '#f59a5a', textColor: '#e7e7e7' },
       },
     },
@@ -585,6 +587,8 @@ async function main() {
         fontFamily: 'sans',
         fontWeight: 'bold',
         lineHeight: 1.8,
+        marginHorizontal: 24,
+        useBookMargins: false,
         visualTheme: { backgroundColor: '#f4ecd8', linkColor: '#a94f12', textColor: '#3b2f1e' },
       },
     },
@@ -628,6 +632,8 @@ async function main() {
         fontFamily: 'mono',
         fontWeight: 'medium',
         lineHeight: 1.8,
+        marginHorizontal: 16,
+        useBookMargins: true,
         visualTheme: { backgroundColor: '#202020', linkColor: '#f59a5a', textColor: '#e7e7e7' },
       },
     },
@@ -636,7 +642,9 @@ async function main() {
   if (renditionConfigs.at(-1).flow !== 'paginated' || renditionConfigs.at(-1).spread !== 'none') {
     throw new Error('Portrait mode did not recreate the paginated manager with a single-column spread.');
   }
-
+  if (chapter.document.__krumerVisualStyle.textContent.includes('line-height:')) {
+    throw new Error('Book layout did not remove the custom line-height override.');
+  }
   const renderCountBeforeRotation = renditionConfigs.length;
   const destroyCountBeforeRotation = renditionDestroyCount;
   const replaceCountBeforeRotation = viewerReplaceCount;
@@ -681,6 +689,8 @@ async function main() {
         fontFamily: 'serif',
         fontWeight: 'bold',
         lineHeight: 2,
+        marginHorizontal: 16,
+        useBookMargins: true,
         visualTheme: { backgroundColor: '#202020', linkColor: '#f59a5a', textColor: '#e7e7e7' },
       },
     },

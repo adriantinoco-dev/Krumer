@@ -7,6 +7,8 @@ import { Anchor, ArrowLeft, Bookmark, BookmarkPlus, Feather, ListTree, Settings,
 import * as Brightness from 'expo-brightness';
 import { ReadingSettingsButton } from '../components/ReadingSettingsButton';
 import { ReadingSettingsModal } from '../components/ReadingSettingsModal';
+import { LayoutSettingsButton } from '../components/LayoutSettingsButton';
+import { LayoutSettingsModal } from '../components/LayoutSettingsModal';
 import { PaginationSettingsButton } from '../components/PaginationSettingsButton';
 import { PaginationSettingsModal } from '../components/PaginationSettingsModal';
 import { EpubReader, type EpubReaderHandle } from '../readers/EpubReader';
@@ -16,9 +18,11 @@ import { useEpubPersistence } from '../readers/useEpubPersistence';
 import { useEpubNotes } from '../readers/useEpubNotes';
 import { useOrientation } from '../readers/useOrientation';
 import { useReadingPreferences } from '../readers/useReadingPreferences';
+import { useReaderLayoutSettings } from '../readers/useReaderLayoutSettings';
 import { ThemeCard } from '../components/ThemeCard';
 import { useApp } from '../context/AppContext';
 import type { EpubLocator, ReaderNote } from '../models/reader';
+import { DEFAULT_READER_LAYOUT_SETTINGS } from '../models/readerLayoutSettings';
 import type { RootStackParamList } from '../navigation/types';
 import { radii, serifFont, spacing, type ThemeName } from '../theme';
 
@@ -61,6 +65,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const windowDimensions = useWindowDimensions();
   const readingPreferences = useReadingPreferences(isEpub);
+  const readerLayout = useReaderLayoutSettings(isEpub);
   const { isLandscape } = useOrientation(isEpub ? readingPreferences.preferences.orientation : 'free');
   const [progress, setProgress] = useState((book.progressPct ?? 0) / 100);
   const [savedPosition, setSavedPosition] = useState<string | null>(book.progress);
@@ -69,6 +74,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const [bookmarkBusy, setBookmarkBusy] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [paginationSettingsVisible, setPaginationSettingsVisible] = useState(false);
+  const [layoutSettingsVisible, setLayoutSettingsVisible] = useState(false);
   const [currentPage, setCurrentPage] = useState(book.currentPage ?? 1);
   const [totalPages, setTotalPages] = useState(book.totalPages ?? 0);
   const [epubViewStatus, setEpubViewStatus] = useState<EpubViewStatus | null>(null);
@@ -105,10 +111,13 @@ export function ReaderScreen({ navigation, route }: Props) {
   const epubText = theme.name === 'dark' ? '#e7e7e7' : theme.name === 'sepia' ? '#3b2f1e' : '#222222';
   const epubMuted = theme.name === 'dark' ? '#a2a2a2' : theme.name === 'sepia' ? '#796c52' : '#6f6f6f';
   const epubTopChrome = theme.name === 'dark' ? '#202020' : theme.name === 'sepia' ? '#f4ecd8' : '#ffffff';
+  const epubHorizontalMargin = readerLayout.settings.useBookMargins
+    ? DEFAULT_READER_LAYOUT_SETTINGS.marginHorizontal
+    : readerLayout.settings.marginHorizontal;
   const previewCardWidth = Math.max(1, Math.min(windowDimensions.width - spacing.lg * 2, 520));
   const previewCardMaxHeight = Math.max(1, windowDimensions.height * 0.88);
   const previewHeaderHeight = 54;
-  const previewReaderWidth = Math.max(1, windowDimensions.width - 48);
+  const previewReaderWidth = Math.max(1, windowDimensions.width - epubHorizontalMargin * 2);
   const previewReaderHeight = Math.max(
     1,
     windowDimensions.height
@@ -492,6 +501,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   }
 
   const progressPercent = Math.round(progress * 100);
+  const hasReadyPageCount = epubViewStatus?.paginationState === 'ready' && currentPage > 0 && totalPages > 0;
 
   return (
     <View style={{ backgroundColor: theme.bg, flex: 1 }}>
@@ -511,11 +521,11 @@ export function ReaderScreen({ navigation, route }: Props) {
             backgroundColor: epubBackground,
             flex: 1,
             paddingBottom: Math.max(insets.bottom, 0) + 48,
-            paddingHorizontal: 24,
+            paddingHorizontal: epubHorizontalMargin,
             paddingTop: Math.max(insets.top, 0) + EPUB_CONTENT_TOP_OFFSET,
           }}
         >
-          {epubPersistence.hydrated && readingPreferences.hydrated ? (
+          {epubPersistence.hydrated && readingPreferences.hydrated && readerLayout.hydrated ? (
             <EpubReader
               ref={epubReaderRef}
               bookId={book.id}
@@ -524,11 +534,13 @@ export function ReaderScreen({ navigation, route }: Props) {
               fontSize={readerSettings.fontSize}
               initialLocator={epubPersistence.initialLocator}
               lineHeight={readerSettings.lineHeight}
+              marginHorizontal={readerLayout.settings.marginHorizontal}
               onCenterTap={toggleBars}
               onPositionStabilized={handleEpubPositionStabilized}
               onRelocate={handleEpubRelocate}
               onViewStatus={handleEpubViewStatus}
               readingPreferences={readingPreferences.preferences}
+              useBookMargins={readerLayout.settings.useBookMargins}
               onExternalLink={(url) => {
                 Linking.openURL(url).catch((caught: unknown) => {
                   console.warn('[Krumer ReaderScreen] falha ao abrir link externo', caught);
@@ -564,21 +576,32 @@ export function ReaderScreen({ navigation, route }: Props) {
         </View>
       ) : null}
 
-      {isEpub && totalPages > 0 ? (
-        <View pointerEvents="none" style={{ bottom: 0, left: 0, position: 'absolute', right: 0, top: 0 }}>
+      {isEpub ? (
+        <View
+          pointerEvents="none"
+          style={{
+            bottom: 0,
+            elevation: 90,
+            left: 0,
+            position: 'absolute',
+            right: 0,
+            top: 0,
+            zIndex: 90,
+          }}
+        >
           <Text
             numberOfLines={1}
             style={{
               color: epubMuted,
               fontFamily: serifFont,
-              fontSize: 12,
+              fontSize: 14,
               opacity: 0.68,
               position: 'absolute',
-              bottom: Math.max(insets.bottom, 0) + 36,
-              right: Math.max(insets.right, 0) + 16,
+              bottom: Math.max(insets.bottom, 0) + 16,
+              right: Math.max(insets.right, 0) + 32,
             }}
           >
-            {currentPage} / {totalPages}
+            {hasReadyPageCount ? `${currentPage} / ${totalPages}` : '- / -'}
           </Text>
         </View>
       ) : null}
@@ -852,7 +875,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         </Animated.View>
       )}
 
-      {/* Bottom bar EPUB - Tópicos (esquerda) e Brilho (direita) */}
+      {/* Bottom bar EPUB - Tópicos, layout e brilho */}
       {isEpub && (
         <Animated.View
           onTouchStart={scheduleHide}
@@ -862,6 +885,7 @@ export function ReaderScreen({ navigation, route }: Props) {
             borderTopColor: theme.border,
             borderTopWidth: 1,
             bottom: 0,
+            elevation: 100,
             left: 0,
             opacity,
             paddingBottom: Math.max(insets.bottom, scaleEpubChrome(12)) + scaleEpubChrome(spacing.xs),
@@ -870,6 +894,7 @@ export function ReaderScreen({ navigation, route }: Props) {
             paddingTop: scaleEpubChrome(spacing.sm),
             position: 'absolute',
             right: 0,
+            zIndex: 100,
           }}
         >
           <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: scaleEpubChrome(44) }}>
@@ -886,6 +911,14 @@ export function ReaderScreen({ navigation, route }: Props) {
             >
               <ListTree color={epubText} size={24} strokeWidth={1.9} />
             </Pressable>
+
+            <LayoutSettingsButton
+              color={epubText}
+              onPress={() => {
+                if (hideTimer.current) clearTimeout(hideTimer.current);
+                setLayoutSettingsVisible(true);
+              }}
+            />
 
             <Pressable
               accessibilityLabel="Brilho"
@@ -1209,17 +1242,13 @@ export function ReaderScreen({ navigation, route }: Props) {
         fontSize={readerSettings.fontSize}
         fontSizeMax={FONT_SIZE_MAX}
         fontSizeMin={FONT_SIZE_MIN}
-        lineHeight={readerSettings.lineHeight}
-        lineHeightMax={LINE_HEIGHT_MAX}
-        lineHeightMin={LINE_HEIGHT_MIN}
         onChangeFontSize={changeFontSize}
-        onChangeLineHeight={changeLineHeight}
         onClose={() => {
           setSettingsVisible(false);
           scheduleHide();
         }}
         onReset={() => {
-          const defaults = { fontSize: FONT_SIZE_DEFAULT, lineHeight: LINE_HEIGHT_DEFAULT };
+          const defaults = { ...readerSettings, fontSize: FONT_SIZE_DEFAULT };
           setReaderSettings(defaults);
           void saveReaderSettings(defaults);
           readingPreferences.updatePreferences({
@@ -1241,6 +1270,28 @@ export function ReaderScreen({ navigation, route }: Props) {
         onUpdatePreferences={readingPreferences.updatePreferences}
         preferences={readingPreferences.preferences}
         visible={paginationSettingsVisible && isEpub}
+      />
+
+      <LayoutSettingsModal
+        lineHeight={readerSettings.lineHeight}
+        lineHeightMax={LINE_HEIGHT_MAX}
+        lineHeightMin={LINE_HEIGHT_MIN}
+        onChangeLineHeight={changeLineHeight}
+        onClose={() => {
+          setLayoutSettingsVisible(false);
+          scheduleHide();
+        }}
+        onReset={() => {
+          readerLayout.resetSettings();
+          setReaderSettings((previous) => {
+            const next = { ...previous, lineHeight: LINE_HEIGHT_DEFAULT };
+            void saveReaderSettings(next);
+            return next;
+          });
+        }}
+        onUpdateSettings={readerLayout.updateSettings}
+        settings={readerLayout.settings}
+        visible={layoutSettingsVisible && isEpub}
       />
 
       {/* PDF settings modal */}
@@ -1710,8 +1761,10 @@ export function ReaderScreen({ navigation, route }: Props) {
                         fontSize={readerSettings.fontSize}
                         initialLocator={previewNote.locator}
                         lineHeight={readerSettings.lineHeight}
+                        marginHorizontal={readerLayout.settings.marginHorizontal}
                         readOnly
                         readingPreferences={readingPreferences.preferences}
+                        useBookMargins={readerLayout.settings.useBookMargins}
                       />
                     </View>
                   </View>

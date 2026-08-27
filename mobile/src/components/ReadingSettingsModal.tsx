@@ -1,6 +1,6 @@
 import React from 'react';
 import { Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
-import { Minus, Plus, Type, X } from 'lucide-react-native';
+import { Type, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
 import type { ReadingPreferences } from '../models/readingPreferences';
@@ -14,13 +14,9 @@ type Props = {
   fontSize: number;
   fontSizeMax: number;
   fontSizeMin: number;
-  lineHeight: number;
-  lineHeightMax: number;
-  lineHeightMin: number;
   preferences: ReadingPreferences;
   visible: boolean;
   onChangeFontSize: (delta: number) => void;
-  onChangeLineHeight: (delta: number) => void;
   onClose: () => void;
   onReset: () => void;
   onUpdatePreferences: (patch: Partial<ReadingPreferences>) => void;
@@ -39,13 +35,9 @@ export function ReadingSettingsModal({
   fontSize,
   fontSizeMax,
   fontSizeMin,
-  lineHeight,
-  lineHeightMax,
-  lineHeightMin,
   preferences: readingPreferences,
   visible,
   onChangeFontSize,
-  onChangeLineHeight,
   onClose,
   onReset,
   onUpdatePreferences,
@@ -139,38 +131,6 @@ export function ReadingSettingsModal({
                     })}
                   >
                     <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 20, fontWeight: '700' }}>A</Text>
-                  </Pressable>
-                </View>
-              </View>
-
-              <View style={{ gap: spacing.sm }}>
-                <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <SectionTitle>{t('reader.spacing')}</SectionTitle>
-                  <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12 }}>{lineHeight.toFixed(1)}</Text>
-                </View>
-                <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
-                  <Pressable
-                    disabled={lineHeight <= lineHeightMin}
-                    onPress={() => onChangeLineHeight(-0.2)}
-                    style={({ pressed }) => ({
-                      alignItems: 'center', backgroundColor: theme.surface, borderColor: theme.border, borderRadius: radii.sm,
-                      borderWidth: 1, height: 36, justifyContent: 'center', opacity: pressed ? 0.6 : lineHeight <= lineHeightMin ? 0.3 : 1, width: 36,
-                    })}
-                  >
-                    <Minus color={theme.textPrimary} size={16} />
-                  </Pressable>
-                  <View style={{ backgroundColor: theme.border, borderRadius: radii.sm, flex: 1, height: 6, overflow: 'hidden' }}>
-                    <View style={{ backgroundColor: theme.accent, borderRadius: radii.sm, height: '100%', width: `${((lineHeight - lineHeightMin) / (lineHeightMax - lineHeightMin)) * 100}%` }} />
-                  </View>
-                  <Pressable
-                    disabled={lineHeight >= lineHeightMax}
-                    onPress={() => onChangeLineHeight(0.2)}
-                    style={({ pressed }) => ({
-                      alignItems: 'center', backgroundColor: theme.surface, borderColor: theme.border, borderRadius: radii.sm,
-                      borderWidth: 1, height: 36, justifyContent: 'center', opacity: pressed ? 0.6 : lineHeight >= lineHeightMax ? 0.3 : 1, width: 36,
-                    })}
-                  >
-                    <Plus color={theme.textPrimary} size={16} />
                   </Pressable>
                 </View>
               </View>
