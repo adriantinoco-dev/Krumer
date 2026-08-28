@@ -508,7 +508,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
                   }}
                 >
                   <Check color={accentColor} size={20} strokeWidth={2.5} />
-                  <Text style={{ color: accentColor, fontFamily: serifFont, fontSize: 15, fontWeight: '600' }}>
+                  <Text style={{ color: accentColor, fontFamily: serifFont, fontSize: 15, fontWeight: 'bold' }}>
                     {t('details.markAsRead')}
                   </Text>
                 </Pressable>
@@ -532,7 +532,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
                   }}
                 >
                   <Check color={theme.textPrimary} size={20} strokeWidth={2.5} />
-                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 15, fontWeight: '600' }}>
+                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 15, fontWeight: 'bold' }}>
                     {t('details.markAsUnread')}
                   </Text>
                 </Pressable>

@@ -229,7 +229,7 @@ export function BookListModal({ book, visible, onClose }: Props) {
                   })}
                 >
                   <BookOpen color={theme.accent} size={18} />
-                  <Text style={{ color: theme.accent, fontFamily: serifFont, fontSize: 13, fontWeight: '600', textAlign: 'center' }}>
+                  <Text style={{ color: theme.accent, fontFamily: serifFont, fontSize: 13, fontWeight: 'bold', textAlign: 'center' }}>
                     {t('details.markAsRead')}
                   </Text>
                 </Pressable>
@@ -249,7 +249,7 @@ export function BookListModal({ book, visible, onClose }: Props) {
                   })}
                 >
                   <BookOpen color={theme.textSecondary} size={18} />
-                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 13, fontWeight: '600', textAlign: 'center' }}>
+                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 13, fontWeight: 'bold', textAlign: 'center' }}>
                     {t('details.markAsUnread')}
                   </Text>
                 </Pressable>

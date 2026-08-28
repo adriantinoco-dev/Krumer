@@ -37,6 +37,7 @@ const LINE_HEIGHT_DEFAULT = 1.5;
 const HIDE_DELAY = 4000;
 const EPUB_CONTENT_VERTICAL_OFFSET = 26;
 const EPUB_CHROME_VERTICAL_SCALE = 0.6;
+const EPUB_TOP_BAR_SIDE_WIDTH = 132;
 const READER_SETTINGS_KEY = 'krumer.reader.settings';
 
 function scaleEpubChrome(value: number) {
@@ -90,6 +91,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const [brightnessSupported, setBrightnessSupported] = useState(true);
   const [notesVisible, setNotesVisible] = useState(false);
   const [selectedNote, setSelectedNote] = useState<ReaderNote | null>(null);
+  const [noteToDelete, setNoteToDelete] = useState<ReaderNote | null>(null);
   const [previewNote, setPreviewNote] = useState<ReaderNote | null>(null);
   const [detailVisible, setDetailVisible] = useState(false);
   const [editorVisible, setEditorVisible] = useState(false);
@@ -281,13 +283,20 @@ export function ReaderScreen({ navigation, route }: Props) {
     closeEditor();
   }, [noteDraft, editingNoteId, epubPersistence.currentLocator, epubViewStatus?.currentPage, epubNotes, closeEditor]);
 
-  const handleDeleteNote = useCallback(async (id: string) => {
+  const requestDeleteNote = useCallback((note: ReaderNote) => {
+    setNoteToDelete(note);
+  }, []);
+
+  const handleDeleteNote = useCallback(async () => {
+    if (!noteToDelete) return;
+    const id = noteToDelete.id;
     await epubNotes.removeNote(id);
     if (selectedNote?.id === id) {
       setDetailVisible(false);
       setSelectedNote(null);
     }
-  }, [epubNotes, selectedNote?.id]);
+    setNoteToDelete(null);
+  }, [epubNotes, noteToDelete, selectedNote?.id]);
 
   function setBars(visible: boolean) {
     if (!visible && hideTimer.current) {
@@ -648,6 +657,7 @@ export function ReaderScreen({ navigation, route }: Props) {
               zIndex: 101,
             }}
           >
+            <View style={{ flexDirection: 'row' }}>
             <Pressable
               accessibilityLabel={t('reader.addBookmark')}
               disabled={!epubPersistence.currentLocator || bookmarkBusy}
@@ -690,19 +700,25 @@ export function ReaderScreen({ navigation, route }: Props) {
                 strokeWidth={1.7}
               />
             </Pressable>
+            </View>
             <Text
               numberOfLines={1}
               style={{
                 color: epubMuted,
-                flex: 1,
                 fontFamily: serifFont,
                 fontSize: 12,
-                marginHorizontal: spacing.sm,
+                height: scaleEpubChrome(40),
+                includeFontPadding: false,
+                left: EPUB_TOP_BAR_SIDE_WIDTH,
+                position: 'absolute',
+                right: EPUB_TOP_BAR_SIDE_WIDTH,
                 textAlign: 'center',
+                textAlignVertical: 'center',
               }}
             >
               {book.title}
             </Text>
+            <View style={{ flexDirection: 'row', marginLeft: 'auto' }}>
             <ReadingSettingsButton
               color={epubText}
               onPress={() => {
@@ -731,6 +747,7 @@ export function ReaderScreen({ navigation, route }: Props) {
             >
               <X color={epubText} size={20} strokeWidth={1.7} />
             </Pressable>
+            </View>
           </View>
         ) : (
           <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.md }}>
@@ -1426,7 +1443,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                           </View>
                           <Pressable
                             hitSlop={8}
-                            onPress={(e) => { e.stopPropagation(); void handleDeleteNote(note.id); }}
+                            onPress={(e) => { e.stopPropagation(); requestDeleteNote(note); }}
                             style={({ pressed }) => ({ opacity: pressed ? 0.55 : 1, padding: spacing.xs })}
                           >
                             <Trash2 color={theme.textMuted} size={16} />
@@ -1549,7 +1566,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                   <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 13, fontWeight: '600' }}>Editar</Text>
                 </Pressable>
                 <Pressable
-                  onPress={() => selectedNote && handleDeleteNote(selectedNote.id)}
+                  onPress={() => selectedNote && requestDeleteNote(selectedNote)}
                   style={({ pressed }) => ({
                     alignItems: 'center',
                     backgroundColor: pressed ? '#991b1b' : '#dc2626',
@@ -1560,6 +1577,69 @@ export function ReaderScreen({ navigation, route }: Props) {
                   })}
                 >
                   <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 13, fontWeight: '700' }}>Excluir</Text>
+                </Pressable>
+              </View>
+            </Pressable>
+          </Pressable>
+        </View>
+      </Modal>
+
+      {/* Delete Note Confirmation Modal */}
+      <Modal
+        animationType="fade"
+        navigationBarTranslucent
+        onRequestClose={() => setNoteToDelete(null)}
+        statusBarTranslucent
+        transparent
+        visible={!!noteToDelete}
+      >
+        <View style={{ backgroundColor: 'rgba(0, 0, 0, 0.48)', flex: 1 }}>
+          <Pressable onPress={() => setNoteToDelete(null)} style={{ alignItems: 'center', flex: 1, justifyContent: 'center', padding: spacing.lg }}>
+            <Pressable
+              onPress={(e) => e.stopPropagation()}
+              style={{
+                backgroundColor: theme.card,
+                borderColor: theme.border,
+                borderRadius: radii.lg,
+                borderWidth: 1,
+                maxWidth: 480,
+                paddingHorizontal: spacing.lg,
+                paddingVertical: spacing.xl,
+                width: '94%',
+              }}
+            >
+              <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 18, fontWeight: '700' }}>
+                {t('reader.deleteNote')}
+              </Text>
+              <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 14, lineHeight: 20, marginTop: spacing.sm }}>
+                {t('reader.deleteNoteConfirm')}
+              </Text>
+              <View style={{ flexDirection: 'row', gap: spacing.sm, justifyContent: 'flex-end', marginTop: spacing.lg }}>
+                <Pressable
+                  onPress={() => setNoteToDelete(null)}
+                  style={({ pressed }) => ({
+                    backgroundColor: pressed ? theme.border : theme.surface,
+                    borderColor: theme.border,
+                    borderRadius: radii.sm,
+                    borderWidth: 1,
+                    opacity: pressed ? 0.8 : 1,
+                    paddingHorizontal: spacing.md,
+                    paddingVertical: spacing.sm,
+                  })}
+                >
+                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 13, fontWeight: '600' }}>{t('common.cancel')}</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => { void handleDeleteNote(); }}
+                  style={({ pressed }) => ({
+                    backgroundColor: pressed ? '#991b1b' : '#dc2626',
+                    borderRadius: radii.sm,
+                    opacity: pressed ? 0.85 : 1,
+                    paddingHorizontal: spacing.md,
+                    paddingVertical: spacing.sm,
+                  })}
+                >
+                  <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 13, fontWeight: '700' }}>{t('common.delete')}</Text>
                 </Pressable>
               </View>
             </Pressable>

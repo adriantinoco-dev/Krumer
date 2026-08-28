@@ -123,6 +123,8 @@ export type TranslationKey =
   | 'reader.doubleColumn'
   | 'reader.doubleColumnShort'
   | 'reader.doubleColumnPortraitHint'
+  | 'reader.deleteNote'
+  | 'reader.deleteNoteConfirm'
   | 'reader.fontBold'
   | 'reader.fontFamily'
   | 'reader.fontLight'
@@ -316,6 +318,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.doubleColumn': 'Two-page spread in landscape',
     'reader.doubleColumnShort': 'Double',
     'reader.doubleColumnPortraitHint': 'It will switch to two columns when the device is in landscape.',
+    'reader.deleteNote': 'Delete note',
+    'reader.deleteNoteConfirm': 'Are you sure you want to delete this note?',
     'reader.fontBold': 'Bold',
     'reader.fontFamily': 'Font family',
     'reader.fontLight': 'Light',
@@ -499,6 +503,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.doubleColumn': 'Duas páginas em modo paisagem',
     'reader.doubleColumnShort': 'Dupla',
     'reader.doubleColumnPortraitHint': 'As duas colunas serão aplicadas ao girar o dispositivo para a horizontal.',
+    'reader.deleteNote': 'Excluir nota',
+    'reader.deleteNoteConfirm': 'Tem certeza que deseja excluir esta nota?',
     'reader.fontBold': 'Negrito',
     'reader.fontFamily': 'Família da fonte',
     'reader.fontLight': 'Leve',
@@ -682,6 +688,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.doubleColumn': 'Dos páginas en horizontal',
     'reader.doubleColumnShort': 'Doble',
     'reader.doubleColumnPortraitHint': 'Las dos columnas se aplicarán al girar el dispositivo a horizontal.',
+    'reader.deleteNote': 'Eliminar nota',
+    'reader.deleteNoteConfirm': '¿Estás seguro de que deseas eliminar esta nota?',
     'reader.fontBold': 'Negrita',
     'reader.fontFamily': 'Familia tipográfica',
     'reader.fontLight': 'Ligera',
