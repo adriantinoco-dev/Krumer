@@ -112,6 +112,9 @@ export function BookDetailScreen({ navigation, route }: Props) {
 
   const animatedProgress = useRef(new Animated.Value(0)).current;
   const prevProgressPctRef = useRef<number | null>(null);
+  const progressPct = Math.max(0, Math.min(100, book.progressPct ?? 0));
+  const isBookRead = book.isRead || (book.progressPct ?? 0) >= 100;
+  const hasPartialProgress = progressPct > 0 && progressPct < 100;
 
   useEffect(() => {
     const target = Math.max(0, Math.min(100, book.progressPct ?? 0));
@@ -127,12 +130,10 @@ export function BookDetailScreen({ navigation, route }: Props) {
     }).start();
   }, [book.id, book.progressPct]);
 
-  const handleToggleRead = async () => {
-    const nextIsRead = !book.isRead;
-    const nextProgressPct = nextIsRead ? 100 : 0;
+  const handleSetRead = async (nextIsRead: boolean) => {
     await updateBookProgress(book.id, {
       isRead: nextIsRead,
-      progressPct: nextProgressPct,
+      progressPct: nextIsRead ? 100 : 0,
     });
   };
 
@@ -487,34 +488,56 @@ export function BookDetailScreen({ navigation, route }: Props) {
               </Text>
             </Pressable>
 
-            {/* Mark as Read Secondary Button */}
-            <Pressable
-              onPress={() => { void handleToggleRead(); }}
-              style={{
-                alignItems: 'center',
-                backgroundColor: theme.card,
-                borderColor: theme.border,
-                borderRadius: 14,
-                borderWidth: 1,
-                flexDirection: 'row',
-                height: 52,
-                justifyContent: 'center',
-                width: '100%',
-                gap: spacing.xs,
-              }}
-            >
-              <Check color={book.isRead ? accentColor : theme.textPrimary} size={20} strokeWidth={2.5} />
-              <Text
-                style={{
-                  color: book.isRead ? accentColor : theme.textPrimary,
-                  fontFamily: serifFont,
-                  fontSize: 15,
-                  fontWeight: '600',
-                }}
-              >
-                {book.isRead ? t('details.markAsUnread') : t('details.markAsRead')}
-              </Text>
-            </Pressable>
+            {/* Reading status actions */}
+            <View style={{ flexDirection: hasPartialProgress ? 'row' : 'column', gap: spacing.sm }}>
+              {hasPartialProgress || !isBookRead ? (
+                <Pressable
+                  onPress={() => { void handleSetRead(true); }}
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: theme.card,
+                    borderColor: theme.border,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    flex: hasPartialProgress ? 1 : undefined,
+                    flexDirection: 'row',
+                    height: 52,
+                    justifyContent: 'center',
+                    width: hasPartialProgress ? undefined : '100%',
+                    gap: spacing.xs,
+                  }}
+                >
+                  <Check color={accentColor} size={20} strokeWidth={2.5} />
+                  <Text style={{ color: accentColor, fontFamily: serifFont, fontSize: 15, fontWeight: '600' }}>
+                    {t('details.markAsRead')}
+                  </Text>
+                </Pressable>
+              ) : null}
+
+              {hasPartialProgress || isBookRead ? (
+                <Pressable
+                  onPress={() => { void handleSetRead(false); }}
+                  style={{
+                    alignItems: 'center',
+                    backgroundColor: theme.card,
+                    borderColor: theme.border,
+                    borderRadius: 14,
+                    borderWidth: 1,
+                    flex: hasPartialProgress ? 1 : undefined,
+                    flexDirection: 'row',
+                    height: 52,
+                    justifyContent: 'center',
+                    width: hasPartialProgress ? undefined : '100%',
+                    gap: spacing.xs,
+                  }}
+                >
+                  <Check color={theme.textPrimary} size={20} strokeWidth={2.5} />
+                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 15, fontWeight: '600' }}>
+                    {t('details.markAsUnread')}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
           </View>
 
           {/* Metadata Info Card Grid (Publicado / Páginas or Tamanho) */}

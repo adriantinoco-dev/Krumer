@@ -118,11 +118,12 @@ export function BookListModal({ book, visible, onClose }: Props) {
     void toggleBookInList(listId, activeBook.fingerprint);
   };
 
-  const isBookRead = activeBook.isRead || (activeBook.progressPct ?? 0) >= 100;
-  const handleToggleRead = () => {
+  const progressPct = Math.max(0, Math.min(100, activeBook.progressPct ?? 0));
+  const isBookRead = activeBook.isRead || progressPct >= 100;
+  const hasPartialProgress = progressPct > 0 && progressPct < 100;
+  const handleSetRead = (nextIsRead: boolean) => {
     onCloseRef.current();
     const id = activeBook.id;
-    const nextIsRead = !isBookRead;
     setTimeout(() => {
       void updateBookProgress(id, { isRead: nextIsRead, progressPct: nextIsRead ? 100 : 0 });
     }, 200);
@@ -209,36 +210,78 @@ export function BookListModal({ book, visible, onClose }: Props) {
           </Text>
 
           <ScrollView bounces={false}>
-            {/* Toggle read/unread */}
-            <Pressable
-              onPress={handleToggleRead}
-              style={({ pressed }) => ({
-                alignItems: 'center',
-                backgroundColor: pressed ? theme.cardHover : 'transparent',
-                borderRadius: radii.md,
-                flexDirection: 'row',
-                gap: spacing.sm,
-                marginHorizontal: spacing.sm,
-                paddingHorizontal: spacing.md,
-                paddingVertical: 14,
-              })}
-            >
-              <BookOpen
-                color={isBookRead ? theme.accent : theme.textSecondary}
-                size={18}
-              />
-              <Text
-                style={{
-                  color: isBookRead ? theme.accent : theme.textPrimary,
-                  flex: 1,
-                  fontFamily: serifFont,
-                  fontSize: 15,
-                  fontWeight: isBookRead ? '700' : '400',
-                }}
+            {/* Reading status actions */}
+            {hasPartialProgress ? (
+              <View style={{ flexDirection: 'row', gap: spacing.xs, marginHorizontal: spacing.sm }}>
+                <Pressable
+                  onPress={() => handleSetRead(true)}
+                  style={({ pressed }) => ({
+                    alignItems: 'center',
+                    backgroundColor: pressed ? theme.cardHover : 'transparent',
+                    borderRadius: radii.md,
+                    borderColor: theme.border,
+                    borderWidth: 1,
+                    flex: 1,
+                    justifyContent: 'center',
+                    minHeight: 52,
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: spacing.sm,
+                  })}
+                >
+                  <BookOpen color={theme.accent} size={18} />
+                  <Text style={{ color: theme.accent, fontFamily: serifFont, fontSize: 13, fontWeight: '600', textAlign: 'center' }}>
+                    {t('details.markAsRead')}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => handleSetRead(false)}
+                  style={({ pressed }) => ({
+                    alignItems: 'center',
+                    backgroundColor: pressed ? theme.cardHover : 'transparent',
+                    borderRadius: radii.md,
+                    borderColor: theme.border,
+                    borderWidth: 1,
+                    flex: 1,
+                    justifyContent: 'center',
+                    minHeight: 52,
+                    paddingHorizontal: spacing.sm,
+                    paddingVertical: spacing.sm,
+                  })}
+                >
+                  <BookOpen color={theme.textSecondary} size={18} />
+                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 13, fontWeight: '600', textAlign: 'center' }}>
+                    {t('details.markAsUnread')}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                onPress={() => handleSetRead(!isBookRead)}
+                style={({ pressed }) => ({
+                  alignItems: 'center',
+                  backgroundColor: pressed ? theme.cardHover : 'transparent',
+                  borderRadius: radii.md,
+                  flexDirection: 'row',
+                  gap: spacing.sm,
+                  marginHorizontal: spacing.sm,
+                  paddingHorizontal: spacing.md,
+                  paddingVertical: 14,
+                })}
               >
-                {isBookRead ? t('details.markAsUnread') : t('details.markAsRead')}
-              </Text>
-            </Pressable>
+                <BookOpen color={isBookRead ? theme.textSecondary : theme.accent} size={18} />
+                <Text
+                  style={{
+                    color: isBookRead ? theme.textPrimary : theme.accent,
+                    flex: 1,
+                    fontFamily: serifFont,
+                    fontSize: 15,
+                    fontWeight: isBookRead ? '400' : '700',
+                  }}
+                >
+                  {isBookRead ? t('details.markAsUnread') : t('details.markAsRead')}
+                </Text>
+              </Pressable>
+            )}
 
             {/* Divider */}
             <View

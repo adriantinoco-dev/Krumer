@@ -55,7 +55,6 @@ export function SettingsScreen({ navigation }: Props) {
   const [themeVisible, setThemeVisible] = useState(false);
   const [apiVisible, setApiVisible] = useState(false);
   const [booksPerRowVisible, setBooksPerRowVisible] = useState(false);
-  const [tempBooksPerRow, setTempBooksPerRow] = useState(preferences.booksPerRow ?? 3);
 
   const [folder, setFolder] = useState(preferences.libraryFolder);
   const [apiKey, setApiKey] = useState('');
@@ -151,7 +150,6 @@ export function SettingsScreen({ navigation }: Props) {
           subtitle={t('settings.booksPerRowValue').replace('{0}', String(preferences.booksPerRow ?? 3))}
           icon={Grid3x3}
           onPress={() => {
-            setTempBooksPerRow(preferences.booksPerRow ?? 3);
             setBooksPerRowVisible(true);
           }}
         />
@@ -285,20 +283,23 @@ export function SettingsScreen({ navigation }: Props) {
             {[3, 4, 5, 6].map((value) => (
               <Pressable
                 key={value}
-                onPress={() => setTempBooksPerRow(value)}
+                onPress={() => {
+                  void setBooksPerRow(value);
+                  setBooksPerRowVisible(false);
+                }}
                 style={{
                   alignItems: 'center',
-                  backgroundColor: tempBooksPerRow === value ? theme.accent : 'transparent',
-                  borderColor: tempBooksPerRow === value ? theme.accent : theme.border,
+                  backgroundColor: preferences.booksPerRow === value ? theme.accent : 'transparent',
+                  borderColor: preferences.booksPerRow === value ? theme.accent : theme.border,
                   borderRadius: radii.sm,
                   borderWidth: 1,
                   flex: 1,
-                  paddingVertical: spacing.sm + 2,
+                  paddingVertical: spacing.md,
                 }}
               >
                 <Text
                   style={{
-                    color: tempBooksPerRow === value ? '#fff' : theme.textPrimary,
+                    color: preferences.booksPerRow === value ? '#fff' : theme.textPrimary,
                     fontFamily: serifFont,
                     fontSize: 16,
                     fontWeight: '700',
@@ -309,22 +310,6 @@ export function SettingsScreen({ navigation }: Props) {
               </Pressable>
             ))}
           </View>
-          <Pressable
-            onPress={() => {
-              setBooksPerRow(tempBooksPerRow);
-              setBooksPerRowVisible(false);
-            }}
-            style={{
-              alignItems: 'center',
-              backgroundColor: theme.accent,
-              borderRadius: radii.md,
-              paddingVertical: spacing.sm + 2,
-            }}
-          >
-            <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 15, fontWeight: '700' }}>
-              {t('common.save')}
-            </Text>
-          </Pressable>
         </View>
       </SettingsModal>
     </SafeAreaView>
