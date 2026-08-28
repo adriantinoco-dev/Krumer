@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { BackHandler, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import {
-  Check,
   Columns2,
   GalleryHorizontal,
   RectangleHorizontal,
@@ -230,18 +229,17 @@ export function PaginationSettingsModal({
               onPress={() => onUpdatePreferences({
                 displayMode: 'paginated',
                 doubleColumn: false,
-                orientation: 'free',
+                orientation: 'portrait',
               })}
               style={({ pressed }) => ({
                 alignItems: 'center',
-                flexDirection: 'row',
-                gap: spacing.sm,
+                alignSelf: 'center',
+                justifyContent: 'center',
                 opacity: pressed ? 0.55 : 1,
-                paddingHorizontal: spacing.xs,
-                paddingVertical: spacing.xs,
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.sm,
               })}
             >
-              <Check color={theme.textMuted} size={17} strokeWidth={1.8} />
               <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13 }}>
                 {t('reader.resetDefaults')}
               </Text>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { Type, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
@@ -8,6 +8,7 @@ import { useReaderFonts } from '../readers/readerFonts';
 import { radii, serifFont, spacing, type ThemeName } from '../theme';
 import { FontFamilySelector } from './FontFamilySelector';
 import { FontWeightSlider } from './FontWeightSlider';
+import { ActionSheetModal } from './ActionSheetModal';
 import { ThemeCard } from './ThemeCard';
 
 type Props = {
@@ -47,15 +48,12 @@ export function ReadingSettingsModal({
   const insets = useSafeAreaInsets();
 
   return (
-    <Modal
-      animationType="slide"
+    <ActionSheetModal
       navigationBarTranslucent
-      onRequestClose={onClose}
+      onClose={onClose}
       statusBarTranslucent
-      transparent
       visible={visible}
     >
-      <Pressable onPress={onClose} style={{ backgroundColor: '#00000066', flex: 1, justifyContent: 'flex-end' }}>
         <Pressable
           onPress={(event) => event.stopPropagation()}
           style={{
@@ -156,7 +154,6 @@ export function ReadingSettingsModal({
             </Pressable>
           </ScrollView>
         </Pressable>
-      </Pressable>
-    </Modal>
+    </ActionSheetModal>
   );
 }

@@ -18,7 +18,7 @@ function lockForPreference(preference: ReaderOrientation) {
   return ScreenOrientation.OrientationLock.ALL;
 }
 
-export function useOrientation(preference: ReaderOrientation = 'free') {
+export function useOrientation(preference: ReaderOrientation = 'portrait') {
   const { height, width } = useWindowDimensions();
   const preferenceRef = useRef(preference);
   const initializedRef = useRef(false);

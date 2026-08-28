@@ -505,6 +505,8 @@ async function main() {
   function createReaderDocument(contentWidth) {
     const listeners = {};
     const appliedTypography = {};
+    let selectionClearCount = 0;
+    let selectionText = '';
     const typographyStyle = {
       setProperty: (name, value, priority) => {
         appliedTypography[name] = { priority, value };
@@ -512,14 +514,31 @@ async function main() {
     };
     return {
       appliedTypography,
+      get selectionClearCount() {
+        return selectionClearCount;
+      },
       listeners,
+      setSelectedText: (text) => {
+        selectionText = text;
+      },
       document: {
         addEventListener: (type, handler) => {
           listeners[type] = handler;
         },
         body: { style: typographyStyle },
         createElement: () => ({ style: {}, textContent: '' }),
-        defaultView: { innerWidth: contentWidth },
+        defaultView: {
+          getSelection: () => ({
+            isCollapsed: selectionText.length === 0,
+            rangeCount: selectionText.length > 0 ? 1 : 0,
+            removeAllRanges: () => {
+              selectionClearCount += 1;
+              selectionText = '';
+            },
+            toString: () => selectionText,
+          }),
+          innerWidth: contentWidth,
+        },
         documentElement: { clientWidth: contentWidth },
         fonts: { load: () => Promise.resolve([]) },
         head: { appendChild() {} },
@@ -561,6 +580,23 @@ async function main() {
   chapter.listeners.touchstart(touchEvent(100, 'start'));
   chapter.listeners.touchend(touchEvent(100, 'end'));
   if (turns.previous !== 1) throw new Error('One left tap did not go back exactly once.');
+
+  await wait(120);
+  chapter.setSelectedText('selected word');
+  chapter.listeners.touchstart(touchEvent(900, 'start'));
+  chapter.listeners.touchend(touchEvent(900, 'end'));
+  if (chapter.selectionClearCount !== 1) throw new Error('A tap with selected EPUB text did not clear selection.');
+  if (turns.next !== 2 || turns.previous !== 1) {
+    throw new Error('A tap used to clear EPUB text selection also changed navigation state.');
+  }
+
+  await wait(720);
+  chapter.setSelectedText('selected word');
+  chapter.listeners.click({ clientX: 900, screenX: 900, preventDefault() {}, stopImmediatePropagation() {}, target });
+  if (chapter.selectionClearCount !== 2) throw new Error('A click with selected EPUB text did not clear selection.');
+  if (turns.next !== 2 || turns.previous !== 1) {
+    throw new Error('A click used to clear EPUB text selection also changed navigation state.');
+  }
 
   await wait(120);
   chapter.listeners.touchstart(touchEvent(500, 'start'));

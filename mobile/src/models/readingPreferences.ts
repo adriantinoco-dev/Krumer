@@ -14,7 +14,7 @@ export type ReadingPreferences = {
 export const DEFAULT_READING_PREFERENCES: ReadingPreferences = {
   displayMode: 'paginated',
   doubleColumn: false,
-  orientation: 'free',
+  orientation: 'portrait',
   fontFamily: 'serif',
   fontWeight: 'regular',
 };

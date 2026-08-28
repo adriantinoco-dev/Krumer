@@ -4,7 +4,7 @@
     "slug": "krumer",
     "displayName": "Krumer",
     "scheme": "krumer",
-    "orientation": "default",
+    "orientation": "portrait",
     "android": {
       "package": "com.adriantinoco.krumer",
       "permissions": [

@@ -1,17 +1,16 @@
 import React, { useRef, useState } from 'react';
 import {
   Animated,
-  Modal,
   Pressable,
   ScrollView,
   Text,
   TextInput,
-  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { ArrowDownAZ, ArrowUpDown, BookMarked, Clock, Star, X } from 'lucide-react-native';
 import { useApp } from '../context/AppContext';
 import { radii, serifFont, spacing } from '../theme';
+import { ActionSheetModal } from './ActionSheetModal';
 
 export type SortKey = 'name' | 'recent' | 'rating' | 'progress';
 
@@ -145,10 +144,7 @@ export function SearchSortBar({ query, sort, onQueryChange, onSortChange }: Prop
       </Pressable>
 
       {/* Sort modal */}
-      <Modal animationType="fade" onRequestClose={() => setSortOpen(false)} transparent visible={sortOpen}>
-        <TouchableWithoutFeedback onPress={() => setSortOpen(false)}>
-          <View style={{ backgroundColor: 'rgba(0,0,0,0.45)', flex: 1, justifyContent: 'flex-end' }}>
-            <TouchableWithoutFeedback>
+      <ActionSheetModal backdropColor="rgba(0,0,0,0.45)" onClose={() => setSortOpen(false)} visible={sortOpen}>
               <View
                 style={{
                   backgroundColor: theme.surface,
@@ -235,10 +231,7 @@ export function SearchSortBar({ query, sort, onQueryChange, onSortChange }: Prop
                   })}
                 </ScrollView>
               </View>
-            </TouchableWithoutFeedback>
-          </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      </ActionSheetModal>
     </View>
   );
 }

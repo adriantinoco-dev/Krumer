@@ -54,8 +54,8 @@ async function main() {
   delete legacy.orientation;
   memory.set('krumer.reading.preferences.v1', JSON.stringify(legacy));
   const migrated = await hooks.loadStoredReadingPreferences(storage);
-  if (migrated.orientation !== 'free') {
-    throw new Error('Legacy reading preferences did not migrate to free orientation.');
+  if (migrated.orientation !== 'portrait') {
+    throw new Error('Legacy reading preferences did not migrate to portrait orientation.');
   }
 
   const fontPackages = [
@@ -85,8 +85,8 @@ async function main() {
   const appConfig = JSON.parse(fs.readFileSync('app.json', 'utf8'));
   const androidManifest = fs.readFileSync('android/app/src/main/AndroidManifest.xml', 'utf8');
   const mainActivitySource = fs.readFileSync('android/app/src/main/java/com/adriantinoco/krumer/MainActivity.kt', 'utf8');
-  if (appConfig.expo.orientation !== 'default' || !androidManifest.includes('android:screenOrientation="unspecified"')) {
-    throw new Error('The native app must permit landscape before the reader can rotate at runtime.');
+  if (appConfig.expo.orientation !== 'portrait' || !androidManifest.includes('android:screenOrientation="unspecified"')) {
+    throw new Error('The app config must default to portrait while native keeps reader orientation choices available.');
   }
   if (
     !mainActivitySource.includes('ROTATION_ANIMATION_SEAMLESS')

@@ -1,10 +1,11 @@
 import React from 'react';
 import { Minus, Plus, X } from 'lucide-react-native';
-import { Modal, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
 import { DEFAULT_READER_LAYOUT_SETTINGS, type ReaderLayoutSettings } from '../models/readerLayoutSettings';
 import { radii, serifFont, spacing } from '../theme';
+import { ActionSheetModal } from './ActionSheetModal';
 
 type Props = {
   lineHeight: number;
@@ -80,8 +81,7 @@ export function LayoutSettingsModal({
     ? DEFAULT_READER_LAYOUT_SETTINGS.marginHorizontal
     : settings.marginHorizontal;
   return (
-    <Modal animationType="slide" navigationBarTranslucent onRequestClose={onClose} statusBarTranslucent transparent visible={visible}>
-      <Pressable onPress={onClose} style={{ backgroundColor: '#00000066', flex: 1, justifyContent: 'flex-end' }}>
+    <ActionSheetModal navigationBarTranslucent onClose={onClose} statusBarTranslucent visible={visible}>
         <Pressable
           onPress={(event) => event.stopPropagation()}
           style={{
@@ -172,7 +172,6 @@ export function LayoutSettingsModal({
             </Pressable>
           </ScrollView>
         </Pressable>
-      </Pressable>
-    </Modal>
+    </ActionSheetModal>
   );
 }

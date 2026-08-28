@@ -836,6 +836,22 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           return typeof point.screenY === 'number' ? point.screenY : point.clientY;
         }
 
+        function clearActiveTextSelection(doc) {
+          var selection = doc
+            && doc.defaultView
+            && typeof doc.defaultView.getSelection === 'function'
+            ? doc.defaultView.getSelection()
+            : null;
+          if (!selection) return false;
+          var hasSelection = selection.rangeCount > 0
+            && !selection.isCollapsed
+            && String(selection.toString ? selection.toString() : '').length > 0;
+          if (!hasSelection) return false;
+          if (typeof selection.removeAllRanges === 'function') selection.removeAllRanges();
+          else if (typeof selection.empty === 'function') selection.empty();
+          return true;
+        }
+
         function clearUserRelocationExpectation() {
           userRelocationPending = false;
           if (userRelocationTimer) clearTimeout(userRelocationTimer);
@@ -916,6 +932,11 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
 
             if (readerLayout.displayMode === 'scroll') {
               if (anchor || Math.abs(deltaX) > 12 || Math.abs(deltaY) > 12 || elapsed > 500) return;
+              if (clearActiveTextSelection(doc)) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                return;
+              }
               var scrollYRatio = verticalRatio(touch, doc);
               if (scrollYRatio >= 0.2 && scrollYRatio <= 0.8) {
                 event.preventDefault();
@@ -933,6 +954,11 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             }
 
             if (anchor || Math.abs(deltaX) > 12 || Math.abs(deltaY) > 12 || elapsed > 500) return;
+            if (clearActiveTextSelection(doc)) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              return;
+            }
 
             var ratio = horizontalRatio(touch, doc);
             if (ratio <= 0.3 || ratio >= 0.7) {
@@ -950,6 +976,11 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           }, { passive: false });
 
           doc.addEventListener('click', function (event) {
+            if (clearActiveTextSelection(doc)) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              return;
+            }
             var anchor = findAnchor(event.target);
             var url = externalUrl(anchor);
             if (url) {

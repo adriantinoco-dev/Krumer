@@ -11,6 +11,7 @@ import { LayoutSettingsButton } from '../components/LayoutSettingsButton';
 import { LayoutSettingsModal } from '../components/LayoutSettingsModal';
 import { PaginationSettingsButton } from '../components/PaginationSettingsButton';
 import { PaginationSettingsModal } from '../components/PaginationSettingsModal';
+import { ActionSheetModal } from '../components/ActionSheetModal';
 import { EpubReader, type EpubReaderHandle } from '../readers/EpubReader';
 import type { EpubRelocationSource, EpubTocItem, EpubViewStatus } from '../readers/epubBridge';
 import { PdfReader } from '../readers/PdfReader';
@@ -65,7 +66,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const windowDimensions = useWindowDimensions();
   const readingPreferences = useReadingPreferences(isEpub);
   const readerLayout = useReaderLayoutSettings(isEpub);
-  const { isLandscape } = useOrientation(isEpub ? readingPreferences.preferences.orientation : 'free');
+  const { isLandscape } = useOrientation(isEpub ? readingPreferences.preferences.orientation : 'portrait');
   const [progress, setProgress] = useState((book.progressPct ?? 0) / 100);
   const [savedPosition, setSavedPosition] = useState<string | null>(book.progress);
   const [barsVisible, setBarsVisible] = useState(book.format !== 'epub');
@@ -932,16 +933,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         </Animated.View>
       )}
 
-      <Modal
-        animationType="slide"
-        transparent
-        visible={bookmarksVisible && isEpub}
-        onRequestClose={closeBookmarks}
-      >
-        <Pressable
-          onPress={closeBookmarks}
-          style={{ backgroundColor: '#00000088', flex: 1, justifyContent: 'flex-end' }}
-        >
+      <ActionSheetModal backdropColor="rgba(0,0,0,0.53)" onClose={closeBookmarks} visible={bookmarksVisible && isEpub}>
           <Pressable
             onPress={(event) => event.stopPropagation()}
             style={{
@@ -1035,22 +1027,15 @@ export function ReaderScreen({ navigation, route }: Props) {
               </View>
             )}
           </Pressable>
-        </Pressable>
-      </Modal>
+      </ActionSheetModal>
 
       {/* TOC Modal - Sumário do EPUB */}
-      <Modal
-        animationType="slide"
+      <ActionSheetModal
         navigationBarTranslucent
-        onRequestClose={closeToc}
+        onClose={closeToc}
         statusBarTranslucent
-        transparent
         visible={tocVisible && isEpub}
       >
-        <Pressable
-          onPress={closeToc}
-          style={{ backgroundColor: '#00000066', flex: 1, justifyContent: 'flex-end' }}
-        >
           <Pressable
             onPress={(event) => event.stopPropagation()}
             style={{
@@ -1109,22 +1094,15 @@ export function ReaderScreen({ navigation, route }: Props) {
               </View>
             )}
           </Pressable>
-        </Pressable>
-      </Modal>
+      </ActionSheetModal>
 
       {/* Brightness Modal - Controle de brilho */}
-      <Modal
-        animationType="slide"
+      <ActionSheetModal
         navigationBarTranslucent
-        onRequestClose={closeBrightness}
+        onClose={closeBrightness}
         statusBarTranslucent
-        transparent
         visible={brightnessVisible && isEpub}
       >
-        <Pressable
-          onPress={closeBrightness}
-          style={{ backgroundColor: '#00000066', flex: 1, justifyContent: 'flex-end' }}
-        >
           <Pressable
             onPress={(event) => event.stopPropagation()}
             style={{
@@ -1230,8 +1208,7 @@ export function ReaderScreen({ navigation, route }: Props) {
               </View>
             )}
           </Pressable>
-        </Pressable>
-      </Modal>
+      </ActionSheetModal>
 
       <ReadingSettingsModal
         fontSize={readerSettings.fontSize}
@@ -1290,22 +1267,14 @@ export function ReaderScreen({ navigation, route }: Props) {
       />
 
       {/* PDF settings modal */}
-      <Modal
-        animationType="slide"
-        transparent
+      <ActionSheetModal
+        backdropColor="rgba(0,0,0,0.53)"
         visible={settingsVisible && !isEpub}
-        onRequestClose={() => {
+        onClose={() => {
           setSettingsVisible(false);
           scheduleHide();
         }}
       >
-        <Pressable
-          onPress={() => {
-            setSettingsVisible(false);
-            scheduleHide();
-          }}
-          style={{ backgroundColor: '#00000088', flex: 1, justifyContent: 'flex-end' }}
-        >
           <Pressable
             onPress={(e) => e.stopPropagation()}
             style={{
@@ -1347,8 +1316,7 @@ export function ReaderScreen({ navigation, route }: Props) {
             </View>
 
           </Pressable>
-        </Pressable>
-      </Modal>
+      </ActionSheetModal>
 
       {/* Notes List Modal */}
       <Modal
@@ -1359,7 +1327,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         transparent
         visible={notesVisible && isEpub}
       >
-        <View style={{ backgroundColor: 'rgba(0, 0, 0, 0.15)', flex: 1 }}>
+        <View style={{ backgroundColor: 'rgba(0, 0, 0, 0.48 )', flex: 1 }}>
           <Pressable onPress={closeNotes} style={{ alignItems: 'center', flex: 1, justifyContent: 'center', padding: spacing.lg }}>
             <Pressable
               onPress={(e) => e.stopPropagation()}
@@ -1489,7 +1457,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         transparent
         visible={detailVisible && !!selectedNote}
       >
-        <View style={{ backgroundColor: 'rgba(0, 0, 0, 0.15)', flex: 1 }}>
+        <View style={{ backgroundColor: 'rgba(0, 0, 0, 0.48)', flex: 1 }}>
           <Pressable onPress={closeDetail} style={{ alignItems: 'center', flex: 1, justifyContent: 'center', padding: spacing.lg }}>
             <Pressable
               onPress={(e) => e.stopPropagation()}
@@ -1595,7 +1563,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         transparent
         visible={editorVisible}
       >
-        <View style={{ backgroundColor: 'rgba(0, 0, 0, 0.15)', flex: 1 }}>
+        <View style={{ backgroundColor: 'rgba(0, 0, 0, 0.48)', flex: 1 }}>
           <Pressable onPress={closeEditor} style={{ alignItems: 'center', flex: 1, justifyContent: 'center', padding: spacing.lg }}>
             <Pressable
               onPress={(e) => e.stopPropagation()}
