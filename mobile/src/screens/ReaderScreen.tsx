@@ -691,20 +691,6 @@ export function ReaderScreen({ navigation, route }: Props) {
             >
               {book.title}
             </Text>
-            <Pressable
-              accessibilityLabel="Notas"
-              hitSlop={8}
-              onPress={openNotes}
-              style={({ pressed }) => ({
-                alignItems: 'center',
-                height: scaleEpubChrome(40),
-                justifyContent: 'center',
-                opacity: pressed ? 0.5 : 1,
-                paddingHorizontal: 4,
-              })}
-            >
-              <Feather color={epubText} size={20} strokeWidth={1.7} />
-            </Pressable>
             <ReadingSettingsButton
               color={epubText}
               onPress={() => {
@@ -893,7 +879,7 @@ export function ReaderScreen({ navigation, route }: Props) {
             zIndex: 100,
           }}
         >
-          <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: scaleEpubChrome(44) }}>
+          <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-around', minHeight: scaleEpubChrome(44) }}>
             <Pressable
               accessibilityLabel="Tópicos"
               hitSlop={12}
@@ -915,6 +901,21 @@ export function ReaderScreen({ navigation, route }: Props) {
                 setLayoutSettingsVisible(true);
               }}
             />
+
+            <Pressable
+              accessibilityLabel="Notas"
+              accessibilityRole="button"
+              hitSlop={12}
+              onPress={openNotes}
+              style={({ pressed }) => ({
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: pressed ? 0.5 : 1,
+                padding: 12,
+              })}
+            >
+              <Feather color={epubText} size={24} strokeWidth={1.9} />
+            </Pressable>
 
             <Pressable
               accessibilityLabel="Brilho"
