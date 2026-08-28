@@ -739,7 +739,7 @@ export function ReaderScreen({ navigation, route }: Props) {
               onPress={() => navigation.goBack()}
               style={({ pressed }) => ({
                 alignItems: 'center',
-                height: scaleEpubChrome(40),
+                height: 36,
                 justifyContent: 'center',
                 opacity: pressed ? 0.5 : 1,
                 width: 44,
