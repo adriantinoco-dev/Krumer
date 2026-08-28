@@ -552,7 +552,18 @@ export function ReaderScreen({ navigation, route }: Props) {
       )}
 
       {isEpub && !barsVisible ? (
-        <View pointerEvents="none" style={{ bottom: 0, left: 0, position: 'absolute', right: 0, top: 0 }}>
+        <View
+          pointerEvents="none"
+          style={{
+            bottom: 0,
+            elevation: 95,
+            left: 0,
+            position: 'absolute',
+            right: 0,
+            top: 0,
+            zIndex: 95,
+          }}
+        >
           <Text
             numberOfLines={1}
             style={{
@@ -560,6 +571,7 @@ export function ReaderScreen({ navigation, route }: Props) {
               fontFamily: serifFont,
               fontSize: 14,
               left: Math.max(insets.left, 0) + 32,
+              lineHeight: 20,
               maxWidth: '72%',
               opacity: 0.68,
               position: 'absolute',
