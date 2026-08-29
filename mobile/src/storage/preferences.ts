@@ -4,13 +4,15 @@ import type { Book } from '../models/item';
 import type { SyncList } from '../models/list';
 import type { LanguageCode } from '../i18n/translations';
 import type { ThemeName } from '../theme';
+import { migrateLegacyGeminiApiKey, removeLegacyGeminiApiKey } from './secureCredentials';
 
 export type MobilePreferences = {
   hasOnboarded: boolean;
   language: LanguageCode;
   theme: ThemeName;
   libraryFolder: string | null;
-  geminiApiKey: string | null;
+  hasGeminiApiKey: boolean;
+  metadataIntroSeen: boolean;
   cardViewMode?: '2d' | '3d';
   booksPerRow?: number;
 };
@@ -26,19 +28,42 @@ export const defaultPreferences: MobilePreferences = {
   language: 'en',
   theme: 'dark',
   libraryFolder: null,
-  geminiApiKey: null,
+  hasGeminiApiKey: false,
+  metadataIntroSeen: false,
   cardViewMode: '3d',
   booksPerRow: 3,
 };
 
 export async function loadPreferences(): Promise<MobilePreferences> {
   const raw = await AsyncStorage.getItem(KEYS.preferences);
-  if (!raw) return defaultPreferences;
-  return { ...defaultPreferences, ...JSON.parse(raw) };
+  const parsed = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+  const hasGeminiApiKey = await migrateLegacyGeminiApiKey(parsed);
+  if (!raw) return { ...defaultPreferences, hasGeminiApiKey };
+  const hasLegacyKey = Object.prototype.hasOwnProperty.call(parsed, 'geminiApiKey');
+  const legacyValue = typeof parsed.geminiApiKey === 'string' ? parsed.geminiApiKey.trim() : '';
+  const next = {
+    ...defaultPreferences,
+    ...parsed,
+    // SecureStore is the source of truth; the AsyncStorage flag is only a
+    // non-sensitive UI hint and must not keep a deleted key looking active.
+    hasGeminiApiKey,
+    metadataIntroSeen: Boolean(parsed.metadataIntroSeen),
+  } as MobilePreferences & { geminiApiKey?: unknown };
+
+  // Legacy keys are removed only after SecureStore confirms the migration.
+  if (hasLegacyKey && (hasGeminiApiKey || !legacyValue)) {
+    delete next.geminiApiKey;
+    await AsyncStorage.setItem(KEYS.preferences, JSON.stringify(next));
+    if (hasGeminiApiKey) await removeLegacyGeminiApiKey();
+  }
+  delete next.geminiApiKey;
+  return next;
 }
 
 export async function savePreferences(nextPreferences: MobilePreferences) {
-  await AsyncStorage.setItem(KEYS.preferences, JSON.stringify(nextPreferences));
+  const sanitized = { ...nextPreferences } as MobilePreferences & { geminiApiKey?: unknown };
+  delete sanitized.geminiApiKey;
+  await AsyncStorage.setItem(KEYS.preferences, JSON.stringify(sanitized));
 }
 
 export async function patchPreferences(nextPreferences: Partial<MobilePreferences>) {

@@ -2048,7 +2048,10 @@ def apply_metadata(payload: MetadataApplyPayload, db: Session = Depends(get_db))
 
         mapped = mapear_metadados_para_item(entry.metadados)
 
-        if mapped.get("title"):
+        # The Gemini title can describe a chapter/volume when a series is
+        # queried. Keep the local parent title stable; only standalone works
+        # may receive the returned title.
+        if item.type != "series" and mapped.get("title"):
             item.title = mapped["title"]
             item.metadata_title = mapped["metadata_title"]
         if mapped.get("author") is not None:

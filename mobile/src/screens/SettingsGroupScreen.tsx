@@ -22,8 +22,8 @@ export function SettingsGroupScreen({ route }: Props) {
   const { height } = useWindowDimensions();
   const { preferences, setBooks, setGeminiApiKey, setLibraryFolder, setThemeName, theme, t } = useApp();
   const [folder, setFolder] = useState(preferences.libraryFolder);
-  const [apiKey, setApiKey] = useState(preferences.geminiApiKey ?? '');
-  const [status, setStatus] = useState(preferences.geminiApiKey ? t('settings.keySaved') : t('api.noKey'));
+  const [apiKey, setApiKey] = useState('');
+  const [status, setStatus] = useState(preferences.hasGeminiApiKey ? t('settings.keySaved') : t('api.noKey'));
   const [scanProgress, setScanProgress] = useState<ScanProgressState | null>(null);
 
   const titles = {
@@ -102,7 +102,7 @@ export function SettingsGroupScreen({ route }: Props) {
               <PrimaryButton disabled={!apiKey.trim()} label={t('common.save')} onPress={saveKey} />
               <Text
                 style={{
-                  color: preferences.geminiApiKey ? theme.accent : theme.textSecondary,
+                  color: preferences.hasGeminiApiKey ? theme.accent : theme.textSecondary,
                   fontFamily: serifFont,
                   fontSize: 13,
                 }}

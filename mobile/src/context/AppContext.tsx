@@ -13,6 +13,7 @@ import {
   saveSyncLists,
   type MobilePreferences,
 } from '../storage/preferences';
+import { removeGeminiApiKey, setGeminiApiKey as persistGeminiApiKey } from '../storage/secureCredentials';
 import { enqueueBookProgress, enqueueListMembership, enqueueMetadata, enqueueSyncList, enqueueTag } from '../sync/outbox';
 import { themes, type ThemeName } from '../theme';
 
@@ -39,6 +40,7 @@ type AppContextValue = {
   toggleBookInList: (listId: string, bookFingerprint: string) => Promise<void>;
   updateBookCover: (bookId: string, coverPath: string) => void;
   setGeminiApiKey: (geminiApiKey: string | null) => Promise<void>;
+  setMetadataIntroSeen: (seen: boolean) => Promise<void>;
   setHasOnboarded: (hasOnboarded: boolean) => Promise<void>;
   setLanguage: (language: LanguageCode) => Promise<void>;
   setLibraryFolder: (libraryFolder: string | null) => Promise<void>;
@@ -102,6 +104,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setPreferenceState(merged);
     await savePreferences(merged);
   }, [preferences]);
+
+  const setGeminiApiKey = useCallback(async (geminiApiKey: string | null) => {
+    if (geminiApiKey?.trim()) {
+      await persistGeminiApiKey(geminiApiKey);
+    } else {
+      await removeGeminiApiKey();
+    }
+    await persistPreferences({ hasGeminiApiKey: Boolean(geminiApiKey?.trim()) });
+  }, [persistPreferences]);
+
+  const setMetadataIntroSeen = useCallback(async (seen: boolean) => {
+    await persistPreferences({ metadataIntroSeen: seen });
+  }, [persistPreferences]);
 
   const updateBookCover = useCallback((bookId: string, coverPath: string) => {
     const next = updateBookTreeCover(booksRef.current, bookId, coverPath);
@@ -327,7 +342,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       deleteList,
       toggleBookInList,
       updateBookCover,
-      setGeminiApiKey: (geminiApiKey) => persistPreferences({ geminiApiKey }),
+      setGeminiApiKey,
+      setMetadataIntroSeen,
       setHasOnboarded: (hasOnboarded) => persistPreferences({ hasOnboarded }),
       setLanguage: (language) => persistPreferences({ language }),
       setLibraryFolder: (libraryFolder) => persistPreferences({ libraryFolder }),
@@ -353,6 +369,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updateBookCover,
     updateBookMetadata,
     updateBookProgress,
+    setGeminiApiKey,
+    setMetadataIntroSeen,
   ]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

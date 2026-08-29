@@ -13,6 +13,8 @@ Este app vive no mesmo repositorio do desktop, mas mantem dependencias e codigo 
 - Scanner local de `.epub` e `.pdf` com progresso visual.
 - Extracao de capa EPUB via ZIP/OPF e thumbnail PDF via modulo nativo.
 - Leitor EPUB com WebView + epub.js e leitor PDF com `react-native-pdf`.
+- Busca de metadados via Gemini REST, individual e em lote de até 10 obras,
+  com prévia e aplicação explícita.
 - Supabase Auth com email/senha e Google Sign-In nativo no Android.
 - Sincronizacao offline-first via Supabase de progresso, avaliacao, listas e favoritos, com outbox persistente, backoff e merge de conflitos.
 
@@ -62,7 +64,9 @@ mobile/
 
 ## Persistencia local
 
-- Preferencias, onboarding, pasta e chave Gemini ficam no AsyncStorage.
+- Preferencias, onboarding e pasta ficam no AsyncStorage; a chave Gemini fica
+  no `expo-secure-store` e o AsyncStorage mantém somente o indicador de
+  configuração.
 - A biblioteca escaneada e salva como lista de livros no AsyncStorage.
 - Capas ficam como arquivos locais; o storage guarda apenas o path.
 - Progresso, listas e favoritos sao gravados primeiro no AsyncStorage e sincronizados em background quando houver sessao e rede.

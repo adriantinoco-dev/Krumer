@@ -23,7 +23,6 @@ from metadata_service import (
     extrair_ano,
     MetadataServiceError,
     CACHE_PATH,
-    DAILY_COUNT_PATH,
 )
 from fastapi.testclient import TestClient
 import main
@@ -180,6 +179,33 @@ class TestMetadataAPI(unittest.TestCase):
         self.assertEqual(data[0]["author"], "Novo Autor")
         self.assertEqual(data[0]["year"], 1999)
         self.assertEqual(data[0]["description"], "Nova sinopse")
+
+    def test_apply_metadata_preserva_titulo_da_serie(self):
+        series = Item(
+            title="Nome original da série",
+            type="series",
+            path="/tmp/serie",
+            filename_title="serie",
+        )
+        self.db.add(series)
+        self.db.commit()
+        self.db.refresh(series)
+
+        payload = {
+            "results": [{
+                "item_id": series.id,
+                "metadados": {
+                    "nome_da_obra": "Título retornado pelo Gemini",
+                    "autor": "Autor da série",
+                    "data_de_lancamento": "2020",
+                    "sinopse": "Sinopse da série",
+                },
+            }],
+        }
+        res = self.client.post("/metadata/apply", json=payload)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()[0]["title"], "Nome original da série")
+        self.assertEqual(res.json()[0]["author"], "Autor da série")
 
 
 class TestCacheMetadados(unittest.TestCase):

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
 import { useApp } from '../context/AppContext';
 import { radii, serifFont, spacing } from '../theme';
@@ -16,6 +17,7 @@ export function SettingsModal({
   children: React.ReactNode;
 }) {
   const { theme } = useApp();
+  const insets = useSafeAreaInsets();
 
   return (
     <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
@@ -26,7 +28,9 @@ export function SettingsModal({
           backgroundColor: theme.name === 'dark' ? '#00000099' : '#00000055',
           flex: 1,
           justifyContent: 'center',
-          padding: spacing.lg,
+          paddingBottom: Math.max(spacing.lg, insets.bottom + spacing.sm),
+          paddingHorizontal: spacing.lg,
+          paddingTop: Math.max(spacing.lg, insets.top + spacing.sm),
         }}
       >
         <Pressable

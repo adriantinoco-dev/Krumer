@@ -119,14 +119,21 @@ Ambos:
 Dependências nativas (`react-native-pdf`, `react-native-webview`, thumbnails) exigem development build (`npx expo prebuild` + `npx expo run:android`).
 
 ### M7 — Gemini no mobile
-**Status:** `[ ]`
+**Status:** `[x]`
 
-Implementar busca e aplicação de metadados via Gemini como no desktop:
-- configurar chave;
-- buscar metadados de obras selecionadas;
-- aplicar resultados;
-- respeitar limites e mensagens de erro;
-- reaproveitar endpoints existentes do backend sempre que possível.
+Busca e aplicação de metadados via Gemini implementadas no mobile Android:
+- chave migrada para `expo-secure-store`, sem validação antecipada;
+- busca individual e em lote (máximo de 10), com normalização, fallback,
+  progresso e cache positivo por fingerprint/idioma;
+- `gemini-3.6-flash` com fallback para `gemini-3.5-flash-lite`, usando resposta
+  estruturada (`responseSchema`) no caminho de texto do Free Tier; Google
+  Search não é enviado por padrão porque não está disponível no Free Tier dos
+  modelos Gemini 3.x;
+- prévia obrigatória e aplicação explícita de título, autor, ano e sinopse;
+- títulos de séries preservados; o título retornado só atualiza livros avulsos;
+- tratamento de offline, timeout, chave inválida, bloqueio, rate limit, JSON
+  inválido, modelo indisponível e falhas parciais;
+- integração local-first, sem depender dos endpoints ou IDs SQLite do desktop.
 
 ### M8 — Temas e idiomas
 **Status:** `[~]` (3 temas concluídos; idiomas: 3 de 10 — expandir via F5 para Android)
@@ -198,7 +205,7 @@ Implementação concluída no repositório: migration remota, RPC de merge monot
 - **PB2** `[x]` **Tela de detalhes do livro** — capa, título, autor, ano, sinopse, tags, avaliação, progresso, capítulos/volumes quando houver e marcar lido/não lido.
 - **PB3** `[x]` **Edição de metadados** — título, autor, ano, sinopse, tags, avaliação e capa. **Não editar editora no mobile.** Pré-requisito do F3.
 - **PB4** `[x]` **Listas customizadas + favoritos** — criar/renomear/excluir listas, adicionar/remover itens e gerenciar favoritos. Séries/Mangás, Lidos e Não Lidos são fixos e não excluíveis.
-- **PB5** `[ ]` **Busca de metadados via Gemini** — usar a chave já salva no onboarding; buscar/aplicar metadados via `mobile/src/api`. Reaproveitar os endpoints do backend quando aplicável.
+- **PB5** `[x]` **Busca de metadados via Gemini** — chave no SecureStore; busca/aplicação individual e em lote via REST direto, sem depender dos endpoints ou IDs do backend desktop.
 - **PB6** `[ ]` **Sincronizar status de leitura entre pai e filhos (séries)** — espelhar o fix do v1.3.0 no desktop.
 
 ### Paridade F1–F7 (Android)

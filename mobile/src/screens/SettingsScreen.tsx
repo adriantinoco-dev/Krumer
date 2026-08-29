@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Linking, Pressable, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import { Folder, Globe, Grid3x3, Info, KeyRound, Moon } from 'lucide-react-native';
+import { Folder, Globe, Grid3x3, Info, KeyRound, Moon, Sparkles } from 'lucide-react-native';
 import { AnimatedLanguageCard } from '../components/AnimatedLanguageCard';
 import { ApiKeyInput } from '../components/ApiKeyInput';
 import { FolderPickerField } from '../components/FolderPickerField';
@@ -11,6 +11,9 @@ import { ScanProgress, type ScanProgressState } from '../components/ScanProgress
 import { SettingsModal } from '../components/SettingsModal';
 import { SettingsRow } from '../components/SettingsRow';
 import { ThemeCard } from '../components/ThemeCard';
+import { MetadataBatchModal } from '../components/MetadataBatchModal';
+import { MetadataIntroModal } from '../components/MetadataIntroModal';
+import { MetadataDialog, type MetadataDialogConfig } from '../components/MetadataDialog';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../context/AuthContext';
 import { languages } from '../i18n/translations';
@@ -47,7 +50,7 @@ function SectionHeader({ label }: { label: string }) {
 }
 
 export function SettingsScreen({ navigation }: Props) {
-  const { preferences, setBooks, setBooksPerRow, setGeminiApiKey, setLanguage, setLibraryFolder, setThemeName, theme, t } = useApp();
+  const { books, preferences, setBooks, setBooksPerRow, setGeminiApiKey, setLanguage, setLibraryFolder, setMetadataIntroSeen, setThemeName, theme, t } = useApp();
   const { user } = useAuth();
 
   const [langVisible, setLangVisible] = useState(false);
@@ -55,11 +58,14 @@ export function SettingsScreen({ navigation }: Props) {
   const [themeVisible, setThemeVisible] = useState(false);
   const [apiVisible, setApiVisible] = useState(false);
   const [booksPerRowVisible, setBooksPerRowVisible] = useState(false);
+  const [metadataIntroVisible, setMetadataIntroVisible] = useState(false);
+  const [metadataBatchVisible, setMetadataBatchVisible] = useState(false);
+  const [metadataDialog, setMetadataDialog] = useState<MetadataDialogConfig | null>(null);
 
   const [folder, setFolder] = useState(preferences.libraryFolder);
   const [apiKey, setApiKey] = useState('');
   const [apiKeyStatus, setApiKeyStatus] = useState(
-    preferences.geminiApiKey ? t('settings.keySaved') : t('api.noKey'),
+    preferences.hasGeminiApiKey ? t('settings.keySaved') : t('api.noKey'),
   );
   const [scanProgress, setScanProgress] = useState<ScanProgressState | null>(null);
 
@@ -94,49 +100,86 @@ export function SettingsScreen({ navigation }: Props) {
     setApiKeyStatus(t('settings.keySaved'));
   }
 
+  function showMetadataKeyDialog() {
+    setMetadataDialog({
+      message: t('metadata.keyRequiredMessage'),
+      primaryAction: { label: t('metadata.configureKey'), onPress: () => setApiVisible(true) },
+      secondaryAction: { kind: 'secondary', label: t('common.cancel'), onPress: () => undefined },
+      title: t('metadata.keyRequiredTitle'),
+      variant: 'warning',
+    });
+  }
+
+  function openMetadataSearch() {
+    if (!preferences.metadataIntroSeen) {
+      setMetadataIntroVisible(true);
+      return;
+    }
+    if (!preferences.hasGeminiApiKey) {
+      showMetadataKeyDialog();
+      return;
+    }
+    setMetadataBatchVisible(true);
+  }
+
+  async function continueMetadataIntro() {
+    await setMetadataIntroSeen(true);
+    setMetadataIntroVisible(false);
+    if (!preferences.hasGeminiApiKey) {
+      showMetadataKeyDialog();
+      return;
+    }
+    setMetadataBatchVisible(true);
+  }
+
   return (
     <SafeAreaView edges={['top']} style={{ backgroundColor: theme.bg, flex: 1 }}>
       <View style={{ padding: spacing.md, paddingBottom: spacing.xs }}>
         <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 26 }}>{t('settings.title')}</Text>
       </View>
 
-      {/* Account banner */}
-      {!user ? (
-        <Pressable
-          onPress={() => navigation.navigate('SettingsGroup', { group: 'account' })}
-          style={({ pressed }) => ({
-            backgroundColor: pressed ? theme.accentMuted : theme.accentMuted,
-            borderColor: theme.accent,
-            borderRadius: radii.md,
-            borderWidth: 1,
-            marginHorizontal: spacing.md,
-            marginTop: spacing.sm,
-            padding: spacing.md,
-          })}
-        >
-          <Text style={{ color: theme.accent, fontFamily: serifFont, fontSize: 14, fontWeight: '700', marginBottom: 2 }}>
-            {t('settings.syncTitle') || 'Sync across devices'}
-          </Text>
-          <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 12, marginBottom: spacing.sm }}>
-            {t('settings.syncDesc') || 'Sign in to keep your library and reading progress in sync.'}
-          </Text>
-          <View
-            style={{
-              alignSelf: 'flex-start',
-              backgroundColor: theme.accent,
-              borderRadius: radii.sm,
-              paddingHorizontal: spacing.md,
-              paddingVertical: spacing.xs + 2,
-            }}
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: spacing.xl * 2, paddingHorizontal: spacing.md, paddingTop: spacing.xs }}
+        showsVerticalScrollIndicator={false}
+        style={{ flex: 1 }}
+      >
+        {/* Account banner scrolls away with the settings content instead of
+            remaining fixed and covering rows on smaller screens. */}
+        {!user ? (
+          <Pressable
+            onPress={() => navigation.navigate('SettingsGroup', { group: 'account' })}
+            style={({ pressed }) => ({
+              backgroundColor: pressed ? theme.accentMuted : theme.accentMuted,
+              borderColor: theme.accent,
+              borderRadius: radii.md,
+              borderWidth: 1,
+              marginBottom: spacing.sm,
+              marginTop: spacing.sm,
+              padding: spacing.md,
+            })}
           >
-            <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 13, fontWeight: '700' }}>
-              {t('auth.signIn') || 'Sign in'}
+            <Text style={{ color: theme.accent, fontFamily: serifFont, fontSize: 14, fontWeight: '700', marginBottom: 2 }}>
+              {t('settings.syncTitle') || 'Sync across devices'}
             </Text>
-          </View>
-        </Pressable>
-      ) : null}
+            <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 12, marginBottom: spacing.sm }}>
+              {t('settings.syncDesc') || 'Sign in to keep your library and reading progress in sync.'}
+            </Text>
+            <View
+              style={{
+                alignSelf: 'flex-start',
+                backgroundColor: theme.accent,
+                borderRadius: radii.sm,
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.xs + 2,
+              }}
+            >
+              <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 13, fontWeight: '700' }}>
+                {t('auth.signIn') || 'Sign in'}
+              </Text>
+            </View>
+          </Pressable>
+        ) : null}
 
-      <View style={{ flex: 1, paddingHorizontal: spacing.md, paddingTop: spacing.xs }}>
         {/* APPEARANCE */}
         <SectionHeader label={t('settings.sectionAppearance') || 'APPEARANCE'} />
         <SettingsRow
@@ -168,12 +211,18 @@ export function SettingsScreen({ navigation }: Props) {
           icon={Folder}
           onPress={() => setFolderVisible(true)}
         />
+        <SettingsRow
+          title={t('settings.metadataSearch')}
+          subtitle={t('settings.metadataSearchSubtitle')}
+          icon={Sparkles}
+          onPress={openMetadataSearch}
+        />
 
         {/* INTEGRATIONS */}
         <SectionHeader label={t('settings.sectionIntegrations') || 'INTEGRATIONS'} />
         <SettingsRow
           title={t('settings.apiKey')}
-          subtitle={preferences.geminiApiKey ? t('api.configured') : t('api.noKey')}
+          subtitle={preferences.hasGeminiApiKey ? t('api.configured') : t('api.noKey')}
           icon={KeyRound}
           onPress={() => setApiVisible(true)}
         />
@@ -186,7 +235,7 @@ export function SettingsScreen({ navigation }: Props) {
           icon={Info}
           onPress={() => navigation.navigate('SettingsGroup', { group: 'about' })}
         />
-      </View>
+      </ScrollView>
 
       {/* Language Modal */}
       <SettingsModal visible={langVisible} onClose={() => setLangVisible(false)} title={t('settings.language')}>
@@ -253,7 +302,7 @@ export function SettingsScreen({ navigation }: Props) {
           <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
             <View
               style={{
-                backgroundColor: preferences.geminiApiKey ? '#22c55e' : theme.textMuted,
+                backgroundColor: preferences.hasGeminiApiKey ? '#22c55e' : theme.textMuted,
                 borderRadius: 99,
                 height: 8,
                 width: 8,
@@ -312,6 +361,32 @@ export function SettingsScreen({ navigation }: Props) {
           </View>
         </View>
       </SettingsModal>
+
+      <MetadataIntroModal
+        visible={metadataIntroVisible}
+        onClose={() => setMetadataIntroVisible(false)}
+        onContinue={() => { void continueMetadataIntro(); }}
+      />
+      <MetadataBatchModal
+        books={books}
+        visible={metadataBatchVisible}
+        onClose={() => setMetadataBatchVisible(false)}
+        onApplied={(count) => setMetadataDialog({
+          message: t('metadata.appliedMessage').replace('{0}', String(count)),
+          primaryAction: { label: t('metadata.close'), onPress: () => undefined },
+          title: t('metadata.appliedTitle'),
+          variant: 'success',
+        })}
+      />
+      <MetadataDialog
+        visible={Boolean(metadataDialog)}
+        message={metadataDialog?.message ?? ''}
+        onClose={() => setMetadataDialog(null)}
+        primaryAction={metadataDialog?.primaryAction}
+        secondaryAction={metadataDialog?.secondaryAction}
+        title={metadataDialog?.title ?? ''}
+        variant={metadataDialog?.variant ?? 'success'}
+      />
     </SafeAreaView>
   );
 }

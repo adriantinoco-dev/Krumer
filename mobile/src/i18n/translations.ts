@@ -12,6 +12,49 @@ export type TranslationKey =
   | 'api.noKey'
   | 'api.placeholder'
   | 'api.yourKey'
+  | 'metadata.introTitle'
+  | 'metadata.introSubtitle'
+  | 'metadata.introHowTitle'
+  | 'metadata.introHowText'
+  | 'metadata.introPrivacyTitle'
+  | 'metadata.introPrivacyText'
+  | 'metadata.introReviewTitle'
+  | 'metadata.introReviewText'
+  | 'metadata.introContinue'
+  | 'metadata.keyRequiredTitle'
+  | 'metadata.keyRequiredMessage'
+  | 'metadata.configureKey'
+  | 'metadata.searchFailedTitle'
+  | 'metadata.retry'
+  | 'metadata.close'
+  | 'metadata.selectTitle'
+  | 'metadata.processingTitle'
+  | 'metadata.previewTitle'
+  | 'metadata.resultsTitle'
+  | 'metadata.processingHint'
+  | 'metadata.searchPlaceholder'
+  | 'metadata.noSearchResults'
+  | 'metadata.noEligible'
+  | 'metadata.selectionCounter'
+  | 'metadata.available'
+  | 'metadata.fetchButton'
+  | 'metadata.foundCount'
+  | 'metadata.found'
+  | 'metadata.notFound'
+  | 'metadata.applyButton'
+  | 'metadata.unknown'
+  | 'metadata.author'
+  | 'metadata.release'
+  | 'metadata.synopsis'
+  | 'metadata.noSynopsis'
+  | 'metadata.actionsTitle'
+  | 'metadata.searchAction'
+  | 'metadata.editAction'
+  | 'metadata.appliedTitle'
+  | 'metadata.appliedMessage'
+  | 'metadata.clearAction'
+  | 'metadata.clearTitle'
+  | 'metadata.clearMessage'
   | 'auth.account'
   | 'auth.accountCreated'
   | 'auth.checkEmailConfirmation'
@@ -168,6 +211,8 @@ export type TranslationKey =
   | 'settings.general'
   | 'settings.keySaved'
   | 'settings.language'
+  | 'settings.metadataSearch'
+  | 'settings.metadataSearchSubtitle'
   | 'settings.sectionAbout'
   | 'settings.sectionAppearance'
   | 'settings.sectionIntegrations'
@@ -207,6 +252,49 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'api.noKey': 'No key configured.',
     'api.placeholder': 'Paste your key here',
     'api.yourKey': 'Your key',
+    'metadata.introTitle': 'Find book metadata',
+    'metadata.introSubtitle': 'Use Gemini to complete the details of books in your local library.',
+    'metadata.introHowTitle': 'How it works',
+    'metadata.introHowText': 'Krumer sends the book title to Gemini and receives a structured suggestion.',
+    'metadata.introPrivacyTitle': 'Your key stays on your device',
+    'metadata.introPrivacyText': 'The key is kept in secure device storage and is used only for Gemini requests.',
+    'metadata.introReviewTitle': 'You stay in control',
+    'metadata.introReviewText': 'Results are shown for review. Nothing changes until you confirm or save.',
+    'metadata.introContinue': 'Got it, continue',
+    'metadata.keyRequiredTitle': 'Gemini key required',
+    'metadata.keyRequiredMessage': 'Add your Gemini API key in Settings to search for metadata.',
+    'metadata.configureKey': 'Configure key',
+    'metadata.searchFailedTitle': 'Metadata search failed',
+    'metadata.retry': 'Try again',
+    'metadata.close': 'Close',
+    'metadata.selectTitle': 'Select books',
+    'metadata.processingTitle': 'Finding metadata…',
+    'metadata.previewTitle': 'Metadata preview',
+    'metadata.resultsTitle': 'Search results',
+    'metadata.processingHint': 'Requests are processed one at a time.',
+    'metadata.searchPlaceholder': 'Search title or author…',
+    'metadata.noSearchResults': 'No books match this search.',
+    'metadata.noEligible': 'All root books already have metadata.',
+    'metadata.selectionCounter': '{0} / {1} selected',
+    'metadata.available': 'available',
+    'metadata.fetchButton': 'Search metadata',
+    'metadata.foundCount': '{0} of {1} results found',
+    'metadata.found': 'Found',
+    'metadata.notFound': 'Not found',
+    'metadata.applyButton': 'Apply found results',
+    'metadata.unknown': 'Unknown',
+    'metadata.author': 'Author:',
+    'metadata.release': 'Release:',
+    'metadata.synopsis': 'Synopsis',
+    'metadata.noSynopsis': 'No synopsis available.',
+    'metadata.actionsTitle': 'Book actions',
+    'metadata.searchAction': 'Find metadata',
+    'metadata.editAction': 'Edit manually',
+    'metadata.appliedTitle': 'Metadata updated',
+    'metadata.appliedMessage': '{0} books were updated.',
+    'metadata.clearAction': 'Clear metadata',
+    'metadata.clearTitle': 'Clear metadata?',
+    'metadata.clearMessage': 'Author, year and synopsis will be removed. The title, tags, rating, cover and reading progress will be kept.',
     'auth.account': 'Account',
     'auth.accountCreated': 'Account created and signed in.',
     'auth.checkEmailConfirmation': 'Account created. Check your email to confirm your registration.',
@@ -364,6 +452,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'settings.general': 'General',
     'settings.keySaved': 'Key saved.',
     'settings.language': 'Language',
+    'settings.metadataSearch': 'Find metadata',
+    'settings.metadataSearchSubtitle': 'Complete missing author, year and synopsis',
     'settings.sectionAbout': 'ABOUT',
     'settings.sectionAppearance': 'APPEARANCE',
     'settings.sectionIntegrations': 'INTEGRATIONS',
@@ -392,6 +482,49 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'api.noKey': 'Nenhuma chave configurada.',
     'api.placeholder': 'Cole sua chave aqui',
     'api.yourKey': 'Sua chave',
+    'metadata.introTitle': 'Buscar metadados',
+    'metadata.introSubtitle': 'Use o Gemini para completar os detalhes dos livros da sua biblioteca local.',
+    'metadata.introHowTitle': 'Como funciona',
+    'metadata.introHowText': 'O Krumer envia o título ao Gemini e recebe uma sugestão estruturada.',
+    'metadata.introPrivacyTitle': 'Sua chave fica no dispositivo',
+    'metadata.introPrivacyText': 'A chave fica no armazenamento seguro e é usada apenas nas consultas ao Gemini.',
+    'metadata.introReviewTitle': 'Você mantém o controle',
+    'metadata.introReviewText': 'Os resultados aparecem para revisão. Nada muda antes da sua confirmação ou salvamento.',
+    'metadata.introContinue': 'Entendi, continuar',
+    'metadata.keyRequiredTitle': 'Chave Gemini necessária',
+    'metadata.keyRequiredMessage': 'Adicione sua chave da API Gemini nas Configurações para buscar metadados.',
+    'metadata.configureKey': 'Configurar chave',
+    'metadata.searchFailedTitle': 'Falha na busca de metadados',
+    'metadata.retry': 'Tentar novamente',
+    'metadata.close': 'Fechar',
+    'metadata.selectTitle': 'Selecionar livros',
+    'metadata.processingTitle': 'Buscando metadados…',
+    'metadata.previewTitle': 'Prévia dos metadados',
+    'metadata.resultsTitle': 'Resultados da busca',
+    'metadata.processingHint': 'As consultas são processadas uma por vez.',
+    'metadata.searchPlaceholder': 'Buscar título ou autor…',
+    'metadata.noSearchResults': 'Nenhum livro corresponde à busca.',
+    'metadata.noEligible': 'Todos os livros já possuem metadados.',
+    'metadata.selectionCounter': '{0} / {1} selecionados',
+    'metadata.available': 'disponíveis',
+    'metadata.fetchButton': 'Buscar metadados',
+    'metadata.foundCount': '{0} de {1} resultados encontrados',
+    'metadata.found': 'Encontrado',
+    'metadata.notFound': 'Não encontrado',
+    'metadata.applyButton': 'Aplicar encontrados',
+    'metadata.unknown': 'Não identificado',
+    'metadata.author': 'Autor:',
+    'metadata.release': 'Lançamento:',
+    'metadata.synopsis': 'Sinopse',
+    'metadata.noSynopsis': 'Nenhuma sinopse disponível.',
+    'metadata.actionsTitle': 'Ações do livro',
+    'metadata.searchAction': 'Buscar metadados',
+    'metadata.editAction': 'Editar manualmente',
+    'metadata.appliedTitle': 'Metadados atualizados',
+    'metadata.appliedMessage': '{0} livros foram atualizados.',
+    'metadata.clearAction': 'Apagar metadados',
+    'metadata.clearTitle': 'Apagar metadados?',
+    'metadata.clearMessage': 'Autor, ano e sinopse serão removidos. O título, tags, avaliação, capa e progresso de leitura serão mantidos.',
     'auth.account': 'Conta',
     'auth.accountCreated': 'Conta criada e conectada.',
     'auth.checkEmailConfirmation': 'Conta criada. Confira seu email para confirmar o cadastro.',
@@ -549,6 +682,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'settings.general': 'Geral',
     'settings.keySaved': 'Chave salva.',
     'settings.language': 'Idioma',
+    'settings.metadataSearch': 'Buscar metadados',
+    'settings.metadataSearchSubtitle': 'Completar autor, ano e sinopse ausentes',
     'settings.sectionAbout': 'SOBRE',
     'settings.sectionAppearance': 'APARÊNCIA',
     'settings.sectionIntegrations': 'INTEGRAÇÕES',
@@ -577,6 +712,49 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'api.noKey': 'No hay clave configurada.',
     'api.placeholder': 'Pega tu clave aquí',
     'api.yourKey': 'Tu clave',
+    'metadata.introTitle': 'Buscar metadatos',
+    'metadata.introSubtitle': 'Usa Gemini para completar los detalles de los libros de tu biblioteca local.',
+    'metadata.introHowTitle': 'Cómo funciona',
+    'metadata.introHowText': 'Krumer envía el título a Gemini y recibe una sugerencia estructurada.',
+    'metadata.introPrivacyTitle': 'Tu clave queda en el dispositivo',
+    'metadata.introPrivacyText': 'La clave se guarda de forma segura y solo se usa en consultas a Gemini.',
+    'metadata.introReviewTitle': 'Tú mantienes el control',
+    'metadata.introReviewText': 'Los resultados aparecen para revisión. Nada cambia hasta que confirmes o guardes.',
+    'metadata.introContinue': 'Entendido, continuar',
+    'metadata.keyRequiredTitle': 'Se necesita la clave Gemini',
+    'metadata.keyRequiredMessage': 'Agrega tu clave API de Gemini en Configuración para buscar metadatos.',
+    'metadata.configureKey': 'Configurar clave',
+    'metadata.searchFailedTitle': 'Falló la búsqueda de metadatos',
+    'metadata.retry': 'Intentar de nuevo',
+    'metadata.close': 'Cerrar',
+    'metadata.selectTitle': 'Seleccionar libros',
+    'metadata.processingTitle': 'Buscando metadatos…',
+    'metadata.previewTitle': 'Vista previa de metadatos',
+    'metadata.resultsTitle': 'Resultados de búsqueda',
+    'metadata.processingHint': 'Las consultas se procesan una por una.',
+    'metadata.searchPlaceholder': 'Buscar título o autor…',
+    'metadata.noSearchResults': 'Ningún libro coincide con la búsqueda.',
+    'metadata.noEligible': 'Todos los libros raíz ya tienen metadatos.',
+    'metadata.selectionCounter': '{0} / {1} seleccionados',
+    'metadata.available': 'disponibles',
+    'metadata.fetchButton': 'Buscar metadatos',
+    'metadata.foundCount': '{0} de {1} resultados encontrados',
+    'metadata.found': 'Encontrado',
+    'metadata.notFound': 'No encontrado',
+    'metadata.applyButton': 'Aplicar encontrados',
+    'metadata.unknown': 'No identificado',
+    'metadata.author': 'Autor:',
+    'metadata.release': 'Lanzamiento:',
+    'metadata.synopsis': 'Sinopsis',
+    'metadata.noSynopsis': 'No hay sinopsis disponible.',
+    'metadata.actionsTitle': 'Acciones del libro',
+    'metadata.searchAction': 'Buscar metadatos',
+    'metadata.editAction': 'Editar manualmente',
+    'metadata.appliedTitle': 'Metadatos actualizados',
+    'metadata.appliedMessage': 'Se actualizaron {0} libros.',
+    'metadata.clearAction': 'Borrar metadatos',
+    'metadata.clearTitle': '¿Borrar metadatos?',
+    'metadata.clearMessage': 'Se eliminarán autor, año y sinopsis. Se conservarán el título, las etiquetas, la valoración, la portada y el progreso de lectura.',
     'auth.account': 'Cuenta',
     'auth.accountCreated': 'Cuenta creada y conectada.',
     'auth.checkEmailConfirmation': 'Cuenta creada. Revisa tu correo para confirmar el registro.',
@@ -734,6 +912,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'settings.general': 'General',
     'settings.keySaved': 'Clave guardada.',
     'settings.language': 'Idioma',
+    'settings.metadataSearch': 'Buscar metadatos',
+    'settings.metadataSearchSubtitle': 'Completar autor, año y sinopsis ausentes',
     'settings.sectionAbout': 'ACERCA DE',
     'settings.sectionAppearance': 'APARIENCIA',
     'settings.sectionIntegrations': 'INTEGRACIONES',

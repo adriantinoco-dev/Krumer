@@ -4,4 +4,5 @@ export * from './readingPreferences';
 export * from './tag';
 export * from './list';
 export * from './settings';
+export * from './metadata';
 

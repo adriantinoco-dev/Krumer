@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Easing,
   Image,
   Modal,
   Pressable,
@@ -11,7 +12,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -27,12 +28,16 @@ import {
   MoreVertical,
   RotateCcw,
   Star,
+  Trash2,
 } from 'lucide-react-native';
 import { RatingStars } from '../components/RatingStars';
+import { MetadataActionModal } from '../components/MetadataActionModal';
+import { MetadataDialog, type MetadataDialogConfig } from '../components/MetadataDialog';
 import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import type { RootStackParamList } from '../navigation/types';
 import { coverShadow, radii, serifFont, spacing, TABLET_BREAKPOINT } from '../theme';
+import { extractYear, searchMetadataForBook } from '../services/metadataService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BookDetail'>;
 
@@ -41,6 +46,7 @@ const ORANGE_ACCENT = '#ff6500';
 export function BookDetailScreen({ navigation, route }: Props) {
   const { bookId } = route.params;
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const {
     books,
     lists,
@@ -57,6 +63,9 @@ export function BookDetailScreen({ navigation, route }: Props) {
   const [coverFailed, setCoverFailed] = useState(false);
   const [synopsisExpanded, setSynopsisExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [actionsVisible, setActionsVisible] = useState(false);
+  const [metadataLoading, setMetadataLoading] = useState(false);
+  const [metadataDialog, setMetadataDialog] = useState<MetadataDialogConfig | null>(null);
 
   // Form states for Metadata Editor
   const [editTitle, setEditTitle] = useState('');
@@ -112,6 +121,8 @@ export function BookDetailScreen({ navigation, route }: Props) {
 
   const animatedProgress = useRef(new Animated.Value(0)).current;
   const prevProgressPctRef = useRef<number | null>(null);
+  const metadataSweep = useRef(new Animated.Value(0)).current;
+  const [metadataTrackWidth, setMetadataTrackWidth] = useState(0);
   const progressPct = Math.max(0, Math.min(100, book.progressPct ?? 0));
   const isBookRead = book.isRead || (book.progressPct ?? 0) >= 100;
   const hasPartialProgress = progressPct > 0 && progressPct < 100;
@@ -129,6 +140,29 @@ export function BookDetailScreen({ navigation, route }: Props) {
       useNativeDriver: false,
     }).start();
   }, [book.id, book.progressPct]);
+
+  useEffect(() => {
+    if (!metadataLoading) {
+      metadataSweep.stopAnimation();
+      metadataSweep.setValue(0);
+      return undefined;
+    }
+
+    const animation = Animated.loop(
+      Animated.timing(metadataSweep, {
+        toValue: 1,
+        duration: 1100,
+        easing: Easing.linear,
+        useNativeDriver: false,
+      }),
+    );
+    animation.start();
+
+    return () => {
+      animation.stop();
+      metadataSweep.stopAnimation();
+    };
+  }, [metadataLoading, metadataSweep]);
 
   const handleSetRead = async (nextIsRead: boolean) => {
     await updateBookProgress(book.id, {
@@ -161,6 +195,40 @@ export function BookDetailScreen({ navigation, route }: Props) {
     setEditCoverPath(book.coverPath || null);
     setEditCoverOriginalPath(book.coverOriginalPath || book.coverPath || null);
     setIsEditing(true);
+  };
+
+  const handleSearchMetadata = async () => {
+    setActionsVisible(false);
+    setMetadataLoading(true);
+    try {
+      const result = await searchMetadataForBook(book, { language: preferences.language });
+      if (!result.candidate || result.status !== 'found') {
+        throw new Error(t('metadata.notFound'));
+      }
+
+      const candidate = result.candidate;
+      setEditTitle(isSeries ? book.title : candidate.nome_da_obra || book.title);
+      setEditAuthor(candidate.autor || book.author || '');
+      const returnedYear = extractYear(candidate.data_de_lancamento);
+      setEditYear(returnedYear !== null ? String(returnedYear) : (book.year ? String(book.year) : ''));
+      setEditDescription(candidate.sinopse || book.description || '');
+      setEditRating(book.rating || 0);
+      setEditTags(book.tags ? book.tags.join(', ') : '');
+      setEditCoverPath(book.coverPath || null);
+      setEditCoverOriginalPath(book.coverOriginalPath || book.coverPath || null);
+      setIsEditing(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('metadata.notFound');
+      setMetadataDialog({
+        message,
+        primaryAction: { label: t('metadata.retry'), onPress: () => { void handleSearchMetadata(); } },
+        secondaryAction: { kind: 'secondary', label: t('metadata.close'), onPress: () => undefined },
+        title: t('metadata.searchFailedTitle'),
+        variant: 'error',
+      });
+    } finally {
+      setMetadataLoading(false);
+    }
   };
 
   const handlePickCoverImage = async () => {
@@ -212,6 +280,33 @@ export function BookDetailScreen({ navigation, route }: Props) {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const clearMetadata = async () => {
+    setIsSaving(true);
+    try {
+      await updateBookMetadata(book.id, {
+        author: '',
+        year: null,
+        description: null,
+      });
+      setEditAuthor('');
+      setEditYear('');
+      setEditDescription('');
+      setIsEditing(false);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleClearMetadata = () => {
+    setMetadataDialog({
+      message: t('metadata.clearMessage'),
+      primaryAction: { label: t('common.delete'), onPress: () => { void clearMetadata(); }, tone: 'danger' },
+      secondaryAction: { kind: 'secondary', label: t('common.cancel'), onPress: () => undefined },
+      title: t('metadata.clearTitle'),
+      variant: 'danger',
+    });
   };
 
   return (
@@ -320,7 +415,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
             </Pressable>
             <Pressable
               hitSlop={12}
-              onPress={handleOpenEditModal}
+              onPress={() => setActionsVisible(true)}
               style={{
                 alignItems: 'center',
                 backgroundColor: navButtonBg,
@@ -774,6 +869,48 @@ export function BookDetailScreen({ navigation, route }: Props) {
       </View>
 
       {/* Metadata Edit Modal */}
+      <MetadataActionModal
+        visible={actionsVisible}
+        onClose={() => setActionsVisible(false)}
+        onSearch={() => { void handleSearchMetadata(); }}
+        onEdit={() => { setActionsVisible(false); handleOpenEditModal(); }}
+      />
+      <MetadataDialog
+        visible={Boolean(metadataDialog)}
+        message={metadataDialog?.message ?? ''}
+        onClose={() => setMetadataDialog(null)}
+        primaryAction={metadataDialog?.primaryAction}
+        secondaryAction={metadataDialog?.secondaryAction}
+        title={metadataDialog?.title ?? ''}
+        variant={metadataDialog?.variant ?? 'success'}
+      />
+      <Modal animationType="fade" transparent visible={metadataLoading} onRequestClose={() => undefined}>
+        <View style={{ alignItems: 'center', backgroundColor: '#00000088', flex: 1, justifyContent: 'center', paddingBottom: Math.max(spacing.lg, insets.bottom + spacing.sm), paddingHorizontal: spacing.lg, paddingTop: Math.max(spacing.lg, insets.top + spacing.sm) }}>
+          <View style={{ alignItems: 'center', backgroundColor: theme.card, borderColor: theme.border, borderRadius: radii.lg, borderWidth: 1, maxWidth: 340, padding: spacing.xl, width: '100%' }}>
+            <View
+              onLayout={({ nativeEvent }) => setMetadataTrackWidth(nativeEvent.layout.width)}
+              style={{ backgroundColor: theme.surface, borderRadius: 4, height: 5, marginTop: spacing.lg, overflow: 'hidden', width: '100%' }}
+            >
+              <Animated.View
+                style={{
+                  backgroundColor: accentColor,
+                  borderRadius: 4,
+                  height: '100%',
+                  transform: [{
+                    translateX: metadataSweep.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-(metadataTrackWidth * 0.32 || 80), metadataTrackWidth || 340],
+                    }),
+                  }],
+                  width: metadataTrackWidth ? metadataTrackWidth * 0.32 : 80,
+                }}
+              />
+            </View>
+            <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 16, fontWeight: '700', marginTop: spacing.md }}>{t('metadata.processingTitle')}</Text>
+            <Text numberOfLines={2} style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, marginTop: spacing.xs, textAlign: 'center' }}>{book.title}</Text>
+          </View>
+        </View>
+      </Modal>
       <Modal animationType="slide" visible={isEditing} onRequestClose={() => setIsEditing(false)}>
         <SafeAreaView edges={['top', 'bottom']} style={{ backgroundColor: theme.bg, flex: 1 }}>
           {/* Modal Header */}
@@ -1032,6 +1169,28 @@ export function BookDetailScreen({ navigation, route }: Props) {
                 value={editDescription}
               />
             </View>
+
+            <Pressable
+              disabled={isSaving}
+              onPress={handleClearMetadata}
+              style={({ pressed }) => ({
+                alignItems: 'center',
+                borderColor: '#ef4444',
+                borderRadius: radii.md,
+                borderWidth: 1,
+                flexDirection: 'row',
+                gap: spacing.sm,
+                justifyContent: 'center',
+                marginTop: spacing.sm,
+                opacity: pressed || isSaving ? 0.55 : 1,
+                paddingVertical: spacing.sm + 2,
+              })}
+            >
+              <Trash2 color="#ef4444" size={17} />
+              <Text style={{ color: '#ef4444', fontFamily: serifFont, fontSize: 14, fontWeight: '600' }}>
+                {t('metadata.clearAction')}
+              </Text>
+            </Pressable>
           </ScrollView>
         </SafeAreaView>
       </Modal>

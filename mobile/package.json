@@ -12,7 +12,8 @@
     "test": "jest",
     "test:epub-runtime": "node scripts/validate-epub-runtime.cjs",
     "test:reading-preferences": "node scripts/validate-reading-preferences.cjs",
-    "test:reader-persistence": "node scripts/validate-reader-persistence.cjs"
+    "test:reader-persistence": "node scripts/validate-reader-persistence.cjs",
+    "test:metadata": "node scripts/validate-metadata-service.cjs"
   },
   "dependencies": {
     "@expo-google-fonts/noto-sans": "^0.4.2",
@@ -34,6 +35,7 @@
     "expo-file-system": "~57.0.5",
     "expo-font": "~57.0.1",
     "expo-screen-orientation": "~57.0.1",
+    "expo-secure-store": "~57.0.2",
     "expo-sqlite": "~57.0.1",
     "jszip": "3.10.1",
     "lucide-react-native": "^1.31.0",

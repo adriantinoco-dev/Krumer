@@ -199,6 +199,8 @@ export function ListsScreen({ navigation }: Props) {
               </View>
             );
           }}
+          showsVerticalScrollIndicator={false}
+          style={{ flex: 1 }}
         />
       )}
 

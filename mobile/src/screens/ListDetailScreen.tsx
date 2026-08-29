@@ -342,6 +342,8 @@ export function ListDetailScreen({ navigation, route }: Props) {
               width={cardWidth}
             />
           )}
+          showsVerticalScrollIndicator={false}
+          style={{ flex: 1 }}
         />
       )}
 

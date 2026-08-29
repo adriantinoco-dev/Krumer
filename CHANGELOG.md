@@ -8,6 +8,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Alterado
+- **Mobile — busca de metadados responsiva (Android/tablet):** os modais de
+  introdução, lote, ações e progresso agora respeitam as áreas seguras do
+  dispositivo, mantendo controles fora da câmera e da barra de navegação. A
+  prévia de resultados encontrados foi centralizada e recebeu largura máxima
+  confortável para celulares e tablets.
+- **Metadados — modelos Gemini atualizados para novas chaves (desktop/Android):**
+  o serviço agora usa `gemini-3.6-flash` com fallback explícito para
+  `gemini-3.5-flash-lite`. O caminho padrão do Free Tier não envia Google
+  Search/grounding, usa `responseSchema` para garantir JSON estruturado e
+  mantém a validação local. O contador local diário obsoleto do desktop foi
+  removido; limites e respostas `429` ficam sob controle da API. A mudança
+  evita o `404` retornado para chaves novas que não têm acesso ao Gemini 2.5.
 - **Mobile — chrome do leitor EPUB mais compacto:** a altura vertical das barras superior e inferior foi reduzida em 10%, incluindo espaçamentos e controles, mantendo as larguras, ícones, áreas seguras e hit slops para toque.
 - **Mobile — novo visual imersivo do leitor EPUB (Android/iOS):** o conteúdo passou a usar chrome discreto e auto-ocultável, título do capítulo e paginação lógica estável durante a leitura, barra superior com marcadores, tipografia e fechamento, além de navegação/progresso no rodapé. A faixa superior do conteúdo reserva espaço suficiente para a barra cobrir o título do capítulo sem sobrepor o texto do livro; a barra usa fundo totalmente sólido, aparece sem transparência ou fade e mantém suas ferramentas explicitamente acima da superfície nativa da WebView no Android. O painel de leitura agora altera tamanho da fonte, espaçamento e temas escuro, claro e sépia ao vivo no capítulo renderizado, sem reabrir o EPUB, perder a posição ou interferir nos gestos, botões de volume, progresso e bookmarks existentes.
 - **Mobile — Ícone estilizado de idioma em badges sobrepostas (文A) (Android):** reformulação do componente [`LanguageIcon.tsx`](file:///c:/Projects/Krumer%20RN/mobile/src/components/LanguageIcon.tsx) com visual premium de badges geométricas com cantos arredondados, preenchimento translúcido com profundidade em camadas e tipografia nítida ("文" e "A"), integrado ao [`LangPicker.tsx`](file:///c:/Projects/Krumer%20RN/mobile/src/components/LangPicker.tsx).
@@ -19,6 +31,11 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 - **Títulos e autores em negrito nas visualizações em grade:** títulos de livros e nomes de autores agora são exibidos em negrito (`fontWeight: '700'`) em todos os cards e grades da biblioteca e listas (mobile e desktop).
 
 ### Corrigido
+- **Metadados — título de séries preservado (Android/desktop):** resultados de
+  busca para obras pai com capítulos não substituem mais o título da série;
+  o modal também exibe o título local do pai, mesmo quando o Gemini retorna o
+  nome de um capítulo. Somente livros avulsos recebem o título retornado.
+  Autor, ano e sinopse continuam aplicáveis nas séries.
 - **Mobile — controles e configurações sem reflow no EPUB em landscape:** o toque central agora exibe apenas o chrome sobreposto do leitor, mantendo a barra de status do Android oculta para não reduzir a altura da WebView. O modal de configurações usa as áreas de sistema translúcidas, evitando alteração do viewport, perda da posição e compressão vertical do texto ao abrir ou fechar o painel em duas colunas.
 - **Mobile — rotação fluida e paginação estável do EPUB:** a WebView agora determina a orientação pelo viewport e aplica `spread` antes de redimensionar a `rendition`, mantendo uma âncora de leitura independente dos eventos intermediários do reflow e restaurando o CFI original diante de qualquer deslocamento, sem destruir, limpar ou renderizar novamente o livro durante rotação, troca de colunas e alterações tipográficas. Ao ativar duas colunas, o CFI é alinhado como primeira coluna de leitura em vez de ser encaixado pelo epub.js no spread anterior, evitando o aparente retorno de uma página. Livros abertos diretamente na horizontal já usam duas colunas no primeiro quadro. O contador paginado usa localizações CFI fixas de 1.600 caracteres, permanece invariável após reflow e atualiza a página atual em cada `relocated`; durante a geração exibe `— / —`, e uma falha não bloqueia a leitura, usando porcentagem como fallback.
 - **Mobile — fontes, posição e rotação do leitor EPUB:** as famílias Noto Serif, Noto Sans e Noto Sans Mono agora são incorporadas nos pesos 300/400/500/700, carregadas antes da paginação e aplicadas com prioridade inclusive sobre o CSS interno do livro. O fechamento consulta a posição viva da rendition antes de persistir, enquanto abertura e reflow estabilizam o mesmo CFI sem sobrescrevê-lo com eventos intermediários. O binário permite as orientações suportadas, o shell mantém as telas comuns em retrato e somente o leitor libera retrato/landscape durante seu ciclo de vida, restaurando o bloqueio anterior ao sair e habilitando a coluna dupla horizontal.
@@ -30,6 +47,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 - **Mobile — Leitor EPUB (Android):** correção na inicialização de arquivos EPUB no WebView. Os scripts `JSZip` (v3.10.1) e `epub.js` (v0.3.93) foram vendorizados localmente (`epubVendorScript.ts`) eliminando dependência da CDN externa para leitura 100% offline. Abertura do livro otimizada para converter Base64 diretamente em `ArrayBuffer` em memória via `window.atob()`, evitando bloqueios CORS/Same-Origin no `fetch('file://')` do Android WebView e eliminando timeouts no carregamento.
 
 ### Adicionado
+- **Mobile — limpeza de metadados no editor (Android):** novo botão destrutivo
+  com confirmação remove autor, ano e sinopse, mantendo título, tags,
+  avaliação, capa e progresso de leitura.
+- **Mobile — busca de metadados via Gemini (Android):** busca individual pelo
+  menu de três pontos e busca em lote pela seção Biblioteca das Configurações,
+  com introdução na primeira utilização, seleção de até 10 obras, progresso
+  sequencial, prévia, cache positivo por fingerprint/idioma e aplicação
+  explícita de título, autor, ano e sinopse. A chave migra do AsyncStorage para
+  `expo-secure-store`; o fluxo usa REST direto, schema JSON e fallback de
+  modelos sem alterar os arquivos PDF/EPUB.
 - **Mobile — configurações de exibição do leitor EPUB (Android/iOS):** novo bottom sheet acessível pela barra superior com alternância ao vivo entre rolagem contínua e paginação, intenção persistida de coluna dupla aplicada somente em modo paginado e orientação horizontal, seleção com prévia entre fontes serifada, sem serifa e monoespaçada, e quatro pesos de fonte. As preferências ficam locais ao dispositivo em `AsyncStorage`; orientação, colunas e tipografia atualizam a `rendition` existente no locator atual, enquanto somente a troca entre rolagem e paginação recria o gerenciador exigido pelo epub.js. O modo de rolagem preserva o scroll vertical natural e desativa gestos/toques laterais de virada de página.
 - **Mobile — F2 do novo leitor EPUB (Android/iOS):** progresso e marcadores duráveis em `expo-sqlite`, com migration transacional e locators discriminados preparados para EPUB/PDF. O runtime EPUB agora emite `RELOCATE`, aceita `GO_TO_LOCATOR` e restaura na ordem CFI, `spineHref + progressionInSection` e trecho textual. O progresso permanece transitório durante a navegação, grava com debounce de 1 segundo e faz flush ao entrar em background ou fechar o leitor; marcadores podem ser criados, listados, acessados e removidos por tombstone com timestamps.
 - **Mobile — navegação EPUB pelos botões de volume:** enquanto o leitor EPUB está aberto no Android, `Volume +` avança uma página e `Volume -` retrocede uma página. Os eventos físicos são consumidos pela Activity para não alterar o volume do aparelho; ao sair do leitor, o controle de volume normal é restaurado.

@@ -7,7 +7,6 @@ import json
 import os
 import re
 import time
-import datetime
 from pathlib import Path
 from typing import Generator
 
@@ -33,8 +32,6 @@ except ImportError:
     types = None
 
 CACHE_PATH = LIBRARIAN_DIR / "metadados_cache.json"
-DAILY_COUNT_PATH = LIBRARIAN_DIR / "metadata_daily_count.json"
-DAILY_LIMIT = 1500
 RATE_LIMIT_SLEEP = 2.5
 
 TOKENS_PARA_REMOVER = [
@@ -74,9 +71,8 @@ Regras:
 - A sinopse deve ser completa, em {lang_name}."""
 
 MODELOS = [
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-flash-latest",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite",
 ]
 
 
@@ -143,26 +139,6 @@ def limpar_cache_negativo(cache_path: Path = CACHE_PATH) -> int:
     return len(chaves_para_remover)
 
 
-def _check_daily_limit() -> None:
-    today = datetime.date.today().isoformat()
-    data = _load_json_file(DAILY_COUNT_PATH)
-    if data.get("date") != today:
-        data = {"date": today, "count": 0}
-    if data.get("count", 0) >= DAILY_LIMIT:
-        raise MetadataServiceError(
-            f"Limite diário de {DAILY_LIMIT} requisições à API Gemini atingido. Tente novamente amanhã."
-        )
-
-
-def _increment_daily_count() -> None:
-    today = datetime.date.today().isoformat()
-    data = _load_json_file(DAILY_COUNT_PATH)
-    if data.get("date") != today:
-        data = {"date": today, "count": 0}
-    data["count"] = data.get("count", 0) + 1
-    _save_json_file(DAILY_COUNT_PATH, data)
-
-
 def obter_metadados_gemini(titulo_limpo: str, api_key: str | None = None, language: str = "en") -> dict | None:
     """Consulta o Gemini para obter metadados em JSON."""
     if genai is None or types is None:
@@ -174,13 +150,26 @@ def obter_metadados_gemini(titulo_limpo: str, api_key: str | None = None, langua
     if not key:
         raise MetadataServiceError("GEMINI_API_KEY não encontrada nas variáveis de ambiente.")
 
-    _check_daily_limit()
-
     lang_name = SYNOPSIS_LANG_MAP.get(language, "English")
     prompt = PROMPT_TEMPLATE.format(titulo_limpo=titulo_limpo, lang_name=lang_name)
     client = genai.Client(api_key=key)
     config = types.GenerateContentConfig(
         response_mime_type="application/json",
+        response_schema={
+            "type": "OBJECT",
+            "properties": {
+                "nome_da_obra": {"type": "STRING", "nullable": True},
+                "autor": {"type": "STRING", "nullable": True},
+                "data_de_lancamento": {"type": "STRING", "nullable": True},
+                "sinopse": {"type": "STRING", "nullable": True},
+            },
+            "required": [
+                "nome_da_obra",
+                "autor",
+                "data_de_lancamento",
+                "sinopse",
+            ],
+        },
         system_instruction=SYSTEM_INSTRUCTION,
     )
 
@@ -195,7 +184,6 @@ def obter_metadados_gemini(titulo_limpo: str, api_key: str | None = None, langua
             if raw_text.startswith("```"):
                 raw_text = re.sub(r"^```(?:json)?\s*", "", raw_text)
                 raw_text = re.sub(r"\s*```$", "", raw_text).strip()
-            _increment_daily_count()
             return json.loads(raw_text)
         except MetadataServiceError:
             raise
@@ -210,9 +198,8 @@ def obter_metadados_gemini(titulo_limpo: str, api_key: str | None = None, langua
 
     if rate_limited:
         raise MetadataServiceError(
-            "Limite de requisições à API Gemini excedido. "
-            "O plano gratuito permite aproximadamente 20 requisições por minuto. "
-            "Aguarde alguns minutos e tente novamente."
+            "Limite de requisições da API Gemini atingido. "
+            "Aguarde e tente novamente mais tarde."
         )
 
     return None
