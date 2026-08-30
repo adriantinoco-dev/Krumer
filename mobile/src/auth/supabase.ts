@@ -1,7 +1,9 @@
 import 'react-native-url-polyfill/auto';
 import { AppState, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createClient, processLock } from '@supabase/supabase-js';
+import { createClient, processLock, type SupabaseClient } from '@supabase/supabase-js';
+import { CLOUD_SYNC_ENABLED, cloudSyncDisabledMessage } from '../config';
+import { DEFAULT_LANGUAGE, type LanguageCode } from '../i18n/translations';
 
 export const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL
   ?? 'https://bcwgtutmzdhkotiuymxl.supabase.co';
@@ -10,22 +12,30 @@ const supabasePublishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 
 export const AUTH_REDIRECT_URL = 'krumer://auth/callback';
 
-export const supabase = createClient(SUPABASE_URL, supabasePublishableKey, {
-  auth: {
-    ...(Platform.OS !== 'web' ? { storage: AsyncStorage } : {}),
-    autoRefreshToken: true,
-    detectSessionInUrl: false,
-    lock: processLock,
-    persistSession: true,
-  },
-});
+let client: SupabaseClient<any> | null = null;
 
-if (Platform.OS !== 'web') {
+export function getSupabase(language: LanguageCode = DEFAULT_LANGUAGE) {
+  if (!CLOUD_SYNC_ENABLED) throw new Error(cloudSyncDisabledMessage(language));
+  if (!client) {
+    client = createClient(SUPABASE_URL, supabasePublishableKey, {
+      auth: {
+        ...(Platform.OS !== 'web' ? { storage: AsyncStorage } : {}),
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+        lock: processLock,
+        persistSession: true,
+      },
+    });
+  }
+  return client;
+}
+
+if (CLOUD_SYNC_ENABLED && Platform.OS !== 'web') {
   AppState.addEventListener('change', (state) => {
     if (state === 'active') {
-      supabase.auth.startAutoRefresh();
+      getSupabase().auth.startAutoRefresh();
     } else {
-      supabase.auth.stopAutoRefresh();
+      getSupabase().auth.stopAutoRefresh();
     }
   });
 }

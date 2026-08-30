@@ -70,7 +70,13 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
         var lastViewLocation = null;
         var readingAnchorLocator = null;
         var lastAppliedDoubleColumn = false;
+        var lastAppliedViewportWidth = Number(window.innerWidth) || 0;
+        var readerSelectionActive = false;
         var viewportUpdateFrame = null;
+        var viewportResizePending = false;
+        var viewportResizeAnchor = null;
+        var selectionBoundsStatusCount = 0;
+        var lastSelectionBoundsStatus = '';
         var registeredFontFaces = { serif: [], sans: [], mono: [] };
         var visualTheme = {
           backgroundColor: '#ffffff',
@@ -829,27 +835,346 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
         }
 
         function pointX(point) {
-          return typeof point.screenX === 'number' ? point.screenX : point.clientX;
+          return typeof point.clientX === 'number' ? point.clientX : point.screenX;
         }
 
         function pointY(point) {
-          return typeof point.screenY === 'number' ? point.screenY : point.clientY;
+          return typeof point.clientY === 'number' ? point.clientY : point.screenY;
         }
 
-        function clearActiveTextSelection(doc) {
+        function activeTextSelection(doc) {
           var selection = doc
             && doc.defaultView
             && typeof doc.defaultView.getSelection === 'function'
             ? doc.defaultView.getSelection()
             : null;
+          if (!selection) return null;
+          if (selection.rangeCount <= 0 || selection.isCollapsed
+            || String(selection.toString ? selection.toString() : '').length === 0) return null;
+          return selection;
+        }
+
+        function hasActiveTextSelection(doc) {
+          return !!activeTextSelection(doc);
+        }
+
+        function hasReaderTextSelection() {
+          if (!rendition || typeof rendition.getContents !== 'function') return false;
+          var contents = rendition.getContents() || [];
+          for (var index = 0; index < contents.length; index += 1) {
+            if (hasActiveTextSelection(contents[index] && contents[index].document)) return true;
+          }
+          return false;
+        }
+
+        function nodeDocument(node) {
+          if (!node) return null;
+          return node.nodeType === 9 ? node : node.ownerDocument;
+        }
+
+        function readerContentForDocument(doc) {
+          if (!rendition || typeof rendition.getContents !== 'function') return null;
+          var contents = rendition.getContents() || [];
+          for (var index = 0; index < contents.length; index += 1) {
+            if (contents[index] && contents[index].document === doc) return contents[index];
+          }
+          return null;
+        }
+
+        function visibleBoundaryRange(content, point, doc) {
+          if (!content || !point || !point.cfi || typeof content.range !== 'function') return null;
+          var contentHref = normalizedHref(content.section && content.section.href);
+          var pointHref = normalizedHref(point.href);
+          if (contentHref && pointHref && contentHref !== pointHref) return null;
+          try {
+            var range = content.range(point.cfi);
+            if (!range
+              || nodeDocument(range.startContainer) !== doc
+              || nodeDocument(range.endContainer) !== doc) return null;
+            return range;
+          } catch (_) {
+            return null;
+          }
+        }
+
+        function visibleSelectionLocation() {
+          if (lastViewLocation && lastViewLocation.start && lastViewLocation.end) {
+            return lastViewLocation;
+          }
+          return rendition && typeof rendition.currentLocation === 'function'
+            ? rendition.currentLocation()
+            : null;
+        }
+
+        function reportSelectionBoundsStatus(phase, result, viewportRestored) {
+          if (readerLayout.displayMode !== 'paginated' || selectionBoundsStatusCount >= 12) return;
+          var location = visibleSelectionLocation();
+          var startPage = location && location.start && location.start.displayed
+            ? Number(location.start.displayed.page) || null
+            : null;
+          var endPage = location && location.end && location.end.displayed
+            ? Number(location.end.displayed.page) || null
+            : null;
+          var signature = [phase, result, startPage, endPage, viewportRestored ? 'restored' : 'stable'].join('|');
+          if (signature === lastSelectionBoundsStatus) return;
+          lastSelectionBoundsStatus = signature;
+          selectionBoundsStatusCount += 1;
+          post('SELECTION_BOUNDS_STATUS', {
+            endPage: endPage,
+            phase: phase,
+            result: result,
+            startPage: startPage,
+            viewportRestored: !!viewportRestored
+          });
+        }
+
+        function constrainSelectionToVisiblePage(doc, selection) {
+          if (readerLayout.displayMode !== 'paginated'
+            || !selection
+            || selection.rangeCount <= 0
+            || typeof selection.getRangeAt !== 'function'
+            || !rendition
+            || typeof rendition.currentLocation !== 'function') return 'unavailable';
+
+          var location = visibleSelectionLocation();
+          if (!location || !location.start || !location.end) return 'unavailable';
+          var content = readerContentForDocument(doc);
+          if (!content) return 'unavailable';
+          var selectedRange;
+          try {
+            selectedRange = selection.getRangeAt(0);
+          } catch (_) {
+            return 'unavailable';
+          }
+          if (!selectedRange
+            || nodeDocument(selectedRange.startContainer) !== doc
+            || nodeDocument(selectedRange.endContainer) !== doc
+            || typeof selectedRange.compareBoundaryPoints !== 'function') return 'unavailable';
+
+          var visibleStart = visibleBoundaryRange(content, location.start, doc);
+          var visibleEnd = visibleBoundaryRange(content, location.end, doc);
+          if (!visibleStart && !visibleEnd) return 'unavailable';
+          var startNode = selectedRange.startContainer;
+          var startOffset = selectedRange.startOffset;
+          var endNode = selectedRange.endContainer;
+          var endOffset = selectedRange.endOffset;
+          var changed = false;
+
+          try {
+            if (visibleStart && selectedRange.compareBoundaryPoints(0, visibleStart) < 0) {
+              startNode = visibleStart.startContainer;
+              startOffset = visibleStart.startOffset;
+              changed = true;
+            }
+            if (visibleEnd && selectedRange.compareBoundaryPoints(2, visibleEnd) > 0) {
+              endNode = visibleEnd.endContainer;
+              endOffset = visibleEnd.endOffset;
+              changed = true;
+            }
+          } catch (_) {
+            return 'unavailable';
+          }
+          if (!changed) return 'unchanged';
+
+          var backwards = selection.anchorNode === selectedRange.endContainer
+            && selection.anchorOffset === selectedRange.endOffset;
+          try {
+            if (typeof selection.setBaseAndExtent === 'function') {
+              if (backwards) selection.setBaseAndExtent(endNode, endOffset, startNode, startOffset);
+              else selection.setBaseAndExtent(startNode, startOffset, endNode, endOffset);
+              return 'applied';
+            }
+            if (!doc.createRange || typeof selection.addRange !== 'function') return 'unavailable';
+            var constrainedRange = doc.createRange();
+            constrainedRange.setStart(startNode, startOffset);
+            constrainedRange.setEnd(endNode, endOffset);
+            selection.removeAllRanges();
+            selection.addRange(constrainedRange);
+            return 'applied';
+          } catch (_) {
+            return 'unavailable';
+          }
+        }
+
+        function paginatedSelectionScrollTargets(doc) {
+          if (readerLayout.displayMode !== 'paginated') return [];
+          var targets = [];
+          function addNode(node) {
+            if (!node || targets.some(function (entry) { return entry.target === node; })) return;
+            if (typeof node.scrollLeft === 'number' || typeof node.scrollTop === 'number') {
+              targets.push({ kind: 'node', target: node });
+            }
+          }
+          function addWindow(targetWindow) {
+            if (!targetWindow
+              || typeof targetWindow.scrollTo !== 'function'
+              || targets.some(function (entry) { return entry.target === targetWindow; })) return;
+            targets.push({ kind: 'window', target: targetWindow });
+          }
+          addWindow(window);
+          addWindow(doc && doc.defaultView);
+          addNode(rendition && rendition.manager && rendition.manager.container);
+          addNode(doc && doc.scrollingElement);
+          addNode(doc && doc.documentElement);
+          addNode(doc && doc.body);
+          var frame = doc && doc.defaultView && doc.defaultView.frameElement;
+          var ancestor = frame;
+          var depth = 0;
+          while (ancestor && depth < 12) {
+            addNode(ancestor);
+            addWindow(ancestor.ownerDocument && ancestor.ownerDocument.defaultView);
+            ancestor = ancestor.parentElement;
+            depth += 1;
+          }
+          return targets;
+        }
+
+        function capturePaginatedSelectionViewport(doc) {
+          if (!doc || readerLayout.displayMode !== 'paginated') return;
+          if (doc.__krumerSelectionViewportReleaseTimer) {
+            clearTimeout(doc.__krumerSelectionViewportReleaseTimer);
+            doc.__krumerSelectionViewportReleaseTimer = null;
+          }
+          doc.__krumerSelectionViewport = paginatedSelectionScrollTargets(doc).map(function (entry) {
+            var target = entry.target;
+            return {
+              kind: entry.kind,
+              left: entry.kind === 'window'
+                ? Number(target.scrollX || target.pageXOffset) || 0
+                : Number(target.scrollLeft) || 0,
+              target: target,
+              top: entry.kind === 'window'
+                ? Number(target.scrollY || target.pageYOffset) || 0
+                : Number(target.scrollTop) || 0
+            };
+          });
+        }
+
+        function restorePaginatedSelectionViewport(doc) {
+          var snapshot = doc && doc.__krumerSelectionViewport;
+          if (readerLayout.displayMode !== 'paginated' || !snapshot || !snapshot.length) return false;
+          function apply() {
+            var changed = false;
+            for (var index = 0; index < snapshot.length; index += 1) {
+              var entry = snapshot[index];
+              if (!entry || !entry.target) continue;
+              if (entry.kind === 'window') {
+                var windowLeft = Number(entry.target.scrollX || entry.target.pageXOffset) || 0;
+                var windowTop = Number(entry.target.scrollY || entry.target.pageYOffset) || 0;
+                if (windowLeft !== entry.left || windowTop !== entry.top) {
+                  entry.target.scrollTo(entry.left, entry.top);
+                  changed = true;
+                }
+                continue;
+              }
+              if (Number(entry.target.scrollLeft) !== entry.left) {
+                entry.target.scrollLeft = entry.left;
+                changed = true;
+              }
+              if (Number(entry.target.scrollTop) !== entry.top) {
+                entry.target.scrollTop = entry.top;
+                changed = true;
+              }
+            }
+            return changed;
+          }
+          var restored = apply();
+          if (doc.__krumerSelectionRestoreTimer) clearTimeout(doc.__krumerSelectionRestoreTimer);
+          doc.__krumerSelectionRestoreTimer = setTimeout(function () {
+            doc.__krumerSelectionRestoreTimer = null;
+            apply();
+          }, 0);
+          return restored;
+        }
+
+        function schedulePaginatedSelectionViewportRelease(doc) {
+          if (!doc || !doc.__krumerSelectionViewport) return;
+          if (doc.__krumerSelectionViewportReleaseTimer) {
+            clearTimeout(doc.__krumerSelectionViewportReleaseTimer);
+          }
+          doc.__krumerSelectionViewportReleaseTimer = setTimeout(function () {
+            doc.__krumerSelectionViewportReleaseTimer = null;
+            if (!hasActiveTextSelection(doc)) doc.__krumerSelectionViewport = null;
+          }, 900);
+        }
+
+        function stabilizePaginatedSelectionViewport(doc) {
+          if (readerLayout.displayMode !== 'paginated') return false;
+          var restored = restorePaginatedSelectionViewport(doc);
+          var anchor = readingAnchorLocator || currentLocator;
+          var reanchored = anchor ? moveToLocatorInPlace(rendition, anchor) : false;
+          return restored || reanchored;
+        }
+
+        function cancelPaginatedSelectionViewportHold(doc) {
+          if (!doc || !doc.__krumerSelectionViewportHoldTimers) return;
+          for (var index = 0; index < doc.__krumerSelectionViewportHoldTimers.length; index += 1) {
+            clearTimeout(doc.__krumerSelectionViewportHoldTimers[index]);
+          }
+          doc.__krumerSelectionViewportHoldTimers = [];
+        }
+
+        function holdPaginatedSelectionViewport(doc) {
+          if (!doc || readerLayout.displayMode !== 'paginated') return;
+          cancelPaginatedSelectionViewportHold(doc);
+          doc.__krumerSelectionViewportHoldTimers = [0, 32, 120, 320].map(function (delay) {
+            return setTimeout(function () {
+              if (readerLayout.displayMode !== 'paginated' || !hasActiveTextSelection(doc)) return;
+              stabilizePaginatedSelectionViewport(doc);
+            }, delay);
+          });
+        }
+
+        function clearActiveTextSelection(doc) {
+          var selection = activeTextSelection(doc);
           if (!selection) return false;
-          var hasSelection = selection.rangeCount > 0
-            && !selection.isCollapsed
-            && String(selection.toString ? selection.toString() : '').length > 0;
-          if (!hasSelection) return false;
           if (typeof selection.removeAllRanges === 'function') selection.removeAllRanges();
           else if (typeof selection.empty === 'function') selection.empty();
+          readerSelectionActive = hasReaderTextSelection();
+          flushDeferredViewportLayout();
           return true;
+        }
+
+        function scheduleViewportLayout(anchor) {
+          if (viewportUpdateFrame !== null) {
+            (window.cancelAnimationFrame || clearTimeout)(viewportUpdateFrame);
+          }
+          var requestFrame = window.requestAnimationFrame || function (callback) {
+            return setTimeout(callback, 0);
+          };
+          viewportUpdateFrame = requestFrame(function () {
+            viewportUpdateFrame = null;
+            var nextAnchor = anchor || readingAnchorLocator || currentLocator;
+            if (readerSelectionActive || hasReaderTextSelection()) {
+              viewportResizePending = true;
+              viewportResizeAnchor = nextAnchor;
+              return;
+            }
+            viewportResizePending = false;
+            viewportResizeAnchor = null;
+            appearanceUpdateQueue = appearanceUpdateQueue
+              .catch(function () {})
+              .then(function () {
+                return applyViewportLayout(nextAnchor, 'reflow');
+              })
+              .then(function () {
+                lastAppliedViewportWidth = Number(window.innerWidth) || lastAppliedViewportWidth;
+              });
+          });
+        }
+
+        function flushDeferredViewportLayout() {
+          if (!viewportResizePending || readerSelectionActive || hasReaderTextSelection()) return;
+          var currentWidth = Number(window.innerWidth) || 0;
+          if (readerLayout.displayMode === 'paginated' && currentWidth === lastAppliedViewportWidth) {
+            viewportResizePending = false;
+            viewportResizeAnchor = null;
+            return;
+          }
+          var anchor = viewportResizeAnchor || readingAnchorLocator || currentLocator;
+          viewportResizePending = false;
+          viewportResizeAnchor = null;
+          scheduleViewportLayout(anchor);
         }
 
         function clearUserRelocationExpectation() {
@@ -912,9 +1237,34 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           var touchStartX = 0;
           var touchStartY = 0;
           var touchStartAt = 0;
+          var selectionActiveAtTouchStart = false;
+          var selectionGestureUntil = 0;
+
+          doc.addEventListener('selectionchange', function () {
+            var selection = activeTextSelection(doc);
+            var constraintResult = constrainSelectionToVisiblePage(doc, selection);
+            var viewportRestored = stabilizePaginatedSelectionViewport(doc);
+            if (selection) reportSelectionBoundsStatus('selectionchange', constraintResult, viewportRestored);
+            var activeSelection = hasReaderTextSelection();
+            readerSelectionActive = activeSelection;
+            if (activeSelection) {
+              if (doc.__krumerSelectionViewportReleaseTimer) {
+                clearTimeout(doc.__krumerSelectionViewportReleaseTimer);
+                doc.__krumerSelectionViewportReleaseTimer = null;
+              }
+              holdPaginatedSelectionViewport(doc);
+              selectionGestureUntil = Date.now() + 700;
+              return;
+            }
+            cancelPaginatedSelectionViewportHold(doc);
+            schedulePaginatedSelectionViewportRelease(doc);
+            flushDeferredViewportLayout();
+          });
 
           doc.addEventListener('touchstart', function (event) {
             if (!event.touches || !event.touches[0]) return;
+            selectionActiveAtTouchStart = hasActiveTextSelection(doc);
+            if (!selectionActiveAtTouchStart) capturePaginatedSelectionViewport(doc);
             touchStartX = pointX(event.touches[0]);
             touchStartY = pointY(event.touches[0]);
             touchStartAt = Date.now();
@@ -929,6 +1279,19 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             var elapsed = now - touchStartAt;
             var anchor = findAnchor(event.target);
             lastTouchEndAt = now;
+            var moved = Math.abs(deltaX) > 12 || Math.abs(deltaY) > 12;
+            var longTouch = elapsed > 500;
+            var activeSelection = hasActiveTextSelection(doc);
+            if (activeSelection) readerSelectionActive = true;
+            var selectionGesture = activeSelection
+              && (!selectionActiveAtTouchStart || moved || longTouch);
+
+            if (selectionGesture || longTouch) {
+              selectionGestureUntil = now + 700;
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              return;
+            }
 
             if (readerLayout.displayMode === 'scroll') {
               if (anchor || Math.abs(deltaX) > 12 || Math.abs(deltaY) > 12 || elapsed > 500) return;
@@ -973,9 +1336,14 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
               event.stopImmediatePropagation();
               post('CENTER_TAP', {});
             }
-          }, { passive: false });
+          }, { capture: true, passive: false });
 
           doc.addEventListener('click', function (event) {
+            if (selectionGestureUntil > Date.now()) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              return;
+            }
             if (clearActiveTextSelection(doc)) {
               event.preventDefault();
               event.stopImmediatePropagation();
@@ -1089,6 +1457,11 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
 
         async function applyViewportLayout(anchor, source, forceAnchorRestore) {
           if (!book || !rendition) return;
+          if (readerSelectionActive || hasReaderTextSelection()) {
+            viewportResizePending = true;
+            viewportResizeAnchor = anchor || readingAnchorLocator || currentLocator;
+            return;
+          }
           clearUserRelocationExpectation();
           var activeBook = book;
           var activeRendition = rendition;
@@ -1117,6 +1490,12 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           var restoredAnchor = false;
           if (anchor && (forceAnchorRestore || locatorDrifted(anchor, stableLocator))) {
             restoredAnchor = moveToLocatorInPlace(activeRendition, anchor);
+            if (!restoredAnchor) {
+              try {
+                await displayLocator(anchor);
+                restoredAnchor = true;
+              } catch (_) {}
+            }
           }
           var alignedLeadingColumn = anchor && (restoredAnchor || enteringDoubleColumn)
             ? alignLocatorToLeadingColumn(activeRendition, anchor)
@@ -1177,10 +1556,15 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           lastAppliedDoubleColumn = false;
           paginationState = 'loading';
           activeRelocationSource = 'user';
+          readerSelectionActive = false;
+          selectionBoundsStatusCount = 0;
+          lastSelectionBoundsStatus = '';
           if (viewportUpdateFrame !== null) {
             (window.cancelAnimationFrame || clearTimeout)(viewportUpdateFrame);
             viewportUpdateFrame = null;
           }
+          viewportResizePending = false;
+          viewportResizeAnchor = null;
           setLoading(true);
 
           try {
@@ -1203,6 +1587,9 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           var renderGeneration = renditionGeneration;
           var oldRendition = rendition;
           rendition = null;
+          readerSelectionActive = false;
+          viewportResizePending = false;
+          viewportResizeAnchor = null;
           try {
             if (oldRendition) oldRendition.destroy();
           } catch (_) {}
@@ -1229,6 +1616,16 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           nextRendition.on('rendered', function (_section, view) {
             if (nextRendition !== rendition) return;
             bindReaderDocument(view && (view.document || (view.contents && view.contents.document)));
+          });
+          nextRendition.on('selected', function (_cfiRange, contents) {
+            if (nextRendition !== rendition) return;
+            var doc = contents && contents.document;
+            var selection = activeTextSelection(doc);
+            if (!selection) return;
+            var constraintResult = constrainSelectionToVisiblePage(doc, selection);
+            var viewportRestored = stabilizePaginatedSelectionViewport(doc);
+            holdPaginatedSelectionViewport(doc);
+            reportSelectionBoundsStatus('selected', constraintResult, viewportRestored);
           });
           nextRendition.on('relocated', function (location) {
             if (activeBook !== book || nextRendition !== rendition) return;
@@ -1422,18 +1819,15 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
         window.KrumerEpubBridge = { receive: receive };
         window.addEventListener('resize', function () {
           var anchor = readingAnchorLocator || currentLocator;
-          if (viewportUpdateFrame !== null) {
-            (window.cancelAnimationFrame || clearTimeout)(viewportUpdateFrame);
+          var currentWidth = Number(window.innerWidth) || 0;
+          var widthChanged = currentWidth !== lastAppliedViewportWidth;
+          if (!widthChanged && readerLayout.displayMode === 'paginated') return;
+          if (readerSelectionActive || hasReaderTextSelection()) {
+            viewportResizePending = true;
+            viewportResizeAnchor = anchor;
+            return;
           }
-          var requestFrame = window.requestAnimationFrame || function (callback) {
-            return setTimeout(callback, 0);
-          };
-          viewportUpdateFrame = requestFrame(function () {
-            viewportUpdateFrame = null;
-            appearanceUpdateQueue = appearanceUpdateQueue
-              .catch(function () {})
-              .then(function () { return applyViewportLayout(anchor, 'reflow'); });
-          });
+          scheduleViewportLayout(anchor);
         });
         window.addEventListener('error', function (event) {
           reportError('RUNTIME_ERROR', event.error || event.message);

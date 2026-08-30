@@ -20,15 +20,18 @@ export function ListCard({
 
   return (
     <Pressable
+      accessibilityLabel={title}
+      accessibilityRole={onPress ? 'button' : undefined}
       onPress={onPress}
-      style={{
+      style={({ pressed }) => ({
         backgroundColor: theme.card,
         borderColor: theme.border,
         borderRadius: radii.md,
         borderWidth: 1,
         gap: spacing.sm,
+        opacity: pressed ? 0.82 : 1,
         padding: spacing.sm + 2,
-      }}
+      })}
     >
       {/* Area de Capas [capas] */}
       <View

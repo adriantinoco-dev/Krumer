@@ -27,7 +27,7 @@
 ## Roadmap de longo prazo (README)
 
 - [ ] Suporte a CBZ / CBR
-- [~] Sincronização offline-first entre dispositivos via Supabase (código concluído; migration e Auth aguardam deploy)
+- [~] Sincronização offline-first entre dispositivos via Supabase (implementação congelada durante o beta)
 - [ ] Exportar biblioteca como CSV / JSON
 - [~] Versão Android — React Native + Expo em `mobile/`, no mesmo repositório (base concluída, paridade com o desktop v1.3.0 em andamento)
 
@@ -164,10 +164,10 @@ Implementar cache básico para melhorar uso sem conexão imediata:
 - capas já vistas;
 - preferências locais.
 
-Offline real permanece local-first; progresso, listas e favoritos são reconciliados pelo Supabase quando a rede volta.
+Offline real permanece local-first; a reconciliação pelo Supabase está congelada durante o beta.
 
 ### M10 — Sincronização via Supabase
-**Status:** `[~]` (auth, RLS, outbox, push/pull, conflito, conectividade e status concluídos no código; migration e Auth aguardam deploy)
+**Status:** `[~]` — congelada até a pós-beta
 
 Arquitetura detalhada em `docs/arquitetura-sync-supabase.md`. Implementar com abordagem offline-first:
 - progresso entre dispositivos;
@@ -175,9 +175,9 @@ Arquitetura detalhada em `docs/arquitetura-sync-supabase.md`. Implementar com ab
 - resolução de conflitos;
 - outbox local e RLS por usuário.
 
-Supabase Auth já está integrado no desktop e Android com email/senha, Google OAuth externo no desktop, Google Sign-In nativo no Android, magic link, recuperação de senha e sessão persistida. Não introduzir Firebase.
+Supabase Auth permanece preparado no desktop e Android, mas está congelado durante o beta: não há login, renovação, leitura ou gravação remota. Não introduzir Firebase.
 
-Implementação concluída no repositório: migration remota, RPC de merge monotônico, tombstones, outbox SQLite/AsyncStorage, backfill inicial, push/pull paginado, progresso órfão, backoff, conectividade e status discreto. Aplicar a migration e configurar os provedores de Auth no painel Supabase continua necessário. O build físico Android permanece fora desta task.
+Implementação preservada no repositório: migration remota, RPC de merge monotônico, tombstones, outbox SQLite/AsyncStorage, backfill inicial, push/pull paginado, progresso órfão, backoff, conectividade e status discreto. O cliente, Auth, worker, bridge e outbox ficam desativados no beta; sessões e filas existentes são preservadas para reativação futura. Não aplicar mudanças externas no Supabase nesta fase.
 
 ---
 
@@ -197,7 +197,7 @@ Implementação concluída no repositório: migration remota, RPC de merge monot
 - Leitores: PDF via `react-native-pdf` e EPUB via WebView + epub.js, com progresso persistido no AsyncStorage.
 - Temas dark / light / sépia.
 - i18n parcial: 3 de 10 idiomas (`en`, `pt-br`, `es`).
-- Supabase Auth completo na aba Configurações (email/senha, Google OAuth externo no desktop e nativo no Android, magic link, recuperação, alteração de senha, logout e sessão persistida).
+- Supabase Auth preparado na aba Configurações, mas congelado durante o beta; o acesso exibe aviso de indisponibilidade da nuvem.
 
 ### Base de paridade (pré-requisitos)
 
@@ -243,7 +243,7 @@ PyInstaller gera `krumer-backend.exe` incluído no bundle do Electron via `extra
 ### Mobile Android — React Native
 Decisão: React Native com Expo Go (não Capacitor). App Android mantido no mesmo repositório, dentro de `mobile/`.
 
-No MVP, o mobile funciona de forma semelhante ao desktop: o usuário seleciona uma pasta contendo livros com a mesma estrutura descrita no README, e o app escaneia/importa essa biblioteca. Progresso, listas e favoritos são sincronizados via Supabase; os arquivos continuam locais.
+No MVP, o mobile funciona de forma semelhante ao desktop: o usuário seleciona uma pasta contendo livros com a mesma estrutura descrita no README, e o app escaneia/importa essa biblioteca. Progresso, listas e favoritos permanecem locais durante o beta; a sincronização via Supabase será reativada em fase posterior.
 
 Durante o desenvolvimento, a URL base padrão do backend pode ser `http://localhost:8765`, com opção de configuração no app quando necessário.
 

@@ -910,7 +910,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         >
           <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-around', minHeight: scaleEpubChrome(44) }}>
             <Pressable
-              accessibilityLabel="Tópicos"
+              accessibilityLabel={t('reader.topics')}
               hitSlop={12}
               onPress={openToc}
               style={({ pressed }) => ({
@@ -932,7 +932,7 @@ export function ReaderScreen({ navigation, route }: Props) {
             />
 
             <Pressable
-              accessibilityLabel="Notas"
+              accessibilityLabel={t('reader.notes')}
               accessibilityRole="button"
               hitSlop={12}
               onPress={openNotes}
@@ -947,7 +947,7 @@ export function ReaderScreen({ navigation, route }: Props) {
             </Pressable>
 
             <Pressable
-              accessibilityLabel="Brilho"
+              accessibilityLabel={t('reader.brightness')}
               hitSlop={12}
               onPress={openBrightness}
               style={({ pressed }) => ({
@@ -1085,7 +1085,7 @@ export function ReaderScreen({ navigation, route }: Props) {
               <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
                 <ListTree color={theme.accent} size={19} />
                 <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 18, fontWeight: '700' }}>
-                  Tópicos
+                  {t('reader.topics')}
                 </Text>
                 {tocItems && !tocLoading ? (
                   <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12 }}>
@@ -1106,7 +1106,7 @@ export function ReaderScreen({ navigation, route }: Props) {
             {tocLoading ? (
               <View style={{ alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xl }}>
                 <ActivityIndicator color={theme.accent} />
-                <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 13 }}>Carregando tópicos...</Text>
+                <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 13 }}>{t('reader.loadingTopics')}</Text>
               </View>
             ) : tocItems && tocItems.length ? (
               <ScrollView showsVerticalScrollIndicator={false}>
@@ -1116,10 +1116,10 @@ export function ReaderScreen({ navigation, route }: Props) {
               <View style={{ alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xl }}>
                 <ListTree color={theme.textMuted} size={26} />
                 <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 13, textAlign: 'center' }}>
-                  Nenhum tópico disponível para este livro.
+                  {t('reader.noTopics')}
                 </Text>
                 <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 11, textAlign: 'center', opacity: 0.7 }}>
-                  O sumário não foi encontrado no arquivo EPUB.
+                  {t('reader.noToc')}
                 </Text>
               </View>
             )}
@@ -1151,7 +1151,7 @@ export function ReaderScreen({ navigation, route }: Props) {
               <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
                 <Sun color={theme.accent} size={19} />
                 <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 18, fontWeight: '700' }}>
-                  Brilho
+                  {t('reader.brightness')}
                 </Text>
               </View>
               <Pressable
@@ -1168,7 +1168,7 @@ export function ReaderScreen({ navigation, route }: Props) {
               <View style={{ alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.lg }}>
                 <Sun color={theme.textMuted} size={26} />
                 <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 13, textAlign: 'center' }}>
-                  Controle de brilho não disponível neste dispositivo.
+                  {t('reader.brightnessUnavailable')}
                 </Text>
               </View>
             ) : (
@@ -1379,7 +1379,7 @@ export function ReaderScreen({ navigation, route }: Props) {
               <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md }}>
                 <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
                   <Feather color={theme.accent} size={19} strokeWidth={1.7} />
-                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 18, fontWeight: '700' }}>Notas</Text>
+                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 18, fontWeight: '700' }}>{t('reader.notes')}</Text>
                   <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12 }}>({epubNotes.notes.length})</Text>
                 </View>
                 <Pressable hitSlop={10} onPress={closeNotes} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: spacing.xs })}>
@@ -1390,8 +1390,8 @@ export function ReaderScreen({ navigation, route }: Props) {
               {epubNotes.notes.length === 0 ? (
                 <View style={{ alignItems: 'center', flex: 1, gap: spacing.sm, justifyContent: 'center', paddingVertical: spacing.xl }}>
                   <StickyNote color={theme.textMuted} size={32} strokeWidth={1.5} />
-                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 14, fontWeight: '700', textAlign: 'center' }}>Nenhuma nota ainda.</Text>
-                  <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12, lineHeight: 17, opacity: 0.8, textAlign: 'center' }}>Crie uma nota vinculada à página atual.</Text>
+                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 14, fontWeight: '700', textAlign: 'center' }}>{t('reader.noNotes')}</Text>
+                  <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12, lineHeight: 17, opacity: 0.8, textAlign: 'center' }}>{t('reader.noNotesHint')}</Text>
                   <Pressable
                     accessibilityRole="button"
                     onPress={handleCreateNote}
@@ -1408,7 +1408,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                     })}
                   >
                     <Feather color="#fff" size={16} strokeWidth={1.8} />
-                    <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 13, fontWeight: '700' }}>Nova Nota</Text>
+                    <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 13, fontWeight: '700' }}>{t('reader.newNote')}</Text>
                   </Pressable>
                 </View>
               ) : (
@@ -1416,7 +1416,9 @@ export function ReaderScreen({ navigation, route }: Props) {
                   <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
                     {epubNotes.notes.map((note, index) => {
                       const preview = note.content.length > 80 ? note.content.slice(0, 80).trim() + '…' : note.content;
-                      const pageLabel = note.pageNumber ? `Página ${note.pageNumber}` : 'Página —';
+                      const pageLabel = note.pageNumber
+                        ? t('reader.pageWithNumber').replace('{0}', String(note.pageNumber))
+                        : t('reader.pageUnavailable');
                       const dateLabel = new Date(note.createdAt).toLocaleDateString();
                       return (
                         <Pressable
@@ -1469,7 +1471,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                     })}
                   >
                     <Feather color="#fff" size={16} strokeWidth={1.8} />
-                    <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 13, fontWeight: '700' }}>Nova Nota</Text>
+                    <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 13, fontWeight: '700' }}>{t('reader.newNote')}</Text>
                   </Pressable>
                 </>
               )}
@@ -1508,14 +1510,14 @@ export function ReaderScreen({ navigation, route }: Props) {
               <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.md }}>
                 <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
                   <Feather color={theme.accent} size={18} strokeWidth={1.7} />
-                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 16, fontWeight: '700' }}>Nota</Text>
+                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 16, fontWeight: '700' }}>{t('reader.note')}</Text>
                   {selectedNote?.pageNumber ? (
-                    <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 11 }}>Página {selectedNote.pageNumber}</Text>
+                    <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 11 }}>{t('reader.pageWithNumber').replace('{0}', String(selectedNote.pageNumber))}</Text>
                   ) : null}
                 </View>
                 <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
                   <Pressable
-                    accessibilityLabel="Ir para página da nota"
+                    accessibilityLabel={t('reader.goToNotePage')}
                     hitSlop={10}
                     onPress={() => selectedNote && handleAnchorPress(selectedNote)}
                     style={({ pressed }) => ({
@@ -1544,7 +1546,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                 </Text>
                 {selectedNote ? (
                   <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 11, marginTop: spacing.md }}>
-                    {new Date(selectedNote.createdAt).toLocaleString()} {selectedNote.pageNumber ? `· Página ${selectedNote.pageNumber}` : ''}
+                    {new Date(selectedNote.createdAt).toLocaleString()} {selectedNote.pageNumber ? ` · ${t('reader.pageWithNumber').replace('{0}', String(selectedNote.pageNumber))}` : ''}
                   </Text>
                 ) : null}
               </ScrollView>
@@ -1563,7 +1565,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                     paddingVertical: spacing.sm,
                   })}
                 >
-                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 13, fontWeight: '600' }}>Editar</Text>
+                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 13, fontWeight: '600' }}>{t('reader.editNote')}</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => selectedNote && requestDeleteNote(selectedNote)}
@@ -1576,7 +1578,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                     paddingVertical: spacing.sm,
                   })}
                 >
-                  <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 13, fontWeight: '700' }}>Excluir</Text>
+                  <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 13, fontWeight: '700' }}>{t('common.delete')}</Text>
                 </Pressable>
               </View>
             </Pressable>
@@ -1678,7 +1680,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                 <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
                   <Feather color={theme.accent} size={18} strokeWidth={1.7} />
                   <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 16, fontWeight: '700' }}>
-                    {editingNoteId ? 'Editar nota' : 'Nova nota'}
+                    {editingNoteId ? t('reader.editNoteTitle') : t('reader.newNote')}
                   </Text>
                 </View>
                 <Pressable hitSlop={10} onPress={closeEditor} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: spacing.xs })}>
@@ -1687,8 +1689,12 @@ export function ReaderScreen({ navigation, route }: Props) {
               </View>
 
               <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 11, marginBottom: spacing.sm }}>
-                {editingNoteId && selectedNote?.pageNumber ? `Página ${selectedNote.pageNumber}` : epubViewStatus?.currentPage ? `Página ${epubViewStatus.currentPage}` : 'Página atual'}
-                {' · '}será salva com esta anotação
+                {editingNoteId && selectedNote?.pageNumber
+                  ? t('reader.pageWithNumber').replace('{0}', String(selectedNote.pageNumber))
+                  : epubViewStatus?.currentPage
+                    ? t('reader.pageWithNumber').replace('{0}', String(epubViewStatus.currentPage))
+                    : t('reader.currentPage')}
+                {' · '}{t('reader.noteWillBeSaved')}
               </Text>
 
               <View style={{ backgroundColor: theme.surface, borderColor: theme.border, borderRadius: radii.md, borderWidth: 1, height: 180, padding: spacing.sm }}>
@@ -1696,7 +1702,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                   autoFocus
                   multiline
                   onChangeText={setNoteDraft}
-                  placeholder="Escreva sua anotação..."
+                  placeholder={t('reader.writeNotePlaceholder')}
                   placeholderTextColor={theme.textMuted}
                   scrollEnabled
                   style={{ color: theme.textPrimary, flex: 1, fontFamily: serifFont, fontSize: 14, lineHeight: 20, textAlignVertical: 'top' }}
@@ -1718,7 +1724,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                     paddingVertical: spacing.sm,
                   })}
                 >
-                  <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, fontWeight: '600' }}>Cancelar</Text>
+                  <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, fontWeight: '600' }}>{t('common.cancel')}</Text>
                 </Pressable>
                 <Pressable
                   disabled={!noteDraft.trim()}
@@ -1732,7 +1738,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                     paddingVertical: spacing.sm,
                   })}
                 >
-                  <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 13, fontWeight: '700' }}>{editingNoteId ? 'Salvar' : 'Criar'}</Text>
+                  <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 13, fontWeight: '700' }}>{editingNoteId ? t('reader.saveNote') : t('reader.createNote')}</Text>
                 </Pressable>
               </View>
             </Pressable>
@@ -1778,10 +1784,12 @@ export function ReaderScreen({ navigation, route }: Props) {
               >
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text numberOfLines={1} style={{ color: epubText, fontFamily: serifFont, fontSize: 14, fontWeight: '700' }}>
-                    Página da nota
+                    {t('reader.notePageTitle')}
                   </Text>
                   <Text numberOfLines={1} style={{ color: epubMuted, fontFamily: serifFont, fontSize: 11 }}>
-                    {previewNote?.pageNumber ? `Página ${previewNote.pageNumber}` : 'Página salva'}
+                    {previewNote?.pageNumber
+                      ? t('reader.pageWithNumber').replace('{0}', String(previewNote.pageNumber))
+                      : t('reader.savedPage')}
                   </Text>
                 </View>
                 <Pressable hitSlop={10} onPress={closePreview} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: spacing.xs })}>

@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
+import { CLOUD_SYNC_ENABLED } from '../config';
 import { runMobileSync, setMobileOffline } from './engine';
 
 export function SyncCoordinator() {
@@ -10,17 +11,19 @@ export function SyncCoordinator() {
   const {
     books,
     lists,
+    preferences,
     ready,
     replaceBooksFromSync,
     replaceListsFromSync,
   } = useApp();
-  const latest = useRef({ books, lists });
+  const latest = useRef({ books, lists, language: preferences.language });
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  latest.current = { books, lists };
+  latest.current = { books, lists, language: preferences.language };
 
   const trigger = useCallback(() => {
-    if (!ready || !session) return;
+    if (!CLOUD_SYNC_ENABLED || !ready || !session) return;
     void runMobileSync({
+      language: latest.current.language,
       books: latest.current.books,
       lists: latest.current.lists,
       replaceBooks: replaceBooksFromSync,
@@ -29,6 +32,7 @@ export function SyncCoordinator() {
   }, [ready, replaceBooksFromSync, replaceListsFromSync, session]);
 
   useEffect(() => {
+    if (!CLOUD_SYNC_ENABLED) return undefined;
     const unsubscribe = NetInfo.addEventListener((state) => {
       if (state.isConnected && state.isInternetReachable !== false) trigger();
       else setMobileOffline();
@@ -47,7 +51,7 @@ export function SyncCoordinator() {
   }, [trigger]);
 
   useEffect(() => {
-    if (!session || !ready) return;
+    if (!CLOUD_SYNC_ENABLED || !session || !ready) return undefined;
     if (debounce.current) clearTimeout(debounce.current);
     debounce.current = setTimeout(trigger, 1500);
     return () => {

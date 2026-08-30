@@ -1,7 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Book } from '../models/item';
 import type { SyncList } from '../models/list';
-import { supabase } from '../auth/supabase';
+import type { LanguageCode } from '../i18n/translations';
+import { getSupabase } from '../auth/supabase';
+import { CLOUD_SYNC_ENABLED, cloudSyncDisabledMessage } from '../config';
 import {
   adoptUnownedRows,
   enqueueBookProgress,
@@ -26,6 +28,7 @@ let status: MobileSyncStatus = {
 const listeners = new Set<(next: MobileSyncStatus) => void>();
 
 type SyncInputs = {
+  language: LanguageCode;
   books: Book[];
   lists: SyncList[];
   replaceBooks: (books: Book[]) => Promise<void>;
@@ -217,7 +220,7 @@ async function mapListId(localId: string, remoteId: string) {
 async function pushRow(row: MobileOutboxRow, userId: string) {
   const payload = row.payload as Record<string, any>;
   if (row.entityType === 'progress') {
-    const { error } = await supabase.rpc('merge_reading_progress', {
+    const { error } = await getSupabase().rpc('merge_reading_progress', {
       p_fingerprint: payload.fingerprint,
       p_title: payload.title,
       p_type: payload.type,
@@ -234,7 +237,7 @@ async function pushRow(row: MobileOutboxRow, userId: string) {
   }
 
   if (row.entityType === 'metadata') {
-    const { error } = await supabase.rpc('merge_item_metadata', {
+    const { error } = await getSupabase().rpc('merge_item_metadata', {
       p_fingerprint: payload.fingerprint,
       p_title: payload.title,
       p_author: payload.author,
@@ -247,7 +250,7 @@ async function pushRow(row: MobileOutboxRow, userId: string) {
   }
 
   if (row.entityType === 'tag') {
-    const { error } = await supabase.from('item_tag_memberships').upsert({
+    const { error } = await getSupabase().from('item_tag_memberships').upsert({
       user_id: userId,
       fingerprint: payload.fingerprint,
       tag_name: payload.tag_name,
@@ -261,21 +264,21 @@ async function pushRow(row: MobileOutboxRow, userId: string) {
     const localId = String(payload.id);
     const mappedId = await remoteListId(localId);
     if (row.operation === 'delete') {
-      const { error } = await supabase.from('user_lists')
+      const { error } = await getSupabase().from('user_lists')
         .update({ deleted_at: new Date().toISOString() })
         .eq('id', mappedId);
       if (error) throw error;
       return;
     }
 
-    const { data: byId, error: idError } = await supabase.from('user_lists')
+    const { data: byId, error: idError } = await getSupabase().from('user_lists')
       .select('id')
       .eq('id', mappedId)
       .maybeSingle();
     if (idError) throw idError;
     let targetId = byId?.id as string | undefined;
     if (!targetId) {
-      const { data: byName, error: nameError } = await supabase.from('user_lists')
+      const { data: byName, error: nameError } = await getSupabase().from('user_lists')
         .select('id')
         .eq('name', payload.name)
         .maybeSingle();
@@ -283,7 +286,7 @@ async function pushRow(row: MobileOutboxRow, userId: string) {
       targetId = byName?.id as string | undefined;
     }
     if (targetId) {
-      const { error } = await supabase.from('user_lists').update({
+      const { error } = await getSupabase().from('user_lists').update({
         name: payload.name,
         is_default: Boolean(payload.is_default),
         sort_order: Number(payload.sort_order || 0),
@@ -291,7 +294,7 @@ async function pushRow(row: MobileOutboxRow, userId: string) {
       }).eq('id', targetId);
       if (error) throw error;
     } else {
-      const { data, error } = await supabase.from('user_lists').insert({
+      const { data, error } = await getSupabase().from('user_lists').insert({
         id: localId,
         user_id: userId,
         name: payload.name,
@@ -307,7 +310,7 @@ async function pushRow(row: MobileOutboxRow, userId: string) {
   }
 
   const listId = await remoteListId(String(payload.list_id));
-  const { error } = await supabase.from('list_memberships').upsert({
+  const { error } = await getSupabase().from('list_memberships').upsert({
     user_id: userId,
     list_id: listId,
     fingerprint: payload.fingerprint,
@@ -344,7 +347,7 @@ async function changedRows(table: string, userId: string, select: string) {
   const cursor = await AsyncStorage.getItem(cursorKey);
   const rows: Array<Record<string, any>> = [];
   for (let from = 0; ; from += 1000) {
-    let query = supabase.from(table).select(select).order('updated_at', { ascending: true });
+    let query = getSupabase().from(table).select(select).order('updated_at', { ascending: true });
     if (cursor) query = query.gt('updated_at', cursor);
     const { data, error } = await query.range(from, from + 999);
     if (error) throw error;
@@ -358,7 +361,7 @@ async function changedRows(table: string, userId: string, select: string) {
 async function activeMemberships() {
   const rows: Array<{ list_id: string; fingerprint: string }> = [];
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await supabase.from('list_memberships')
+    const { data, error } = await getSupabase().from('list_memberships')
       .select('list_id,fingerprint')
       .is('deleted_at', null)
       .order('id', { ascending: true })
@@ -526,7 +529,7 @@ async function scheduleRetry(userId: string) {
 }
 
 async function performSync(inputs: SyncInputs): Promise<MobileSyncStatus> {
-  const { data, error } = await supabase.auth.getSession();
+  const { data, error } = await getSupabase().auth.getSession();
   if (error) throw error;
   const userId = data.session?.user.id;
   if (!userId) {
@@ -560,6 +563,13 @@ async function performSync(inputs: SyncInputs): Promise<MobileSyncStatus> {
 }
 
 export function runMobileSync(inputs: SyncInputs) {
+  if (!CLOUD_SYNC_ENABLED) {
+    latestInputs = null;
+    if (retryTimer) clearTimeout(retryTimer);
+    retryTimer = null;
+    emit({ state: 'signed_out', pending: 0, lastError: cloudSyncDisabledMessage(inputs.language) });
+    return Promise.resolve(status);
+  }
   latestInputs = inputs;
   if (!activeSync) {
     activeSync = performSync(inputs).finally(() => { activeSync = null; });

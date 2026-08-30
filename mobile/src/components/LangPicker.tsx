@@ -14,8 +14,10 @@ export function LangPickerButton() {
   return (
     <>
       <Pressable
+        accessibilityLabel={`${t('language.label')}: ${current.name}`}
+        accessibilityRole="button"
         onPress={() => setVisible(true)}
-        style={{
+        style={({ pressed }) => ({
           alignItems: 'center',
           backgroundColor: theme.card,
           borderColor: theme.border,
@@ -25,7 +27,8 @@ export function LangPickerButton() {
           justifyContent: 'space-between',
           paddingHorizontal: spacing.md,
           paddingVertical: spacing.sm,
-        }}
+          opacity: pressed ? 0.82 : 1,
+        })}
       >
         <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm + 2 }}>
           <LanguageIcon color={theme.accent} size={20} />
@@ -73,7 +76,7 @@ export function LangPickerModal({ visible, onClose }: { visible: boolean; onClos
             <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 17, fontWeight: '600' }}>
               {t('language.select')}
             </Text>
-            <Pressable onPress={onClose} hitSlop={10}>
+            <Pressable accessibilityLabel={t('common.cancel')} accessibilityRole="button" onPress={onClose} hitSlop={12}>
               <X color={theme.textSecondary} size={20} />
             </Pressable>
           </View>
@@ -82,14 +85,19 @@ export function LangPickerModal({ visible, onClose }: { visible: boolean; onClos
             const selected = preferences.language === language.code;
             return (
               <Pressable
+                accessibilityLabel={language.name}
+                accessibilityRole="radio"
+                accessibilityState={{ selected }}
                 key={language.code}
                 onPress={() => selectLanguage(language.code)}
-                style={{
+                style={({ pressed }) => ({
                   alignItems: 'center',
                   flexDirection: 'row',
                   justifyContent: 'space-between',
+                  minHeight: 44,
+                  opacity: pressed ? 0.82 : 1,
                   paddingVertical: spacing.sm,
-                }}
+                })}
               >
                 <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
                   <View

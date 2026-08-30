@@ -82,7 +82,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   },
   forwardedRef,
 ) {
-  const { theme } = useApp();
+  const { preferences, theme, t } = useApp();
   const readerFonts = useReaderFonts();
   const webviewRef = useRef<WebViewType>(null);
   const runtimeReadyRef = useRef(false);
@@ -161,11 +161,11 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
 
     if (pendingCommandsRef.current.length >= EPUB_BRIDGE_QUEUE_LIMIT) {
       setLoading(false);
-      setError('O leitor EPUB nao respondeu durante a inicializacao.');
+      setError(t('reader.epubRuntimeNotReady'));
       return;
     }
     pendingCommandsRef.current.push(command);
-  }, [injectCommand]);
+  }, [injectCommand, t]);
 
   const registerFontFamily = useCallback((family: ReadingPreferences['fontFamily']) => {
     if (registeredFontFamiliesRef.current.has(family)) return Promise.resolve();
@@ -176,7 +176,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       const command = createEpubBridgeCommand('REGISTER_FONT_FACES', { family, faces });
       const timer = setTimeout(() => {
         pendingFontRequestsRef.current.delete(command.id);
-        reject(new Error(`Timeout ao registrar a familia ${family} no EPUB.`));
+        reject(new Error(t('reader.epubFontRegistrationTimeout').replace('{0}', family)));
       }, FONT_REGISTRATION_TIMEOUT_MS);
       pendingFontRequestsRef.current.set(command.id, { reject, resolve, timer });
       sendCommand(command);
@@ -187,7 +187,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     });
     fontRegistrationPromisesRef.current.set(family, registration);
     return registration;
-  }, [sendCommand]);
+  }, [sendCommand, t]);
 
   const flushPendingCommands = useCallback(() => {
     const commands = pendingCommandsRef.current.splice(0, EPUB_BRIDGE_QUEUE_LIMIT);
@@ -259,7 +259,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     setLoading(true);
     setError(null);
 
-    prepareEpubFile(filePath, fileSize)
+    prepareEpubFile(filePath, fileSize, preferences.language)
       .then((result) => {
         if (!cancelled) setPrepared(result);
       })
@@ -280,7 +280,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     return () => {
       cancelled = true;
     };
-  }, [filePath, fileSize, injectCommand]);
+  }, [filePath, fileSize, injectCommand, preferences.language, t]);
 
   useEffect(() => {
     if (!prepared || !readerFonts.loaded) return;
@@ -300,9 +300,9 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     }).catch((caught: unknown) => {
       if (openGeneration !== openGenerationRef.current) return;
       setLoading(false);
-      setError(caught instanceof Error ? caught.message : 'Falha ao carregar fontes do leitor EPUB.');
+      setError(caught instanceof Error ? caught.message : t('reader.epubFontLoadFailed'));
     });
-  }, [bookId, initialLocator, prepared, readerFonts.loaded, registerFontFamily, sendCommand]);
+  }, [bookId, initialLocator, prepared, readerFonts.loaded, registerFontFamily, sendCommand, t]);
 
   useEffect(() => {
     if (!bookOpenedRef.current) return;
@@ -320,8 +320,8 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   useEffect(() => {
     if (!readerFonts.error) return;
     setLoading(false);
-    setError(`Falha ao carregar fontes do leitor: ${readerFonts.error.message}`);
-  }, [readerFonts.error]);
+    setError(`${t('reader.epubFontLoadFailed')}: ${readerFonts.error.message}`);
+  }, [readerFonts.error, t]);
 
   useEffect(() => () => {
     openGenerationRef.current += 1;
@@ -333,7 +333,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     pendingCommandsRef.current = [];
     pendingFontRequestsRef.current.forEach((pending) => {
       clearTimeout(pending.timer);
-      pending.reject(new Error('O leitor EPUB foi fechado antes de registrar as fontes.'));
+      pending.reject(new Error(t('reader.epubClosedBeforeFonts')));
     });
     pendingFontRequestsRef.current.clear();
     pendingLocatorRequestsRef.current.forEach((pending) => {
@@ -350,7 +350,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     registeredFontFamiliesRef.current.clear();
     runtimeReadyRef.current = false;
     bookOpenedRef.current = false;
-  }, [injectCommand]);
+  }, [injectCommand, t]);
 
   const armRuntimeReadyTimeout = useCallback(() => {
     if (readyTimerRef.current) clearTimeout(readyTimerRef.current);
@@ -358,9 +358,9 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       if (runtimeReadyRef.current) return;
       pendingCommandsRef.current = [];
       setLoading(false);
-      setError('O runtime EPUB nao ficou pronto no tempo esperado.');
+      setError(t('reader.epubRuntimeNotReady'));
     }, RUNTIME_READY_TIMEOUT_MS);
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     armRuntimeReadyTimeout();
@@ -445,6 +445,11 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       return;
     }
 
+    if (message.type === 'SELECTION_BOUNDS_STATUS') {
+      if (__DEV__) console.info('[Krumer EPUB] limite de selecao paginada', message.payload);
+      return;
+    }
+
     if (message.payload.requestId) {
       const pendingFont = pendingFontRequestsRef.current.get(message.payload.requestId);
       if (pendingFont) {
@@ -468,8 +473,8 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     console.warn('[Krumer EpubReader] runtime error', message.payload.code, message.payload.message);
     if (message.payload.code === 'LOCATOR_NOT_FOUND' || message.payload.code === 'INVALID_LOCATOR') return;
     setLoading(false);
-    setError(message.payload.message || 'Falha ao abrir EPUB.');
-  }, [bookId, flushPendingCommands, onCenterTap, onExternalLink, onPositionStabilized, onRelocate, onViewStatus]);
+    setError(message.payload.message || t('reader.epubOpenFailed'));
+  }, [bookId, flushPendingCommands, onCenterTap, onExternalLink, onPositionStabilized, onRelocate, onViewStatus, t]);
 
   const handleNavigationRequest = useCallback((request: { url: string }) => {
     const { url } = request;
@@ -491,7 +496,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       <View style={{ alignItems: 'center', backgroundColor: theme.bg, flex: 1, justifyContent: 'center', padding: spacing.lg }}>
         <View style={{ backgroundColor: theme.surface, borderColor: theme.border, borderRadius: radii.lg, borderWidth: 1, gap: spacing.sm, maxWidth: 360, padding: spacing.lg, width: '100%' }}>
           <Text style={{ color: theme.accent, fontFamily: serifFont, fontSize: 16, fontWeight: '700', textAlign: 'center' }}>
-            Falha ao abrir EPUB
+            {t('reader.epubOpenFailed')}
           </Text>
           <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, lineHeight: 18, textAlign: 'center' }}>
             {error}
@@ -545,7 +550,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
         onError={(event) => {
           console.warn('[Krumer EpubReader] WebView error', event.nativeEvent);
           setLoading(false);
-          setError('A WebView do leitor EPUB nao pode ser carregada.');
+          setError(t('reader.epubWebViewUnavailable'));
         }}
       />
     </View>

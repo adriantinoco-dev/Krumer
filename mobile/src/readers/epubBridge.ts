@@ -44,6 +44,14 @@ export type EpubViewStatus = {
   totalPages: number | null;
 };
 
+export type EpubSelectionBoundsStatus = {
+  endPage: number | null;
+  phase: 'selectionchange' | 'selected';
+  result: 'applied' | 'unchanged' | 'unavailable';
+  startPage: number | null;
+  viewportRestored: boolean;
+};
+
 type BridgeEnvelope<Type extends string, Payload> = {
   version: typeof EPUB_BRIDGE_VERSION;
   id: string;
@@ -86,6 +94,7 @@ export type EpubBridgeEvent =
   | BridgeEnvelope<'CURRENT_LOCATOR', { locator: EpubLocator | null; requestId: string }>
   | BridgeEnvelope<'TOC', { toc: EpubTocItem[]; requestId: string }>
   | BridgeEnvelope<'VIEW_STATUS', EpubViewStatus>
+  | BridgeEnvelope<'SELECTION_BOUNDS_STATUS', EpubSelectionBoundsStatus>
   | BridgeEnvelope<'LINK_PRESSED', { url: string }>
   | BridgeEnvelope<'ERROR', { code: string; message: string; requestId?: string }>;
 
@@ -196,6 +205,22 @@ export function parseEpubBridgeEvent(raw: string): EpubBridgeEvent | null {
     return typeof value.payload.chapterTitle === 'string'
       && value.payload.chapterTitle.length <= 200
       && validPagination
+      ? value as EpubBridgeEvent
+      : null;
+  }
+
+  if (value.type === 'SELECTION_BOUNDS_STATUS') {
+    const validPage = (page: unknown) => page === null
+      || (typeof page === 'number' && Number.isInteger(page) && page >= 1);
+    const validPhase = value.payload.phase === 'selectionchange' || value.payload.phase === 'selected';
+    const validResult = value.payload.result === 'applied'
+      || value.payload.result === 'unchanged'
+      || value.payload.result === 'unavailable';
+    return validPage(value.payload.startPage)
+      && validPage(value.payload.endPage)
+      && validPhase
+      && validResult
+      && typeof value.payload.viewportRestored === 'boolean'
       ? value as EpubBridgeEvent
       : null;
   }

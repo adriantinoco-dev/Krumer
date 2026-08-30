@@ -60,10 +60,12 @@ export function BookCardContinue({
 
   return (
     <Pressable
+      accessibilityLabel={book.author ? `${book.title}, ${book.author}` : book.title}
+      accessibilityRole="button"
       delayLongPress={200}
       onPress={onPress}
       onLongPress={onLongPress}
-      style={{ width: CARD_WIDTH }}
+      style={({ pressed }) => ({ opacity: pressed ? 0.82 : 1, width: CARD_WIDTH })}
     >
       <View style={{ marginBottom: spacing.sm }}>
         <View

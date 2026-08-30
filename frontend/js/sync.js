@@ -1,6 +1,7 @@
 // Gatilhos baratos do renderer. O backend confirma a conectividade real e faz
 // todo trabalho em background; nenhuma ação de leitura depende desta chamada.
 (function initSyncTriggers() {
+  if (window.KRUMER_CLOUD_SYNC_ENABLED !== true) return;
   if (!window.electronAPI?.syncTrigger) return;
 
   async function triggerSync() {

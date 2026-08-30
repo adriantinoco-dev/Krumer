@@ -25,17 +25,21 @@ export function ThemeCard({
 
   return (
     <Pressable
+      accessibilityLabel={t(themeLabels[value])}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
       onPress={() => onPress(value)}
-      style={{
+      style={({ pressed }) => ({
+        backgroundColor: theme.card,
         flex: 1,
         minHeight: large ? 112 : 82,
         borderColor: selected ? theme.accent : theme.border,
         borderRadius: radii.md,
         borderWidth: selected ? 2 : 1,
+        opacity: pressed ? 0.82 : 1,
         padding: spacing.sm,
-        backgroundColor: theme.card,
         gap: spacing.sm,
-      }}
+      })}
     >
       <View
         style={{

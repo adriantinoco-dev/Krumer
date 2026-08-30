@@ -34,9 +34,10 @@ import { RatingStars } from '../components/RatingStars';
 import { MetadataActionModal } from '../components/MetadataActionModal';
 import { MetadataDialog, type MetadataDialogConfig } from '../components/MetadataDialog';
 import { useApp } from '../context/AppContext';
+import { useAutoRescan } from '../hooks/useAutoRescan';
 import type { Book } from '../models/item';
 import type { RootStackParamList } from '../navigation/types';
-import { coverShadow, radii, serifFont, spacing, TABLET_BREAKPOINT } from '../theme';
+import { CONTENT_MAX_WIDTH, coverShadow, radii, serifFont, spacing, TABLET_BREAKPOINT } from '../theme';
 import { extractYear, searchMetadataForBook } from '../services/metadataService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BookDetail'>;
@@ -47,6 +48,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
   const { bookId } = route.params;
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  useAutoRescan();
   const {
     books,
     lists,
@@ -90,10 +92,10 @@ export function BookDetailScreen({ navigation, route }: Props) {
     return (
       <SafeAreaView edges={['top']} style={{ backgroundColor: theme.bg, flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 16 }}>
-          Book not found.
+          {t('details.bookNotFound')}
         </Text>
         <Pressable onPress={() => navigation.goBack()} style={{ marginTop: spacing.md, padding: spacing.sm }}>
-          <Text style={{ color: theme.accent, fontFamily: serifFont, fontSize: 14 }}>Go Back</Text>
+          <Text style={{ color: theme.accent, fontFamily: serifFont, fontSize: 14 }}>{t('details.goBack')}</Text>
         </Pressable>
       </SafeAreaView>
     );
@@ -437,9 +439,10 @@ export function BookDetailScreen({ navigation, route }: Props) {
 
         {/* Main Scroll Content */}
         <ScrollView
-          contentContainerStyle={{ paddingHorizontal: spacing.md, paddingBottom: spacing.xl * 2 }}
+          contentContainerStyle={{ alignItems: 'center', paddingHorizontal: spacing.md, paddingBottom: spacing.xl * 2 }}
           showsVerticalScrollIndicator={false}
         >
+          <View style={{ maxWidth: CONTENT_MAX_WIDTH, width: '100%' }}>
           {/* Cover Hero & Header Info */}
           <View style={{ alignItems: 'center', marginTop: spacing.xs, marginBottom: spacing.lg }}>
             <View
@@ -865,6 +868,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
               </View>
             </View>
           )}
+          </View>
         </ScrollView>
       </View>
 
@@ -1084,7 +1088,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
               <TextInput
                 keyboardType="numeric"
                 onChangeText={setEditYear}
-                placeholder="Ex: 2024"
+                placeholder={t('details.yearExample')}
                 placeholderTextColor={theme.textMuted}
                 style={{
                   backgroundColor: theme.card,

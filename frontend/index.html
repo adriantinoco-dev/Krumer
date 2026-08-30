@@ -18,7 +18,7 @@
   </script>
 
   <!-- Stylesheets -->
-  <link rel="stylesheet" href="styles/main.css?v=1.6">
+  <link rel="stylesheet" href="styles/main.css?v=1.10">
   <link rel="stylesheet" href="styles/library.css?v=1.6">
   <link rel="stylesheet" href="styles/reader.css?v=1.0">
   <link rel="stylesheet" href="styles/settings.css?v=1.2">
@@ -27,6 +27,17 @@
 </head>
 
 <body>
+
+  <div id="startup-loading" class="startup-loading" role="progressbar" aria-label="Krumer"
+    aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+    <div class="startup-loading-content">
+      <img src="assets/Krumer-logo.png" alt="" class="startup-loading-logo">
+      <div id="startup-progress-value" class="startup-progress-value">0%</div>
+      <div class="startup-progress-track" aria-hidden="true">
+        <div id="startup-progress-fill" class="startup-progress-fill" style="width:0%;"></div>
+      </div>
+    </div>
+  </div>
 
   <div id="app-root">
 
@@ -753,7 +764,14 @@
           <section class="settings-panel" data-panel="conta">
             <div id="auth-panel-status" class="auth-panel-status" role="status" aria-live="polite"></div>
 
-            <div id="auth-signed-out">
+            <div id="auth-beta-notice" class="auth-beta-notice" role="status">
+              <h3 class="settings-panel-title" data-i18n="sync.beta_title">Sincronização indisponível no beta</h3>
+              <p class="settings-help-text" data-i18n="sync.beta_message">
+                O Krumer está em beta. Por enquanto, a sincronização com a nuvem não está disponivel.
+              </p>
+            </div>
+
+            <div id="auth-signed-out" style="display:none;">
               <h3 class="settings-panel-title" data-i18n="auth.title">Conta Krumer</h3>
               <p class="settings-help-text" data-i18n="auth.subtitle">
                 Entre para preparar a sincronização da sua biblioteca entre dispositivos.
@@ -929,10 +947,15 @@
               <input type="file" id="import-csv-input" accept=".csv,text/csv" style="display:none;">
             </div>
             <p class="settings-help-text" data-i18n="settings.data_import_help" style="margin-bottom:20px;"></p>
-            <div id="sync-metrics-box" class="settings-status" style="display:flex; flex-direction:column; gap:6px; padding:12px;">
+            <div id="sync-metrics-box" class="settings-status" style="display:none; flex-direction:column; gap:6px; padding:12px;">
               <strong data-i18n="settings.sync_metrics">Métricas de sincronização</strong>
               <span class="settings-help-text" data-i18n="settings.sync_metrics_help"></span>
               <div id="sync-metrics-content" style="font-size:12px; color:var(--text-secondary); line-height:1.6;">Carregando…</div>
+            </div>
+            <div id="sync-beta-notice" class="auth-beta-notice" role="status">
+              <p class="settings-help-text" data-i18n="sync.beta_message">
+                O Krumer está em beta. Por enquanto, a sincronização com a nuvem não está disponivel.
+              </p>
             </div>
           </section>
 
@@ -1178,8 +1201,9 @@
   <script src="js/metadata.js?v=1.6"></script>
   <script src="vendor/marked.min.js"></script>
   <script src="js/updater.js?v=1.1"></script>
+  <script src="js/config.js?v=1.0"></script>
   <script src="js/sync.js?v=1.0"></script>
-  <script src="js/app.js?v=1.8"></script>
+  <script src="js/app.js?v=1.10"></script>
 </body>
 
 </html>

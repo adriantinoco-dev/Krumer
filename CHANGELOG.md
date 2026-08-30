@@ -8,6 +8,19 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Alterado
+- **Tela de abertura com progresso (desktop e Android):** ao entrar no Krumer,
+  a inicialização agora exibe a marca, a porcentagem acima de uma barra fina e
+  nenhum texto adicional. O progresso parte de 0% e, se necessário, permanece
+  em 94% até ser seguro revelar o aplicativo. No desktop, o progresso leva cerca
+  de 1,5 segundo e inicia imediatamente um fade explícito de 1 segundo, inclusive
+  quando o Windows está configurado para reduzir animações. O comportamento
+  finalizado no Android permanece inalterado. As travas em `ready` permanecem
+  para nunca revelar a interface antes da restauração dos dados necessários.
+- **Sincronização Supabase congelada para o beta (desktop e Android):** autenticação,
+  refresh de sessão, worker/bridge, outbox, push/pull e gatilhos em segundo plano
+  ficam desativados. Sessões, filas e migrations existentes são preservadas para
+  reativação futura; o acesso à Conta/“Entrar” exibe um aviso de que a nuvem ainda
+  não está disponível. Persistência local, Gemini e atualizações continuam ativos.
 - **Mobile — busca de metadados responsiva (Android/tablet):** os modais de
   introdução, lote, ações e progresso agora respeitam as áreas seguras do
   dispositivo, mantendo controles fora da câmera e da barra de navegação. A

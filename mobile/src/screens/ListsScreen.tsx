@@ -17,7 +17,8 @@ import { ListCard } from '../components/ListCard';
 import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import type { MainTabParamList, RootStackParamList } from '../navigation/types';
-import { serifFont, spacing, TABLET_BREAKPOINT } from '../theme';
+import { useAutoRescan } from '../hooks/useAutoRescan';
+import { CONTENT_MAX_WIDTH, getListGridColumns, serifFont, spacing } from '../theme';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Lists'>,
@@ -36,6 +37,7 @@ type CollectionItem = {
 export function ListsScreen({ navigation }: Props) {
   const { width } = useWindowDimensions();
   const { books, createList, lists, t, theme } = useApp();
+  useAutoRescan();
 
   const [creating, setCreating] = useState(false);
   const [createName, setCreateName] = useState('');
@@ -103,7 +105,7 @@ export function ListsScreen({ navigation }: Props) {
     return [...result, ...custom];
   }, [books, lists, t]);
 
-  const listNumColumns = width >= TABLET_BREAKPOINT ? 4 : 2;
+  const listNumColumns = getListGridColumns(width);
 
   const handleCreateList = async () => {
     if (!createName.trim()) return;
@@ -138,10 +140,13 @@ export function ListsScreen({ navigation }: Props) {
       {/* Top Bar / Header */}
       <View
         style={{
+          alignSelf: 'center',
           alignItems: 'center',
           flexDirection: 'row',
           justifyContent: 'space-between',
+          maxWidth: CONTENT_MAX_WIDTH,
           padding: spacing.md,
+          width: '100%',
         }}
       >
         <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 26 }}>
@@ -200,7 +205,7 @@ export function ListsScreen({ navigation }: Props) {
             );
           }}
           showsVerticalScrollIndicator={false}
-          style={{ flex: 1 }}
+          style={{ alignSelf: 'center', flex: 1, maxWidth: CONTENT_MAX_WIDTH, width: '100%' }}
         />
       )}
 
@@ -218,6 +223,7 @@ export function ListsScreen({ navigation }: Props) {
               borderRadius: 12,
               borderWidth: 1,
               gap: spacing.md,
+              maxWidth: 420,
               padding: spacing.lg,
               width: '100%',
             }}

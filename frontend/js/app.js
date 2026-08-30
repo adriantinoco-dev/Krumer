@@ -31,15 +31,98 @@ const shortcutsMap = [
 ];
 window.shortcutsMap = shortcutsMap;
 
+const STARTUP_PROGRESS_MS = 1500;
+const STARTUP_EXIT_DELAY_MS = 0;
+const STARTUP_EXIT_MS = 1000;
+const STARTUP_WAIT_PROGRESS = 94;
+
 class AppController {
   constructor() {
     this.libraryManager = new LibraryManager();
     this.metadataManager = new MetadataManager(this);
     this.isOnboarding = false;
     this.coverRestoredInEdit = false;
+    this.startupStartedAt = performance.now();
+    this.startupAnimationFrame = null;
+    this.startupFinishing = false;
+  }
+
+  setStartupProgress(value) {
+    const progress = Math.max(0, Math.min(100, value));
+    const displayedProgress = Math.round(progress);
+    const overlay = document.getElementById('startup-loading');
+    const label = document.getElementById('startup-progress-value');
+    const fill = document.getElementById('startup-progress-fill');
+    if (overlay) overlay.setAttribute('aria-valuenow', String(displayedProgress));
+    if (label) label.textContent = `${displayedProgress}%`;
+    if (fill) fill.style.width = `${progress.toFixed(2)}%`;
+  }
+
+  startStartupProgress() {
+    this.setStartupProgress(0);
+    const update = (now) => {
+      const elapsed = now - this.startupStartedAt;
+      const progress = Math.min(
+        STARTUP_WAIT_PROGRESS,
+        (elapsed / STARTUP_PROGRESS_MS) * STARTUP_WAIT_PROGRESS
+      );
+      this.setStartupProgress(progress);
+      if (progress < STARTUP_WAIT_PROGRESS) {
+        this.startupAnimationFrame = window.requestAnimationFrame(update);
+      }
+    };
+    this.startupAnimationFrame = window.requestAnimationFrame(update);
+  }
+
+  fadeStartupOverlay(overlay) {
+    overlay.style.pointerEvents = 'none';
+    if (typeof overlay.animate !== 'function') {
+      overlay.classList.add('is-complete');
+      window.setTimeout(() => overlay.remove(), STARTUP_EXIT_MS + 20);
+      return;
+    }
+
+    const fade = overlay.animate(
+      [{ opacity: 1 }, { opacity: 0 }],
+      {
+        duration: STARTUP_EXIT_MS,
+        easing: 'cubic-bezier(0.645, 0.045, 0.355, 1)',
+        fill: 'forwards'
+      }
+    );
+    const fallbackRemoval = window.setTimeout(() => overlay.remove(), STARTUP_EXIT_MS + 100);
+    fade.finished.then(() => {
+      window.clearTimeout(fallbackRemoval);
+      overlay.remove();
+    }).catch(() => {
+      window.clearTimeout(fallbackRemoval);
+      overlay.remove();
+    });
+  }
+
+  finishStartup() {
+    if (this.startupFinishing) return;
+    this.startupFinishing = true;
+    const overlay = document.getElementById('startup-loading');
+    if (!overlay) return;
+    const elapsed = performance.now() - this.startupStartedAt;
+    const remainingProgressTime = Math.max(0, STARTUP_PROGRESS_MS - elapsed);
+    window.setTimeout(() => {
+      if (this.startupAnimationFrame !== null) {
+        window.cancelAnimationFrame(this.startupAnimationFrame);
+      }
+      this.setStartupProgress(100);
+      window.setTimeout(() => {
+        this.fadeStartupOverlay(overlay);
+      }, STARTUP_EXIT_DELAY_MS);
+    }, remainingProgressTime);
   }
 
   async init() {
+    this.startStartupProgress();
+    if (typeof window.electronAPI?.waitForBackendReady === 'function') {
+      await window.electronAPI.waitForBackendReady();
+    }
     I18N.init();
     I18N.onLangChange = (lang) => this._syncLangPicker(lang);
     window.chapterViewMode = 'title';
@@ -780,7 +863,16 @@ class AppController {
     const accountEmail = document.getElementById('auth-account-email');
     const emailConfirmed = document.getElementById('auth-email-confirmed');
     const recoveryNotice = document.getElementById('auth-recovery-notice');
+    const betaNotice = document.getElementById('auth-beta-notice');
     let mode = 'signin';
+
+    if (window.KRUMER_CLOUD_SYNC_ENABLED !== true) {
+      if (betaNotice) betaNotice.style.display = '';
+      if (signedOut) signedOut.style.display = 'none';
+      if (signedIn) signedIn.style.display = 'none';
+      return;
+    }
+    if (betaNotice) betaNotice.style.display = 'none';
 
     const setStatus = (message = '', isError = false) => {
       if (!status) return;
@@ -938,7 +1030,11 @@ class AppController {
       if (panelName === 'atalhos') {
         this.renderShortcuts();
       }
-      if (panelName === 'dados') {
+      const syncBetaNotice = document.getElementById('sync-beta-notice');
+      if (syncBetaNotice) {
+        syncBetaNotice.style.display = window.KRUMER_CLOUD_SYNC_ENABLED === true ? 'none' : '';
+      }
+      if (panelName === 'dados' && window.KRUMER_CLOUD_SYNC_ENABLED === true) {
         this._loadSyncMetrics();
       }
     }
@@ -1665,7 +1761,9 @@ window.openReader = openReader;
 // Global instance initialization on DOM Ready
 document.addEventListener('DOMContentLoaded', () => {
   window.app = new AppController();
-  window.app.init();
+  window.app.init()
+    .catch((error) => console.error('Falha ao inicializar o Krumer:', error))
+    .finally(() => window.app.finishStartup());
 
   const backBtn = document.getElementById('btn-back-library');
   if (backBtn) {

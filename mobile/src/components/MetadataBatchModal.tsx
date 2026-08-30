@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, Modal, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Easing, FlatList, Image, Modal, Pressable, ScrollView, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Check, Search, Sparkles, X } from 'lucide-react-native';
 import { useApp } from '../context/AppContext';
@@ -31,6 +31,9 @@ export function MetadataBatchModal({
   const [selectedResult, setSelectedResult] = useState<MetadataSearchResult | null>(null);
   const [progress, setProgress] = useState({ current: 0, total: 0, bookId: '' });
   const [isApplying, setIsApplying] = useState(false);
+  const [progressTrackWidth, setProgressTrackWidth] = useState(0);
+  const singleProgressSweep = useRef(new Animated.Value(0)).current;
+  const selectionProgress = useRef(new Animated.Value(0)).current;
 
   const eligibleBooks = useMemo(
     () => books.filter((book) => !book.parentId && !isMetadataComplete(book)),
@@ -77,6 +80,43 @@ export function MetadataBatchModal({
       return next.length === current.length ? current : next;
     });
   }, [eligibleBooks]);
+
+  useEffect(() => {
+    const isSingleBookLoading = stage === 'loading' && progress.total === 1;
+    singleProgressSweep.stopAnimation();
+
+    if (!isSingleBookLoading) {
+      singleProgressSweep.setValue(0);
+      return undefined;
+    }
+
+    const animation = Animated.loop(
+      Animated.timing(singleProgressSweep, {
+        duration: 1100,
+        easing: Easing.linear,
+        toValue: 1,
+        useNativeDriver: false,
+      }),
+    );
+    animation.start();
+
+    return () => {
+      animation.stop();
+      singleProgressSweep.stopAnimation();
+    };
+  }, [progress.total, singleProgressSweep, stage]);
+
+  useEffect(() => {
+    const animation = Animated.timing(selectionProgress, {
+      duration: 240,
+      easing: Easing.out(Easing.cubic),
+      toValue: selectedIds.length / MAX_METADATA_BATCH,
+      useNativeDriver: false,
+    });
+    animation.start();
+
+    return () => animation.stop();
+  }, [selectedIds.length, selectionProgress]);
 
   const close = () => {
     if (stage === 'loading' || isApplying) return;
@@ -175,8 +215,28 @@ export function MetadataBatchModal({
               {progress.current} / {progress.total}
             </Text>
             {processingBook ? <Text numberOfLines={2} style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 13, marginTop: spacing.xs, textAlign: 'center' }}>{processingBook.title}</Text> : null}
-            <View style={{ backgroundColor: theme.border, borderRadius: 99, height: 8, marginTop: spacing.lg, maxWidth: 360, overflow: 'hidden', width: '100%' }}>
-              <View style={{ backgroundColor: theme.accent, height: '100%', width: `${progress.total ? (progress.current / progress.total) * 100 : 0}%` }} />
+            <View
+              onLayout={({ nativeEvent }) => setProgressTrackWidth(nativeEvent.layout.width)}
+              style={{ backgroundColor: theme.border, borderRadius: 99, height: 8, marginTop: spacing.lg, maxWidth: 360, overflow: 'hidden', width: '100%' }}
+            >
+              {progress.total === 1 ? (
+                <Animated.View
+                  style={{
+                    backgroundColor: theme.accent,
+                    borderRadius: 99,
+                    height: '100%',
+                    transform: [{
+                      translateX: singleProgressSweep.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-(progressTrackWidth * 0.32 || 80), progressTrackWidth || 360],
+                      }),
+                    }],
+                    width: progressTrackWidth ? progressTrackWidth * 0.32 : 80,
+                  }}
+                />
+              ) : (
+                <View style={{ backgroundColor: theme.accent, height: '100%', width: `${progress.total ? (progress.current / progress.total) * 100 : 0}%` }} />
+              )}
             </View>
             <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12, marginTop: spacing.sm }}>{t('metadata.processingHint')}</Text>
           </View>
@@ -204,6 +264,20 @@ export function MetadataBatchModal({
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.sm }}>
               <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13 }}>{t('metadata.selectionCounter').replace('{0}', String(selectedIds.length)).replace('{1}', String(MAX_METADATA_BATCH))}</Text>
               <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12 }}>{eligibleBooks.length} {t('metadata.available')}</Text>
+            </View>
+            <View
+              accessibilityRole="progressbar"
+              accessibilityValue={{ max: MAX_METADATA_BATCH, min: 0, now: selectedIds.length }}
+              style={{ backgroundColor: theme.surface, borderColor: theme.border, borderRadius: 99, borderWidth: 1, height: 10, marginBottom: spacing.sm, overflow: 'hidden', width: '100%' }}
+            >
+              <Animated.View
+                style={{
+                  backgroundColor: theme.accent,
+                  borderRadius: 99,
+                  height: '100%',
+                  width: selectionProgress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+                }}
+              />
             </View>
             <Pressable disabled={!selectedIds.length} onPress={() => { void startBatch(); }} style={{ backgroundColor: selectedIds.length ? theme.accent : theme.accentMuted, borderRadius: radii.md, paddingVertical: spacing.md }}>
               <Text style={{ color: selectedIds.length ? theme.bg : theme.textMuted, fontFamily: serifFont, fontSize: 15, fontWeight: '700', textAlign: 'center' }}>{t('metadata.fetchButton')}</Text>

@@ -113,7 +113,7 @@ export function PdfReader({ filePath, initialPage = 1, onPageChange, onCenterTap
         const msg = e instanceof Error ? e.message : String(e);
         console.warn('[Krumer PdfReader:D1] falha ao resolver URI', filePath, msg);
         if (!cancelled) {
-          setError(t('reader.pdfWebUnavailableTitle') ?? 'Falha ao abrir PDF');
+          setError(t('reader.pdfOpenFailed'));
           setErrorDetail(msg);
           setLoading(false);
         }
@@ -250,10 +250,10 @@ export function PdfReader({ filePath, initialPage = 1, onPageChange, onCenterTap
       const msg = err instanceof Error ? err.message : typeof err === 'string' ? err : JSON.stringify(err ?? '');
       console.warn('[Krumer PdfReader:D1] onError', filePath, msg);
       setLoading(false);
-      setError('Falha ao abrir PDF');
+      setError(t('reader.pdfOpenFailed'));
       setErrorDetail(msg || null);
     },
-    [filePath],
+    [filePath, t],
   );
 
   // D4 — navegação com guard D3 (renderingPages)

@@ -15,10 +15,9 @@ import { MetadataBatchModal } from '../components/MetadataBatchModal';
 import { MetadataIntroModal } from '../components/MetadataIntroModal';
 import { MetadataDialog, type MetadataDialogConfig } from '../components/MetadataDialog';
 import { useApp } from '../context/AppContext';
-import { useAuth } from '../context/AuthContext';
 import { languages } from '../i18n/translations';
 import { scanLibrary } from '../services/libraryScanner';
-import { radii, serifFont, spacing, type ThemeName } from '../theme';
+import { radii, serifFont, SETTINGS_MAX_WIDTH, spacing, type ThemeName } from '../theme';
 import type { MainTabParamList, RootStackParamList } from '../navigation/types';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -51,8 +50,8 @@ function SectionHeader({ label }: { label: string }) {
 
 export function SettingsScreen({ navigation }: Props) {
   const { books, preferences, setBooks, setBooksPerRow, setGeminiApiKey, setLanguage, setLibraryFolder, setMetadataIntroSeen, setThemeName, theme, t } = useApp();
-  const { user } = useAuth();
 
+  const [cloudSyncVisible, setCloudSyncVisible] = useState(false);
   const [langVisible, setLangVisible] = useState(false);
   const [folderVisible, setFolderVisible] = useState(false);
   const [themeVisible, setThemeVisible] = useState(false);
@@ -134,54 +133,53 @@ export function SettingsScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView edges={['top']} style={{ backgroundColor: theme.bg, flex: 1 }}>
-      <View style={{ padding: spacing.md, paddingBottom: spacing.xs }}>
+      <View style={{ alignSelf: 'center', maxWidth: SETTINGS_MAX_WIDTH, padding: spacing.md, paddingBottom: spacing.xs, width: '100%' }}>
         <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 26 }}>{t('settings.title')}</Text>
       </View>
 
       <ScrollView
-        contentContainerStyle={{ paddingBottom: spacing.xl * 2, paddingHorizontal: spacing.md, paddingTop: spacing.xs }}
+        contentContainerStyle={{ alignItems: 'center', paddingBottom: spacing.xl * 2, paddingHorizontal: spacing.md, paddingTop: spacing.xs }}
         showsVerticalScrollIndicator={false}
         style={{ flex: 1 }}
       >
+        <View style={{ maxWidth: SETTINGS_MAX_WIDTH, width: '100%' }}>
         {/* Account banner scrolls away with the settings content instead of
             remaining fixed and covering rows on smaller screens. */}
-        {!user ? (
-          <Pressable
-            onPress={() => navigation.navigate('SettingsGroup', { group: 'account' })}
-            style={({ pressed }) => ({
-              backgroundColor: pressed ? theme.accentMuted : theme.accentMuted,
-              borderColor: theme.accent,
-              borderRadius: radii.md,
-              borderWidth: 1,
-              marginBottom: spacing.sm,
-              marginTop: spacing.sm,
-              padding: spacing.md,
-            })}
+        <Pressable
+          onPress={() => setCloudSyncVisible(true)}
+          style={({ pressed }) => ({
+            backgroundColor: pressed ? theme.accentMuted : theme.accentMuted,
+            borderColor: theme.accent,
+            borderRadius: radii.md,
+            borderWidth: 1,
+            marginBottom: spacing.sm,
+            marginTop: spacing.sm,
+            padding: spacing.md,
+          })}
+        >
+          <Text style={{ color: theme.accent, fontFamily: serifFont, fontSize: 14, fontWeight: '700', marginBottom: 2 }}>
+            {t('settings.syncTitle')}
+          </Text>
+          <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 12, marginBottom: spacing.sm }}>
+            {t('settings.syncDesc')}
+          </Text>
+          <View
+            style={{
+              alignSelf: 'flex-start',
+              backgroundColor: theme.accent,
+              borderRadius: radii.sm,
+              paddingHorizontal: spacing.md,
+              paddingVertical: spacing.xs + 2,
+            }}
           >
-            <Text style={{ color: theme.accent, fontFamily: serifFont, fontSize: 14, fontWeight: '700', marginBottom: 2 }}>
-              {t('settings.syncTitle') || 'Sync across devices'}
+            <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 13, fontWeight: '700' }}>
+              {t('auth.signIn')}
             </Text>
-            <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 12, marginBottom: spacing.sm }}>
-              {t('settings.syncDesc') || 'Sign in to keep your library and reading progress in sync.'}
-            </Text>
-            <View
-              style={{
-                alignSelf: 'flex-start',
-                backgroundColor: theme.accent,
-                borderRadius: radii.sm,
-                paddingHorizontal: spacing.md,
-                paddingVertical: spacing.xs + 2,
-              }}
-            >
-              <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 13, fontWeight: '700' }}>
-                {t('auth.signIn') || 'Sign in'}
-              </Text>
-            </View>
-          </Pressable>
-        ) : null}
+          </View>
+        </Pressable>
 
         {/* APPEARANCE */}
-        <SectionHeader label={t('settings.sectionAppearance') || 'APPEARANCE'} />
+        <SectionHeader label={t('settings.sectionAppearance')} />
         <SettingsRow
           title={t('settings.theme')}
           subtitle={themeLabel}
@@ -198,7 +196,7 @@ export function SettingsScreen({ navigation }: Props) {
         />
 
         {/* LIBRARY */}
-        <SectionHeader label={t('settings.sectionLibrary') || 'LIBRARY'} />
+        <SectionHeader label={t('settings.sectionLibrary')} />
         <SettingsRow
           title={t('settings.language')}
           subtitle={language}
@@ -206,8 +204,8 @@ export function SettingsScreen({ navigation }: Props) {
           onPress={() => setLangVisible(true)}
         />
         <SettingsRow
-          title={t('general.folder') || 'Books folder'}
-          subtitle={folderName(preferences.libraryFolder) || t('general.noFolder') || 'Not configured'}
+          title={t('general.folder')}
+          subtitle={folderName(preferences.libraryFolder) || t('general.noFolder')}
           icon={Folder}
           onPress={() => setFolderVisible(true)}
         />
@@ -219,7 +217,7 @@ export function SettingsScreen({ navigation }: Props) {
         />
 
         {/* INTEGRATIONS */}
-        <SectionHeader label={t('settings.sectionIntegrations') || 'INTEGRATIONS'} />
+        <SectionHeader label={t('settings.sectionIntegrations')} />
         <SettingsRow
           title={t('settings.apiKey')}
           subtitle={preferences.hasGeminiApiKey ? t('api.configured') : t('api.noKey')}
@@ -228,13 +226,14 @@ export function SettingsScreen({ navigation }: Props) {
         />
 
         {/* ABOUT */}
-        <SectionHeader label={t('settings.sectionAbout') || 'ABOUT'} />
+        <SectionHeader label={t('settings.sectionAbout')} />
         <SettingsRow
           title="Krumer Mobile"
           subtitle="v0.1.0"
           icon={Info}
           onPress={() => navigation.navigate('SettingsGroup', { group: 'about' })}
         />
+        </View>
       </ScrollView>
 
       {/* Language Modal */}
@@ -255,7 +254,7 @@ export function SettingsScreen({ navigation }: Props) {
       </SettingsModal>
 
       {/* Folder Modal */}
-      <SettingsModal visible={folderVisible} onClose={() => setFolderVisible(false)} title={t('general.folder') || 'Books folder'}>
+      <SettingsModal visible={folderVisible} onClose={() => setFolderVisible(false)} title={t('general.folder')}>
         <View style={{ gap: spacing.md }}>
           <FolderPickerField value={folder} onChange={updateFolder} />
           <PrimaryButton disabled={!folder} label={t('scan.action')} onPress={runScan} />
@@ -359,6 +358,20 @@ export function SettingsScreen({ navigation }: Props) {
               </Pressable>
             ))}
           </View>
+        </View>
+      </SettingsModal>
+
+      <SettingsModal
+        centerTitle
+        visible={cloudSyncVisible}
+        onClose={() => setCloudSyncVisible(false)}
+        title={t('sync.betaTitle')}
+      >
+        <View style={{ gap: spacing.md }}>
+          <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 14, lineHeight: 21, textAlign: 'center' }}>
+            {t('sync.betaMessage')}
+          </Text>
+          <PrimaryButton label={t('sync.betaAction')} onPress={() => setCloudSyncVisible(false)} />
         </View>
       </SettingsModal>
 

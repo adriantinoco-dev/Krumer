@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Book } from '../models/item';
 import type { SyncList } from '../models/list';
-import { supabase } from '../auth/supabase';
+import { getSupabase } from '../auth/supabase';
+import { CLOUD_SYNC_ENABLED } from '../config';
 import type { MobileOutboxRow, SyncEntityType, SyncOperation } from './types';
 
 export const OUTBOX_KEY = 'krumer.sync.outbox.v1';
@@ -17,7 +18,7 @@ export async function saveOutbox(rows: MobileOutboxRow[]) {
 }
 
 async function activeUserId() {
-  const { data } = await supabase.auth.getSession();
+  const { data } = await getSupabase().auth.getSession();
   return data.session?.user.id ?? null;
 }
 
@@ -38,6 +39,7 @@ export async function enqueueMobileWrite(
   operation: SyncOperation,
   payload: Record<string, unknown>,
 ) {
+  if (!CLOUD_SYNC_ENABLED) return;
   const ownerUserId = await activeUserId();
   await mutateOutbox((rows) => {
     const now = Date.now();

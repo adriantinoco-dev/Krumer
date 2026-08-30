@@ -3,7 +3,7 @@ import JSZip from 'jszip';
 import { NativeModules, Platform } from 'react-native';
 import type { BookFormat } from '../models/item';
 
-const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
+const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'jpge', 'png', 'webp'];
 
 type PdfThumbnailResult = {
   height: number;
@@ -138,7 +138,22 @@ function findZipFile(zip: JSZip, path: string) {
 
 function getExtension(path: string) {
   const extension = path.split('?')[0].split('#')[0].split('.').pop()?.toLowerCase();
+  if (extension === 'jpge') return 'jpeg';
   return extension && IMAGE_EXTENSIONS.includes(extension) ? extension : 'jpg';
+}
+
+function isImagePath(path: string) {
+  const lower = path.split('?')[0].split('#')[0].toLowerCase();
+  return IMAGE_EXTENSIONS.some((extension) => lower.endsWith(`.${extension}`));
+}
+
+function isNamedCoverPath(path: string) {
+  const fileName = decodeURIComponent(path.split('/').pop() ?? '').toLowerCase();
+  const stem = fileName.includes('.') ? fileName.slice(0, fileName.lastIndexOf('.')) : fileName;
+
+  // "cover" is the canonical EPUB name. Keep the common variants for older
+  // books, but do not use arbitrary image names as a last-resort guess.
+  return /^(?:cover|cover[-_ ]?(?:image|page)|capa)$/.test(stem);
 }
 
 function findCoverHref(opfContent: string) {
@@ -218,8 +233,7 @@ export async function extractEpubCover(epubPath: string, bookId: string): Promis
 
     async function resolveCoverCandidate(candidateHref: string, opfDir: string): Promise<string | null> {
       const fullPath = joinZipPath(opfDir, candidateHref);
-      const lower = fullPath.toLowerCase();
-      const isImage = IMAGE_EXTENSIONS.some((ext) => lower.endsWith(`.${ext}`));
+      const isImage = isImagePath(fullPath);
 
       if (isImage) {
         const data = await findZipFile(zip, fullPath)?.async('base64');
@@ -240,7 +254,25 @@ export async function extractEpubCover(epubPath: string, bookId: string): Promis
       return null;
     }
 
-    // 1. OPF — fonte mais confiável
+    // 1. Preferir um arquivo chamado "cover" dentro do ZIP. Alguns EPUBs
+    // têm OPF inconsistente e apontam para a capa de outro volume; o nome
+    // explícito do recurso é mais confiável nesses casos. O arquivo pode ser
+    // uma imagem ou uma página HTML/XHTML que referencia a imagem real.
+    const namedCoverPaths = allPaths
+      .filter((path) => !zip.files[path]?.dir && isNamedCoverPath(path))
+      .sort((left, right) => {
+        const leftIsImage = isImagePath(left);
+        const rightIsImage = isImagePath(right);
+        if (leftIsImage !== rightIsImage) return leftIsImage ? -1 : 1;
+        return left.localeCompare(right);
+      });
+
+    for (const relativePath of namedCoverPaths) {
+      const result = await resolveCoverCandidate(relativePath, '');
+      if (result) return result;
+    }
+
+    // 2. OPF — fonte declarativa de reserva
     const containerXml = await zip.file('META-INF/container.xml')?.async('string');
     const opfPathFromContainer = containerXml
       ? (getAttribute(getXmlTags(containerXml, 'rootfile')[0] ?? '', 'full-path') ?? null)
@@ -288,56 +320,11 @@ export async function extractEpubCover(epubPath: string, bookId: string): Promis
           if (result) return result;
         }
 
-        // Strategy E: Primeiro item do <spine> (página de capa do próprio livro)
-        const spineMatch = opfContent.match(/<spine\b[^>]*>([\s\S]*?)<\/spine>/i);
-        if (spineMatch) {
-          const itemrefMatch = spineMatch[1].match(/<itemref\b[^>]*idref=["']([^"']+)["']/i);
-          if (itemrefMatch) {
-            const firstId = itemrefMatch[1];
-            const itemMatch = new RegExp(`<item\\b[^>]*id=["']${firstId}["'][^>]*href=["']([^"']+)["']`, 'i').exec(opfContent);
-            if (itemMatch) {
-              const result = await resolveCoverCandidate(itemMatch[1], opfDir);
-              if (result) return result;
-            }
-          }
-        }
       }
     }
 
-    // 2. Fallback: imagem cujo nome de arquivo (sem pasta) seja exatamente cover/capa
-    for (const relativePath of allPaths) {
-      const fileName = relativePath.split('/').pop()?.toLowerCase() ?? '';
-      const stem = fileName.replace(/\.[^.]+$/, '');
-      const isImage = IMAGE_EXTENSIONS.some((ext) => fileName.endsWith(`.${ext}`));
-      if (isImage && (stem === 'cover' || stem === 'capa' || stem === 'cover_image' || stem === 'cover-image')) {
-        const data = await findZipFile(zip, relativePath)?.async('base64');
-        if (data) return saveCoverData(data, bookId, getExtension(relativePath));
-      }
-    }
-
-    // 3. Maior imagem encontrada no ZIP
-    let bestPath: string | null = null;
-    let bestSize = 0;
-    for (const [relativePath, zipObj] of Object.entries(zip.files)) {
-      if (!zipObj.dir) {
-        const lower = relativePath.toLowerCase();
-        const isImage = IMAGE_EXTENSIONS.some((ext) => lower.endsWith(`.${ext}`));
-        if (isImage) {
-          const data = await zipObj.async('uint8array');
-          if (data.length > bestSize) {
-            bestSize = data.length;
-            bestPath = relativePath;
-          }
-        }
-      }
-    }
-    if (bestPath) {
-      const data = await findZipFile(zip, bestPath)?.async('base64');
-      if (data) {
-        return saveCoverData(data, bookId, getExtension(bestPath));
-      }
-    }
-
+    // Sem um arquivo explícito ou uma referência declarativa válida, não
+    // escolher uma imagem arbitrária (ela pode ser de outro capítulo/volume).
     return null;
   } catch (error) {
     console.warn(`EPUB cover extraction failed for ${bookId}:`, error);

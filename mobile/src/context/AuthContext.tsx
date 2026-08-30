@@ -2,7 +2,9 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { Linking, Platform } from 'react-native';
 import type { Session, User } from '@supabase/supabase-js';
 import { getNativeGoogleIdToken, signOutNativeGoogle } from '../auth/google';
-import { AUTH_REDIRECT_URL, SUPABASE_URL, supabase } from '../auth/supabase';
+import { AUTH_REDIRECT_URL, getSupabase, SUPABASE_URL } from '../auth/supabase';
+import { CLOUD_SYNC_ENABLED } from '../config';
+import { DEFAULT_LANGUAGE, translate, type LanguageCode } from '../i18n/translations';
 
 type SignUpResult = { confirmationRequired: boolean };
 type GoogleSignInResult = 'browser-opened' | 'cancelled' | 'signed-in';
@@ -12,25 +14,25 @@ type AuthContextValue = {
   recovery: boolean;
   session: Session | null;
   user: User | null;
-  requestPasswordReset: (email: string) => Promise<void>;
-  sendMagicLink: (email: string) => Promise<void>;
-  signIn: (email: string, password: string) => Promise<void>;
-  signInWithGoogle: () => Promise<GoogleSignInResult>;
-  signOut: () => Promise<void>;
-  signUp: (email: string, password: string) => Promise<SignUpResult>;
-  updatePassword: (password: string) => Promise<void>;
+  requestPasswordReset: (email: string, language?: LanguageCode) => Promise<void>;
+  sendMagicLink: (email: string, language?: LanguageCode) => Promise<void>;
+  signIn: (email: string, password: string, language?: LanguageCode) => Promise<void>;
+  signInWithGoogle: (language?: LanguageCode) => Promise<GoogleSignInResult>;
+  signOut: (language?: LanguageCode) => Promise<void>;
+  signUp: (email: string, password: string, language?: LanguageCode) => Promise<SignUpResult>;
+  updatePassword: (password: string, language?: LanguageCode) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function normalizeEmail(email: string) {
+function normalizeEmail(email: string, language: LanguageCode) {
   const normalized = email.trim().toLowerCase();
-  if (!normalized || !normalized.includes('@')) throw new Error('Informe um email válido.');
+  if (!normalized || !normalized.includes('@')) throw new Error(translate(language, 'auth.invalidEmail'));
   return normalized;
 }
 
-function validatePassword(password: string) {
-  if (password.length < 6) throw new Error('A senha deve ter pelo menos 6 caracteres.');
+function validatePassword(password: string, language: LanguageCode) {
+  if (password.length < 6) throw new Error(translate(language, 'auth.passwordTooShort'));
   return password;
 }
 
@@ -55,6 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
 
   const handleAuthUrl = useCallback(async (rawUrl: string) => {
+    if (!CLOUD_SYNC_ENABLED) return;
     const params = getCallbackParams(rawUrl);
     if (!params) return;
     const callbackError = params.get('error_description') ?? params.get('error');
@@ -66,10 +69,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const isRecovery = params.get('type') === 'recovery';
 
     if (code) {
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      const { error } = await getSupabase().auth.exchangeCodeForSession(code);
       if (error) throw error;
     } else if (accessToken && refreshToken) {
-      const { error } = await supabase.auth.setSession({
+      const { error } = await getSupabase().auth.setSession({
         access_token: accessToken,
         refresh_token: refreshToken,
       });
@@ -83,7 +86,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+    if (!CLOUD_SYNC_ENABLED) {
+      setReady(true);
+      return () => {
+        mounted = false;
+      };
+    }
+
+    const { data: { subscription } } = getSupabase().auth.onAuthStateChange((event, nextSession) => {
       if (!mounted) return;
       setSession(nextSession);
       if (event === 'SIGNED_OUT') setRecovery(false);
@@ -91,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     async function hydrate() {
-      const { data, error } = await supabase.auth.getSession();
+      const { data, error } = await getSupabase().auth.getSession();
       if (!mounted) return;
       if (error) console.warn('[Auth] Não foi possível restaurar a sessão:', error.message);
       setSession(data.session ?? null);
@@ -120,21 +130,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     recovery,
     session,
     user: session?.user ?? null,
-    signIn: async (email, password) => {
+    signIn: async (email, password, language = DEFAULT_LANGUAGE) => {
+      if (!CLOUD_SYNC_ENABLED) throw new Error(translate(language, 'sync.betaMessage'));
       setRecovery(false);
-      const { error } = await supabase.auth.signInWithPassword({
-        email: normalizeEmail(email),
-        password: validatePassword(password),
+      const { error } = await getSupabase().auth.signInWithPassword({
+        email: normalizeEmail(email, language),
+        password: validatePassword(password, language),
       });
       if (error) throw error;
     },
-    signInWithGoogle: async () => {
+    signInWithGoogle: async (language = DEFAULT_LANGUAGE) => {
+      if (!CLOUD_SYNC_ENABLED) throw new Error(translate(language, 'sync.betaMessage'));
       setRecovery(false);
       if (Platform.OS === 'android') {
-        const idToken = await getNativeGoogleIdToken();
+        const idToken = await getNativeGoogleIdToken(language);
         if (!idToken) return 'cancelled';
 
-        const { error } = await supabase.auth.signInWithIdToken({
+        const { error } = await getSupabase().auth.signInWithIdToken({
           provider: 'google',
           token: idToken,
         });
@@ -142,7 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return 'signed-in';
       }
 
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { data, error } = await getSupabase().auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: AUTH_REDIRECT_URL,
@@ -151,48 +163,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
       });
       if (error) throw error;
-      if (!data.url) throw new Error('O Supabase não retornou a URL de autenticação do Google.');
+      if (!data.url) throw new Error(translate(language, 'auth.supabaseGoogleUrlMissing'));
 
       const oauthUrl = new URL(data.url);
       if (oauthUrl.protocol !== 'https:' || oauthUrl.origin !== new URL(SUPABASE_URL).origin) {
-        throw new Error('O Supabase retornou uma URL de autenticação inválida.');
+        throw new Error(translate(language, 'auth.supabaseUrlInvalid'));
       }
       if (!await Linking.canOpenURL(oauthUrl.toString())) {
-        throw new Error('Nenhum navegador está disponível para concluir o login.');
+        throw new Error(translate(language, 'auth.browserUnavailable'));
       }
       await Linking.openURL(oauthUrl.toString());
       return 'browser-opened';
     },
-    signUp: async (email, password) => {
+    signUp: async (email, password, language = DEFAULT_LANGUAGE) => {
+      if (!CLOUD_SYNC_ENABLED) throw new Error(translate(language, 'sync.betaMessage'));
       setRecovery(false);
-      const { data, error } = await supabase.auth.signUp({
-        email: normalizeEmail(email),
-        password: validatePassword(password),
+      const { data, error } = await getSupabase().auth.signUp({
+        email: normalizeEmail(email, language),
+        password: validatePassword(password, language),
         options: { emailRedirectTo: AUTH_REDIRECT_URL },
       });
       if (error) throw error;
       return { confirmationRequired: !data.session };
     },
-    sendMagicLink: async (email) => {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: normalizeEmail(email),
+    sendMagicLink: async (email, language = DEFAULT_LANGUAGE) => {
+      if (!CLOUD_SYNC_ENABLED) throw new Error(translate(language, 'sync.betaMessage'));
+      const { error } = await getSupabase().auth.signInWithOtp({
+        email: normalizeEmail(email, language),
         options: { emailRedirectTo: AUTH_REDIRECT_URL, shouldCreateUser: false },
       });
       if (error) throw error;
     },
-    requestPasswordReset: async (email) => {
-      const { error } = await supabase.auth.resetPasswordForEmail(normalizeEmail(email), {
+    requestPasswordReset: async (email, language = DEFAULT_LANGUAGE) => {
+      if (!CLOUD_SYNC_ENABLED) throw new Error(translate(language, 'sync.betaMessage'));
+      const { error } = await getSupabase().auth.resetPasswordForEmail(normalizeEmail(email, language), {
         redirectTo: AUTH_REDIRECT_URL,
       });
       if (error) throw error;
     },
-    updatePassword: async (password) => {
-      const { error } = await supabase.auth.updateUser({ password: validatePassword(password) });
+    updatePassword: async (password, language = DEFAULT_LANGUAGE) => {
+      if (!CLOUD_SYNC_ENABLED) throw new Error(translate(language, 'sync.betaMessage'));
+      const { error } = await getSupabase().auth.updateUser({ password: validatePassword(password, language) });
       if (error) throw error;
       setRecovery(false);
     },
-    signOut: async () => {
-      const { error } = await supabase.auth.signOut({ scope: 'local' });
+    signOut: async (language = DEFAULT_LANGUAGE) => {
+      if (!CLOUD_SYNC_ENABLED) throw new Error(translate(language, 'sync.betaMessage'));
+      const { error } = await getSupabase().auth.signOut({ scope: 'local' });
       if (error) throw error;
       if (Platform.OS === 'android') {
         await signOutNativeGoogle().catch((googleError) => {

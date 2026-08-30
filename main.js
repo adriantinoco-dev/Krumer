@@ -1,6 +1,7 @@
 const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const { autoUpdater, CancellationToken } = require('electron-updater');
 const { AuthService } = require('./auth-service');
+const { CLOUD_SYNC_ENABLED } = require('./auth-config');
 const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
@@ -14,6 +15,7 @@ let cancellationToken = null;
 let authService = null;
 let backendPort = 8765;
 let backendReady = false;
+let backendReadyPromise = Promise.resolve(false);
 const syncBridgeToken = crypto.randomBytes(32).toString('hex');
 let pendingAuthUrl = process.argv.find((arg) => arg.startsWith('krumer://')) || null;
 
@@ -29,6 +31,7 @@ function focusMainWindow() {
 }
 
 async function handleAuthUrl(url) {
+  if (!CLOUD_SYNC_ENABLED) return;
   if (!url) return;
   if (!authService) {
     pendingAuthUrl = url;
@@ -125,7 +128,8 @@ function startPythonBackend() {
         PYTHONUNBUFFERED: '1',
         KRUMER_BACKEND_RELOAD: '0',
         KRUMER_API_PORT: String(backendPort),
-        KRUMER_SYNC_BRIDGE_TOKEN: syncBridgeToken
+        KRUMER_SYNC_BRIDGE_TOKEN: syncBridgeToken,
+        KRUMER_CLOUD_SYNC_ENABLED: CLOUD_SYNC_ENABLED ? '1' : '0'
       }
     });
   } else {
@@ -142,7 +146,8 @@ function startPythonBackend() {
         PYTHONUNBUFFERED: '1',
         KRUMER_BACKEND_RELOAD: '0',
         KRUMER_API_PORT: String(backendPort),
-        KRUMER_SYNC_BRIDGE_TOKEN: syncBridgeToken
+        KRUMER_SYNC_BRIDGE_TOKEN: syncBridgeToken,
+        KRUMER_CLOUD_SYNC_ENABLED: CLOUD_SYNC_ENABLED ? '1' : '0'
       }
     });
   }
@@ -250,7 +255,7 @@ function callSyncBackend(method, route, body = null, timeoutMs = 10000) {
 }
 
 async function syncAuthToBackend() {
-  if (!authService || !pyProcess || !backendReady) return;
+  if (!CLOUD_SYNC_ENABLED || !authService || !pyProcess || !backendReady) return;
   try {
     const credentials = await authService.getSyncCredentials();
     if (!credentials) {
@@ -285,6 +290,7 @@ async function createWindow() {
     icon: iconPath,
     title: 'Krumer',
     show: false, // evita flash antes de maximizar
+    backgroundColor: '#111111',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       additionalArguments: [`--krumer-backend-port=${backendPort}`],
@@ -308,21 +314,23 @@ async function createWindow() {
 
   mainWindow.setMenuBarVisibility(false);
 
-  // Inicia o backend Python e aguarda estar online
+  // Inicia o backend em paralelo para que a tela de abertura já fique visível.
   startPythonBackend();
-
-  try {
-    await waitForBackend();
-    backendReady = true;
-    console.log(`Backend iniciado e autenticado na porta ${backendPort}.`);
-    await syncAuthToBackend();
-  } catch (err) {
-    console.error('Falha ao aguardar o backend:', err);
-  }
+  backendReadyPromise = waitForBackend()
+    .then(async () => {
+      backendReady = true;
+      console.log(`Backend iniciado e autenticado na porta ${backendPort}.`);
+      if (CLOUD_SYNC_ENABLED) await syncAuthToBackend();
+      return true;
+    })
+    .catch((err) => {
+      console.error('Falha ao aguardar o backend:', err);
+      return false;
+    });
 
   // Carrega a interface do frontend local
   const frontendPath = path.join(__dirname, 'frontend', 'index.html');
-  mainWindow.loadFile(frontendPath);
+  await mainWindow.loadFile(frontendPath);
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -330,6 +338,10 @@ async function createWindow() {
 }
 
 // Handlers IPC para comunicação Frontend <-> Electron Main
+ipcMain.handle('backend:wait-until-ready', () => (
+  backendReady ? Promise.resolve(true) : backendReadyPromise
+));
+
 ipcMain.handle('select-folder', async () => {
   if (!mainWindow) return { status: 'cancelled', path: null };
 
@@ -381,8 +393,18 @@ ipcMain.handle('restart-and-install', () => {
 });
 
 function requireAuthService() {
+  if (!CLOUD_SYNC_ENABLED) throw new Error('A sincronização com a nuvem está indisponível durante o beta.');
   if (!authService) throw new Error('O serviço de autenticação ainda não está pronto.');
   return authService;
+}
+
+function getDisabledSyncStatus() {
+  return {
+    state: 'disabled',
+    pending: 0,
+    last_sync_at: null,
+    last_error: 'A sincronização com a nuvem está indisponível durante o beta.'
+  };
 }
 
 ipcMain.handle('auth:get-state', () => requireAuthService().getState());
@@ -397,9 +419,15 @@ ipcMain.handle('auth:magic-link', (_event, { email }) => requireAuthService().se
 ipcMain.handle('auth:reset-password', (_event, { email }) => requireAuthService().requestPasswordReset(email));
 ipcMain.handle('auth:update-password', (_event, { password }) => requireAuthService().updatePassword(password));
 ipcMain.handle('auth:sign-out', () => requireAuthService().signOut());
-ipcMain.handle('sync:trigger', () => callSyncBackend('POST', '/sync/trigger'));
-ipcMain.handle('sync:get-status', () => callSyncBackend('GET', '/sync/status'));
-ipcMain.handle('sync:get-metrics', () => callSyncBackend('GET', '/sync/metrics'));
+ipcMain.handle('sync:trigger', () => (
+  CLOUD_SYNC_ENABLED ? callSyncBackend('POST', '/sync/trigger') : getDisabledSyncStatus()
+));
+ipcMain.handle('sync:get-status', () => (
+  CLOUD_SYNC_ENABLED ? callSyncBackend('GET', '/sync/status') : getDisabledSyncStatus()
+));
+ipcMain.handle('sync:get-metrics', () => (
+  CLOUD_SYNC_ENABLED ? callSyncBackend('GET', '/sync/metrics') : getDisabledSyncStatus()
+));
 
 // Eventos do electron-updater repassados para o Renderer Process
 autoUpdater.on('update-available', (info) => {
@@ -432,14 +460,16 @@ app.whenReady().then(async () => {
     app.setAsDefaultProtocolClient('krumer');
   }
 
-  authService = new AuthService(app.getPath('userData'));
-  authService.setStateListener((state) => {
-    if (mainWindow) mainWindow.webContents.send('auth:state-changed', state);
-    void syncAuthToBackend();
-  });
-  await authService.initialize();
+  if (CLOUD_SYNC_ENABLED) {
+    authService = new AuthService(app.getPath('userData'));
+    authService.setStateListener((state) => {
+      if (mainWindow) mainWindow.webContents.send('auth:state-changed', state);
+      void syncAuthToBackend();
+    });
+    await authService.initialize();
+  }
 
-  if (pendingAuthUrl) {
+  if (CLOUD_SYNC_ENABLED && pendingAuthUrl) {
     const url = pendingAuthUrl;
     pendingAuthUrl = null;
     await handleAuthUrl(url);

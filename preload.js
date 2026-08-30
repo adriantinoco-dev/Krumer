@@ -8,6 +8,7 @@ const backendPort = Number.isInteger(parsedBackendPort) && parsedBackendPort > 0
 
 contextBridge.exposeInMainWorld('electronAPI', {
   backendBaseUrl: `http://127.0.0.1:${backendPort}`,
+  waitForBackendReady: () => ipcRenderer.invoke('backend:wait-until-ready'),
   selectFolder: () => ipcRenderer.invoke('select-folder'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   startDownload: () => ipcRenderer.invoke('start-download'),

@@ -55,6 +55,18 @@ export type TranslationKey =
   | 'metadata.clearAction'
   | 'metadata.clearTitle'
   | 'metadata.clearMessage'
+  | 'metadata.serviceMissingKey'
+  | 'metadata.batchLimit'
+  | 'metadata.invalidJson'
+  | 'metadata.invalidMetadata'
+  | 'metadata.safetyBlocked'
+  | 'metadata.invalidKey'
+  | 'metadata.modelUnavailable'
+  | 'metadata.rateLimit'
+  | 'metadata.networkUnavailable'
+  | 'metadata.timeout'
+  | 'metadata.offline'
+  | 'metadata.genericError'
   | 'auth.account'
   | 'auth.accountCreated'
   | 'auth.checkEmailConfirmation'
@@ -69,6 +81,18 @@ export type TranslationKey =
   | 'auth.forgotPassword'
   | 'auth.genericError'
   | 'auth.googleBrowserOpened'
+  | 'auth.googleClientIdRequired'
+  | 'auth.googleDevelopmentBuild'
+  | 'auth.googleUnavailable'
+  | 'auth.googleTokenInvalid'
+  | 'auth.googleInProgress'
+  | 'auth.googlePlayServicesUnavailable'
+  | 'auth.supabaseGoogleUrlMissing'
+  | 'auth.supabaseUrlInvalid'
+  | 'auth.browserUnavailable'
+  | 'auth.invalidEmail'
+  | 'auth.passwordTooShort'
+  | 'auth.sync'
   | 'auth.googleSignIn'
   | 'auth.magicLink'
   | 'auth.newPassword'
@@ -88,6 +112,7 @@ export type TranslationKey =
   | 'auth.updatePassword'
   | 'auth.working'
   | 'common.cancel'
+  | 'common.back'
   | 'common.delete'
   | 'common.done'
   | 'common.continue'
@@ -116,6 +141,9 @@ export type TranslationKey =
   | 'details.titleInput'
   | 'details.year'
   | 'details.yearInput'
+  | 'details.bookNotFound'
+  | 'details.goBack'
+  | 'details.yearExample'
   | 'general.booksFolder'
   | 'general.folder'
   | 'general.noFolder'
@@ -130,6 +158,7 @@ export type TranslationKey =
   | 'library.items'
   | 'library.volumesShort'
   | 'library.search'
+  | 'library.clearSearch'
   | 'library.sortBy'
   | 'library.sortName'
   | 'library.sortRecent'
@@ -186,6 +215,41 @@ export type TranslationKey =
   | 'reader.horizontalMargin'
   | 'reader.nextPage'
   | 'reader.noBookmarks'
+  | 'reader.topics'
+  | 'reader.notes'
+  | 'reader.brightness'
+  | 'reader.loadingTopics'
+  | 'reader.noTopics'
+  | 'reader.noToc'
+  | 'reader.brightnessUnavailable'
+  | 'reader.noNotes'
+  | 'reader.noNotesHint'
+  | 'reader.newNote'
+  | 'reader.note'
+  | 'reader.editNoteTitle'
+  | 'reader.notePageTitle'
+  | 'reader.savedPage'
+  | 'reader.pageUnavailable'
+  | 'reader.pageWithNumber'
+  | 'reader.currentPage'
+  | 'reader.noteWillBeSaved'
+  | 'reader.goToNotePage'
+  | 'reader.editNote'
+  | 'reader.writeNotePlaceholder'
+  | 'reader.saveNote'
+  | 'reader.createNote'
+  | 'reader.epubFileNotFound'
+  | 'reader.epubSizeUnknown'
+  | 'reader.epubTooLarge'
+  | 'reader.epubTooLargeDecoded'
+  | 'reader.epubReadFailed'
+  | 'reader.epubRuntimeNotReady'
+  | 'reader.epubClosedBeforeFonts'
+  | 'reader.epubFontLoadFailed'
+  | 'reader.epubFontRegistrationTimeout'
+  | 'reader.epubOpenFailed'
+  | 'reader.epubWebViewUnavailable'
+  | 'reader.pdfOpenFailed'
   | 'reader.page'
   | 'reader.paginationSettings'
   | 'reader.paginatedMode'
@@ -219,6 +283,9 @@ export type TranslationKey =
   | 'settings.sectionLibrary'
   | 'settings.syncDesc'
   | 'settings.syncTitle'
+  | 'sync.betaAction'
+  | 'sync.betaMessage'
+  | 'sync.betaTitle'
   | 'settings.theme'
   | 'settings.title'
   | 'tab.library'
@@ -295,6 +362,18 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'metadata.clearAction': 'Clear metadata',
     'metadata.clearTitle': 'Clear metadata?',
     'metadata.clearMessage': 'Author, year and synopsis will be removed. The title, tags, rating, cover and reading progress will be kept.',
+    'metadata.serviceMissingKey': 'Configure a Gemini API key before searching for metadata.',
+    'metadata.batchLimit': 'Select at most {0} books per batch.',
+    'metadata.invalidJson': 'Gemini returned an invalid JSON response.',
+    'metadata.invalidMetadata': 'Gemini returned no valid metadata.',
+    'metadata.safetyBlocked': 'Gemini blocked this query for safety reasons.',
+    'metadata.invalidKey': 'The Gemini key is invalid or does not have permission.',
+    'metadata.modelUnavailable': 'The Gemini model is unavailable.',
+    'metadata.rateLimit': 'The Gemini request limit was reached. Wait and try again.',
+    'metadata.networkUnavailable': 'The Gemini service is temporarily unavailable.',
+    'metadata.timeout': 'The Gemini request took too long.',
+    'metadata.offline': 'Could not connect to the Gemini API. Check your connection.',
+    'metadata.genericError': 'Could not search for metadata.',
     'auth.account': 'Account',
     'auth.accountCreated': 'Account created and signed in.',
     'auth.checkEmailConfirmation': 'Account created. Check your email to confirm your registration.',
@@ -309,6 +388,18 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'auth.forgotPassword': 'Forgot password',
     'auth.genericError': 'Authentication could not be completed.',
     'auth.googleBrowserOpened': 'Your browser is open. Choose your Google account to finish signing in.',
+    'auth.googleClientIdRequired': 'Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to enable native Google sign-in.',
+    'auth.googleDevelopmentBuild': 'Google sign-in requires a development build (npx expo run:android). This native module is not available in Expo Go.',
+    'auth.googleUnavailable': 'Google sign-in is unavailable in this build.',
+    'auth.googleTokenInvalid': 'Google did not return a valid identity token.',
+    'auth.googleInProgress': 'A Google sign-in is already in progress.',
+    'auth.googlePlayServicesUnavailable': 'Google Play Services is unavailable or needs to be updated.',
+    'auth.supabaseGoogleUrlMissing': 'Supabase did not return a Google authentication URL.',
+    'auth.supabaseUrlInvalid': 'Supabase returned an invalid authentication URL.',
+    'auth.browserUnavailable': 'No browser is available to finish signing in.',
+    'auth.invalidEmail': 'Enter a valid email address.',
+    'auth.passwordTooShort': 'Password must be at least 6 characters long.',
+    'auth.sync': 'Sync',
     'auth.googleSignIn': 'Continue with Google',
     'auth.magicLink': 'Email me a sign-in link',
     'auth.newPassword': 'New password',
@@ -328,6 +419,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'auth.updatePassword': 'Change password',
     'auth.working': 'Please wait…',
     'common.cancel': 'Cancel',
+    'common.back': 'Back',
     'common.delete': 'Delete',
     'common.done': 'Done!',
     'common.continue': 'Continue',
@@ -356,6 +448,9 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'details.titleInput': 'Title',
     'details.year': 'Year',
     'details.yearInput': 'Year',
+    'details.bookNotFound': 'Book not found.',
+    'details.goBack': 'Go back',
+    'details.yearExample': 'e.g. 2024',
     'general.booksFolder': 'Books folder',
     'general.folder': 'Folder',
     'general.noFolder': 'No folder selected',
@@ -370,6 +465,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.items': 'items',
     'library.volumesShort': "vol's",
     'library.search': 'Search title or author…',
+    'library.clearSearch': 'Clear search',
     'library.sortBy': 'Sort',
     'library.sortName': 'Title',
     'library.sortRecent': 'Recent',
@@ -426,6 +522,41 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.horizontalMargin': 'Horizontal margin',
     'reader.nextPage': 'Next page',
     'reader.noBookmarks': 'No bookmarks yet.',
+    'reader.topics': 'Topics',
+    'reader.notes': 'Notes',
+    'reader.brightness': 'Brightness',
+    'reader.loadingTopics': 'Loading topics…',
+    'reader.noTopics': 'No topics are available for this book.',
+    'reader.noToc': 'The table of contents was not found in the EPUB file.',
+    'reader.brightnessUnavailable': 'Brightness control is not available on this device.',
+    'reader.noNotes': 'No notes yet.',
+    'reader.noNotesHint': 'Create a note linked to the current page.',
+    'reader.newNote': 'New note',
+    'reader.note': 'Note',
+    'reader.editNoteTitle': 'Edit note',
+    'reader.notePageTitle': 'Note page',
+    'reader.savedPage': 'Saved page',
+    'reader.pageUnavailable': 'Page —',
+    'reader.pageWithNumber': 'Page {0}',
+    'reader.currentPage': 'Current page',
+    'reader.noteWillBeSaved': 'will be saved with this note',
+    'reader.goToNotePage': 'Go to note page',
+    'reader.editNote': 'Edit',
+    'reader.writeNotePlaceholder': 'Write your note…',
+    'reader.saveNote': 'Save',
+    'reader.createNote': 'Create',
+    'reader.epubFileNotFound': 'The EPUB file is no longer available.',
+    'reader.epubSizeUnknown': 'The EPUB size could not be verified safely.',
+    'reader.epubTooLarge': 'This EPUB is {0} MiB. The current reader accepts up to {1} MiB.',
+    'reader.epubTooLargeDecoded': 'This EPUB exceeds the current reader limit of {0} MiB.',
+    'reader.epubReadFailed': 'Could not prepare the EPUB: {0}',
+    'reader.epubRuntimeNotReady': 'The EPUB reader did not respond during startup.',
+    'reader.epubClosedBeforeFonts': 'The EPUB reader was closed before its fonts were registered.',
+    'reader.epubFontLoadFailed': 'Could not load fonts for the EPUB reader.',
+    'reader.epubFontRegistrationTimeout': 'Timed out while registering the {0} font in the EPUB.',
+    'reader.epubOpenFailed': 'Could not open the EPUB.',
+    'reader.epubWebViewUnavailable': 'The EPUB reader WebView could not be loaded.',
+    'reader.pdfOpenFailed': 'Could not open the PDF.',
     'reader.page': 'Page',
     'reader.paginationSettings': 'Pagination',
     'reader.paginatedMode': 'Paginated',
@@ -458,8 +589,11 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'settings.sectionAppearance': 'APPEARANCE',
     'settings.sectionIntegrations': 'INTEGRATIONS',
     'settings.sectionLibrary': 'LIBRARY',
-    'settings.syncDesc': 'Sign in to keep your library and reading progress in sync.',
+    'settings.syncDesc': 'Cloud sync will be available after the beta.',
     'settings.syncTitle': 'Sync across devices',
+    'sync.betaAction': 'Got it',
+    'sync.betaMessage': 'Krumer is in beta. For now, cloud synchronization is not available.',
+    'sync.betaTitle': 'Cloud sync unavailable in beta',
     'settings.theme': 'Theme',
     'settings.title': 'Settings',
     'tab.library': 'Library',
@@ -525,6 +659,18 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'metadata.clearAction': 'Apagar metadados',
     'metadata.clearTitle': 'Apagar metadados?',
     'metadata.clearMessage': 'Autor, ano e sinopse serão removidos. O título, tags, avaliação, capa e progresso de leitura serão mantidos.',
+    'metadata.serviceMissingKey': 'Configure uma chave da API Gemini antes de buscar metadados.',
+    'metadata.batchLimit': 'Selecione no máximo {0} obras por lote.',
+    'metadata.invalidJson': 'A resposta do Gemini não veio em JSON válido.',
+    'metadata.invalidMetadata': 'A resposta do Gemini não contém metadados válidos.',
+    'metadata.safetyBlocked': 'O Gemini bloqueou esta consulta por motivos de segurança.',
+    'metadata.invalidKey': 'A chave Gemini é inválida ou não tem permissão.',
+    'metadata.modelUnavailable': 'O modelo Gemini não está disponível.',
+    'metadata.rateLimit': 'O limite de requisições do Gemini foi atingido. Aguarde e tente novamente.',
+    'metadata.networkUnavailable': 'O serviço Gemini está temporariamente indisponível.',
+    'metadata.timeout': 'A consulta ao Gemini demorou demais.',
+    'metadata.offline': 'Não foi possível conectar à API Gemini. Verifique sua conexão.',
+    'metadata.genericError': 'Não foi possível buscar metadados.',
     'auth.account': 'Conta',
     'auth.accountCreated': 'Conta criada e conectada.',
     'auth.checkEmailConfirmation': 'Conta criada. Confira seu email para confirmar o cadastro.',
@@ -539,6 +685,18 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'auth.forgotPassword': 'Esqueci minha senha',
     'auth.genericError': 'Não foi possível concluir a autenticação.',
     'auth.googleBrowserOpened': 'Navegador aberto. Escolha sua conta do Google para concluir o login.',
+    'auth.googleClientIdRequired': 'Configure EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID para ativar o login nativo do Google.',
+    'auth.googleDevelopmentBuild': 'O login com Google precisa de um development build (npx expo run:android). No Expo Go, esse módulo nativo não existe.',
+    'auth.googleUnavailable': 'O login com Google está indisponível neste build.',
+    'auth.googleTokenInvalid': 'O Google não retornou um token de identidade válido.',
+    'auth.googleInProgress': 'Já existe um login com Google em andamento.',
+    'auth.googlePlayServicesUnavailable': 'O Google Play Services não está disponível ou precisa ser atualizado.',
+    'auth.supabaseGoogleUrlMissing': 'O Supabase não retornou a URL de autenticação do Google.',
+    'auth.supabaseUrlInvalid': 'O Supabase retornou uma URL de autenticação inválida.',
+    'auth.browserUnavailable': 'Nenhum navegador está disponível para concluir o login.',
+    'auth.invalidEmail': 'Informe um email válido.',
+    'auth.passwordTooShort': 'A senha deve ter pelo menos 6 caracteres.',
+    'auth.sync': 'Sincronização',
     'auth.googleSignIn': 'Continuar com Google',
     'auth.magicLink': 'Receber link de acesso',
     'auth.newPassword': 'Nova senha',
@@ -558,6 +716,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'auth.updatePassword': 'Alterar senha',
     'auth.working': 'Aguarde…',
     'common.cancel': 'Cancelar',
+    'common.back': 'Voltar',
     'common.delete': 'Excluir',
     'common.done': 'Concluído!',
     'common.continue': 'Continuar',
@@ -586,6 +745,9 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'details.titleInput': 'Título',
     'details.year': 'Ano',
     'details.yearInput': 'Ano',
+    'details.bookNotFound': 'Livro não encontrado.',
+    'details.goBack': 'Voltar',
+    'details.yearExample': 'ex.: 2024',
     'general.booksFolder': 'Pasta de livros',
     'general.folder': 'Pasta',
     'general.noFolder': 'Nenhuma pasta selecionada',
@@ -600,6 +762,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.items': 'itens',
     'library.volumesShort': "vol's",
     'library.search': 'Buscar título ou autor…',
+    'library.clearSearch': 'Limpar busca',
     'library.sortBy': 'Ordenar',
     'library.sortName': 'Título',
     'library.sortRecent': 'Recentes',
@@ -656,6 +819,41 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.horizontalMargin': 'Margem horizontal',
     'reader.nextPage': 'Próxima página',
     'reader.noBookmarks': 'Nenhum marcador ainda.',
+    'reader.topics': 'Tópicos',
+    'reader.notes': 'Notas',
+    'reader.brightness': 'Brilho',
+    'reader.loadingTopics': 'Carregando tópicos…',
+    'reader.noTopics': 'Nenhum tópico disponível para este livro.',
+    'reader.noToc': 'O sumário não foi encontrado no arquivo EPUB.',
+    'reader.brightnessUnavailable': 'Controle de brilho não disponível neste dispositivo.',
+    'reader.noNotes': 'Nenhuma nota ainda.',
+    'reader.noNotesHint': 'Crie uma nota vinculada à página atual.',
+    'reader.newNote': 'Nova nota',
+    'reader.note': 'Nota',
+    'reader.editNoteTitle': 'Editar nota',
+    'reader.notePageTitle': 'Página da nota',
+    'reader.savedPage': 'Página salva',
+    'reader.pageUnavailable': 'Página —',
+    'reader.pageWithNumber': 'Página {0}',
+    'reader.currentPage': 'Página atual',
+    'reader.noteWillBeSaved': 'será salva com esta anotação',
+    'reader.goToNotePage': 'Ir para página da nota',
+    'reader.editNote': 'Editar',
+    'reader.writeNotePlaceholder': 'Escreva sua anotação…',
+    'reader.saveNote': 'Salvar',
+    'reader.createNote': 'Criar',
+    'reader.epubFileNotFound': 'O arquivo EPUB não está mais disponível.',
+    'reader.epubSizeUnknown': 'Não foi possível verificar o tamanho do EPUB com segurança.',
+    'reader.epubTooLarge': 'Este EPUB tem {0} MiB. O leitor atual aceita até {1} MiB.',
+    'reader.epubTooLargeDecoded': 'Este EPUB ultrapassa o limite de {0} MiB do leitor atual.',
+    'reader.epubReadFailed': 'Falha ao preparar o EPUB: {0}',
+    'reader.epubRuntimeNotReady': 'O leitor EPUB não respondeu durante a inicialização.',
+    'reader.epubClosedBeforeFonts': 'O leitor EPUB foi fechado antes de registrar as fontes.',
+    'reader.epubFontLoadFailed': 'Falha ao carregar fontes do leitor EPUB.',
+    'reader.epubFontRegistrationTimeout': 'Tempo esgotado ao registrar a fonte {0} no EPUB.',
+    'reader.epubOpenFailed': 'Falha ao abrir EPUB.',
+    'reader.epubWebViewUnavailable': 'A WebView do leitor EPUB não pôde ser carregada.',
+    'reader.pdfOpenFailed': 'Falha ao abrir PDF.',
     'reader.page': 'Página',
     'reader.paginationSettings': 'Paginação',
     'reader.paginatedMode': 'Paginado',
@@ -688,8 +886,11 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'settings.sectionAppearance': 'APARÊNCIA',
     'settings.sectionIntegrations': 'INTEGRAÇÕES',
     'settings.sectionLibrary': 'BIBLIOTECA',
-    'settings.syncDesc': 'Entre para manter sua biblioteca e progresso de leitura sincronizados.',
+    'settings.syncDesc': 'A sincronização com a nuvem estará disponível após o beta.',
     'settings.syncTitle': 'Sincronizar entre dispositivos',
+    'sync.betaAction': 'Entendi',
+    'sync.betaMessage': 'O Krumer está em beta. Por enquanto, a sincronização com a nuvem não está disponivel.',
+    'sync.betaTitle': 'Sincronização indisponível no beta',
     'settings.theme': 'Tema',
     'settings.title': 'Configurações',
     'tab.library': 'Biblioteca',
@@ -755,6 +956,18 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'metadata.clearAction': 'Borrar metadatos',
     'metadata.clearTitle': '¿Borrar metadatos?',
     'metadata.clearMessage': 'Se eliminarán autor, año y sinopsis. Se conservarán el título, las etiquetas, la valoración, la portada y el progreso de lectura.',
+    'metadata.serviceMissingKey': 'Configura una clave de la API de Gemini antes de buscar metadatos.',
+    'metadata.batchLimit': 'Selecciona como máximo {0} obras por lote.',
+    'metadata.invalidJson': 'La respuesta de Gemini no contiene un JSON válido.',
+    'metadata.invalidMetadata': 'La respuesta de Gemini no contiene metadatos válidos.',
+    'metadata.safetyBlocked': 'Gemini bloqueó esta consulta por motivos de seguridad.',
+    'metadata.invalidKey': 'La clave de Gemini no es válida o no tiene permisos.',
+    'metadata.modelUnavailable': 'El modelo de Gemini no está disponible.',
+    'metadata.rateLimit': 'Se alcanzó el límite de solicitudes de Gemini. Espera e inténtalo de nuevo.',
+    'metadata.networkUnavailable': 'El servicio de Gemini no está disponible temporalmente.',
+    'metadata.timeout': 'La consulta a Gemini tardó demasiado.',
+    'metadata.offline': 'No se pudo conectar con la API de Gemini. Comprueba tu conexión.',
+    'metadata.genericError': 'No se pudieron buscar metadatos.',
     'auth.account': 'Cuenta',
     'auth.accountCreated': 'Cuenta creada y conectada.',
     'auth.checkEmailConfirmation': 'Cuenta creada. Revisa tu correo para confirmar el registro.',
@@ -769,6 +982,18 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'auth.forgotPassword': 'Olvidé mi contraseña',
     'auth.genericError': 'No se pudo completar la autenticación.',
     'auth.googleBrowserOpened': 'Se abrió el navegador. Elige tu cuenta de Google para completar el acceso.',
+    'auth.googleClientIdRequired': 'Configura EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID para activar el acceso nativo de Google.',
+    'auth.googleDevelopmentBuild': 'El acceso con Google requiere un development build (npx expo run:android). Este módulo nativo no está disponible en Expo Go.',
+    'auth.googleUnavailable': 'El acceso con Google no está disponible en esta compilación.',
+    'auth.googleTokenInvalid': 'Google no devolvió un token de identidad válido.',
+    'auth.googleInProgress': 'Ya hay un acceso con Google en curso.',
+    'auth.googlePlayServicesUnavailable': 'Google Play Services no está disponible o necesita actualizarse.',
+    'auth.supabaseGoogleUrlMissing': 'Supabase no devolvió una URL de autenticación de Google.',
+    'auth.supabaseUrlInvalid': 'Supabase devolvió una URL de autenticación no válida.',
+    'auth.browserUnavailable': 'No hay ningún navegador disponible para completar el acceso.',
+    'auth.invalidEmail': 'Introduce un correo electrónico válido.',
+    'auth.passwordTooShort': 'La contraseña debe tener al menos 6 caracteres.',
+    'auth.sync': 'Sincronización',
     'auth.googleSignIn': 'Continuar con Google',
     'auth.magicLink': 'Recibir enlace de acceso',
     'auth.newPassword': 'Nueva contraseña',
@@ -788,6 +1013,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'auth.updatePassword': 'Cambiar contraseña',
     'auth.working': 'Espera…',
     'common.cancel': 'Cancelar',
+    'common.back': 'Volver',
     'common.delete': 'Eliminar',
     'common.done': 'Listo!',
     'common.continue': 'Continuar',
@@ -816,6 +1042,9 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'details.titleInput': 'Título',
     'details.year': 'Año',
     'details.yearInput': 'Año',
+    'details.bookNotFound': 'Libro no encontrado.',
+    'details.goBack': 'Volver',
+    'details.yearExample': 'p. ej., 2024',
     'general.booksFolder': 'Carpeta de libros',
     'general.folder': 'Carpeta',
     'general.noFolder': 'Ninguna carpeta seleccionada',
@@ -830,6 +1059,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'library.items': 'items',
     'library.volumesShort': "vol's",
     'library.search': 'Buscar título o autor…',
+    'library.clearSearch': 'Borrar búsqueda',
     'library.sortBy': 'Ordenar',
     'library.sortName': 'Título',
     'library.sortRecent': 'Recientes',
@@ -886,6 +1116,41 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.horizontalMargin': 'Margen horizontal',
     'reader.nextPage': 'Página siguiente',
     'reader.noBookmarks': 'Aún no hay marcadores.',
+    'reader.topics': 'Temas',
+    'reader.notes': 'Notas',
+    'reader.brightness': 'Brillo',
+    'reader.loadingTopics': 'Cargando temas…',
+    'reader.noTopics': 'No hay temas disponibles para este libro.',
+    'reader.noToc': 'No se encontró el índice en el archivo EPUB.',
+    'reader.brightnessUnavailable': 'El control de brillo no está disponible en este dispositivo.',
+    'reader.noNotes': 'Aún no hay notas.',
+    'reader.noNotesHint': 'Crea una nota vinculada a la página actual.',
+    'reader.newNote': 'Nueva nota',
+    'reader.note': 'Nota',
+    'reader.editNoteTitle': 'Editar nota',
+    'reader.notePageTitle': 'Página de la nota',
+    'reader.savedPage': 'Página guardada',
+    'reader.pageUnavailable': 'Página —',
+    'reader.pageWithNumber': 'Página {0}',
+    'reader.currentPage': 'Página actual',
+    'reader.noteWillBeSaved': 'se guardará con esta nota',
+    'reader.goToNotePage': 'Ir a la página de la nota',
+    'reader.editNote': 'Editar',
+    'reader.writeNotePlaceholder': 'Escribe tu nota…',
+    'reader.saveNote': 'Guardar',
+    'reader.createNote': 'Crear',
+    'reader.epubFileNotFound': 'El archivo EPUB ya no está disponible.',
+    'reader.epubSizeUnknown': 'No se pudo verificar el tamaño del EPUB de forma segura.',
+    'reader.epubTooLarge': 'Este EPUB ocupa {0} MiB. El lector actual acepta hasta {1} MiB.',
+    'reader.epubTooLargeDecoded': 'Este EPUB supera el límite de {0} MiB del lector actual.',
+    'reader.epubReadFailed': 'No se pudo preparar el EPUB: {0}',
+    'reader.epubRuntimeNotReady': 'El lector EPUB no respondió durante el inicio.',
+    'reader.epubClosedBeforeFonts': 'El lector EPUB se cerró antes de registrar sus fuentes.',
+    'reader.epubFontLoadFailed': 'No se pudieron cargar las fuentes del lector EPUB.',
+    'reader.epubFontRegistrationTimeout': 'Se agotó el tiempo al registrar la fuente {0} en el EPUB.',
+    'reader.epubOpenFailed': 'No se pudo abrir el EPUB.',
+    'reader.epubWebViewUnavailable': 'No se pudo cargar la WebView del lector EPUB.',
+    'reader.pdfOpenFailed': 'No se pudo abrir el PDF.',
     'reader.page': 'Página',
     'reader.paginationSettings': 'Paginación',
     'reader.paginatedMode': 'Paginado',
@@ -918,8 +1183,11 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'settings.sectionAppearance': 'APARIENCIA',
     'settings.sectionIntegrations': 'INTEGRACIONES',
     'settings.sectionLibrary': 'BIBLIOTECA',
-    'settings.syncDesc': 'Inicia sesión para mantener tu biblioteca y progreso de lectura sincronizados.',
+    'settings.syncDesc': 'La sincronización en la nube estará disponible después de la beta.',
     'settings.syncTitle': 'Sincronizar entre dispositivos',
+    'sync.betaAction': 'Entendido',
+    'sync.betaMessage': 'Krumer está en beta. Por ahora, la sincronización con la nube no está disponible.',
+    'sync.betaTitle': 'Sincronización no disponible en la beta',
     'settings.theme': 'Tema',
     'settings.title': 'Configuración',
     'tab.library': 'Biblioteca',

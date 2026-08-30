@@ -9,6 +9,7 @@ import type {
   MetadataSearchOptions,
   MetadataSearchResult,
 } from '../models/metadata';
+import { DEFAULT_LANGUAGE, translate, type LanguageCode, type TranslationKey } from '../i18n/translations';
 import { getGeminiApiKey } from '../storage/secureCredentials';
 
 export const MAX_METADATA_BATCH = 10;
@@ -35,6 +36,17 @@ const TOKENS_TO_REMOVE = [
   'ed', 'edicao', 'ebook', 'digital', 'completo', 'revisado',
 ];
 const TOKENS_TO_REMOVE_SET = new Set(TOKENS_TO_REMOVE);
+
+function normalizeLanguage(language?: string): LanguageCode {
+  return language === 'pt-br' || language === 'es' ? language : DEFAULT_LANGUAGE;
+}
+
+function localized(language: string | undefined, key: TranslationKey, replacements: string[] = []) {
+  return replacements.reduce(
+    (message, value, index) => message.replace(`{${index}}`, value),
+    translate(normalizeLanguage(language), key),
+  );
+}
 
 export class MetadataServiceError extends Error {
   readonly code: MetadataErrorCode;
@@ -132,7 +144,7 @@ export async function searchMetadataForBook(
 
   const apiKey = (options.apiKey === undefined ? await getGeminiApiKey() : options.apiKey)?.trim();
   if (!apiKey) {
-    throw new MetadataServiceError('missing_key', 'Configure uma chave da API Gemini antes de buscar metadados.', false);
+    throw new MetadataServiceError('missing_key', localized(language, 'metadata.serviceMissingKey'), false);
   }
 
   const candidate = await requestGemini(query, apiKey, language, options);
@@ -171,7 +183,7 @@ export async function runMetadataBatch(
 ): Promise<MetadataSearchResult[]> {
   if (books.length === 0) return [];
   if (books.length > MAX_METADATA_BATCH) {
-    throw new MetadataServiceError('unknown', `Selecione no máximo ${MAX_METADATA_BATCH} obras por lote.`, false);
+    throw new MetadataServiceError('unknown', localized(options.language, 'metadata.batchLimit', [String(MAX_METADATA_BATCH)]), false);
   }
 
   const results: MetadataSearchResult[] = [];
@@ -182,7 +194,7 @@ export async function runMetadataBatch(
     try {
       result = await searchMetadataForBook(book, options);
     } catch (error) {
-      const serviceError = asMetadataError(error);
+      const serviceError = asMetadataError(error, options.language);
       result = {
         bookId: book.id,
         fingerprint: book.fingerprint,
@@ -243,6 +255,7 @@ async function requestGemini(
         },
         fetchImpl,
         options.timeoutMs ?? 45000,
+        language,
       );
 
       let payload: GeminiResponse | null;
@@ -250,21 +263,21 @@ async function requestGemini(
         payload = await response.json() as GeminiResponse;
       } catch {
         if (response.ok) {
-          throw new MetadataServiceError('invalid_json', 'A resposta da API Gemini não veio em JSON válido.', true);
+          throw new MetadataServiceError('invalid_json', localized(language, 'metadata.invalidJson'), true);
         }
         payload = null;
       }
-      if (!response.ok) throw classifyHttpError(response.status, payload);
+      if (!response.ok) throw classifyHttpError(response.status, payload, language);
       const finishReason = payload?.candidates?.[0]?.finishReason;
       if (payload?.promptFeedback?.blockReason || finishReason === 'SAFETY' || finishReason === 'BLOCKLIST' || finishReason === 'PROHIBITED_CONTENT') {
-        throw new MetadataServiceError('safety_block', 'O Gemini bloqueou esta consulta por motivos de segurança.', false);
+        throw new MetadataServiceError('safety_block', localized(language, 'metadata.safetyBlocked'), false);
       }
 
       const text = payload?.candidates?.[0]?.content?.parts?.find((part) => typeof part.text === 'string')?.text;
       if (!text) return null;
-      return parseCandidate(text);
+      return parseCandidate(text, language);
     } catch (error) {
-      const serviceError = asMetadataError(error);
+      const serviceError = asMetadataError(error, language);
       if (serviceError.code === 'model_unavailable' || serviceError.code === 'rate_limit') {
         lastModelError = serviceError;
         continue;
@@ -277,16 +290,16 @@ async function requestGemini(
   return null;
 }
 
-function parseCandidate(rawText: string): MetadataCandidate | null {
+function parseCandidate(rawText: string, language: string): MetadataCandidate | null {
   const cleaned = rawText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
   let parsed: unknown;
   try {
     parsed = JSON.parse(cleaned);
   } catch {
-    throw new MetadataServiceError('invalid_json', 'A resposta do Gemini não veio em um JSON válido.', true);
+    throw new MetadataServiceError('invalid_json', localized(language, 'metadata.invalidJson'), true);
   }
   if (!parsed || typeof parsed !== 'object') {
-    throw new MetadataServiceError('invalid_json', 'A resposta do Gemini não contém metadados válidos.', true);
+    throw new MetadataServiceError('invalid_json', localized(language, 'metadata.invalidMetadata'), true);
   }
 
   const value = parsed as Record<string, unknown>;
@@ -299,18 +312,18 @@ function parseCandidate(rawText: string): MetadataCandidate | null {
   return candidate.nome_da_obra ? candidate : null;
 }
 
-function classifyHttpError(status: number, payload: GeminiResponse | null): MetadataServiceError {
+function classifyHttpError(status: number, payload: GeminiResponse | null, language: string): MetadataServiceError {
   const message = payload?.error?.message || `A API Gemini respondeu HTTP ${status}.`;
   const lower = message.toLowerCase();
-  if (status === 401 || status === 403) return new MetadataServiceError('invalid_key', 'A chave Gemini é inválida ou não tem permissão.', false);
+  if (status === 401 || status === 403) return new MetadataServiceError('invalid_key', localized(language, 'metadata.invalidKey'), false);
   if (status === 400 && /(api\s*key|chave|credential|permission|unauthori)/i.test(lower)) {
-    return new MetadataServiceError('invalid_key', 'A chave Gemini é inválida ou não tem permissão.', false);
+    return new MetadataServiceError('invalid_key', localized(language, 'metadata.invalidKey'), false);
   }
-  if (status === 404) return new MetadataServiceError('model_unavailable', 'O modelo Gemini não está disponível.', true);
-  if (status === 429) return new MetadataServiceError('rate_limit', 'O limite de requisições do Gemini foi atingido. Aguarde e tente novamente.', true);
-  if (lower.includes('safety') || lower.includes('blocked')) return new MetadataServiceError('safety_block', 'O Gemini bloqueou esta consulta por motivos de segurança.', false);
-  if (status >= 500) return new MetadataServiceError('network', 'O serviço Gemini está temporariamente indisponível.', true);
-  return new MetadataServiceError('unknown', message, false);
+  if (status === 404) return new MetadataServiceError('model_unavailable', localized(language, 'metadata.modelUnavailable'), true);
+  if (status === 429) return new MetadataServiceError('rate_limit', localized(language, 'metadata.rateLimit'), true);
+  if (lower.includes('safety') || lower.includes('blocked')) return new MetadataServiceError('safety_block', localized(language, 'metadata.safetyBlocked'), false);
+  if (status >= 500) return new MetadataServiceError('network', localized(language, 'metadata.networkUnavailable'), true);
+  return new MetadataServiceError('unknown', localized(language, 'metadata.genericError'), false);
 }
 
 async function fetchWithTimeout(
@@ -318,6 +331,7 @@ async function fetchWithTimeout(
   init: RequestInit,
   fetchImpl: typeof fetch,
   timeoutMs: number,
+  language: string,
 ): Promise<Response> {
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timeout = setTimeout(() => controller?.abort(), timeoutMs);
@@ -325,9 +339,9 @@ async function fetchWithTimeout(
     return await fetchImpl(url, controller ? { ...init, signal: controller.signal } : init);
   } catch (error) {
     if ((error as { name?: string })?.name === 'AbortError') {
-      throw new MetadataServiceError('timeout', 'A consulta ao Gemini demorou demais.', true);
+      throw new MetadataServiceError('timeout', localized(language, 'metadata.timeout'), true);
     }
-    throw new MetadataServiceError('offline', 'Não foi possível conectar à API Gemini. Verifique sua conexão.', true);
+    throw new MetadataServiceError('offline', localized(language, 'metadata.offline'), true);
   } finally {
     clearTimeout(timeout);
   }
@@ -357,9 +371,9 @@ async function writeCacheEntry(key: string, entry: MetadataCacheEntry): Promise<
   }
 }
 
-function asMetadataError(error: unknown): MetadataServiceError {
+function asMetadataError(error: unknown, language?: string): MetadataServiceError {
   if (error instanceof MetadataServiceError) return error;
-  return new MetadataServiceError('unknown', error instanceof Error ? error.message : 'Erro ao buscar metadados.', false);
+  return new MetadataServiceError('unknown', localized(language, 'metadata.genericError'), false);
 }
 
 function asOptionalString(value: unknown, allowNumber = false): string | null {

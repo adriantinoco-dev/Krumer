@@ -51,6 +51,8 @@ from sync_service import SyncService
 
 sync_service = SyncService()
 SYNC_BRIDGE_TOKEN = os.getenv("KRUMER_SYNC_BRIDGE_TOKEN", "")
+CLOUD_SYNC_ENABLED = os.getenv("KRUMER_CLOUD_SYNC_ENABLED", "0") == "1"
+CLOUD_SYNC_DISABLED_DETAIL = "A sincronização com a nuvem está indisponível durante o beta."
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -355,11 +357,13 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"Error in cover_original_path backfill: {e}")
 
-    await sync_service.start()
+    if CLOUD_SYNC_ENABLED:
+        await sync_service.start()
     try:
         yield
     finally:
-        await sync_service.stop()
+        if CLOUD_SYNC_ENABLED:
+            await sync_service.stop()
 
 app = FastAPI(
     title="Librarian Backend API", 
@@ -436,12 +440,21 @@ def _require_sync_bridge(request: Request) -> None:
 @app.get("/sync/status")
 def get_sync_status(request: Request):
     _require_sync_bridge(request)
+    if not CLOUD_SYNC_ENABLED:
+        return {
+            "state": "disabled",
+            "pending": 0,
+            "last_sync_at": None,
+            "last_error": CLOUD_SYNC_DISABLED_DETAIL,
+        }
     return sync_service.status()
 
 
 @app.put("/sync/session")
 def set_sync_session(payload: SyncSessionPayload, request: Request):
     _require_sync_bridge(request)
+    if not CLOUD_SYNC_ENABLED:
+        raise HTTPException(status_code=503, detail=CLOUD_SYNC_DISABLED_DETAIL)
     if not payload.access_token or not payload.user_id:
         raise HTTPException(status_code=400, detail="Sessão de sincronização incompleta.")
     sync_service.configure(payload.access_token, payload.user_id, payload.expires_at)
@@ -451,6 +464,8 @@ def set_sync_session(payload: SyncSessionPayload, request: Request):
 @app.delete("/sync/session")
 def clear_sync_session(request: Request):
     _require_sync_bridge(request)
+    if not CLOUD_SYNC_ENABLED:
+        raise HTTPException(status_code=503, detail=CLOUD_SYNC_DISABLED_DETAIL)
     sync_service.clear_session()
     return sync_service.status()
 
@@ -458,6 +473,8 @@ def clear_sync_session(request: Request):
 @app.post("/sync/trigger")
 def trigger_sync(request: Request):
     _require_sync_bridge(request)
+    if not CLOUD_SYNC_ENABLED:
+        raise HTTPException(status_code=503, detail=CLOUD_SYNC_DISABLED_DETAIL)
     sync_service.trigger()
     return sync_service.status()
 
@@ -465,6 +482,8 @@ def trigger_sync(request: Request):
 @app.get("/sync/metrics")
 def get_sync_metrics(request: Request):
     _require_sync_bridge(request)
+    if not CLOUD_SYNC_ENABLED:
+        raise HTTPException(status_code=503, detail=CLOUD_SYNC_DISABLED_DETAIL)
     return sync_service.metrics()
 
 

@@ -81,6 +81,7 @@ async function main() {
   const paginationModalSource = fs.readFileSync('src/components/PaginationSettingsModal.tsx', 'utf8');
   const paginationButtonSource = fs.readFileSync('src/components/PaginationSettingsButton.tsx', 'utf8');
   const epubReaderSource = fs.readFileSync('src/readers/EpubReader.tsx', 'utf8');
+  const appContextSource = fs.readFileSync('src/context/AppContext.tsx', 'utf8');
   const appSource = fs.readFileSync('App.tsx', 'utf8');
   const appConfig = JSON.parse(fs.readFileSync('app.json', 'utf8'));
   const androidManifest = fs.readFileSync('android/app/src/main/AndroidManifest.xml', 'utf8');
@@ -129,8 +130,14 @@ async function main() {
   ) {
     throw new Error('EPUB content must keep equal top and bottom safe-area spacing.');
   }
+  if (
+    !appContextSource.includes('const t = useCallback((key: TranslationKey) => translate(language, key), [language]);')
+    || appContextSource.includes('t: (key) => translate(language, key)')
+  ) {
+    throw new Error('The translation callback must stay stable while book progress updates the app context.');
+  }
 
-  console.log('Reading preferences, embedded fonts, reader-only orientation, and viewport-stable chrome are valid.');
+  console.log('Reading preferences, stable reader context, embedded fonts, reader-only orientation, and viewport-stable chrome are valid.');
 }
 
 main().catch((error) => {

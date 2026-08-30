@@ -25,10 +25,11 @@ import {
 import { BookCard } from '../components/BookCard';
 import { BookListModal } from '../components/BookListModal';
 import { useApp } from '../context/AppContext';
+import { useAutoRescan } from '../hooks/useAutoRescan';
 import type { Book } from '../models/item';
 import type { RootStackParamList } from '../navigation/types';
 import { fuzzyMatch } from '../services/fuzzySearch';
-import { radii, serifFont, spacing } from '../theme';
+import { CONTENT_MAX_WIDTH, getBookGridLayout, radii, serifFont, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ListDetail'>;
 
@@ -44,6 +45,7 @@ type CollectionData = {
 export function ListDetailScreen({ navigation, route }: Props) {
   const { collectionKey, listId, title: initialTitle } = route.params;
   const { width } = useWindowDimensions();
+  useAutoRescan();
   const {
     books,
     deleteList,
@@ -199,8 +201,7 @@ export function ListDetailScreen({ navigation, route }: Props) {
     };
   }, [books, collectionKey, initialTitle, listId, lists, t]);
 
-  const numColumns = preferences.booksPerRow ?? 3;
-  const cardWidth = width / numColumns;
+  const { cardWidth, gridWidth, numColumns } = getBookGridLayout(width, preferences.booksPerRow ?? 3);
 
   const handleOpenBookDetail = (book: Book) => {
     navigation.navigate('BookDetail', { bookId: book.id });
@@ -242,12 +243,15 @@ export function ListDetailScreen({ navigation, route }: Props) {
       {/* Header */}
       <View
         style={{
+          alignSelf: 'center',
           alignItems: 'center',
           borderBottomColor: theme.border,
           borderBottomWidth: 1,
           flexDirection: 'row',
           gap: spacing.md,
+          maxWidth: CONTENT_MAX_WIDTH,
           padding: spacing.md,
+          width: '100%',
         }}
       >
         <Pressable hitSlop={10} onPress={() => navigation.goBack()}>
@@ -334,6 +338,7 @@ export function ListDetailScreen({ navigation, route }: Props) {
           key={numColumns}
           keyExtractor={(item) => item.id}
           numColumns={numColumns}
+          columnWrapperStyle={numColumns > 1 ? { alignSelf: 'center', justifyContent: 'flex-start', width: gridWidth } : undefined}
           renderItem={({ item }) => (
             <BookCard
               book={item}
@@ -343,7 +348,7 @@ export function ListDetailScreen({ navigation, route }: Props) {
             />
           )}
           showsVerticalScrollIndicator={false}
-          style={{ flex: 1 }}
+          style={{ alignSelf: 'center', flex: 1, maxWidth: CONTENT_MAX_WIDTH, width: '100%' }}
         />
       )}
 
@@ -361,6 +366,7 @@ export function ListDetailScreen({ navigation, route }: Props) {
               borderRadius: 12,
               borderWidth: 1,
               gap: spacing.md,
+              maxWidth: 460,
               padding: spacing.lg,
               width: '100%',
             }}
@@ -404,6 +410,7 @@ export function ListDetailScreen({ navigation, route }: Props) {
               borderRadius: 12,
               borderWidth: 1,
               gap: spacing.md,
+              maxWidth: 460,
               padding: spacing.lg,
               width: '100%',
             }}
@@ -437,12 +444,15 @@ export function ListDetailScreen({ navigation, route }: Props) {
             <SafeAreaView edges={['top']} style={{ backgroundColor: theme.bg, flex: 1 }}>
               <View
                 style={{
+                  alignSelf: 'center',
                   alignItems: 'center',
                   borderBottomColor: theme.border,
                   borderBottomWidth: 1,
                   flexDirection: 'row',
                   gap: spacing.md,
+                  maxWidth: CONTENT_MAX_WIDTH,
                   padding: spacing.md,
+                  width: '100%',
                 }}
               >
                 <Pressable hitSlop={10} onPress={handleManageBooksClose}>
@@ -496,6 +506,7 @@ export function ListDetailScreen({ navigation, route }: Props) {
                 key={numColumns}
                 keyExtractor={(item) => item.id}
                 numColumns={numColumns}
+                columnWrapperStyle={numColumns > 1 ? { alignSelf: 'center', justifyContent: 'flex-start', width: gridWidth } : undefined}
                 renderItem={({ item }) => {
                   if (!collection.listId) return null;
                   const isSelected = collection.books.some((b) => b.fingerprint === item.fingerprint);
@@ -511,6 +522,7 @@ export function ListDetailScreen({ navigation, route }: Props) {
                     />
                   );
                 }}
+                style={{ alignSelf: 'center', flex: 1, maxWidth: CONTENT_MAX_WIDTH, width: '100%' }}
               />
             </SafeAreaView>
           </Animated.View>

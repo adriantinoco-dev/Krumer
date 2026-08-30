@@ -9,11 +9,13 @@ export function SettingsModal({
   visible,
   onClose,
   title,
+  centerTitle = false,
   children,
 }: {
   visible: boolean;
   onClose: () => void;
   title: string;
+  centerTitle?: boolean;
   children: React.ReactNode;
 }) {
   const { theme } = useApp();
@@ -45,11 +47,23 @@ export function SettingsModal({
             width: '100%',
           }}
         >
-          <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 17, fontWeight: '600' }}>
+          <View
+            style={centerTitle
+              ? { alignItems: 'center', minHeight: 22, position: 'relative' }
+              : { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}
+          >
+            <Text
+              style={{
+                color: theme.textPrimary,
+                fontFamily: serifFont,
+                fontSize: 17,
+                fontWeight: '600',
+                ...(centerTitle ? { paddingHorizontal: spacing.lg, textAlign: 'center', width: '100%' } : {}),
+              }}
+            >
               {title}
             </Text>
-            <Pressable onPress={onClose} hitSlop={10}>
+            <Pressable onPress={onClose} hitSlop={10} style={centerTitle ? { position: 'absolute', right: 0 } : undefined}>
               <X color={theme.textSecondary} size={20} />
             </Pressable>
           </View>

@@ -15,8 +15,7 @@ Este app vive no mesmo repositorio do desktop, mas mantem dependencias e codigo 
 - Leitor EPUB com WebView + epub.js e leitor PDF com `react-native-pdf`.
 - Busca de metadados via Gemini REST, individual e em lote de até 10 obras,
   com prévia e aplicação explícita.
-- Supabase Auth com email/senha e Google Sign-In nativo no Android.
-- Sincronizacao offline-first via Supabase de progresso, avaliacao, listas e favoritos, com outbox persistente, backoff e merge de conflitos.
+- Supabase Auth e sincronizacao offline-first estão preparados no código, mas congelados durante o beta; o acesso à conta exibe um aviso e os dados permanecem locais.
 
 ## Desenvolvimento
 
@@ -69,7 +68,7 @@ mobile/
   configuração.
 - A biblioteca escaneada e salva como lista de livros no AsyncStorage.
 - Capas ficam como arquivos locais; o storage guarda apenas o path.
-- Progresso, listas e favoritos sao gravados primeiro no AsyncStorage e sincronizados em background quando houver sessao e rede.
+- Progresso, listas e favoritos sao gravados no AsyncStorage; a sincronizacao em background fica desativada durante o beta.
 - PDF/EPUB e capas nao sao enviados ao Supabase.
 
 ## Identidade entre dispositivos

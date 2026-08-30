@@ -51,9 +51,12 @@ async function main() {
   let viewerReplaceCount = 0;
   let renderedHandler = null;
   let relocatedHandler = null;
+  let selectedHandler = null;
   let contentHook = null;
   let currentRenditionLocation = null;
+  let inPlaceMoveAvailable = true;
   let shiftOnNextResize = false;
+  const managerContainer = { scrollLeft: 600, scrollTop: 0 };
   const viewer = {
     className: '',
     replaceChildren() {
@@ -122,7 +125,7 @@ async function main() {
       };
       return Promise.resolve();
     },
-    getContents: () => activeReaderDocuments.map((document) => ({ document })),
+    getContents: () => activeReaderDocuments.map((document) => document.__mockContents ?? { document }),
     hooks: {
       content: {
         register: (handler) => {
@@ -131,22 +134,27 @@ async function main() {
       },
     },
     manager: {
+      container: managerContainer,
       layout: {
         divisor: 2,
         pageWidth: 600,
       },
       moveTo: (point, width) => {
         inPlaceMoveCalls.push({ point, width });
+        managerContainer.scrollLeft = point.left;
+        managerContainer.scrollTop = point.top;
       },
       scrollBy: (left, top, silent) => {
         columnAlignmentCalls.push({ left, silent, top });
       },
       settings: { direction: 'ltr' },
       views: {
-        find: () => ({
-          locationOf: () => ({ left: 600, top: 0 }),
-          width: () => 12000,
-        }),
+        find: () => inPlaceMoveAvailable
+          ? ({
+              locationOf: () => ({ left: 600, top: 0 }),
+              width: () => 12000,
+            })
+          : null,
       },
     },
     next: () => {
@@ -156,6 +164,7 @@ async function main() {
     on: (type, handler) => {
       if (type === 'rendered') renderedHandler = handler;
       if (type === 'relocated') relocatedHandler = handler;
+      if (type === 'selected') selectedHandler = handler;
     },
     prev: () => {
       turns.previous += 1;
@@ -247,8 +256,18 @@ async function main() {
     ePub: () => book,
     innerHeight: 600,
     innerWidth: 1000,
+    pageXOffset: 0,
+    pageYOffset: 0,
     requestAnimationFrame: (callback) => setTimeout(callback, 0),
     screen: { height: 1000, width: 1000 },
+    scrollTo(left, top) {
+      this.pageXOffset = left;
+      this.pageYOffset = top;
+      this.scrollX = left;
+      this.scrollY = top;
+    },
+    scrollX: 0,
+    scrollY: 0,
   };
 
   vm.runInNewContext(scripts[1], {
@@ -538,11 +557,95 @@ async function main() {
             toString: () => selectionText,
           }),
           innerWidth: contentWidth,
+          pageXOffset: 0,
+          pageYOffset: 0,
+          scrollTo(left, top) {
+            this.pageXOffset = left;
+            this.pageYOffset = top;
+            this.scrollX = left;
+            this.scrollY = top;
+          },
+          scrollX: 0,
+          scrollY: 0,
         },
         documentElement: { clientWidth: contentWidth },
         fonts: { load: () => Promise.resolve([]) },
         head: { appendChild() {} },
         querySelectorAll: () => [{ style: typographyStyle }],
+      },
+    };
+  }
+
+  function createBoundedSelectionDocument(contentWidth) {
+    const readerDocument = createReaderDocument(contentWidth);
+    const { document, listeners } = readerDocument;
+    document.scrollingElement = { scrollLeft: 0, scrollTop: 0 };
+    const textNode = { nodeType: 3, ownerDocument: document };
+    const appliedSelections = [];
+    let selectedRange = null;
+    let anchorNode = textNode;
+    let anchorOffset = 0;
+    let focusNode = textNode;
+    let focusOffset = 0;
+
+    function createRange(startOffset, endOffset) {
+      return {
+        compareBoundaryPoints(how, sourceRange) {
+          if (how === 0) return Math.sign(startOffset - sourceRange.startOffset);
+          if (how === 2) return Math.sign(endOffset - sourceRange.endOffset);
+          throw new Error(`Unsupported boundary comparison: ${how}`);
+        },
+        endContainer: textNode,
+        endOffset,
+        startContainer: textNode,
+        startOffset,
+      };
+    }
+
+    const selection = {
+      get anchorNode() { return anchorNode; },
+      get anchorOffset() { return anchorOffset; },
+      get focusNode() { return focusNode; },
+      get focusOffset() { return focusOffset; },
+      get isCollapsed() { return !selectedRange || selectedRange.startOffset === selectedRange.endOffset; },
+      get rangeCount() { return selectedRange ? 1 : 0; },
+      getRangeAt: () => selectedRange,
+      setBaseAndExtent(nextAnchorNode, nextAnchorOffset, nextFocusNode, nextFocusOffset) {
+        anchorNode = nextAnchorNode;
+        anchorOffset = nextAnchorOffset;
+        focusNode = nextFocusNode;
+        focusOffset = nextFocusOffset;
+        selectedRange = createRange(
+          Math.min(nextAnchorOffset, nextFocusOffset),
+          Math.max(nextAnchorOffset, nextFocusOffset),
+        );
+        appliedSelections.push({ anchorOffset: nextAnchorOffset, focusOffset: nextFocusOffset });
+      },
+      toString: () => selectedRange ? 'bounded selection' : '',
+    };
+    document.defaultView.getSelection = () => selection;
+    document.__mockContents = {
+      document,
+      range: (cfi) => createRange(
+        String(cfi).includes('visible-start') ? 20 : 80,
+        String(cfi).includes('visible-start') ? 20 : 80,
+      ),
+      section: { href: progressionSection.href },
+    };
+
+    return {
+      appliedSelections,
+      clearSelection() {
+        selectedRange = null;
+        anchorOffset = 0;
+        focusOffset = 0;
+      },
+      document,
+      listeners,
+      setSelectionRange(startOffset, endOffset, backwards = false) {
+        selectedRange = createRange(startOffset, endOffset);
+        anchorOffset = backwards ? endOffset : startOffset;
+        focusOffset = backwards ? startOffset : endOffset;
       },
     };
   }
@@ -596,6 +699,185 @@ async function main() {
   if (chapter.selectionClearCount !== 2) throw new Error('A click with selected EPUB text did not clear selection.');
   if (turns.next !== 2 || turns.previous !== 1) {
     throw new Error('A click used to clear EPUB text selection also changed navigation state.');
+  }
+
+  await wait(120);
+  const realDateNow = Date.now;
+  let simulatedTouchNow = realDateNow();
+  Date.now = () => simulatedTouchNow;
+  try {
+    chapter.listeners.touchstart(touchEvent(900, 'start'));
+    simulatedTouchNow += 600;
+    chapter.setSelectedText('selected phrase');
+    chapter.listeners.selectionchange();
+    chapter.listeners.touchend(touchEvent(100, 'end'));
+  } finally {
+    Date.now = realDateNow;
+  }
+  if (chapter.selectionClearCount !== 2) throw new Error('A text-selection drag cleared the native EPUB selection.');
+  if (turns.next !== 2 || turns.previous !== 1) {
+    throw new Error('A text-selection drag changed the EPUB navigation state.');
+  }
+  chapter.listeners.click({ clientX: 100, screenX: 100, preventDefault() {}, stopImmediatePropagation() {}, target });
+  if (chapter.selectionClearCount !== 2) throw new Error('The synthetic click after text selection cleared the native selection.');
+
+  const locationBeforeSelectionBoundsTest = currentRenditionLocation;
+  const boundedSelection = createBoundedSelectionDocument(12000);
+  activeReaderDocuments.splice(0, activeReaderDocuments.length, boundedSelection.document);
+  renderedHandler(null, { document: boundedSelection.document });
+  currentRenditionLocation = {
+    end: {
+      cfi: 'epubcfi(/visible-end)',
+      displayed: { page: 2, total: 4 },
+      href: progressionSection.href,
+      index: 0,
+    },
+    start: {
+      cfi: 'epubcfi(/visible-start)',
+      displayed: { page: 2, total: 4 },
+      href: progressionSection.href,
+      index: 0,
+    },
+  };
+  boundedSelection.listeners.touchstart(touchEvent(500, 'start'));
+  managerContainer.scrollLeft = 645;
+  boundedSelection.document.scrollingElement.scrollLeft = 24;
+  boundedSelection.document.defaultView.scrollTo(18, 0);
+  runtimeWindow.scrollTo(12, 0);
+  boundedSelection.setSelectionRange(30, 60);
+  boundedSelection.listeners.selectionchange();
+  if (boundedSelection.appliedSelections.length !== 0) {
+    throw new Error('A text selection already inside the visible EPUB page was changed.');
+  }
+  if (
+    managerContainer.scrollLeft !== 600
+    || boundedSelection.document.scrollingElement.scrollLeft !== 0
+    || boundedSelection.document.defaultView.scrollX !== 0
+    || runtimeWindow.scrollX !== 0
+  ) {
+    throw new Error('Native selection auto-scroll was not restored to the paginated viewport anchor.');
+  }
+  boundedSelection.setSelectionRange(5, 95);
+  boundedSelection.listeners.selectionchange();
+  if (
+    boundedSelection.appliedSelections.length !== 1
+    || boundedSelection.appliedSelections[0].anchorOffset !== 20
+    || boundedSelection.appliedSelections[0].focusOffset !== 80
+  ) {
+    throw new Error('A forward text selection was not constrained to the visible EPUB page.');
+  }
+  boundedSelection.setSelectionRange(5, 95);
+  boundedSelection.listeners.touchstart(touchEvent(500, 'start'));
+  managerContainer.scrollLeft = 670;
+  boundedSelection.document.defaultView.scrollTo(26, 0);
+  runtimeWindow.scrollTo(16, 0);
+  selectedHandler('epubcfi(/native-selection)', boundedSelection.document.__mockContents);
+  if (
+    boundedSelection.appliedSelections.length !== 2
+    || boundedSelection.appliedSelections[1].anchorOffset !== 20
+    || boundedSelection.appliedSelections[1].focusOffset !== 80
+    || managerContainer.scrollLeft !== 600
+    || boundedSelection.document.defaultView.scrollX !== 0
+    || runtimeWindow.scrollX !== 0
+  ) {
+    throw new Error('The delayed epub.js selected event did not reapply bounds after native selection settled.');
+  }
+  setTimeout(() => {
+    managerContainer.scrollLeft = 735;
+    boundedSelection.document.defaultView.scrollTo(31, 0);
+    runtimeWindow.scrollTo(21, 0);
+  }, 10);
+  await wait(360);
+  if (
+    managerContainer.scrollLeft !== 600
+    || boundedSelection.document.defaultView.scrollX !== 0
+    || runtimeWindow.scrollX !== 0
+  ) {
+    throw new Error('Late Android selection auto-scroll escaped the paginated viewport hold.');
+  }
+  boundedSelection.document.__krumerSelectionViewport = null;
+  boundedSelection.setSelectionRange(5, 95);
+  managerContainer.scrollLeft = 900;
+  selectedHandler('epubcfi(/selection-without-snapshot)', boundedSelection.document.__mockContents);
+  if (boundedSelection.appliedSelections.length !== 3 || managerContainer.scrollLeft !== 600) {
+    throw new Error('A paginated selection without a scroll snapshot was not reanchored to its current locator.');
+  }
+  boundedSelection.setSelectionRange(5, 95, true);
+  boundedSelection.listeners.selectionchange();
+  if (
+    boundedSelection.appliedSelections.length !== 4
+    || boundedSelection.appliedSelections[3].anchorOffset !== 80
+    || boundedSelection.appliedSelections[3].focusOffset !== 20
+  ) {
+    throw new Error('A backward text selection lost direction while being constrained to the visible EPUB page.');
+  }
+  if (turns.next !== 2 || turns.previous !== 1) {
+    throw new Error('Constraining a text selection changed the EPUB navigation state.');
+  }
+  const selectionStatusEvents = postedEvents.filter((event) => event.type === 'SELECTION_BOUNDS_STATUS');
+  if (
+    !selectionStatusEvents.some((event) => event.payload.phase === 'selected' && event.payload.result === 'applied')
+    || selectionStatusEvents.some((event) => !bridge.parseEpubBridgeEvent(JSON.stringify(event)))
+  ) {
+    throw new Error('Paginated selection bounds did not emit valid bridge diagnostics.');
+  }
+  boundedSelection.clearSelection();
+  boundedSelection.listeners.selectionchange();
+  activeReaderDocuments.splice(0, activeReaderDocuments.length, chapter.document);
+  currentRenditionLocation = locationBeforeSelectionBoundsTest;
+
+  await wait(720);
+  const resizeCallsBeforeSelection = resizeCalls.length;
+  const locatorBeforeSelectionResize = currentRenditionLocation && currentRenditionLocation.start.cfi;
+  runtimeWindow.innerWidth = 650;
+  runtimeWindow.innerHeight = 900;
+  chapter.setSelectedText('selected phrase');
+  windowListeners.resize();
+  await wait(20);
+  if (resizeCalls.length !== resizeCallsBeforeSelection) {
+    throw new Error('A WebView resize reflowed the EPUB while native text was selected.');
+  }
+  chapter.listeners.touchstart(touchEvent(500, 'start'));
+  chapter.listeners.touchend(touchEvent(500, 'end'));
+  chapter.listeners.selectionchange();
+  await wait(120);
+  if (resizeCalls.length !== resizeCallsBeforeSelection + 1) {
+    throw new Error('A deferred EPUB resize was not applied after text selection was dismissed.');
+  }
+  if (!currentRenditionLocation || currentRenditionLocation.start.cfi !== locatorBeforeSelectionResize) {
+    throw new Error('The deferred EPUB resize changed the current locator.');
+  }
+
+  await wait(120);
+  const resizeCallsBeforeHeightOnlyResize = resizeCalls.length;
+  runtimeWindow.innerHeight = 700;
+  chapter.setSelectedText('selected phrase');
+  windowListeners.resize();
+  await wait(20);
+  if (resizeCalls.length !== resizeCallsBeforeHeightOnlyResize) {
+    throw new Error('A height-only WebView resize reflowed the paginated EPUB during text selection.');
+  }
+  chapter.listeners.touchstart(touchEvent(500, 'start'));
+  chapter.listeners.touchend(touchEvent(500, 'end'));
+  chapter.listeners.selectionchange();
+  await wait(120);
+  if (resizeCalls.length !== resizeCallsBeforeHeightOnlyResize) {
+    throw new Error('A height-only selection resize was applied after the native selection was dismissed.');
+  }
+
+  await wait(120);
+  const displayCountBeforeFallbackRestore = displayTargets.length;
+  inPlaceMoveAvailable = false;
+  runtimeWindow.innerWidth = 680;
+  shiftOnNextResize = true;
+  windowListeners.resize();
+  await wait(120);
+  inPlaceMoveAvailable = true;
+  if (displayTargets.length !== displayCountBeforeFallbackRestore + 1
+    || displayTargets.at(-1) !== 'epubcfi(/relocated)'
+    || !currentRenditionLocation
+    || currentRenditionLocation.start.cfi !== 'epubcfi(/relocated)') {
+    throw new Error('A resize drift without an in-place view did not restore the saved EPUB CFI.');
   }
 
   await wait(120);
@@ -659,12 +941,45 @@ async function main() {
   ) {
     throw new Error('Live EPUB appearance updates were not applied to the rendered chapter.');
   }
+  activeReaderDocuments.splice(0, activeReaderDocuments.length, boundedSelection.document);
+  boundedSelection.setSelectionRange(5, 95);
+  boundedSelection.listeners.selectionchange();
+  if (boundedSelection.appliedSelections.length !== 4) {
+    throw new Error('Scroll mode incorrectly constrained text selection to paginated bounds.');
+  }
+  boundedSelection.clearSelection();
+  boundedSelection.listeners.selectionchange();
+  activeReaderDocuments.splice(0, activeReaderDocuments.length, chapter.document);
   chapter.listeners.touchstart(touchEvent(900, 'start'));
   chapter.listeners.touchend(touchEvent(100, 'end'));
   if (turns.next !== 2 || turns.previous !== 1) {
     throw new Error('Horizontal gestures still changed pages while scroll mode was active.');
   }
 
+  await wait(120);
+  const resizeCallsBeforeScrollSelection = resizeCalls.length;
+  const locatorBeforeScrollSelection = currentRenditionLocation && currentRenditionLocation.start.cfi;
+  chapter.setSelectedText('selected phrase');
+  chapter.listeners.selectionchange();
+  runtimeWindow.innerHeight = 820;
+  windowListeners.resize();
+  await wait(20);
+  if (resizeCalls.length !== resizeCallsBeforeScrollSelection) {
+    throw new Error('A WebView resize reflowed the scrolling EPUB while native text was selected.');
+  }
+  chapter.listeners.touchstart(touchEvent(500, 'start'));
+  chapter.listeners.touchend(touchEvent(500, 'end'));
+  chapter.listeners.selectionchange();
+  await wait(120);
+  if (resizeCalls.length !== resizeCallsBeforeScrollSelection + 1) {
+    throw new Error('The scrolling EPUB did not apply its deferred resize after selection was dismissed.');
+  }
+  if (!currentRenditionLocation || currentRenditionLocation.start.cfi !== locatorBeforeScrollSelection) {
+    throw new Error('The deferred scrolling EPUB resize changed the current locator.');
+  }
+
+  chapter.setSelectedText('selected phrase');
+  chapter.listeners.selectionchange();
   runtimeWindow.innerWidth = 700;
   runtimeWindow.innerHeight = 1200;
   runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
@@ -686,6 +1001,7 @@ async function main() {
     },
   }));
   await wait(0);
+  chapter.setSelectedText('');
   if (renditionConfigs.at(-1).flow !== 'paginated' || renditionConfigs.at(-1).spread !== 'none') {
     throw new Error('Portrait mode did not recreate the paginated manager with a single-column spread.');
   }
@@ -696,6 +1012,7 @@ async function main() {
   const destroyCountBeforeRotation = renditionDestroyCount;
   const replaceCountBeforeRotation = viewerReplaceCount;
   const displayCountBeforeRotation = displayTargets.length;
+  const inPlaceMovesBeforeRotation = inPlaceMoveCalls.length;
 
   runtimeWindow.innerWidth = 1200;
   runtimeWindow.innerHeight = 700;
@@ -718,11 +1035,12 @@ async function main() {
     || renditionDestroyCount !== destroyCountBeforeRotation
     || viewerReplaceCount !== replaceCountBeforeRotation
     || displayTargets.length !== displayCountBeforeRotation
-    || inPlaceMoveCalls.length !== 1
+    || inPlaceMoveCalls.length !== inPlaceMovesBeforeRotation + 1
   ) {
     throw new Error('Rotation did not recover the exact CFI in place without redisplaying or clearing the active rendition.');
   }
   const displayCountAfterRecovery = displayTargets.length;
+  const inPlaceMovesAfterRotation = inPlaceMoveCalls.length;
 
   runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
     version: bridge.EPUB_BRIDGE_VERSION,
@@ -748,7 +1066,7 @@ async function main() {
     || renditionDestroyCount !== destroyCountBeforeRotation
     || viewerReplaceCount !== replaceCountBeforeRotation
     || displayTargets.length !== displayCountAfterRecovery
-    || inPlaceMoveCalls.length !== 2
+    || inPlaceMoveCalls.length !== inPlaceMovesAfterRotation + 1
     || columnAlignmentCalls.length !== 3
   ) {
     throw new Error('Typography reflow did not preserve the exact CFI in place in the leading EPUB column.');
@@ -810,7 +1128,7 @@ async function main() {
     throw new Error('VIEW_STATUS did not accept the non-fatal pagination fallback state.');
   }
 
-  console.log('EPUB runtime stable pagination, in-place rotation, first-frame spreads, typography, and navigation are valid.');
+  console.log('EPUB runtime selection, stable pagination, in-place rotation, first-frame spreads, typography, and navigation are valid.');
 }
 
 main().catch((error) => {

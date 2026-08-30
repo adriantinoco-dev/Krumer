@@ -176,7 +176,7 @@ A versao React Native fica em `mobile/` e consome a mesma API FastAPI do backend
 ## 🗺️ Roadmap
 
 - [ ] Suporte a CBZ / CBR (quadrinhos em formato de arquivo compactado)
-- [ ] Sincronização de progresso entre dispositivos
+- [~] Sincronização de progresso entre dispositivos (congelada durante o beta)
 - [ ] Exportar biblioteca como CSV / JSON
 - [~] Versão mobile via React Native em `mobile/`
 

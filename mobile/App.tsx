@@ -1,10 +1,10 @@
 import React from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { StatusBar, useWindowDimensions, View } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { BookOpen, List, Settings } from 'lucide-react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppProvider, useApp } from './src/context/AppContext';
 import { AuthProvider } from './src/context/AuthContext';
 import { BookDetailScreen } from './src/screens/BookDetailScreen';
@@ -16,15 +16,27 @@ import { ReaderScreen } from './src/screens/ReaderScreen';
 import { SettingsGroupScreen } from './src/screens/SettingsGroupScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import type { MainTabParamList, RootStackParamList } from './src/navigation/types';
-import { serifFont } from './src/theme';
+import { serifFont, TABLET_BREAKPOINT } from './src/theme';
 import { SyncCoordinator } from './src/sync/SyncCoordinator';
 import { usePortraitOrientation } from './src/readers/useOrientation';
+import { StartupLoadingScreen } from './src/components/StartupLoadingScreen';
 
 const Tabs = createBottomTabNavigator<MainTabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 function MainTabs() {
+  const { height, width } = useWindowDimensions();
+  const { bottom: bottomInset } = useSafeAreaInsets();
   const { theme, t } = useApp();
+  const tabBarIsWide = width >= TABLET_BREAKPOINT;
+  const tabBarIsCompact = width < 360 || height < 600;
+  const tabBarHorizontalMargin = tabBarIsWide ? 16 : tabBarIsCompact ? 12 : 20;
+  const tabBarMaxWidth = tabBarIsWide ? 420 : 360;
+  const tabBarWidth = Math.max(0, Math.min(width - tabBarHorizontalMargin * 2, tabBarMaxWidth));
+  const tabBarHeight = tabBarIsCompact ? 56 : 62;
+  const tabIconSize = tabBarIsCompact ? 18 : 20;
+  const tabLabelSize = tabBarIsCompact ? 10 : 11;
+  const tabBarBottom = Math.max(12, bottomInset + 8);
 
   return (
     <Tabs.Navigator
@@ -36,22 +48,24 @@ function MainTabs() {
         tabBarInactiveTintColor: theme.textSecondary,
         tabBarLabelStyle: {
           fontFamily: serifFont,
-          fontSize: 11,
+          fontSize: tabLabelSize,
+          lineHeight: tabBarIsCompact ? 12 : 14,
         },
+        tabBarItemStyle: { paddingHorizontal: tabBarIsCompact ? 0 : 2 },
         tabBarStyle: {
           position: 'absolute',
-          bottom: 20,
-          left: 68,
-          right: 68,
-          height: 62,
-          borderRadius: 31,
+          bottom: tabBarBottom,
+          left: (width - tabBarWidth) / 2,
+          width: tabBarWidth,
+          height: tabBarHeight,
+          borderRadius: tabBarHeight / 2,
           backgroundColor: theme.card,
           borderWidth: 1,
           borderColor: theme.border,
           borderTopWidth: 1,
           borderTopColor: theme.border,
-          paddingBottom: 8,
-          paddingTop: 8,
+          paddingBottom: tabBarIsCompact ? 5 : 8,
+          paddingTop: tabBarIsCompact ? 5 : 8,
           elevation: 10,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 4 },
@@ -64,7 +78,7 @@ function MainTabs() {
         name="Library"
         component={LibraryScreen}
         options={{
-          tabBarIcon: ({ color }) => <BookOpen color={color} size={20} />,
+          tabBarIcon: ({ color }) => <BookOpen color={color} size={tabIconSize} />,
           tabBarLabel: t('tab.library'),
         }}
       />
@@ -72,7 +86,7 @@ function MainTabs() {
         name="Lists"
         component={ListsScreen}
         options={{
-          tabBarIcon: ({ color }) => <List color={color} size={20} />,
+          tabBarIcon: ({ color }) => <List color={color} size={tabIconSize} />,
           tabBarLabel: t('tab.lists'),
         }}
       />
@@ -80,7 +94,7 @@ function MainTabs() {
         name="Settings"
         component={SettingsScreen}
         options={{
-          tabBarIcon: ({ color }) => <Settings color={color} size={20} />,
+          tabBarIcon: ({ color }) => <Settings color={color} size={tabIconSize} />,
           tabBarLabel: t('tab.settings'),
         }}
       />
@@ -90,7 +104,10 @@ function MainTabs() {
 
 function AppShell() {
   const { preferences, ready, theme } = useApp();
+  const [startupVisible, setStartupVisible] = React.useState(true);
+  const hideStartup = React.useCallback(() => setStartupVisible(false), []);
   usePortraitOrientation();
+  const statusBarStyle: 'light-content' | 'dark-content' = theme.name === 'dark' ? 'light-content' : 'dark-content';
   const navigationTheme = {
     ...DefaultTheme,
     colors: {
@@ -103,35 +120,30 @@ function AppShell() {
     },
   };
 
-  if (!ready) {
-    return (
-      <View style={{ alignItems: 'center', backgroundColor: theme.bg, flex: 1, justifyContent: 'center' }}>
-        <ActivityIndicator color={theme.accent} />
-        <Text style={{ color: theme.textSecondary, fontFamily: serifFont, marginTop: 12 }}>Krumer</Text>
-      </View>
-    );
-  }
-
-  if (!preferences.hasOnboarded) {
-    return <OnboardingScreen />;
-  }
-
   return (
-    <NavigationContainer theme={navigationTheme}>
-      <Stack.Navigator
-        screenOptions={{
-          contentStyle: { backgroundColor: theme.bg },
-          headerTintColor: theme.accent,
-          headerStyle: { backgroundColor: theme.bg },
-        }}
-      >
-        <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
-        <Stack.Screen name="ListDetail" component={ListDetailScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="BookDetail" component={BookDetailScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Reader" component={ReaderScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="SettingsGroup" component={SettingsGroupScreen} options={{ title: '' }} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <View style={{ backgroundColor: theme.bg, flex: 1 }}>
+      <StatusBar animated barStyle={statusBarStyle} />
+      {ready && (!preferences.hasOnboarded ? (
+        <OnboardingScreen />
+      ) : (
+        <NavigationContainer theme={navigationTheme}>
+          <Stack.Navigator
+            screenOptions={{
+              contentStyle: { backgroundColor: theme.bg },
+              headerTintColor: theme.accent,
+              headerStyle: { backgroundColor: theme.bg },
+            }}
+          >
+            <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
+            <Stack.Screen name="ListDetail" component={ListDetailScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="BookDetail" component={BookDetailScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Reader" component={ReaderScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="SettingsGroup" component={SettingsGroupScreen} options={{ title: '' }} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      ))}
+      {startupVisible && <StartupLoadingScreen ready={ready} onFinished={hideStartup} />}
+    </View>
   );
 }
 

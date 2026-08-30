@@ -144,6 +144,17 @@
   color: #ef4444;
 }
 
+.auth-beta-notice {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.auth-beta-notice .settings-panel-title {
+  margin-top: 0;
+}
+
 .auth-mode-switch {
   background: var(--bg-card);
   border: 1px solid var(--border);

@@ -90,8 +90,9 @@ export function SearchSortBar({ query, sort, onQueryChange, onSortChange }: Prop
         {/* Clear button */}
         <Animated.View style={{ transform: [{ scale: clearScale }] }}>
           <Pressable
-            accessibilityLabel="Clear search"
-            hitSlop={8}
+            accessibilityLabel={t('library.clearSearch')}
+            accessibilityRole="button"
+            hitSlop={13}
             onPress={() => {
               onQueryChange('');
               inputRef.current?.focus();
@@ -117,6 +118,7 @@ export function SearchSortBar({ query, sort, onQueryChange, onSortChange }: Prop
       {/* Sort button */}
       <Pressable
         accessibilityLabel={t('library.sortBy')}
+        accessibilityRole="button"
         onPress={() => setSortOpen(true)}
         style={({ pressed }) => ({
           alignItems: 'center',
@@ -184,6 +186,9 @@ export function SearchSortBar({ query, sort, onQueryChange, onSortChange }: Prop
                     const active = option.key === sort;
                     return (
                       <Pressable
+                        accessibilityLabel={option.label}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: active }}
                         key={option.key}
                         onPress={() => {
                           onSortChange(option.key);

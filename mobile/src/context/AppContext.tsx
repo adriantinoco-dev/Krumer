@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { Book } from '../models/item';
 import type { SyncList } from '../models/list';
-import { extractCoversInBackground } from '../services/libraryScanner';
+import { extractCoversInBackground, scanLibrary } from '../services/libraryScanner';
 import { DEFAULT_LANGUAGE, translate, type LanguageCode, type TranslationKey } from '../i18n/translations';
 import {
   defaultPreferences,
@@ -23,6 +23,7 @@ type AppContextValue = {
   preferences: MobilePreferences;
   ready: boolean;
   setBooks: (books: Book[]) => Promise<void>;
+  rescanLibrary: () => Promise<void>;
   replaceBooksFromSync: (books: Book[]) => Promise<void>;
   replaceListsFromSync: (lists: SyncList[]) => Promise<void>;
   updateBookProgress: (
@@ -61,10 +62,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const coversRunningRef = useRef(false);
   const coversRestartRef = useRef(false);
+  const rescanRunningRef = useRef(false);
+  const rescanQueuedRef = useRef(false);
+  const libraryFolderRef = useRef<string | null>(preferences.libraryFolder);
 
   useEffect(() => {
     booksRef.current = books;
   }, [books]);
+
+  useEffect(() => {
+    libraryFolderRef.current = preferences.libraryFolder;
+  }, [preferences.libraryFolder]);
 
   useEffect(() => {
     return () => {
@@ -193,6 +201,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await saveBooks(merged);
     runCoversLoop();
   }, [runCoversLoop]);
+
+  const rescanLibrary = useCallback(async () => {
+    if (rescanRunningRef.current) {
+      rescanQueuedRef.current = true;
+      return;
+    }
+
+    rescanRunningRef.current = true;
+    try {
+      do {
+        rescanQueuedRef.current = false;
+        const folder = libraryFolderRef.current;
+        if (!folder) return;
+
+        const scannedBooks = await scanLibrary(folder);
+        await setBooks(scannedBooks);
+      } while (rescanQueuedRef.current);
+    } catch {
+      // A folder can become unavailable while the app is in the background.
+      // Keep the cached library visible and retry on the next focus event.
+    } finally {
+      rescanRunningRef.current = false;
+    }
+  }, [setBooks]);
 
   const replaceBooksFromSync = useCallback(async (nextBooks: Book[]) => {
     booksRef.current = nextBooks;
@@ -324,14 +356,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await enqueueListMembership(updated, bookFingerprint, contains ? 'delete' : 'upsert');
   }, [lists]);
 
+  const language = preferences.language ?? DEFAULT_LANGUAGE;
+  const t = useCallback((key: TranslationKey) => translate(language, key), [language]);
+
   const value = useMemo<AppContextValue>(() => {
-    const language = preferences.language ?? DEFAULT_LANGUAGE;
     return {
       books,
       lists,
       preferences,
       ready,
       setBooks,
+      rescanLibrary,
       replaceBooksFromSync,
       replaceListsFromSync,
       updateBookProgress,
@@ -349,7 +384,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setLibraryFolder: (libraryFolder) => persistPreferences({ libraryFolder }),
       setThemeName: (theme) => persistPreferences({ theme }),
       setBooksPerRow: (booksPerRow) => persistPreferences({ booksPerRow }),
-      t: (key) => translate(language, key),
+      t,
       theme: themes[preferences.theme],
     };
   }, [
@@ -360,6 +395,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     persistPreferences,
     preferences,
     ready,
+    rescanLibrary,
     renameList,
     replaceBooksFromSync,
     replaceListsFromSync,
@@ -371,6 +407,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updateBookProgress,
     setGeminiApiKey,
     setMetadataIntroSeen,
+    t,
   ]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
@@ -405,12 +442,14 @@ function mergeScannedBooks(books: Book[], previous: Map<string, Book>): Book[] {
     return {
       ...book,
       ...(existing ? {
+        addedAt: existing.addedAt,
         title: existing.title,
         author: existing.author,
         year: existing.year,
         description: existing.description,
         tags: existing.tags,
         coverOriginalPath: existing.coverOriginalPath,
+        metadataUpdatedAt: existing.metadataUpdatedAt,
         rating: existing.rating,
         progress: existing.progress,
         currentPage: existing.currentPage,

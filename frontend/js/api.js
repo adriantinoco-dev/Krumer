@@ -557,6 +557,9 @@ class LibraryAPI {
   }
 
   static async getSyncMetrics() {
+    if (window.KRUMER_CLOUD_SYNC_ENABLED !== true) {
+      return { disabled: true };
+    }
     // Via bridge: precisa passar pelo Electron main se disponível, senão tenta direto (dev)
     if (window.electronAPI?.syncGetMetrics) {
       return await window.electronAPI.syncGetMetrics();

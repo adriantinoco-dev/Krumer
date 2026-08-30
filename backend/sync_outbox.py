@@ -5,6 +5,7 @@ write original, o último estado que deverá ser enviado ao Supabase nas fases
 seguintes da sincronização.
 """
 import datetime
+import os
 import uuid
 from typing import Iterable, Optional
 
@@ -12,6 +13,9 @@ from sqlalchemy.orm import Session
 
 from archive import item_fingerprint
 from models import Item, Progress, Setting, SyncOutbox, UserList
+
+
+CLOUD_SYNC_ENABLED = os.getenv("KRUMER_CLOUD_SYNC_ENABLED", "0") == "1"
 
 
 def _utcnow() -> datetime.datetime:
@@ -33,8 +37,10 @@ def enqueue(
     payload: dict,
     fingerprint: Optional[str] = None,
     local_list_id: Optional[int] = None,
-) -> SyncOutbox:
+) -> Optional[SyncOutbox]:
     """Enfileira um write, coalescendo o estado pending da mesma entidade."""
+    if not CLOUD_SYNC_ENABLED:
+        return None
     now = _utcnow()
     active_user = db.get(Setting, "sync_active_user_id")
     owner_user_id = active_user.value if active_user and active_user.value else None
@@ -119,8 +125,10 @@ def _progress_payload(db: Session, item: Item, rating_changed: bool = False) -> 
     return fingerprint, payload
 
 
-def enqueue_progress(db: Session, item: Item, rating_changed: bool = False) -> SyncOutbox:
+def enqueue_progress(db: Session, item: Item, rating_changed: bool = False) -> Optional[SyncOutbox]:
     """Enfileira a projeção sincronizável de progresso/leitura/avaliação."""
+    if not CLOUD_SYNC_ENABLED:
+        return None
     db.flush()
     fingerprint, payload = _progress_payload(db, item, rating_changed)
     return enqueue(
@@ -150,6 +158,8 @@ def enqueue_progress_items(
     items: Iterable[Item],
     rating_changed: bool = False,
 ) -> None:
+    if not CLOUD_SYNC_ENABLED:
+        return
     seen = set()
     for item in items:
         if item.id in seen:
@@ -175,7 +185,9 @@ def enqueue_list(
     db: Session,
     user_list: UserList,
     operation: str = "upsert",
-) -> SyncOutbox:
+) -> Optional[SyncOutbox]:
+    if not CLOUD_SYNC_ENABLED:
+        return None
     db.flush()
     if not user_list.sync_id:
         user_list.sync_id = str(uuid.uuid4())
@@ -195,7 +207,9 @@ def enqueue_membership(
     user_list: UserList,
     item: Item,
     operation: str,
-) -> SyncOutbox:
+) -> Optional[SyncOutbox]:
+    if not CLOUD_SYNC_ENABLED:
+        return None
     if not user_list.sync_id:
         user_list.sync_id = str(uuid.uuid4())
         db.flush()
@@ -231,8 +245,10 @@ def _metadata_payload(item: Item) -> tuple[str, dict]:
     return fingerprint, payload
 
 
-def enqueue_metadata(db: Session, item: Item) -> SyncOutbox:
+def enqueue_metadata(db: Session, item: Item) -> Optional[SyncOutbox]:
     """Enfileira metadados editados (título, autor, etc.) para sync."""
+    if not CLOUD_SYNC_ENABLED:
+        return None
     db.flush()
     if item.type == "series":
         # Séries não têm fingerprint estável por tamanho; ainda sincroniza título
@@ -250,7 +266,9 @@ def enqueue_metadata(db: Session, item: Item) -> SyncOutbox:
     )
 
 
-def enqueue_tag(db: Session, item: Item, tag_name: str, operation: str = "upsert") -> SyncOutbox:
+def enqueue_tag(db: Session, item: Item, tag_name: str, operation: str = "upsert") -> Optional[SyncOutbox]:
+    if not CLOUD_SYNC_ENABLED:
+        return None
     fingerprint = item_fingerprint(item)
     normalized = tag_name.strip()
     if not normalized:
@@ -271,6 +289,8 @@ def enqueue_tag(db: Session, item: Item, tag_name: str, operation: str = "upsert
 
 def enqueue_tags_for_item(db: Session, item: Item, tag_names: list[str]) -> None:
     """Sincroniza o conjunto completo de tags do item (diff vs outbox)."""
+    if not CLOUD_SYNC_ENABLED:
+        return
     # O chamador deve já ter atualizado item.tags; aqui apenas enfileira
     current = {t.name for t in item.tags}
     # Para simplificar, enfileira upsert para todas atuais; deletes são tratados pelo caller

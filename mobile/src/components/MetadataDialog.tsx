@@ -131,6 +131,10 @@ export function MetadataDialog({
   const Icon = variantIcons[content.variant];
   const semanticColor = content.variant === 'warning' ? theme.accent : variantColors[content.variant];
   const iconBackground = content.variant === 'warning' ? theme.accentMuted : `${semanticColor}22`;
+  const dialogActions = (content.variant === 'danger'
+    ? [content.primaryAction, content.secondaryAction]
+    : [content.secondaryAction, content.primaryAction]
+  ).filter((action): action is MetadataDialogAction => Boolean(action));
 
   const invokeAction = (action: MetadataDialogAction) => {
     onCloseRef.current();
@@ -198,12 +202,9 @@ export function MetadataDialog({
             </View>
 
             <View style={{ gap: spacing.sm, marginTop: spacing.lg }}>
-              {content.secondaryAction ? (
-                <DialogButton action={content.secondaryAction} onPress={invokeAction} theme={theme} />
-              ) : null}
-              {content.primaryAction ? (
-                <DialogButton action={content.primaryAction} onPress={invokeAction} theme={theme} />
-              ) : null}
+              {dialogActions.map((action, index) => (
+                <DialogButton key={`${action.kind ?? 'action'}-${index}`} action={action} onPress={invokeAction} theme={theme} />
+              ))}
             </View>
           </Pressable>
         </Animated.View>

@@ -32,8 +32,10 @@ export function FolderPickerField({
     <View style={{ gap: spacing.sm }}>
       <Text style={{ color: theme.textPrimary, fontSize: 13 }}>{t('general.booksFolder')}</Text>
       <Pressable
+        accessibilityLabel={t('general.selectFolder')}
+        accessibilityRole="button"
         onPress={handlePick}
-        style={{
+        style={({ pressed }) => ({
           alignItems: 'center',
           backgroundColor: value ? '#2f8f46' : theme.card,
           borderColor: value ? '#2f8f46' : theme.border,
@@ -43,8 +45,9 @@ export function FolderPickerField({
           gap: spacing.sm,
           justifyContent: 'center',
           minHeight: 46,
+          opacity: pressed ? 0.82 : 1,
           paddingHorizontal: spacing.md,
-        }}
+        })}
       >
         <FolderOpen color={value ? '#ffffff' : theme.accent} size={18} />
         <Text style={{ color: value ? '#ffffff' : theme.textPrimary, fontFamily: serifFont, fontSize: 15, fontWeight: '700' }}>

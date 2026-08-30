@@ -1,4 +1,5 @@
 import { Directory, File, Paths } from 'expo-file-system';
+import { DEFAULT_LANGUAGE, translate, type LanguageCode } from '../i18n/translations';
 
 export const MAX_IN_MEMORY_EPUB_BYTES = 16 * 1024 * 1024;
 
@@ -41,7 +42,15 @@ function formatMiB(bytes: number) {
   return (bytes / (1024 * 1024)).toFixed(1);
 }
 
-export async function prepareEpubFile(filePath: string, knownByteLength?: number): Promise<PreparedEpub> {
+function localized(language: LanguageCode, key: Parameters<typeof translate>[1], replacements: string[] = []) {
+  return replacements.reduce((message, value, index) => message.replace(`{${index}}`, value), translate(language, key));
+}
+
+export async function prepareEpubFile(
+  filePath: string,
+  knownByteLength?: number,
+  language: LanguageCode = DEFAULT_LANGUAGE,
+): Promise<PreparedEpub> {
   try {
     const source = new File(normalizeFileUri(filePath));
     const readerDirectory = new Directory(Paths.document, 'reader-books');
@@ -50,17 +59,17 @@ export async function prepareEpubFile(filePath: string, knownByteLength?: number
     const readableFile = source.exists ? source : durableFile;
 
     if (!readableFile.exists) {
-      throw new EpubFileError('FILE_NOT_FOUND', 'O arquivo EPUB nao esta mais disponivel.');
+      throw new EpubFileError('FILE_NOT_FOUND', translate(language, 'reader.epubFileNotFound'));
     }
 
     const byteLength = readableFile.size || knownByteLength || 0;
     if (byteLength <= 0) {
-      throw new EpubFileError('FILE_SIZE_UNKNOWN', 'Nao foi possivel verificar o tamanho do EPUB com seguranca.');
+      throw new EpubFileError('FILE_SIZE_UNKNOWN', translate(language, 'reader.epubSizeUnknown'));
     }
     if (byteLength > MAX_IN_MEMORY_EPUB_BYTES) {
       throw new EpubFileError(
         'FILE_TOO_LARGE',
-        `Este EPUB tem ${formatMiB(byteLength)} MiB. O leitor atual aceita ate ${formatMiB(MAX_IN_MEMORY_EPUB_BYTES)} MiB.`,
+        localized(language, 'reader.epubTooLarge', [formatMiB(byteLength), formatMiB(MAX_IN_MEMORY_EPUB_BYTES)]),
       );
     }
 
@@ -74,7 +83,7 @@ export async function prepareEpubFile(filePath: string, knownByteLength?: number
     if (decodedLength > MAX_IN_MEMORY_EPUB_BYTES) {
       throw new EpubFileError(
         'FILE_TOO_LARGE',
-        `Este EPUB ultrapassa o limite de ${formatMiB(MAX_IN_MEMORY_EPUB_BYTES)} MiB do leitor atual.`,
+        localized(language, 'reader.epubTooLargeDecoded', [formatMiB(MAX_IN_MEMORY_EPUB_BYTES)]),
       );
     }
 
@@ -97,6 +106,6 @@ export async function prepareEpubFile(filePath: string, knownByteLength?: number
   } catch (error) {
     if (error instanceof EpubFileError) throw error;
     const message = error instanceof Error ? error.message : String(error);
-    throw new EpubFileError('FILE_READ_FAILED', `Falha ao preparar o EPUB: ${message}`);
+    throw new EpubFileError('FILE_READ_FAILED', localized(language, 'reader.epubReadFailed', [message]));
   }
 }

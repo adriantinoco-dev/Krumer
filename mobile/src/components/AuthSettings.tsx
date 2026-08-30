@@ -10,7 +10,7 @@ type AuthMode = 'signin' | 'signup';
 
 export function AuthSettings() {
   const { ready, recovery, requestPasswordReset, sendMagicLink, signIn, signInWithGoogle, signOut, signUp, updatePassword, user } = useAuth();
-  const { theme, t } = useApp();
+  const { preferences, theme, t } = useApp();
   const [mode, setMode] = useState<AuthMode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -58,7 +58,7 @@ export function AuthSettings() {
             {user.email_confirmed_at ? t('auth.emailConfirmed') : t('auth.emailNotConfirmed')}
           </Text>
           <Text style={{ color: syncStatus?.state === 'error' ? '#ef4444' : theme.textSecondary, fontFamily: serifFont, fontSize: 12 }}>
-            {syncMark(syncStatus?.state)} Sync{syncStatus?.pending ? ` (${syncStatus.pending})` : ''}
+            {syncMark(syncStatus?.state)} {t('auth.sync')}{syncStatus?.pending ? ` (${syncStatus.pending})` : ''}
           </Text>
         </View>
         {recovery ? (
@@ -86,7 +86,7 @@ export function AuthSettings() {
           onPress={() => {
             if (!requireMatchingPasswords()) return;
             void run(async () => {
-              await updatePassword(password);
+              await updatePassword(password, preferences.language);
               setPassword('');
               setConfirmation('');
               setMessage(t('auth.passwordUpdated'));
@@ -98,7 +98,7 @@ export function AuthSettings() {
           disabled={busy}
           label={t('auth.signOut')}
           onPress={() => void run(async () => {
-            await signOut();
+            await signOut(preferences.language);
             setMessage(t('auth.signedOut'));
           })}
         />
@@ -114,7 +114,7 @@ export function AuthSettings() {
         disabled={busy}
         label={t('auth.googleSignIn')}
         onPress={() => void run(async () => {
-          const result = await signInWithGoogle();
+          const result = await signInWithGoogle(preferences.language);
           if (result === 'cancelled') {
             setMessage('');
           } else {
@@ -158,10 +158,10 @@ export function AuthSettings() {
         onPress={() => void run(async () => {
           if (mode === 'signup') {
             if (!requireMatchingPasswords()) return;
-            const result = await signUp(email, password);
+            const result = await signUp(email, password, preferences.language);
             setMessage(t(result.confirmationRequired ? 'auth.checkEmailConfirmation' : 'auth.accountCreated'));
           } else {
-            await signIn(email, password);
+            await signIn(email, password, preferences.language);
             setMessage(t('auth.signedIn'));
           }
           setPassword('');
@@ -170,11 +170,11 @@ export function AuthSettings() {
       />
       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
         <LinkButton disabled={busy} label={t('auth.magicLink')} onPress={() => void run(async () => {
-          await sendMagicLink(email);
+          await sendMagicLink(email, preferences.language);
           setMessage(t('auth.checkEmailMagic'));
         })} />
         <LinkButton disabled={busy} label={t('auth.forgotPassword')} onPress={() => void run(async () => {
-          await requestPasswordReset(email);
+          await requestPasswordReset(email, preferences.language);
           setMessage(t('auth.checkEmailRecovery'));
         })} />
       </View>

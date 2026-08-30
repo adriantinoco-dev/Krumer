@@ -1,8 +1,9 @@
 # Plano de Correções — Krumer Mobile
 
-Este documento descreve, em fases `F1`, `F2` e `F3`, como implementar as três correções
-solicitadas no app Android (React Native + Expo). **Nenhuma linha de código foi alterada
-ainda** — este arquivo é apenas o plano de execução.
+Este documento descreve, em fases `F1`, `F2` e `F3`, as três correções solicitadas no app
+Android (React Native + Expo) e registra o status da execução. A implementação do F3 usa o
+`ActionSheetModal`, componente compartilhado já existente que cumpre o papel do wrapper
+`BottomSheetModal` descrito originalmente neste plano.
 
 Arquivos de referência principais:
 
@@ -156,7 +157,7 @@ uma chave de cache muito melhor.
 
 ---
 
-## F3 — Reutilizar as animações do `BookListModal` em modais semelhantes
+## F3 — Reutilizar as animações do `BookListModal` em modais semelhantes `[x]`
 
 ### Contexto / problema
 

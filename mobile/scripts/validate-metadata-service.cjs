@@ -46,9 +46,11 @@ async function main() {
     '../storage/secureCredentials': secure,
     './secureCredentials': secure,
   });
+  const translations = loadTypeScriptModule('src/i18n/translations.ts');
   const service = loadTypeScriptModule('src/services/metadataService.ts', {
     '@react-native-async-storage/async-storage': storage,
     '../storage/secureCredentials': secure,
+    '../i18n/translations': translations,
   });
 
   assert.strictEqual(JSON.stringify(Array.from(service.METADATA_MODELS)), JSON.stringify(['gemini-3.6-flash', 'gemini-3.5-flash-lite']));

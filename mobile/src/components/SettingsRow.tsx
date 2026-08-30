@@ -22,6 +22,8 @@ export function SettingsRow({
 
   return (
     <Pressable
+      accessibilityLabel={`${title}: ${subtitle}`}
+      accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => ({
         alignItems: 'center',

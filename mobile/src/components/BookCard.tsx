@@ -105,10 +105,18 @@ export function BookCard({
 
   return (
     <Pressable
+      accessibilityLabel={book.author ? `${book.title}, ${book.author}` : book.title}
+      accessibilityRole="button"
+      accessibilityState={selected === undefined ? undefined : { selected }}
       delayLongPress={200}
       onPress={onPress}
       onLongPress={onLongPress}
-      style={{ paddingHorizontal: spacing.sm, paddingVertical: spacing.sm, width }}
+      style={({ pressed }) => ({
+        opacity: pressed ? 0.82 : 1,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.sm,
+        width,
+      })}
     >
       <View style={{ marginBottom: spacing.sm }}>
         <View

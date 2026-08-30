@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { FlatList, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -14,7 +14,8 @@ import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import type { MainTabParamList, RootStackParamList } from '../navigation/types';
 import { fuzzyMatch } from '../services/fuzzySearch';
-import { radii, serifFont, spacing } from '../theme';
+import { useAutoRescan } from '../hooks/useAutoRescan';
+import { BOOK_GRID_MAX_CARD_WIDTH, CONTENT_MAX_WIDTH, getBookGridLayout, radii, serifFont, spacing } from '../theme';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Library'>,
@@ -24,20 +25,15 @@ type Props = CompositeScreenProps<
 export function LibraryScreen({ navigation }: Props) {
   const { width } = useWindowDimensions();
   const { books, preferences, theme, t } = useApp();
+  useAutoRescan();
 
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('recent');
   const [longPressBook, setLongPressBook] = useState<Book | null>(null);
 
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('tabPress', () => {
-      setQuery('');
-    });
-    return unsubscribe;
-  }, [navigation]);
-
-  const numColumns = preferences.booksPerRow ?? 3;
-  const cardWidth = width / numColumns;
+  const { numColumns } = getBookGridLayout(width, preferences.booksPerRow ?? 3);
+  const gridWidth = Math.min(Math.max(width - spacing.sm * 2, 1), numColumns * BOOK_GRID_MAX_CARD_WIDTH);
+  const cardWidth = gridWidth / numColumns;
 
   const continueReading = useMemo(
     () =>
@@ -122,6 +118,7 @@ export function LibraryScreen({ navigation }: Props) {
         key={numColumns}
         keyExtractor={(item) => item.id}
         numColumns={numColumns}
+        columnWrapperStyle={numColumns > 1 ? { alignSelf: 'center', justifyContent: 'flex-start', width: gridWidth } : undefined}
         renderItem={({ item }) => (
           <BookCard
             book={item}
@@ -184,7 +181,7 @@ function LibraryHeader({
   );
 
   return (
-    <>
+    <View style={{ alignSelf: 'center', maxWidth: CONTENT_MAX_WIDTH, width: '100%' }}>
       <View style={{ paddingHorizontal: spacing.md, paddingTop: 20, paddingBottom: 10 }}>
         <KrumerLogo compact hideLabel />
       </View>
@@ -284,7 +281,7 @@ function LibraryHeader({
           </Text>
         </View>
       </View>
-    </>
+    </View>
   );
 }
 

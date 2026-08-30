@@ -3,7 +3,6 @@ import { Linking, Pressable, ScrollView, Text, useWindowDimensions, View } from 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ApiKeyInput } from '../components/ApiKeyInput';
-import { AuthSettings } from '../components/AuthSettings';
 import { FolderPickerField } from '../components/FolderPickerField';
 import { KrumerLogo } from '../components/KrumerLogo';
 import { LangPickerButton } from '../components/LangPicker';
@@ -93,7 +92,13 @@ export function SettingsGroupScreen({ route }: Props) {
             </View>
           ) : null}
 
-          {group === 'account' ? <AuthSettings /> : null}
+          {group === 'account' ? (
+            <View style={{ gap: spacing.md }}>
+              <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 14, lineHeight: 21, textAlign: 'center' }}>
+                {t('sync.betaMessage')}
+              </Text>
+            </View>
+          ) : null}
 
           {group === 'api' ? (
             <View style={{ gap: spacing.md }}>
