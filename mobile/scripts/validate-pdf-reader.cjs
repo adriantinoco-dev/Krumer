@@ -114,6 +114,7 @@ async function main() {
   }
 
   const readerSource = fs.readFileSync('src/readers/PdfReader.tsx', 'utf8');
+  const readerTypesSource = fs.readFileSync('src/readers/PdfReader.types.ts', 'utf8');
   const engineSource = fs.readFileSync('src/readers/pdf/NativePdfEngine.tsx', 'utf8');
   const debugSource = fs.readFileSync('src/readers/pdf/pdfDebug.ts', 'utf8');
   const nativePatchSource = fs.readFileSync('scripts/fix-netinfo-gradle9.cjs', 'utf8');
@@ -134,6 +135,7 @@ async function main() {
   const volumeKeysSource = fs.readFileSync('src/readers/readerVolumeKeys.ts', 'utf8');
   const epubVolumeKeysSource = fs.readFileSync('src/readers/epubVolumeKeys.ts', 'utf8');
   const pdfBookmarksSource = fs.readFileSync('src/readers/usePdfBookmarks.ts', 'utf8');
+  const readerNotesSource = fs.readFileSync('src/readers/useEpubNotes.ts', 'utf8');
   const readerScreenSource = fs.readFileSync('src/screens/ReaderScreen.tsx', 'utf8');
   const paginationModalSource = fs.readFileSync('src/components/PaginationSettingsModal.tsx', 'utf8');
   const mainActivitySource = fs.readFileSync(
@@ -307,6 +309,29 @@ async function main() {
   }
 
   if (
+    !readerTypesSource.includes('interactionEnabled?: boolean;')
+    || !readerSource.includes('interactionEnabled = true')
+    || !readerSource.includes('if (!interactionEnabled) return undefined;')
+    || (readerSource.match(/if \(!interactionEnabled\) return;/g) ?? []).length < 2
+    || !readerSource.includes("pointerEvents={interactionEnabled ? 'auto' : 'none'}")
+    || !readerScreenSource.includes("const readerNotes = useEpubNotes(book.id, isEpub ? 'epub' : 'pdf')")
+    || !readerNotesSource.includes('listReaderNotes(bookId, format)')
+    || !readerNotesSource.includes('createReaderNote(bookId, locator, content, pageNumber)')
+    || !readerNotesSource.includes('updateReaderNote(id, content)')
+    || !readerNotesSource.includes('tombstoneReaderNote(id)')
+    || !readerScreenSource.includes('createPdfLocator(currentPage)')
+    || !readerScreenSource.includes('const pageNumber = isEpub ? epubViewStatus?.currentPage ?? 1 : currentPage')
+    || !readerScreenSource.includes('interactionEnabled={!pdfModalVisible}')
+    || !readerScreenSource.includes('visible={!!previewNote}')
+    || !readerScreenSource.includes('displayMode="paginated"')
+    || !readerScreenSource.includes('initialPage={previewNote.locator.page}')
+    || !readerScreenSource.includes('interactionEnabled={false}')
+    || (readerScreenSource.match(/<PdfReader\b/g) ?? []).length !== 2
+  ) {
+    throw new Error('PDF notes can regress in CRUD persistence, page binding, preview, or interaction isolation.');
+  }
+
+  if (
     !readerScreenSource.includes('Bottom bar compartilhada pelos leitores')
     || readerScreenSource.includes('Bottom bar PDF —')
     || readerScreenSource.includes('<PdfControls')
@@ -363,7 +388,7 @@ async function main() {
     throw new Error('Volume Up/Down do not scroll continuously or preserve paginated PDF navigation.');
   }
 
-  console.log('PDF reader controls, bookmarks, brightness lifecycle, scrolling, persistence, and adapter are valid.');
+  console.log('PDF reader controls, bookmarks, notes, preview isolation, scrolling, persistence, and adapter are valid.');
 }
 
 main().catch((error) => {

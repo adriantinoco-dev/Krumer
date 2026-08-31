@@ -19,6 +19,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     displayMode = PDF_DEFAULTS.displayMode,
     filePath,
     initialPage = 1,
+    interactionEnabled = true,
     onCenterTap,
     onExternalLink,
     onPageChange,
@@ -223,23 +224,27 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
 
   useImperativeHandle(ref, () => ({ goToPage }), [goToPage]);
 
-  useEffect(() => subscribeToReaderVolumeKeys((direction) => {
-    if (!documentLoadedRef.current) return;
-    if (displayMode === 'scroll') {
-      const fraction = direction === 'next'
-        ? PDF_VOLUME_SCROLL_VIEWPORT_RATIO
-        : -PDF_VOLUME_SCROLL_VIEWPORT_RATIO;
-      engineRef.current?.scrollByViewport(fraction);
-      requestAnimationFrame(() => pdfDevLog('controls:volume-scroll', { direction, fraction }));
-      return;
-    }
-    const delta = direction === 'next' ? 1 : -1;
-    goToPage(currentPageRef.current + delta);
-    const page = currentPageRef.current;
-    requestAnimationFrame(() => pdfDevLog('controls:volume-key', { direction, page }));
-  }, { allowRepeats: displayMode === 'scroll' }), [displayMode, goToPage]);
+  useEffect(() => {
+    if (!interactionEnabled) return undefined;
+    return subscribeToReaderVolumeKeys((direction) => {
+      if (!documentLoadedRef.current) return;
+      if (displayMode === 'scroll') {
+        const fraction = direction === 'next'
+          ? PDF_VOLUME_SCROLL_VIEWPORT_RATIO
+          : -PDF_VOLUME_SCROLL_VIEWPORT_RATIO;
+        engineRef.current?.scrollByViewport(fraction);
+        requestAnimationFrame(() => pdfDevLog('controls:volume-scroll', { direction, fraction }));
+        return;
+      }
+      const delta = direction === 'next' ? 1 : -1;
+      goToPage(currentPageRef.current + delta);
+      const page = currentPageRef.current;
+      requestAnimationFrame(() => pdfDevLog('controls:volume-key', { direction, page }));
+    }, { allowRepeats: displayMode === 'scroll' });
+  }, [displayMode, goToPage, interactionEnabled]);
 
   const handleTapAtX = useCallback((tapX: number, source: 'quick' | 'native') => {
+    if (!interactionEnabled) return false;
     if (displayMode !== 'paginated') return false;
     if (tapX <= viewportWidth * PDF_SIDE_TAP_RATIO) {
       goToPage(currentPageRef.current - 1);
@@ -261,26 +266,28 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
       return true;
     }
     return false;
-  }, [displayMode, goToPage, viewportWidth]);
+  }, [displayMode, goToPage, interactionEnabled, viewportWidth]);
 
   const handleQuickTap = useCallback((tapX: number, _tapY: number) => (
     handleTapAtX(tapX, 'quick')
   ), [handleTapAtX]);
 
   const handleSingleTap = useCallback((_page: number, x: number, _y: number) => {
+    if (!interactionEnabled) return;
     const tapX = Platform.OS === 'android' ? x / PixelRatio.get() : x;
     if (handleTapAtX(tapX, 'native')) return;
     pdfDevLog('controls:toggle-bars-tap');
     onCenterTapRef.current?.();
-  }, [handleTapAtX]);
+  }, [handleTapAtX, interactionEnabled]);
 
   const handleExternalLink = useCallback((url: string) => {
+    if (!interactionEnabled) return;
     if (/^(https?:|mailto:|tel:)/i.test(url)) {
       onExternalLink?.(url);
       return;
     }
     console.warn('[Krumer PdfReader] esquema de link externo bloqueado', url);
-  }, [onExternalLink]);
+  }, [interactionEnabled, onExternalLink]);
 
   if (error) {
     return (
@@ -323,7 +330,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   }
 
   return (
-    <View style={{ backgroundColor: theme.bg, flex: 1 }}>
+    <View pointerEvents={interactionEnabled ? 'auto' : 'none'} style={{ backgroundColor: theme.bg, flex: 1 }}>
       <NativePdfEngine
         ref={engineRef}
         displayMode={displayMode}

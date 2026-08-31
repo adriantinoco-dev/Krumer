@@ -32,6 +32,7 @@ export type PdfReaderProps = {
   displayMode?: PdfDisplayMode;
   filePath: string;
   initialPage?: number;
+  interactionEnabled?: boolean;
   onCenterTap?: () => void;
   onExternalLink?: (url: string) => void;
   onPageChange?: (page: number, total: number) => void;

@@ -8,6 +8,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Alterado
+- **Mobile — leitor PDF, Fase 4 (notas e prévia):** notas agora carregam e persistem por
+  livro no formato PDF, vinculadas à página corrente, com criação, lista, detalhes, edição
+  e exclusão confirmada. A âncora abre somente a página salva em uma prévia paginada e sem
+  interação, mantendo o leitor principal montado, bloqueado e na mesma posição sob os modais.
 - **Mobile — leitor PDF, Fase 3 (marcadores):** marcadores agora são salvos na página
   corrente, persistem separadamente por livro e formato, aceitam repetições e exibem
   página, data e eventual rótulo. Abrir um marcador fecha o modal e navega para a página

@@ -7,6 +7,7 @@ import type { PdfReaderHandle, PdfReaderProps } from './PdfReader.types';
 export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader({
   filePath,
   initialPage = 1,
+  interactionEnabled = true,
   onPageChange: _onPageChange,
 }, ref) {
   const { theme, t } = useApp();
@@ -19,6 +20,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
 
   return (
     <View
+      pointerEvents={interactionEnabled ? 'auto' : 'none'}
       style={{
         alignItems: 'center',
         backgroundColor: theme.bg,

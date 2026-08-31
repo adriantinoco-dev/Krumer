@@ -143,8 +143,74 @@ function main() {
     throw new Error('Reader notes are not stored with their source page.');
   }
 
+  const pdfNoteCreatedAt = new Date(Date.now() + 10).toISOString();
+  const insertPdfNote = database.prepare(`INSERT INTO reader_notes (
+    id, book_id, format, page, progression_in_page, page_number, content,
+    created_at, updated_at
+  ) VALUES (?, ?, 'pdf', ?, ?, ?, ?, ?, ?)`);
+  insertPdfNote.run(
+    'pdf-note-1',
+    'book-1',
+    pdfLocator.page,
+    null,
+    pdfLocator.page,
+    'Nota vinculada à página atual do PDF.',
+    pdfNoteCreatedAt,
+    pdfNoteCreatedAt,
+  );
+  insertPdfNote.run(
+    'pdf-note-other-book',
+    'book-2',
+    pdfLocator.page,
+    null,
+    pdfLocator.page,
+    'Nota de outro livro.',
+    pdfNoteCreatedAt,
+    pdfNoteCreatedAt,
+  );
+  const storedPdfNote = database.prepare(
+    `SELECT * FROM reader_notes
+      WHERE book_id = ? AND format = ? AND deleted_at IS NULL`,
+  ).get('book-1', 'pdf');
+  if (
+    !storedPdfNote
+    || storedPdfNote.page !== pdfLocator.page
+    || storedPdfNote.page_number !== pdfLocator.page
+    || storedPdfNote.progression_in_page !== null
+  ) {
+    throw new Error('PDF notes are not isolated by book/format or linked to their current page.');
+  }
+
+  const pdfNoteUpdatedAt = new Date(Date.now() + 20).toISOString();
+  database.prepare(
+    'UPDATE reader_notes SET content = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL',
+  ).run('Nota PDF editada.', pdfNoteUpdatedAt, 'pdf-note-1');
+  const editedPdfNote = database.prepare(
+    'SELECT content, updated_at FROM reader_notes WHERE id = ? AND deleted_at IS NULL',
+  ).get('pdf-note-1');
+  if (editedPdfNote?.content !== 'Nota PDF editada.' || editedPdfNote.updated_at !== pdfNoteUpdatedAt) {
+    throw new Error('PDF note edits are not persisted.');
+  }
+
+  const pdfNoteDeletedAt = new Date(Date.now() + 30).toISOString();
+  database.prepare(
+    'UPDATE reader_notes SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL',
+  ).run(pdfNoteDeletedAt, pdfNoteDeletedAt, 'pdf-note-1');
+  const livePdfNotes = database.prepare(
+    'SELECT COUNT(*) AS count FROM reader_notes WHERE book_id = ? AND format = ? AND deleted_at IS NULL',
+  ).get('book-1', 'pdf').count;
+  const deletedPdfNotes = database.prepare(
+    'SELECT COUNT(*) AS count FROM reader_notes WHERE book_id = ? AND format = ? AND deleted_at IS NOT NULL',
+  ).get('book-1', 'pdf').count;
+  const untouchedOtherBookNotes = database.prepare(
+    'SELECT COUNT(*) AS count FROM reader_notes WHERE book_id = ? AND format = ? AND deleted_at IS NULL',
+  ).get('book-2', 'pdf').count;
+  if (livePdfNotes !== 0 || deletedPdfNotes !== 1 || untouchedOtherBookNotes !== 1) {
+    throw new Error('PDF note deletion does not preserve book isolation or tombstones.');
+  }
+
   database.close();
-  console.log('Reader database migration, PDF/EPUB locators, bookmark isolation, tombstones, and notes are valid.');
+  console.log('Reader database migration, PDF/EPUB locators, bookmarks, and PDF note CRUD are valid.');
 }
 
 try {

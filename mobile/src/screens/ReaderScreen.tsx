@@ -24,7 +24,7 @@ import { usePdfBookmarks } from '../readers/usePdfBookmarks';
 import { useReadingPreferences } from '../readers/useReadingPreferences';
 import { useReaderLayoutSettings } from '../readers/useReaderLayoutSettings';
 import { useApp } from '../context/AppContext';
-import type { EpubLocator, ReaderNote } from '../models/reader';
+import { createPdfLocator, type EpubLocator, type ReaderNote } from '../models/reader';
 import type { ReadingPreferences } from '../models/readingPreferences';
 import type { RootStackParamList } from '../navigation/types';
 import { radii, serifFont, spacing } from '../theme';
@@ -139,6 +139,21 @@ export function ReaderScreen({ navigation, route }: Props) {
   const previewScale = Math.min(1, previewAvailableWidth / previewReaderWidth, previewAvailableHeight / previewReaderHeight);
   const previewFrameWidth = previewReaderWidth * previewScale;
   const previewFrameHeight = previewReaderHeight * previewScale;
+  const pdfModalVisible = !isEpub && (
+    bookmarksVisible
+    || paginationSettingsVisible
+    || brightnessVisible
+    || notesVisible
+    || detailVisible
+    || editorVisible
+    || noteToDelete !== null
+    || previewNote !== null
+  );
+  const noteEditorPageNumber = editingNoteId && selectedNote?.pageNumber
+    ? selectedNote.pageNumber
+    : isEpub
+      ? epubViewStatus?.currentPage
+      : currentPage;
 
   const syncDurableEpubProgress = useCallback(async (locator: EpubLocator) => {
     const nextProgress = locator.totalProgression ?? (book.progressPct ?? 0) / 100;
@@ -167,7 +182,7 @@ export function ReaderScreen({ navigation, route }: Props) {
     ? !!epubPersistence.currentLocator
     : currentPage > 0);
 
-  const epubNotes = useEpubNotes(isEpub ? book.id : null, isEpub ? 'epub' : 'pdf');
+  const readerNotes = useEpubNotes(book.id, isEpub ? 'epub' : 'pdf');
 
   const handleEpubRelocate = useCallback((locator: EpubLocator, source: EpubRelocationSource) => {
     if (locator.totalProgression !== null) setProgress(locator.totalProgression);
@@ -301,7 +316,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   }, [scheduleHide]);
 
   const handleAnchorPress = useCallback((note: ReaderNote) => {
-    if (note.locator.format === 'epub') setPreviewNote(note);
+    setPreviewNote(note);
     setNotesVisible(false);
     setDetailVisible(false);
     setEditorVisible(false);
@@ -338,19 +353,28 @@ export function ReaderScreen({ navigation, route }: Props) {
   const handleSaveNote = useCallback(async () => {
     const content = noteDraft.trim();
     if (!content) return;
-    const locator = epubPersistence.currentLocator;
-    if (!locator) return;
-    const pageNumber = epubViewStatus?.currentPage ?? 1;
     if (editingNoteId) {
-      await epubNotes.editNote(editingNoteId, content);
+      await readerNotes.editNote(editingNoteId, content);
       setSelectedNote((current) => current && current.id === editingNoteId
         ? { ...current, content, updatedAt: new Date().toISOString() }
         : current);
     } else {
-      await epubNotes.addNote(locator, content, pageNumber);
+      const locator = isEpub ? epubPersistence.currentLocator : createPdfLocator(currentPage);
+      if (!locator) return;
+      const pageNumber = isEpub ? epubViewStatus?.currentPage ?? 1 : currentPage;
+      await readerNotes.addNote(locator, content, pageNumber);
     }
     closeEditor();
-  }, [noteDraft, editingNoteId, epubPersistence.currentLocator, epubViewStatus?.currentPage, epubNotes, closeEditor]);
+  }, [
+    closeEditor,
+    currentPage,
+    editingNoteId,
+    epubPersistence.currentLocator,
+    epubViewStatus?.currentPage,
+    isEpub,
+    noteDraft,
+    readerNotes,
+  ]);
 
   const requestDeleteNote = useCallback((note: ReaderNote) => {
     setNoteToDelete(note);
@@ -359,13 +383,13 @@ export function ReaderScreen({ navigation, route }: Props) {
   const handleDeleteNote = useCallback(async () => {
     if (!noteToDelete) return;
     const id = noteToDelete.id;
-    await epubNotes.removeNote(id);
+    await readerNotes.removeNote(id);
     if (selectedNote?.id === id) {
       setDetailVisible(false);
       setSelectedNote(null);
     }
     setNoteToDelete(null);
-  }, [epubNotes, noteToDelete, selectedNote?.id]);
+  }, [noteToDelete, readerNotes, selectedNote?.id]);
 
   function setBars(visible: boolean) {
     if (!visible && hideTimer.current) {
@@ -657,6 +681,7 @@ export function ReaderScreen({ navigation, route }: Props) {
             displayMode={pdfDisplayMode}
             filePath={book.filePath}
             initialPage={savedPosition ? Number(savedPosition) : 1}
+            interactionEnabled={!pdfModalVisible}
             onExternalLink={handleExternalLink}
             onPageChange={handlePdfPageChange}
             onCenterTap={toggleBars}
@@ -1341,7 +1366,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                 borderWidth: 1,
                 maxHeight: '88%',
                 maxWidth: 480,
-                minHeight: epubNotes.notes.length === 0 ? 300 : undefined,
+                minHeight: readerNotes.notes.length === 0 ? 300 : undefined,
                 overflow: 'hidden',
                 paddingBottom: spacing.lg,
                 paddingHorizontal: spacing.lg,
@@ -1353,14 +1378,14 @@ export function ReaderScreen({ navigation, route }: Props) {
                 <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
                   <Feather color={theme.accent} size={19} strokeWidth={1.7} />
                   <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 18, fontWeight: '700' }}>{t('reader.notes')}</Text>
-                  <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12 }}>({epubNotes.notes.length})</Text>
+                  <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12 }}>({readerNotes.notes.length})</Text>
                 </View>
                 <Pressable hitSlop={10} onPress={closeNotes} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: spacing.xs })}>
                   <X color={theme.textSecondary} size={20} />
                 </Pressable>
               </View>
 
-              {epubNotes.notes.length === 0 ? (
+              {readerNotes.notes.length === 0 ? (
                 <View style={{ alignItems: 'center', flex: 1, gap: spacing.sm, justifyContent: 'center', paddingVertical: spacing.xl }}>
                   <StickyNote color={theme.textMuted} size={32} strokeWidth={1.5} />
                   <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 14, fontWeight: '700', textAlign: 'center' }}>{t('reader.noNotes')}</Text>
@@ -1387,7 +1412,7 @@ export function ReaderScreen({ navigation, route }: Props) {
               ) : (
                 <>
                   <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 420 }}>
-                    {epubNotes.notes.map((note, index) => {
+                    {readerNotes.notes.map((note, index) => {
                       const preview = note.content.length > 80 ? note.content.slice(0, 80).trim() + '…' : note.content;
                       const pageLabel = note.pageNumber
                         ? t('reader.pageWithNumber').replace('{0}', String(note.pageNumber))
@@ -1401,7 +1426,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                           style={({ pressed }) => ({
                             backgroundColor: pressed ? theme.surface : 'transparent',
                             borderBottomColor: theme.border,
-                            borderBottomWidth: index === epubNotes.notes.length - 1 ? 0 : 1,
+                            borderBottomWidth: index === readerNotes.notes.length - 1 ? 0 : 1,
                             flexDirection: 'row',
                             gap: spacing.md,
                             paddingVertical: spacing.md,
@@ -1662,11 +1687,9 @@ export function ReaderScreen({ navigation, route }: Props) {
               </View>
 
               <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 11, marginBottom: spacing.sm }}>
-                {editingNoteId && selectedNote?.pageNumber
-                  ? t('reader.pageWithNumber').replace('{0}', String(selectedNote.pageNumber))
-                  : epubViewStatus?.currentPage
-                    ? t('reader.pageWithNumber').replace('{0}', String(epubViewStatus.currentPage))
-                    : t('reader.currentPage')}
+                {noteEditorPageNumber
+                  ? t('reader.pageWithNumber').replace('{0}', String(noteEditorPageNumber))
+                  : t('reader.currentPage')}
                 {' · '}{t('reader.noteWillBeSaved')}
               </Text>
 
@@ -1726,7 +1749,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         onRequestClose={closePreview}
         statusBarTranslucent
         transparent
-        visible={!!previewNote && isEpub}
+        visible={!!previewNote}
       >
         <View style={{ backgroundColor: 'rgba(0, 0, 0, 0.15)', flex: 1 }}>
           <Pressable onPress={closePreview} style={{ alignItems: 'center', flex: 1, justifyContent: 'center', padding: spacing.lg }}>
@@ -1770,7 +1793,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                 </Pressable>
               </View>
 
-              {previewNote?.locator.format === 'epub' ? (
+              {previewNote ? (
                 <View style={{ alignItems: 'center', backgroundColor: epubBackground, flex: 1, justifyContent: 'center', padding: spacing.md }}>
                   <View
                     style={{
@@ -1791,18 +1814,27 @@ export function ReaderScreen({ navigation, route }: Props) {
                         width: previewReaderWidth,
                       }}
                     >
-                      <EpubReader
-                        bookId={`${book.id}-note-preview-${previewNote.id}`}
-                        filePath={book.filePath}
-                        fileSize={book.fileSize}
-                        fontSize={readerSettings.fontSize}
-                        initialLocator={previewNote.locator}
-                        lineHeight={readerSettings.lineHeight}
-                        marginHorizontal={readerLayout.settings.marginHorizontal}
-                        readOnly
-                        readingPreferences={readingPreferences.preferences}
-                        useBookMargins={readerLayout.settings.useBookMargins}
-                      />
+                      {previewNote.locator.format === 'epub' ? (
+                        <EpubReader
+                          bookId={`${book.id}-note-preview-${previewNote.id}`}
+                          filePath={book.filePath}
+                          fileSize={book.fileSize}
+                          fontSize={readerSettings.fontSize}
+                          initialLocator={previewNote.locator}
+                          lineHeight={readerSettings.lineHeight}
+                          marginHorizontal={readerLayout.settings.marginHorizontal}
+                          readOnly
+                          readingPreferences={readingPreferences.preferences}
+                          useBookMargins={readerLayout.settings.useBookMargins}
+                        />
+                      ) : (
+                        <PdfReader
+                          displayMode="paginated"
+                          filePath={book.filePath}
+                          initialPage={previewNote.locator.page}
+                          interactionEnabled={false}
+                        />
+                      )}
                     </View>
                   </View>
                 </View>
