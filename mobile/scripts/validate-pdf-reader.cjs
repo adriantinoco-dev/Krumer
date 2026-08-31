@@ -133,6 +133,7 @@ async function main() {
   );
   const volumeKeysSource = fs.readFileSync('src/readers/readerVolumeKeys.ts', 'utf8');
   const epubVolumeKeysSource = fs.readFileSync('src/readers/epubVolumeKeys.ts', 'utf8');
+  const pdfBookmarksSource = fs.readFileSync('src/readers/usePdfBookmarks.ts', 'utf8');
   const readerScreenSource = fs.readFileSync('src/screens/ReaderScreen.tsx', 'utf8');
   const paginationModalSource = fs.readFileSync('src/components/PaginationSettingsModal.tsx', 'utf8');
   const mainActivitySource = fs.readFileSync(
@@ -291,6 +292,21 @@ async function main() {
   }
 
   if (
+    !pdfBookmarksSource.includes("listReaderBookmarks(bookId, 'pdf')")
+    || !pdfBookmarksSource.includes('createReaderBookmark(bookId, createPdfLocator(page))')
+    || !pdfBookmarksSource.includes('tombstoneReaderBookmark(id)')
+    || !readerScreenSource.includes('const pdfBookmarks = usePdfBookmarks({')
+    || !readerScreenSource.includes('const readerBookmarks = isEpub ? epubPersistence.bookmarks : pdfBookmarks.bookmarks')
+    || !readerScreenSource.includes('const pdfReaderRef = useRef<PdfReaderHandle>(null)')
+    || !readerScreenSource.includes('ref={pdfReaderRef}')
+    || !readerScreenSource.includes("t('reader.pageWithNumber').replace('{0}', String(locator.page))")
+    || !readerScreenSource.includes('pdfReaderRef.current?.goToPage(locator.page)')
+    || !readerScreenSource.includes('? pdfBookmarks.removeBookmark')
+  ) {
+    throw new Error('PDF bookmarks can regress in persistence, labeling, deletion, or page navigation.');
+  }
+
+  if (
     !readerScreenSource.includes('Bottom bar compartilhada pelos leitores')
     || readerScreenSource.includes('Bottom bar PDF —')
     || readerScreenSource.includes('<PdfControls')
@@ -347,7 +363,7 @@ async function main() {
     throw new Error('Volume Up/Down do not scroll continuously or preserve paginated PDF navigation.');
   }
 
-  console.log('PDF reader controls, brightness lifecycle, scrolling, persistence, and adapter are valid.');
+  console.log('PDF reader controls, bookmarks, brightness lifecycle, scrolling, persistence, and adapter are valid.');
 }
 
 main().catch((error) => {

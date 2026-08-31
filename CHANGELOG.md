@@ -8,6 +8,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Alterado
+- **Mobile — leitor PDF, Fase 3 (marcadores):** marcadores agora são salvos na página
+  corrente, persistem separadamente por livro e formato, aceitam repetições e exibem
+  página, data e eventual rótulo. Abrir um marcador fecha o modal e navega para a página
+  salva tanto no modo paginado quanto no modo scroll; exclusão e EPUB permanecem intactos.
 - **Mobile — leitor PDF, Fase 2 (paginação e orientação):** as preferências de
   Scroll/Paginado e Livre/Paisagem/Retrato agora são carregadas, aplicadas e persistidas
   no PDF. O modal oculta coluna simples/dupla somente para PDF, restaura os padrões para

@@ -15,6 +15,14 @@ export type PdfLocator = {
   progressionInPage: number | null;
 };
 
+export function createPdfLocator(page: number): PdfLocator {
+  return {
+    format: 'pdf',
+    page: Number.isFinite(page) ? Math.max(1, Math.floor(page)) : 1,
+    progressionInPage: null,
+  };
+}
+
 export type ReaderLocator = EpubLocator | PdfLocator;
 
 export type ReaderProgress = {

@@ -15,11 +15,12 @@ import { ActionSheetModal } from '../components/ActionSheetModal';
 import { EpubReader, type EpubReaderHandle } from '../readers/EpubReader';
 import type { EpubRelocationSource, EpubTocItem, EpubViewStatus } from '../readers/epubBridge';
 import { PdfReader } from '../readers/PdfReader';
-import { PDF_DEFAULTS, type PdfDisplayMode } from '../readers/PdfReader.types';
+import { PDF_DEFAULTS, type PdfDisplayMode, type PdfReaderHandle } from '../readers/PdfReader.types';
 import { loadPdfPrefs, savePdfDisplayMode, savePdfOrientation } from '../readers/pdf/usePdfPrefs';
 import { useEpubPersistence } from '../readers/useEpubPersistence';
 import { useEpubNotes } from '../readers/useEpubNotes';
 import { useOrientation } from '../readers/useOrientation';
+import { usePdfBookmarks } from '../readers/usePdfBookmarks';
 import { useReadingPreferences } from '../readers/useReadingPreferences';
 import { useReaderLayoutSettings } from '../readers/useReaderLayoutSettings';
 import { useApp } from '../context/AppContext';
@@ -116,6 +117,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const pdfProgressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPdfProgressRef = useRef<{ page: number; total: number } | null>(null);
   const epubReaderRef = useRef<EpubReaderHandle>(null);
+  const pdfReaderRef = useRef<PdfReaderHandle>(null);
   const allowControlledCloseRef = useRef(false);
   const controlledCloseInFlightRef = useRef(false);
   const epubBackground = theme.name === 'dark' ? '#202020' : theme.name === 'sepia' ? '#f4ecd8' : '#ffffff';
@@ -154,6 +156,16 @@ export function ReaderScreen({ navigation, route }: Props) {
     legacyCfi: book.cfi ?? book.progress,
     onDurableProgress: syncDurableEpubProgress,
   });
+
+  const pdfBookmarks = usePdfBookmarks({
+    bookId: book.id,
+    enabled: !isEpub,
+  });
+  const readerBookmarks = isEpub ? epubPersistence.bookmarks : pdfBookmarks.bookmarks;
+  const bookmarksHydrated = isEpub ? epubPersistence.hydrated : pdfBookmarks.hydrated;
+  const bookmarkReadyToAdd = bookmarksHydrated && (isEpub
+    ? !!epubPersistence.currentLocator
+    : currentPage > 0);
 
   const epubNotes = useEpubNotes(isEpub ? book.id : null, isEpub ? 'epub' : 'pdf');
 
@@ -248,6 +260,24 @@ export function ReaderScreen({ navigation, route }: Props) {
     setBookmarksVisible(false);
     scheduleHide();
   }, [scheduleHide]);
+
+  const handleAddBookmark = useCallback(() => {
+    if (!bookmarkReadyToAdd || bookmarkBusy) return;
+    setBookmarkBusy(true);
+    const request = isEpub
+      ? epubPersistence.addBookmark()
+      : pdfBookmarks.addBookmark(currentPage);
+    void request
+      .catch((error) => console.warn('[Krumer ReaderScreen] falha ao criar marcador', error))
+      .finally(() => setBookmarkBusy(false));
+  }, [
+    bookmarkBusy,
+    bookmarkReadyToAdd,
+    currentPage,
+    epubPersistence.addBookmark,
+    isEpub,
+    pdfBookmarks.addBookmark,
+  ]);
 
   const openNotes = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
@@ -630,6 +660,7 @@ export function ReaderScreen({ navigation, route }: Props) {
             onExternalLink={handleExternalLink}
             onPageChange={handlePdfPageChange}
             onCenterTap={toggleBars}
+            ref={pdfReaderRef}
           />
         ) : (
           <View style={{ alignItems: 'center', backgroundColor: theme.bg, flex: 1, justifyContent: 'center' }}>
@@ -769,20 +800,14 @@ export function ReaderScreen({ navigation, route }: Props) {
           <View style={{ flexDirection: 'row', width: 88 }}>
             <Pressable
               accessibilityLabel={t('reader.addBookmark')}
-              disabled={isEpub && (!epubPersistence.currentLocator || bookmarkBusy)}
+              disabled={!bookmarkReadyToAdd || bookmarkBusy}
               hitSlop={6}
-              onPress={() => {
-                if (!isEpub) return;
-                setBookmarkBusy(true);
-                void epubPersistence.addBookmark()
-                  .catch((error) => console.warn('[Krumer ReaderScreen] falha ao criar marcador', error))
-                  .finally(() => setBookmarkBusy(false));
-              }}
+              onPress={handleAddBookmark}
               style={({ pressed }) => ({
                 alignItems: 'center',
                 height: scaleEpubChrome(40),
                 justifyContent: 'center',
-                opacity: isEpub && (!epubPersistence.currentLocator || bookmarkBusy) ? 0.32 : pressed ? 0.55 : 1,
+                opacity: !bookmarkReadyToAdd || bookmarkBusy ? 0.32 : pressed ? 0.55 : 1,
                 width: 44,
               })}
             >
@@ -805,7 +830,7 @@ export function ReaderScreen({ navigation, route }: Props) {
             >
               <Bookmark
                 color={epubText}
-                fill={epubPersistence.bookmarks.length ? epubText : 'transparent'}
+                fill={readerBookmarks.length ? epubText : 'transparent'}
                 size={20}
                 strokeWidth={1.7}
               />
@@ -976,20 +1001,36 @@ export function ReaderScreen({ navigation, route }: Props) {
               </Pressable>
             </View>
 
-            {epubPersistence.bookmarks.length ? (
+            {!bookmarksHydrated ? (
+              <View style={{ alignItems: 'center', paddingVertical: spacing.xl }}>
+                <ActivityIndicator color={theme.accent} size="small" />
+              </View>
+            ) : readerBookmarks.length ? (
               <ScrollView showsVerticalScrollIndicator={false}>
-                {epubPersistence.bookmarks.map((bookmark, index) => {
+                {readerBookmarks.map((bookmark, index) => {
                   const locator = bookmark.locator;
-                  if (locator.format !== 'epub') return null;
-                  const bookmarkProgress = locator.totalProgression === null
-                    ? null
-                    : Math.round(locator.totalProgression * 100);
-                  const excerpt = (bookmark.label || locator.excerpt).replace(/\s+/g, ' ').trim();
+                  const createdAt = new Date(bookmark.createdAt).toLocaleString();
+                  const pageLabel = locator.format === 'pdf'
+                    ? t('reader.pageWithNumber').replace('{0}', String(locator.page))
+                    : null;
+                  const bookmarkLabel = bookmark.label?.trim();
+                  const bookmarkTitle = locator.format === 'pdf'
+                    ? bookmarkLabel || pageLabel
+                    : (bookmark.label || locator.excerpt).replace(/\s+/g, ' ').trim()
+                      || `${t('reader.bookmarks')} ${readerBookmarks.length - index}`;
+                  const bookmarkDetails = locator.format === 'pdf'
+                    ? `${bookmarkLabel ? `${pageLabel} · ` : ''}${createdAt}`
+                    : `${locator.totalProgression === null ? '' : `${Math.round(locator.totalProgression * 100)}%  `}${createdAt}`;
                   return (
                     <Pressable
                       key={bookmark.id}
                       accessibilityRole="button"
                       onPress={() => {
+                        if (locator.format === 'pdf') {
+                          closeBookmarks();
+                          pdfReaderRef.current?.goToPage(locator.page);
+                          return;
+                        }
                         epubReaderRef.current?.goToLocator(locator);
                         closeBookmarks();
                       }}
@@ -997,7 +1038,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                         alignItems: 'center',
                         backgroundColor: pressed ? theme.card : 'transparent',
                         borderBottomColor: theme.border,
-                        borderBottomWidth: index === epubPersistence.bookmarks.length - 1 ? 0 : 1,
+                        borderBottomWidth: index === readerBookmarks.length - 1 ? 0 : 1,
                         flexDirection: 'row',
                         gap: spacing.md,
                         minHeight: 68,
@@ -1006,11 +1047,10 @@ export function ReaderScreen({ navigation, route }: Props) {
                     >
                       <View style={{ flex: 1, gap: 4 }}>
                         <Text numberOfLines={2} style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 14, lineHeight: 19 }}>
-                          {excerpt || `${t('reader.bookmarks')} ${epubPersistence.bookmarks.length - index}`}
+                          {bookmarkTitle}
                         </Text>
                         <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 11 }}>
-                          {bookmarkProgress === null ? '' : `${bookmarkProgress}%  `}
-                          {new Date(bookmark.createdAt).toLocaleString()}
+                          {bookmarkDetails}
                         </Text>
                       </View>
                       <Pressable
@@ -1018,7 +1058,10 @@ export function ReaderScreen({ navigation, route }: Props) {
                         hitSlop={8}
                         onPress={(event) => {
                           event.stopPropagation();
-                          void epubPersistence.removeBookmark(bookmark.id)
+                          const removeBookmark = locator.format === 'pdf'
+                            ? pdfBookmarks.removeBookmark
+                            : epubPersistence.removeBookmark;
+                          void removeBookmark(bookmark.id)
                             .catch((error) => console.warn('[Krumer ReaderScreen] falha ao remover marcador', error));
                         }}
                         style={({ pressed }) => ({ opacity: pressed ? 0.55 : 1, padding: spacing.sm })}

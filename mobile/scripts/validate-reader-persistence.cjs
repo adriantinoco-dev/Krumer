@@ -45,6 +45,19 @@ function main() {
     throw new Error('An invalid EPUB progression was accepted.');
   }
 
+  const pdfLocator = models.createPdfLocator(18.9);
+  if (
+    JSON.stringify(pdfLocator) !== JSON.stringify({
+      format: 'pdf',
+      page: 18,
+      progressionInPage: null,
+    })
+    || !models.parseReaderLocator(pdfLocator)
+    || models.parseReaderLocator({ ...pdfLocator, page: 0 })
+  ) {
+    throw new Error('PDF bookmark locators are not normalized to a valid current page.');
+  }
+
   database.prepare(`INSERT INTO reader_progress (
     book_id, format, cfi, spine_href, progression_in_section, excerpt, total_progression, updated_at
   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
@@ -86,6 +99,25 @@ function main() {
     throw new Error('Bookmark tombstones are not filtered as expected.');
   }
 
+  const insertPdfBookmark = database.prepare(`INSERT INTO reader_bookmarks (
+    id, book_id, format, page, progression_in_page, label, created_at, updated_at
+  ) VALUES (?, ?, 'pdf', ?, ?, ?, ?, ?)`);
+  insertPdfBookmark.run('pdf-bookmark-1', 'book-1', pdfLocator.page, null, null, now + 2, now + 2);
+  insertPdfBookmark.run('pdf-bookmark-2', 'book-1', pdfLocator.page, null, 'Retomar daqui', now + 3, now + 3);
+  insertPdfBookmark.run('pdf-bookmark-other-book', 'book-2', pdfLocator.page, null, null, now + 4, now + 4);
+  const pdfBookmarks = database.prepare(
+    `SELECT page, progression_in_page, label FROM reader_bookmarks
+      WHERE book_id = ? AND format = ? AND deleted_at IS NULL
+      ORDER BY created_at DESC`,
+  ).all('book-1', 'pdf');
+  if (
+    pdfBookmarks.length !== 2
+    || pdfBookmarks.some((bookmark) => bookmark.page !== 18 || bookmark.progression_in_page !== null)
+    || pdfBookmarks[0].label !== 'Retomar daqui'
+  ) {
+    throw new Error('PDF bookmarks are not repeated, labeled, or isolated by book and format.');
+  }
+
   const isoNow = new Date().toISOString();
   database.prepare(`INSERT INTO reader_notes (
     id, book_id, format, cfi, spine_href, progression_in_section, excerpt,
@@ -112,7 +144,7 @@ function main() {
   }
 
   database.close();
-  console.log('Reader database migration, locator validation, bookmark tombstones, and notes are valid.');
+  console.log('Reader database migration, PDF/EPUB locators, bookmark isolation, tombstones, and notes are valid.');
 }
 
 try {
