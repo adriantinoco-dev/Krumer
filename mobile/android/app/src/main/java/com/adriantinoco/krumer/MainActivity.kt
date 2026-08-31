@@ -56,12 +56,13 @@ class MainActivity : ReactActivity() {
       event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN
 
     if (KrumerVolumeKeysModule.enabled && isVolumeKey) {
-      if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+      if (event.action == KeyEvent.ACTION_DOWN) {
         val direction = if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) "next" else "previous"
+        val eventValue = if (event.repeatCount > 0) "$direction:repeat" else direction
         (application as? MainApplication)
           ?.reactHost
           ?.currentReactContext
-          ?.emitDeviceEvent(KrumerVolumeKeysModule.EVENT_NAME, direction)
+          ?.emitDeviceEvent(KrumerVolumeKeysModule.EVENT_NAME, eventValue)
       }
       return true
     }

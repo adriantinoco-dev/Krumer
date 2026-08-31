@@ -61,6 +61,49 @@ async function main() {
   if (state.clampPdfPage(0, 20) !== 1 || state.clampPdfPage(99, 20) !== 20) {
     throw new Error('PDF page clamp is invalid.');
   }
+
+  let volumeListener = null;
+  const volumeEnabledStates = [];
+  class FakeVolumeEventEmitter {
+    addListener(_eventName, listener) {
+      volumeListener = listener;
+      return { remove: () => { volumeListener = null; } };
+    }
+  }
+  const volumeNativeModule = {
+    addListener() {},
+    removeListeners() {},
+    setEnabled(value) { volumeEnabledStates.push(value); },
+  };
+  const volumeKeys = loadTypeScriptModule('src/readers/readerVolumeKeys.ts', {
+    'react-native': {
+      NativeEventEmitter: FakeVolumeEventEmitter,
+      NativeModules: { KrumerVolumeKeys: volumeNativeModule },
+      Platform: { OS: 'android' },
+    },
+  });
+  const paginatedVolumeEvents = [];
+  const stopPaginatedVolume = volumeKeys.subscribeToReaderVolumeKeys((direction) => {
+    paginatedVolumeEvents.push(direction);
+  });
+  volumeListener('next');
+  volumeListener('next:repeat');
+  stopPaginatedVolume();
+  const scrollVolumeEvents = [];
+  const stopScrollVolume = volumeKeys.subscribeToReaderVolumeKeys((direction) => {
+    scrollVolumeEvents.push(direction);
+  }, { allowRepeats: true });
+  volumeListener('previous');
+  volumeListener('previous:repeat');
+  stopScrollVolume();
+  if (
+    JSON.stringify(paginatedVolumeEvents) !== JSON.stringify(['next'])
+    || JSON.stringify(scrollVolumeEvents) !== JSON.stringify(['previous', 'previous'])
+    || JSON.stringify(volumeEnabledStates) !== JSON.stringify([true, false, true, false])
+  ) {
+    throw new Error('Volume long-press events are not isolated to repeat-enabled reader modes.');
+  }
+
   const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
   const packageLock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
   if (
@@ -92,6 +135,10 @@ async function main() {
   const epubVolumeKeysSource = fs.readFileSync('src/readers/epubVolumeKeys.ts', 'utf8');
   const readerScreenSource = fs.readFileSync('src/screens/ReaderScreen.tsx', 'utf8');
   const paginationModalSource = fs.readFileSync('src/components/PaginationSettingsModal.tsx', 'utf8');
+  const mainActivitySource = fs.readFileSync(
+    'android/app/src/main/java/com/adriantinoco/krumer/MainActivity.kt',
+    'utf8',
+  );
   if (
     !readerSource.includes('usePdfSource(filePath)')
     || !readerSource.includes('forwardRef<PdfReaderHandle, PdfReaderProps>')
@@ -284,12 +331,18 @@ async function main() {
   if (
     !volumeKeysSource.includes("export type ReaderVolumeDirection = 'next' | 'previous'")
     || !volumeKeysSource.includes("const EVENT_NAME = 'KrumerVolumeKey'")
+    || !volumeKeysSource.includes("value === 'next:repeat' || value === 'previous:repeat'")
+    || !volumeKeysSource.includes('event.repeated && !allowRepeats')
     || !epubVolumeKeysSource.includes('subscribeToReaderVolumeKeys as subscribeToEpubVolumeKeys')
     || !readerSource.includes('subscribeToReaderVolumeKeys((direction)')
+    || !readerSource.includes("}, { allowRepeats: displayMode === 'scroll' })")
     || !readerSource.includes("if (displayMode === 'scroll')")
     || !readerSource.includes('engineRef.current?.scrollByViewport(fraction)')
     || !readerSource.includes("pdfDevLog('controls:volume-scroll'")
     || !readerSource.includes("const delta = direction === 'next' ? 1 : -1")
+    || !mainActivitySource.includes('if (event.action == KeyEvent.ACTION_DOWN)')
+    || mainActivitySource.includes('event.repeatCount == 0')
+    || !mainActivitySource.includes('if (event.repeatCount > 0) "$direction:repeat" else direction')
   ) {
     throw new Error('Volume Up/Down do not scroll continuously or preserve paginated PDF navigation.');
   }

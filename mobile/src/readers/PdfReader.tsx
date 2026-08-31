@@ -237,7 +237,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     goToPage(currentPageRef.current + delta);
     const page = currentPageRef.current;
     requestAnimationFrame(() => pdfDevLog('controls:volume-key', { direction, page }));
-  }), [displayMode, goToPage]);
+  }, { allowRepeats: displayMode === 'scroll' }), [displayMode, goToPage]);
 
   const handleTapAtX = useCallback((tapX: number, source: 'quick' | 'native') => {
     if (displayMode !== 'paginated') return false;
