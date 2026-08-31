@@ -1,5 +1,5 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { ActivityIndicator, PixelRatio, Platform, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, PixelRatio, Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { radii, serifFont, spacing } from '../theme';
 import { PDF_DEFAULTS, type PdfReaderHandle, type PdfReaderProps } from './PdfReader.types';
@@ -13,6 +13,16 @@ import { subscribeToReaderVolumeKeys } from './readerVolumeKeys';
 const PDF_LOAD_TIMEOUT_MS = 12_000;
 const PDF_SIDE_TAP_RATIO = 0.25;
 const PDF_VOLUME_SCROLL_VIEWPORT_RATIO = 0.18;
+const styles = StyleSheet.create({
+  interactionBlocker: {
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    zIndex: 20,
+  },
+});
 
 export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader(
   {
@@ -37,6 +47,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   const previousDisplayModeRef = useRef(displayMode);
   const previousViewportRef = useRef({ height: viewportHeight, width: viewportWidth });
   const onCenterTapRef = useRef(onCenterTap);
+  const interactionEnabledRef = useRef(interactionEnabled);
   const lastReportedSnapshotRef = useRef<string | null>(null);
   const loadProgressBucketRef = useRef(-1);
   const [scale, setScale] = useState<number>(PDF_DEFAULTS.scale);
@@ -44,6 +55,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   const [error, setError] = useState<string | null>(null);
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
   onCenterTapRef.current = onCenterTap;
+  interactionEnabledRef.current = interactionEnabled;
 
   useEffect(() => {
     let active = true;
@@ -244,7 +256,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   }, [displayMode, goToPage, interactionEnabled]);
 
   const handleTapAtX = useCallback((tapX: number, source: 'quick' | 'native') => {
-    if (!interactionEnabled) return false;
+    if (!interactionEnabledRef.current) return false;
     if (displayMode !== 'paginated') return false;
     if (tapX <= viewportWidth * PDF_SIDE_TAP_RATIO) {
       goToPage(currentPageRef.current - 1);
@@ -266,28 +278,28 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
       return true;
     }
     return false;
-  }, [displayMode, goToPage, interactionEnabled, viewportWidth]);
+  }, [displayMode, goToPage, viewportWidth]);
 
   const handleQuickTap = useCallback((tapX: number, _tapY: number) => (
     handleTapAtX(tapX, 'quick')
   ), [handleTapAtX]);
 
   const handleSingleTap = useCallback((_page: number, x: number, _y: number) => {
-    if (!interactionEnabled) return;
+    if (!interactionEnabledRef.current) return;
     const tapX = Platform.OS === 'android' ? x / PixelRatio.get() : x;
     if (handleTapAtX(tapX, 'native')) return;
     pdfDevLog('controls:toggle-bars-tap');
     onCenterTapRef.current?.();
-  }, [handleTapAtX, interactionEnabled]);
+  }, [handleTapAtX]);
 
   const handleExternalLink = useCallback((url: string) => {
-    if (!interactionEnabled) return;
+    if (!interactionEnabledRef.current) return;
     if (/^(https?:|mailto:|tel:)/i.test(url)) {
       onExternalLink?.(url);
       return;
     }
     console.warn('[Krumer PdfReader] esquema de link externo bloqueado', url);
-  }, [interactionEnabled, onExternalLink]);
+  }, [onExternalLink]);
 
   if (error) {
     return (
@@ -330,7 +342,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   }
 
   return (
-    <View pointerEvents={interactionEnabled ? 'auto' : 'none'} style={{ backgroundColor: theme.bg, flex: 1 }}>
+    <View style={{ backgroundColor: theme.bg, flex: 1 }}>
       <NativePdfEngine
         ref={engineRef}
         displayMode={displayMode}
@@ -367,6 +379,11 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
           </Text>
         </View>
       ) : null}
+      <View
+        collapsable={false}
+        pointerEvents={interactionEnabled ? 'none' : 'auto'}
+        style={styles.interactionBlocker}
+      />
     </View>
   );
 });

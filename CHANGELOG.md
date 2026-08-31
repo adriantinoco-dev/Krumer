@@ -8,6 +8,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Alterado
+- **Mobile — PDF sem piscar ao abrir modais:** o bloqueio temporário de interação agora usa
+  uma camada transparente independente, sem alterar o contêiner nem os callbacks da view
+  nativa ao abrir painéis, preservando a página e o zoom atuais sem redesenhar o documento.
 - **Mobile — leitor PDF, Fase 4 (notas e prévia):** notas agora carregam e persistem por
   livro no formato PDF, vinculadas à página corrente, com criação, lista, detalhes, edição
   e exclusão confirmada. A âncora abre somente a página salva em uma prévia paginada e sem

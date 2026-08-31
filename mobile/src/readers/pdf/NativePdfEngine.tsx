@@ -1,5 +1,6 @@
 import React, {
   forwardRef,
+  memo,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -42,7 +43,7 @@ type NativePdfEngineProps = {
 };
 
 /** Única fronteira entre o Krumer e o componente nativo react-native-pdf. */
-export const NativePdfEngine = forwardRef<NativePdfEngineHandle, NativePdfEngineProps>(
+export const NativePdfEngine = memo(forwardRef<NativePdfEngineHandle, NativePdfEngineProps>(
   function NativePdfEngine(
     {
       displayMode,
@@ -177,4 +178,4 @@ export const NativePdfEngine = forwardRef<NativePdfEngineHandle, NativePdfEngine
       </View>
     );
   },
-);
+));

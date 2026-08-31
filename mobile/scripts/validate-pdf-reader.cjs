@@ -312,8 +312,17 @@ async function main() {
     !readerTypesSource.includes('interactionEnabled?: boolean;')
     || !readerSource.includes('interactionEnabled = true')
     || !readerSource.includes('if (!interactionEnabled) return undefined;')
-    || (readerSource.match(/if \(!interactionEnabled\) return;/g) ?? []).length < 2
-    || !readerSource.includes("pointerEvents={interactionEnabled ? 'auto' : 'none'}")
+    || !readerSource.includes('const interactionEnabledRef = useRef(interactionEnabled)')
+    || !readerSource.includes('interactionEnabledRef.current = interactionEnabled')
+    || (readerSource.match(/if \(!interactionEnabledRef\.current\)/g) ?? []).length < 3
+    || readerSource.includes("<View pointerEvents={interactionEnabled ? 'auto' : 'none'} style={{ backgroundColor: theme.bg, flex: 1 }}>")
+    || !readerSource.includes("pointerEvents={interactionEnabled ? 'none' : 'auto'}")
+    || !readerSource.includes('collapsable={false}')
+    || !readerSource.includes('style={styles.interactionBlocker}')
+    || readerSource.includes('[displayMode, goToPage, interactionEnabled, viewportWidth]')
+    || readerSource.includes('[handleTapAtX, interactionEnabled]')
+    || readerSource.includes('[interactionEnabled, onExternalLink]')
+    || !engineSource.includes('memo(forwardRef<NativePdfEngineHandle, NativePdfEngineProps>')
     || !readerScreenSource.includes("const readerNotes = useEpubNotes(book.id, isEpub ? 'epub' : 'pdf')")
     || !readerNotesSource.includes('listReaderNotes(bookId, format)')
     || !readerNotesSource.includes('createReaderNote(bookId, locator, content, pageNumber)')
@@ -328,7 +337,7 @@ async function main() {
     || !readerScreenSource.includes('interactionEnabled={false}')
     || (readerScreenSource.match(/<PdfReader\b/g) ?? []).length !== 2
   ) {
-    throw new Error('PDF notes can regress in CRUD persistence, page binding, preview, or interaction isolation.');
+    throw new Error('PDF notes can regress in CRUD persistence, page binding, preview, interaction isolation, or native-view stability.');
   }
 
   if (
