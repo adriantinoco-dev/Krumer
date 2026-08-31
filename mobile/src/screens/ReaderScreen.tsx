@@ -15,6 +15,8 @@ import { ActionSheetModal } from '../components/ActionSheetModal';
 import { EpubReader, type EpubReaderHandle } from '../readers/EpubReader';
 import type { EpubRelocationSource, EpubTocItem, EpubViewStatus } from '../readers/epubBridge';
 import { PdfReader } from '../readers/PdfReader';
+import { PDF_DEFAULTS, type PdfDisplayMode } from '../readers/PdfReader.types';
+import { loadPdfPrefs, savePdfDisplayMode } from '../readers/pdf/usePdfPrefs';
 import { useEpubPersistence } from '../readers/useEpubPersistence';
 import { useEpubNotes } from '../readers/useEpubNotes';
 import { useOrientation } from '../readers/useOrientation';
@@ -22,6 +24,7 @@ import { useReadingPreferences } from '../readers/useReadingPreferences';
 import { useReaderLayoutSettings } from '../readers/useReaderLayoutSettings';
 import { useApp } from '../context/AppContext';
 import type { EpubLocator, ReaderNote } from '../models/reader';
+import type { ReadingPreferences } from '../models/readingPreferences';
 import type { RootStackParamList } from '../navigation/types';
 import { radii, serifFont, spacing } from '../theme';
 
@@ -34,6 +37,7 @@ const LINE_HEIGHT_MIN = 1.0;
 const LINE_HEIGHT_MAX = 2.4;
 const LINE_HEIGHT_DEFAULT = 1.5;
 const HIDE_DELAY = 4000;
+const PDF_PROGRESS_SAVE_DELAY_MS = 500;
 const EPUB_CONTENT_VERTICAL_OFFSET = 26;
 const EPUB_CHROME_VERTICAL_SCALE = 0.6;
 const EPUB_TOP_BAR_SIDE_WIDTH = 132;
@@ -77,6 +81,8 @@ export function ReaderScreen({ navigation, route }: Props) {
   const [layoutSettingsVisible, setLayoutSettingsVisible] = useState(false);
   const [currentPage, setCurrentPage] = useState(book.currentPage ?? 1);
   const [totalPages, setTotalPages] = useState(book.totalPages ?? 0);
+  const [pdfDisplayMode, setPdfDisplayMode] = useState<PdfDisplayMode>(PDF_DEFAULTS.displayMode);
+  const [pdfPreferencesHydrated, setPdfPreferencesHydrated] = useState(isEpub);
   const [epubViewStatus, setEpubViewStatus] = useState<EpubViewStatus | null>(null);
   const [readerSettings, setReaderSettings] = useState<ReaderSettings>({
     fontSize: FONT_SIZE_DEFAULT,
@@ -105,6 +111,8 @@ export function ReaderScreen({ navigation, route }: Props) {
   const brightnessAnim = useRef(new Animated.Value(0.7)).current;
   const opacity = useRef(new Animated.Value(book.format === 'epub' ? 0 : 1)).current;
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pdfProgressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingPdfProgressRef = useRef<{ page: number; total: number } | null>(null);
   const epubReaderRef = useRef<EpubReaderHandle>(null);
   const allowControlledCloseRef = useRef(false);
   const controlledCloseInFlightRef = useRef(false);
@@ -171,6 +179,26 @@ export function ReaderScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (!isEpub) AsyncStorage.getItem(`progress_${book.id}`).then(setSavedPosition);
     loadReaderSettings().then(setReaderSettings);
+  }, [book.id, isEpub]);
+
+  useEffect(() => {
+    if (isEpub) {
+      setPdfPreferencesHydrated(true);
+      return undefined;
+    }
+
+    let active = true;
+    setPdfPreferencesHydrated(false);
+    void loadPdfPrefs()
+      .then((preferences) => {
+        if (active) setPdfDisplayMode(preferences.displayMode);
+      })
+      .finally(() => {
+        if (active) setPdfPreferencesHydrated(true);
+      });
+    return () => {
+      active = false;
+    };
   }, [book.id, isEpub]);
 
   useEffect(() => {
@@ -337,8 +365,58 @@ export function ReaderScreen({ navigation, route }: Props) {
   }, [book.currentPage, book.format, book.id, book.totalPages, updateBookProgress]);
 
   const handlePdfPageChange = useCallback((page: number, total: number) => {
-    void saveProgress(String(page), total ? page / total : 0, page, total);
+    const nextProgress = total ? page / total : 0;
+    setProgress(nextProgress);
+    setCurrentPage(page);
+    setTotalPages(total);
+    pendingPdfProgressRef.current = { page, total };
+    if (pdfProgressTimerRef.current) clearTimeout(pdfProgressTimerRef.current);
+    pdfProgressTimerRef.current = setTimeout(() => {
+      const pending = pendingPdfProgressRef.current;
+      pendingPdfProgressRef.current = null;
+      pdfProgressTimerRef.current = null;
+      if (!pending) return;
+      void saveProgress(
+        String(pending.page),
+        pending.total ? pending.page / pending.total : 0,
+        pending.page,
+        pending.total,
+      );
+    }, PDF_PROGRESS_SAVE_DELAY_MS);
   }, [saveProgress]);
+
+  useEffect(() => () => {
+    if (pdfProgressTimerRef.current) clearTimeout(pdfProgressTimerRef.current);
+    const pending = pendingPdfProgressRef.current;
+    pendingPdfProgressRef.current = null;
+    if (pending) {
+      void saveProgress(
+        String(pending.page),
+        pending.total ? pending.page / pending.total : 0,
+        pending.page,
+        pending.total,
+      );
+    }
+  }, [saveProgress]);
+
+  const updatePaginationPreferences = useCallback((patch: Partial<ReadingPreferences>) => {
+    if (isEpub) {
+      readingPreferences.updatePreferences(patch);
+      return;
+    }
+    if (!patch.displayMode) return;
+    setPdfDisplayMode(patch.displayMode);
+    void savePdfDisplayMode(patch.displayMode);
+  }, [isEpub, readingPreferences.updatePreferences]);
+
+  const paginationPreferences: ReadingPreferences = isEpub
+    ? readingPreferences.preferences
+    : {
+        ...readingPreferences.preferences,
+        displayMode: pdfDisplayMode,
+        doubleColumn: false,
+        orientation: PDF_DEFAULTS.orientation,
+      };
 
   function changeFontSize(delta: number) {
     setReaderSettings((prev) => {
@@ -522,13 +600,20 @@ export function ReaderScreen({ navigation, route }: Props) {
 
       {/* Reader content */}
       {book.format === 'pdf' ? (
-        <PdfReader
-          filePath={book.filePath}
-          initialPage={savedPosition ? Number(savedPosition) : 1}
-          onExternalLink={handleExternalLink}
-          onPageChange={handlePdfPageChange}
-          onCenterTap={toggleBars}
-        />
+        pdfPreferencesHydrated ? (
+          <PdfReader
+            displayMode={pdfDisplayMode}
+            filePath={book.filePath}
+            initialPage={savedPosition ? Number(savedPosition) : 1}
+            onExternalLink={handleExternalLink}
+            onPageChange={handlePdfPageChange}
+            onCenterTap={toggleBars}
+          />
+        ) : (
+          <View style={{ alignItems: 'center', backgroundColor: theme.bg, flex: 1, justifyContent: 'center' }}>
+            <ActivityIndicator color={theme.accent} size="large" />
+          </View>
+        )
       ) : (
         <View
           style={{
@@ -1137,8 +1222,8 @@ export function ReaderScreen({ navigation, route }: Props) {
           setPaginationSettingsVisible(false);
           scheduleHide();
         }}
-        onUpdatePreferences={readingPreferences.updatePreferences}
-        preferences={readingPreferences.preferences}
+        onUpdatePreferences={updatePaginationPreferences}
+        preferences={paginationPreferences}
         visible={paginationSettingsVisible}
       />
 

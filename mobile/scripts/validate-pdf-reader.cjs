@@ -80,6 +80,8 @@ async function main() {
     !readerSource.includes('usePdfSource(filePath)')
     || !readerSource.includes('forwardRef<PdfReaderHandle, PdfReaderProps>')
     || !readerSource.includes('<NativePdfEngine')
+    || !readerSource.includes('displayMode={displayMode}')
+    || readerSource.includes('displayMode={PDF_DEFAULTS.displayMode}')
     || !readerSource.includes("pdfDevLog('controls:toggle-bars-tap')")
     || readerSource.includes('classifyPdfTap')
     || !readerSource.includes('onCenterTap?.();')
@@ -93,12 +95,16 @@ async function main() {
     || !engineSource.includes("const isPaginated = displayMode === 'paginated'")
     || !engineSource.includes('enablePaging={isPaginated}')
     || !engineSource.includes('horizontal={isPaginated}')
+    || !engineSource.includes('spacing={isPaginated ? 0 : PDF_SCROLL_PAGE_SPACING}')
     || !engineSource.includes('singlePage={false}')
     || !engineSource.includes('enableAnnotationRendering')
     || !engineSource.includes('onPressLink={onExternalLink}')
     || !engineSource.includes('pdfRef.current?.setPage(page)')
   ) {
     throw new Error('NativePdfEngine can regress to thumbnail mode, unstable source, or incomplete callbacks.');
+  }
+  if ((engineSource.match(/<Pdf\b/g) ?? []).length !== 1) {
+    throw new Error('Continuous PDF scrolling must keep a single native viewer instance.');
   }
   if (
     !debugSource.includes("const PDF_DEBUG_TAG = '[Krumer PDF]'")
@@ -117,6 +123,19 @@ async function main() {
     || !readerScreenSource.includes('onExternalLink={handleExternalLink}')
   ) {
     throw new Error('The reader shell is not receiving PDF external links through a stable callback.');
+  }
+
+  if (
+    !readerScreenSource.includes('loadPdfPrefs, savePdfDisplayMode')
+    || !readerScreenSource.includes('const [pdfDisplayMode, setPdfDisplayMode]')
+    || !readerScreenSource.includes('displayMode={pdfDisplayMode}')
+    || !readerScreenSource.includes('onUpdatePreferences={updatePaginationPreferences}')
+    || !readerScreenSource.includes('preferences={paginationPreferences}')
+    || !readerSource.includes("pdfDevLog('reader:display-mode-changed'")
+    || !readerScreenSource.includes('const PDF_PROGRESS_SAVE_DELAY_MS = 500')
+    || !readerScreenSource.includes('pendingPdfProgressRef.current = { page, total }')
+  ) {
+    throw new Error('PDF continuous scrolling is not connected to persisted mode, page restoration, and throttled progress.');
   }
 
   if (
@@ -151,7 +170,7 @@ async function main() {
     throw new Error('Volume Up/Down do not share the EPUB next/previous contract with PDF.');
   }
 
-  console.log('PDF Phase 3 shared EPUB toolbars, modal entry points, center tap, volume navigation, and adapter are valid.');
+  console.log('PDF Phase 4 continuous scrolling, shared EPUB toolbars, persistence, and adapter are valid.');
 }
 
 main().catch((error) => {

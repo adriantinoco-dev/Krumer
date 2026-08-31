@@ -13,7 +13,14 @@ import { subscribeToReaderVolumeKeys } from './readerVolumeKeys';
 const PDF_LOAD_TIMEOUT_MS = 12_000;
 
 export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader(
-  { filePath, initialPage = 1, onCenterTap, onExternalLink, onPageChange },
+  {
+    displayMode = PDF_DEFAULTS.displayMode,
+    filePath,
+    initialPage = 1,
+    onCenterTap,
+    onExternalLink,
+    onPageChange,
+  },
   ref,
 ) {
   const { theme, t } = useApp();
@@ -23,6 +30,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   const currentPageRef = useRef(clampPdfPage(initialPage, 0));
   const totalPagesRef = useRef(0);
   const documentLoadedRef = useRef(false);
+  const previousDisplayModeRef = useRef(displayMode);
   const lastReportedSnapshotRef = useRef<string | null>(null);
   const loadProgressBucketRef = useRef(-1);
   const [currentPage, setCurrentPage] = useState(currentPageRef.current);
@@ -49,6 +57,21 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     setCurrentPage(target);
     engineRef.current?.setPage(target);
   }, [initialPage]);
+
+  useEffect(() => {
+    const previousDisplayMode = previousDisplayModeRef.current;
+    previousDisplayModeRef.current = displayMode;
+    if (previousDisplayMode === displayMode || !documentLoadedRef.current) return undefined;
+
+    const targetPage = currentPageRef.current;
+    pdfDevLog('reader:display-mode-changed', {
+      from: previousDisplayMode,
+      page: targetPage,
+      to: displayMode,
+    });
+    const frame = requestAnimationFrame(() => engineRef.current?.setPage(targetPage));
+    return () => cancelAnimationFrame(frame);
+  }, [displayMode]);
 
   useEffect(() => {
     const target = clampPdfPage(initialPageRef.current, 0);
@@ -246,7 +269,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
       <NativePdfEngine
         ref={engineRef}
         currentPage={currentPage}
-        displayMode={PDF_DEFAULTS.displayMode}
+        displayMode={displayMode}
         onError={handleError}
         onExternalLink={handleExternalLink}
         onLoadComplete={handleLoadComplete}

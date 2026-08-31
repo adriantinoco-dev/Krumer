@@ -9,6 +9,8 @@ import {
 } from '../PdfReader.types';
 import { describePdfSource, pdfDevLog } from './pdfDebug';
 
+const PDF_SCROLL_PAGE_SPACING = 16;
+
 export type NativePdfEngineHandle = {
   setPage: (page: number) => void;
 };
@@ -100,7 +102,7 @@ export const NativePdfEngine = forwardRef<NativePdfEngineHandle, NativePdfEngine
           showsVerticalScrollIndicator={false}
           singlePage={false}
           source={source}
-          spacing={0}
+          spacing={isPaginated ? 0 : PDF_SCROLL_PAGE_SPACING}
           style={{ backgroundColor: theme.bg, flex: 1, height, width }}
         />
       </View>

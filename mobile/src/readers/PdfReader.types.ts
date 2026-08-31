@@ -29,6 +29,7 @@ export const PDF_PREF_KEYS = {
 } as const;
 
 export type PdfReaderProps = {
+  displayMode?: PdfDisplayMode;
   filePath: string;
   initialPage?: number;
   onCenterTap?: () => void;
