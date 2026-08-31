@@ -1,5 +1,5 @@
-import React from 'react';
-import { Pressable, StyleProp, View, ViewStyle } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Easing, Pressable, StyleProp, View, ViewStyle } from 'react-native';
 import { Star } from 'lucide-react-native';
 import { useApp } from '../context/AppContext';
 
@@ -67,25 +67,16 @@ export function RatingStars({
 
         if (interactive && onRate) {
           return (
-            <Pressable
+            <AnimatedRatingStar
               key={star}
-              hitSlop={6}
+              color={color}
+              isFilled={isFilled}
               onPress={() => {
                 const nextRating = allowClear && normalizedRating === star ? 0 : star;
                 onRate(nextRating);
               }}
-              style={({ pressed }) => ({
-                opacity: pressed ? 0.7 : 1,
-                transform: pressed ? [{ scale: 1.15 }] : [{ scale: 1 }],
-              })}
-            >
-              <Star
-                color={color}
-                fill={color}
-                size={size}
-                strokeWidth={0}
-              />
-            </Pressable>
+              size={size}
+            />
           );
         }
 
@@ -100,5 +91,71 @@ export function RatingStars({
         );
       })}
     </View>
+  );
+}
+
+function AnimatedRatingStar({
+  color,
+  isFilled,
+  onPress,
+  size,
+}: {
+  color: string;
+  isFilled: boolean;
+  onPress: () => void;
+  size: number;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const previousFilled = useRef(isFilled);
+
+  useEffect(() => {
+    if (previousFilled.current === isFilled) return;
+    previousFilled.current = isFilled;
+
+    scale.stopAnimation();
+    Animated.sequence([
+      Animated.timing(scale, {
+        duration: 90,
+        easing: Easing.out(Easing.quad),
+        toValue: isFilled ? 1.16 : 0.92,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scale, {
+        duration: 150,
+        easing: Easing.inOut(Easing.quad),
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [isFilled, scale]);
+
+  return (
+    <Pressable
+      hitSlop={6}
+      onPress={onPress}
+      onPressIn={() => {
+        scale.stopAnimation();
+        Animated.spring(scale, {
+          bounciness: 4,
+          speed: 24,
+          toValue: 1.1,
+          useNativeDriver: true,
+        }).start();
+      }}
+      onPressOut={() => {
+        scale.stopAnimation();
+        Animated.timing(scale, {
+          duration: 130,
+          easing: Easing.out(Easing.quad),
+          toValue: 1,
+          useNativeDriver: true,
+        }).start();
+      }}
+      style={{ alignItems: 'center', justifyContent: 'center' }}
+    >
+      <Animated.View style={{ transform: [{ scale }] }}>
+        <Star color={color} fill={color} size={size} strokeWidth={0} />
+      </Animated.View>
+    </Pressable>
   );
 }

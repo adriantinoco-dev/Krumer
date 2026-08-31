@@ -75,6 +75,11 @@ async function main() {
   const debugSource = fs.readFileSync('src/readers/pdf/pdfDebug.ts', 'utf8');
   const nativePatchSource = fs.readFileSync('scripts/fix-netinfo-gradle9.cjs', 'utf8');
   const installedPdfIndexSource = fs.readFileSync('node_modules/react-native-pdf/index.js', 'utf8');
+  const installedPdfTypesSource = fs.readFileSync('node_modules/react-native-pdf/index.d.ts', 'utf8');
+  const installedPdfFabricSource = fs.readFileSync(
+    'node_modules/react-native-pdf/fabric/RNPDFPdfNativeComponent.js',
+    'utf8',
+  );
   const installedPdfManagerSource = fs.readFileSync(
     'node_modules/react-native-pdf/android/src/main/java/org/wonday/pdf/PdfManager.java',
     'utf8',
@@ -95,9 +100,11 @@ async function main() {
     || !readerSource.includes('onCenterTapRef.current = onCenterTap')
     || !readerSource.includes('onCenterTapRef.current?.();')
     || !readerSource.includes('const PDF_SIDE_TAP_RATIO = 0.25')
+    || !readerSource.includes('const PDF_VOLUME_SCROLL_VIEWPORT_RATIO = 0.18')
     || !readerSource.includes("const tapX = Platform.OS === 'android' ? x / PixelRatio.get() : x")
     || !readerSource.includes("handleTapAtX(tapX, 'quick')")
     || !readerSource.includes('onQuickTap={handleQuickTap}')
+    || !readerSource.includes("if (displayMode !== 'paginated') return false")
     || !readerSource.includes('goToPage(currentPageRef.current - 1)')
     || !readerSource.includes('goToPage(currentPageRef.current + 1)')
     || !readerSource.includes("pdfDevLog('controls:toggle-bars-tap')")
@@ -116,7 +123,7 @@ async function main() {
     || !engineSource.includes('page={initialPage}')
     || engineSource.includes('page={currentPage}')
     || !engineSource.includes('spacing={isPaginated ? 0 : PDF_SCROLL_PAGE_SPACING}')
-    || !engineSource.includes('singlePage={false}')
+    || !engineSource.includes("singlePage={Platform.OS === 'android' && isPaginated}")
     || !engineSource.includes('enableAnnotationRendering')
     || !engineSource.includes('onPressLink={onExternalLink}')
     || !engineSource.includes('pdfRef.current?.setPage(page)')
@@ -133,21 +140,47 @@ async function main() {
     || !engineSource.includes('onTouchCancel={handleTouchCancel}')
     || !engineSource.includes('suppressNativeTapUntilRef.current')
     || !engineSource.includes('onPageSingleTap={handleNativeSingleTap}')
+    || !engineSource.includes('scrollEnabled={isPaginated ? false : true}')
+    || !engineSource.includes('minScale={PDF_DEFAULTS.minScale}')
+    || !engineSource.includes('scale={scale}')
+    || !engineSource.includes("singlePage={Platform.OS === 'android' && isPaginated}")
+    || !engineSource.includes('scrollByViewport: (fraction: number) => void')
+    || !engineSource.includes('pdfRef.current?.scrollByViewport(fraction)')
   ) {
-    throw new Error('PDF side taps can regress to the delayed native single-tap callback.');
+    throw new Error('PDF paginated rendering can regress to multiple pages in the viewport.');
   }
   if (
     !nativePatchSource.includes('[react-native-pdf-navigation]')
+    || !nativePatchSource.includes('Constants.PRELOAD_OFFSET = this.enablePaging ? 0 : 20;')
+    || !nativePatchSource.includes('scrollByViewport')
     || !nativePatchSource.includes('consumeSkipNextDraw')
     || !installedPdfIndexSource.includes('if (!!global?.nativeFabricUIManager )')
+    || !installedPdfIndexSource.includes('scrollByViewport(fraction)')
+    || !installedPdfIndexSource.includes("UIManager.dispatchViewManagerCommand(reactTag, 'scrollByViewport', [fraction])")
     || installedPdfIndexSource.includes("Platform.OS === 'android' || !!global?.nativeFabricUIManager")
+    || !installedPdfTypesSource.includes('scrollByViewport: (fraction: number) => void;')
+    || !installedPdfFabricSource.includes("supportedCommands: ['setNativePage', 'scrollByViewport']")
     || !installedPdfManagerSource.includes('view.jumpToPage(page);')
+    || !installedPdfManagerSource.includes('scrollByViewport(root, (float) args.getDouble(0));')
     || !installedPdfManagerSource.includes('if (pdfView.consumeSkipNextDraw())')
     || !installedPdfViewSource.includes('public void jumpToPage(int page)')
     || !installedPdfViewSource.includes('jumpTo(targetPage - 1, false);')
     || !installedPdfViewSource.includes('public boolean consumeSkipNextDraw()')
+    || !installedPdfViewSource.includes('public void scrollByViewport(float fraction)')
+    || !installedPdfViewSource.includes('moveRelativeTo(0, -getHeight() * limitedFraction);')
+    || !installedPdfViewSource.includes('setPositionOffset(getPositionOffset(), true);')
+    || !installedPdfViewSource.includes('.pageSnap(this.pageSnap && this.scrollEnabled)')
+    || !installedPdfViewSource.includes('.pageFling(this.pageFling && this.scrollEnabled)')
+    || !installedPdfViewSource.includes('Constants.PRELOAD_OFFSET = this.enablePaging ? 0 : 20;')
+    || !installedPdfViewSource.includes('private int documentPageCount = 0;')
+    || !installedPdfViewSource.includes('private int countDocumentPages()')
+    || !installedPdfViewSource.includes('int reportedPage = this.singlePage ? this.page : page + 1;')
+    || !installedPdfViewSource.includes('int reportedPageCount = this.singlePage ? getDocumentPageCount(numberOfPages) : numberOfPages;')
+    || !installedPdfViewSource.includes('configurator.pages(this.page - 1);')
+    || !installedPdfViewSource.includes('if (this.singlePage && targetPage != this.page)')
+    || installedPdfViewSource.includes('setTouchesEnabled(false);')
   ) {
-    throw new Error('Programmatic PDF navigation can reload the document and flash between pages.');
+    throw new Error('Paginated PDF can regress to the continuous page rail or lose native navigation.');
   }
   if (
     !debugSource.includes("const PDF_DEBUG_TAG = '[Krumer PDF]'")
@@ -208,9 +241,12 @@ async function main() {
     || !volumeKeysSource.includes("const EVENT_NAME = 'KrumerVolumeKey'")
     || !epubVolumeKeysSource.includes('subscribeToReaderVolumeKeys as subscribeToEpubVolumeKeys')
     || !readerSource.includes('subscribeToReaderVolumeKeys((direction)')
+    || !readerSource.includes("if (displayMode === 'scroll')")
+    || !readerSource.includes('engineRef.current?.scrollByViewport(fraction)')
+    || !readerSource.includes("pdfDevLog('controls:volume-scroll'")
     || !readerSource.includes("const delta = direction === 'next' ? 1 : -1")
   ) {
-    throw new Error('Volume Up/Down do not share the EPUB next/previous contract with PDF.');
+    throw new Error('Volume Up/Down do not scroll continuously or preserve paginated PDF navigation.');
   }
 
   console.log('PDF Phase 4 continuous scrolling, shared EPUB toolbars, persistence, and adapter are valid.');

@@ -103,7 +103,7 @@ function MainTabs() {
 }
 
 function AppShell() {
-  const { preferences, ready, theme } = useApp();
+  const { preferences, preferencesReady, ready, theme } = useApp();
   const [startupVisible, setStartupVisible] = React.useState(true);
   const hideStartup = React.useCallback(() => setStartupVisible(false), []);
   usePortraitOrientation();
@@ -119,6 +119,8 @@ function AppShell() {
       text: theme.textPrimary,
     },
   };
+
+  if (!preferencesReady) return null;
 
   return (
     <View style={{ backgroundColor: theme.bg, flex: 1 }}>

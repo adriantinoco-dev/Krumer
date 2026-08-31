@@ -1,9 +1,12 @@
-import React from 'react';
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
 import { useApp } from '../context/AppContext';
 import { radii, serifFont, spacing } from '../theme';
+
+const OPEN_DURATION_MS = 220;
+const CLOSE_DURATION_MS = 180;
 
 export function SettingsModal({
   visible,
@@ -20,14 +23,81 @@ export function SettingsModal({
 }) {
   const { theme } = useApp();
   const insets = useSafeAreaInsets();
+  const [mounted, setMounted] = useState(visible);
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const contentOpacity = useRef(new Animated.Value(0)).current;
+  const contentScale = useRef(new Animated.Value(0.96)).current;
+
+  useEffect(() => {
+    if (visible) setMounted(true);
+  }, [visible]);
+
+  useEffect(() => {
+    if (!mounted) return;
+
+    backdropOpacity.stopAnimation();
+    contentOpacity.stopAnimation();
+    contentScale.stopAnimation();
+
+    if (visible) {
+      backdropOpacity.setValue(0);
+      contentOpacity.setValue(0);
+      contentScale.setValue(0.96);
+      Animated.parallel([
+        Animated.timing(backdropOpacity, {
+          duration: OPEN_DURATION_MS,
+          easing: Easing.out(Easing.cubic),
+          toValue: 1,
+          useNativeDriver: true,
+        }),
+        Animated.timing(contentOpacity, {
+          duration: OPEN_DURATION_MS,
+          easing: Easing.out(Easing.cubic),
+          toValue: 1,
+          useNativeDriver: true,
+        }),
+        Animated.timing(contentScale, {
+          duration: OPEN_DURATION_MS,
+          easing: Easing.out(Easing.cubic),
+          toValue: 1,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      return;
+    }
+
+    Animated.parallel([
+      Animated.timing(backdropOpacity, {
+        duration: CLOSE_DURATION_MS,
+        easing: Easing.in(Easing.cubic),
+        toValue: 0,
+        useNativeDriver: true,
+      }),
+      Animated.timing(contentOpacity, {
+        duration: CLOSE_DURATION_MS,
+        easing: Easing.in(Easing.cubic),
+        toValue: 0,
+        useNativeDriver: true,
+      }),
+      Animated.timing(contentScale, {
+        duration: CLOSE_DURATION_MS,
+        easing: Easing.in(Easing.cubic),
+        toValue: 0.96,
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (finished) setMounted(false);
+    });
+  }, [backdropOpacity, contentOpacity, contentScale, mounted, visible]);
+
+  if (!mounted) return null;
 
   return (
-    <Modal animationType="fade" transparent visible={visible} onRequestClose={onClose}>
-      <Pressable
-        onPress={onClose}
+    <Modal animationType="none" transparent visible={mounted} onRequestClose={onClose}>
+      <View
+        pointerEvents={visible ? 'auto' : 'none'}
         style={{
           alignItems: 'center',
-          backgroundColor: theme.name === 'dark' ? '#00000099' : '#00000055',
           flex: 1,
           justifyContent: 'center',
           paddingBottom: Math.max(spacing.lg, insets.bottom + spacing.sm),
@@ -35,7 +105,18 @@ export function SettingsModal({
           paddingTop: Math.max(spacing.lg, insets.top + spacing.sm),
         }}
       >
-        <Pressable
+        <Pressable onPress={onClose} style={StyleSheet.absoluteFill}>
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                backgroundColor: theme.name === 'dark' ? '#00000099' : '#00000055',
+                opacity: backdropOpacity,
+              },
+            ]}
+          />
+        </Pressable>
+        <Animated.View
           style={{
             backgroundColor: theme.card,
             borderColor: theme.border,
@@ -43,7 +124,9 @@ export function SettingsModal({
             borderWidth: 1,
             maxHeight: '80%',
             maxWidth: 380,
+            opacity: contentOpacity,
             padding: spacing.md,
+            transform: [{ scale: contentScale }],
             width: '100%',
           }}
         >
@@ -69,8 +152,8 @@ export function SettingsModal({
           </View>
           <View style={{ backgroundColor: theme.border, height: 1, marginVertical: spacing.md }} />
           <ScrollView showsVerticalScrollIndicator={false}>{children}</ScrollView>
-        </Pressable>
-      </Pressable>
+        </Animated.View>
+      </View>
     </Modal>
   );
 }

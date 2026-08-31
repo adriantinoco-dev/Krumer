@@ -21,6 +21,7 @@ type AppContextValue = {
   books: Book[];
   lists: SyncList[];
   preferences: MobilePreferences;
+  preferencesReady: boolean;
   ready: boolean;
   isScanning: boolean;
   setBooks: (books: Book[]) => Promise<void>;
@@ -58,6 +59,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [books, setBookState] = useState<Book[]>([]);
   const [lists, setLists] = useState<SyncList[]>([]);
   const [preferences, setPreferenceState] = useState<MobilePreferences>(defaultPreferences);
+  const [preferencesReady, setPreferencesReady] = useState(false);
   const [ready, setReady] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const booksRef = useRef<Book[]>([]);
@@ -81,13 +83,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     let mounted = true;
 
     async function hydrate() {
-      const [storedPreferences, storedBooks, storedLists] = await Promise.all([
-        loadPreferences(),
-        loadBooks(),
-        loadSyncLists(),
-      ]);
+      const preferencesPromise = loadPreferences();
+      const booksPromise = loadBooks();
+      const listsPromise = loadSyncLists();
+
+      const storedPreferences = await preferencesPromise;
       if (!mounted) return;
       setPreferenceState(storedPreferences);
+      setPreferencesReady(true);
+
+      const [storedBooks, storedLists] = await Promise.all([booksPromise, listsPromise]);
+      if (!mounted) return;
       setBookState(storedBooks);
       setLists(storedLists);
       booksRef.current = storedBooks;
@@ -363,6 +369,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       books,
       lists,
       preferences,
+      preferencesReady,
       ready,
       isScanning,
       setBooks,
@@ -394,6 +401,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     lists,
     persistPreferences,
     preferences,
+    preferencesReady,
     ready,
     isScanning,
     renameList,

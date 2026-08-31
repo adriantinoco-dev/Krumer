@@ -12,6 +12,7 @@ import { subscribeToReaderVolumeKeys } from './readerVolumeKeys';
 
 const PDF_LOAD_TIMEOUT_MS = 12_000;
 const PDF_SIDE_TAP_RATIO = 0.25;
+const PDF_VOLUME_SCROLL_VIEWPORT_RATIO = 0.18;
 
 export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader(
   {
@@ -205,13 +206,22 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
 
   useEffect(() => subscribeToReaderVolumeKeys((direction) => {
     if (!documentLoadedRef.current) return;
+    if (displayMode === 'scroll') {
+      const fraction = direction === 'next'
+        ? PDF_VOLUME_SCROLL_VIEWPORT_RATIO
+        : -PDF_VOLUME_SCROLL_VIEWPORT_RATIO;
+      engineRef.current?.scrollByViewport(fraction);
+      requestAnimationFrame(() => pdfDevLog('controls:volume-scroll', { direction, fraction }));
+      return;
+    }
     const delta = direction === 'next' ? 1 : -1;
     goToPage(currentPageRef.current + delta);
     const page = currentPageRef.current;
     requestAnimationFrame(() => pdfDevLog('controls:volume-key', { direction, page }));
-  }), [goToPage]);
+  }), [displayMode, goToPage]);
 
   const handleTapAtX = useCallback((tapX: number, source: 'quick' | 'native') => {
+    if (displayMode !== 'paginated') return false;
     if (tapX <= viewportWidth * PDF_SIDE_TAP_RATIO) {
       goToPage(currentPageRef.current - 1);
       requestAnimationFrame(() => {
@@ -232,7 +242,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
       return true;
     }
     return false;
-  }, [goToPage, viewportWidth]);
+  }, [displayMode, goToPage, viewportWidth]);
 
   const handleQuickTap = useCallback((tapX: number, _tapY: number) => (
     handleTapAtX(tapX, 'quick')

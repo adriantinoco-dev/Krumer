@@ -6,7 +6,7 @@ import React, {
   useMemo,
   useRef,
 } from 'react';
-import { type GestureResponderEvent, View, useWindowDimensions } from 'react-native';
+import { type GestureResponderEvent, Platform, View, useWindowDimensions } from 'react-native';
 import Pdf from 'react-native-pdf';
 import { useApp } from '../../context/AppContext';
 import {
@@ -22,6 +22,7 @@ const PDF_QUICK_TAP_MAX_MOVEMENT_DP = 12;
 const PDF_NATIVE_TAP_SUPPRESSION_MS = 650;
 
 export type NativePdfEngineHandle = {
+  scrollByViewport: (fraction: number) => void;
   setPage: (page: number) => void;
 };
 
@@ -83,6 +84,10 @@ export const NativePdfEngine = forwardRef<NativePdfEngineHandle, NativePdfEngine
     }, [resolvedUri]);
 
     useImperativeHandle(ref, () => ({
+      scrollByViewport: (fraction) => {
+        pdfRef.current?.scrollByViewport(fraction);
+        requestAnimationFrame(() => pdfDevLog('engine:scroll-by-viewport', { fraction }));
+      },
       setPage: (page) => {
         pdfRef.current?.setPage(page);
         requestAnimationFrame(() => pdfDevLog('engine:set-page', { page }));
@@ -161,10 +166,10 @@ export const NativePdfEngine = forwardRef<NativePdfEngineHandle, NativePdfEngine
           onScaleChanged={onScaleChanged}
           page={initialPage}
           scale={scale}
-          scrollEnabled
+          scrollEnabled={isPaginated ? false : true}
           showsHorizontalScrollIndicator={false}
           showsVerticalScrollIndicator={false}
-          singlePage={false}
+          singlePage={Platform.OS === 'android' && isPaginated}
           source={source}
           spacing={isPaginated ? 0 : PDF_SCROLL_PAGE_SPACING}
           style={{ backgroundColor: theme.bg, flex: 1, height, width }}

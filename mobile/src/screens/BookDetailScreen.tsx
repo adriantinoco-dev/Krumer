@@ -407,7 +407,8 @@ export function BookDetailScreen({ navigation, route }: Props) {
                 shadowRadius: 4,
               }}
             >
-              <Star
+              <AnimatedFavoriteStar
+                active={isFavorite}
                 color={isFavorite ? '#f97316' : navButtonIconColor}
                 fill={isFavorite ? '#f97316' : 'transparent'}
                 size={20}
@@ -1197,6 +1198,48 @@ export function BookDetailScreen({ navigation, route }: Props) {
         </SafeAreaView>
       </Modal>
     </SafeAreaView>
+  );
+}
+
+function AnimatedFavoriteStar({
+  active,
+  color,
+  fill,
+  size,
+}: {
+  active: boolean;
+  color: string;
+  fill: string;
+  size: number;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const previousActive = useRef(active);
+
+  useEffect(() => {
+    if (previousActive.current === active) return;
+    previousActive.current = active;
+
+    scale.stopAnimation();
+    Animated.sequence([
+      Animated.timing(scale, {
+        duration: 90,
+        easing: Easing.out(Easing.quad),
+        toValue: active ? 1.16 : 0.92,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scale, {
+        duration: 150,
+        easing: Easing.inOut(Easing.quad),
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [active, scale]);
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Star color={color} fill={fill} size={size} />
+    </Animated.View>
   );
 }
 

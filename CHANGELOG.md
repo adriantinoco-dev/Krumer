@@ -8,6 +8,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Alterado
+- **Mobile — página isolada no PDF paginado:** o Android agora carrega somente a página
+  atual no modo paginado, removendo o trilho contínuo de páginas anteriores e seguintes.
+  O documento completo permanece carregado apenas no modo scroll.
+- **Mobile — controles do PDF em modo scroll:** toques nas laterais deixam de trocar
+  páginas, e os botões de volume passam a deslocar 18% da altura visível por acionamento,
+  como uma roda de mouse. O modo paginado preserva a navegação anterior por página.
 - **Mobile — transição entre capítulos EPUB:** o modo paginado agora mantém as views
   adjacentes preparadas, evitando o frame vazio que fazia a tela piscar ao avançar ou
   voltar pela fronteira entre capítulos.
