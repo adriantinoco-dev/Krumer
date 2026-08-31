@@ -17,6 +17,7 @@ import { radii, serifFont, spacing } from '../theme';
 type Props = {
   isLandscape: boolean;
   preferences: ReadingPreferences;
+  showColumnOptions?: boolean;
   visible: boolean;
   onClose: () => void;
   onUpdatePreferences: (patch: Partial<ReadingPreferences>) => void;
@@ -96,6 +97,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 export function PaginationSettingsModal({
   isLandscape,
   preferences,
+  showColumnOptions = true,
   visible,
   onClose,
   onUpdatePreferences,
@@ -173,23 +175,27 @@ export function PaginationSettingsModal({
                   onPress={() => onUpdatePreferences({ displayMode: 'paginated' })}
                   selected={preferences.displayMode === 'paginated'}
                 />
-                <View style={{ backgroundColor: theme.border, width: 1 }} />
-                <IconOption
-                  disabled={preferences.displayMode === 'scroll'}
-                  icon={RectangleVertical}
-                  label={t('reader.singleColumn')}
-                  onPress={() => onUpdatePreferences({ doubleColumn: false })}
-                  selected={!preferences.doubleColumn}
-                />
-                <IconOption
-                  disabled={preferences.displayMode === 'scroll'}
-                  icon={Columns2}
-                  label={t('reader.doubleColumnShort')}
-                  onPress={() => onUpdatePreferences({ doubleColumn: true })}
-                  selected={preferences.doubleColumn}
-                />
+                {showColumnOptions ? (
+                  <>
+                    <View style={{ backgroundColor: theme.border, width: 1 }} />
+                    <IconOption
+                      disabled={preferences.displayMode === 'scroll'}
+                      icon={RectangleVertical}
+                      label={t('reader.singleColumn')}
+                      onPress={() => onUpdatePreferences({ doubleColumn: false })}
+                      selected={!preferences.doubleColumn}
+                    />
+                    <IconOption
+                      disabled={preferences.displayMode === 'scroll'}
+                      icon={Columns2}
+                      label={t('reader.doubleColumnShort')}
+                      onPress={() => onUpdatePreferences({ doubleColumn: true })}
+                      selected={preferences.doubleColumn}
+                    />
+                  </>
+                ) : null}
               </View>
-              {preferences.displayMode === 'paginated' && preferences.doubleColumn && !isLandscape ? (
+              {showColumnOptions && preferences.displayMode === 'paginated' && preferences.doubleColumn && !isLandscape ? (
                 <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 11, lineHeight: 16 }}>
                   {t('reader.doubleColumnPortraitHint')}
                 </Text>

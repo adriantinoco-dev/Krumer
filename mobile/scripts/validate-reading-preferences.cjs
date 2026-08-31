@@ -118,6 +118,8 @@ async function main() {
     || !paginationModalSource.includes('StyleSheet.absoluteFill')
     || paginationModalSource.includes('<Modal')
     || !paginationModalSource.includes('reader.orientationLandscape')
+    || !paginationModalSource.includes('showColumnOptions = true')
+    || !paginationModalSource.includes('{showColumnOptions ? (')
     || !paginationButtonSource.includes('height: 36')
     || !epubReaderSource.includes('androidLayerType="none"')
     || epubReaderSource.includes('renderToHardwareTextureAndroid')

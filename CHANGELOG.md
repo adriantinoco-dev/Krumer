@@ -8,6 +8,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Alterado
+- **Mobile — leitor PDF, Fase 2 (paginação e orientação):** as preferências de
+  Scroll/Paginado e Livre/Paisagem/Retrato agora são carregadas, aplicadas e persistidas
+  no PDF. O modal oculta coluna simples/dupla somente para PDF, restaura os padrões para
+  Paginado + Retrato e mantém a página corrente ao alternar modo ou girar o aparelho.
 - **Mobile — leitor PDF, Fase 1 (interface e brilho):** o PDF agora exibe somente
   título, fechar, paginação, brilho, notas e marcadores; tipografia, sumário e layout
   permanecem exclusivos do EPUB. O ajuste de brilho passa a funcionar também no PDF

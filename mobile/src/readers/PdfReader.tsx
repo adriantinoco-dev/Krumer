@@ -26,7 +26,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   ref,
 ) {
   const { theme, t } = useApp();
-  const { width: viewportWidth } = useWindowDimensions();
+  const { height: viewportHeight, width: viewportWidth } = useWindowDimensions();
   const { error: sourceError, resolvedUri, resolving } = usePdfSource(filePath);
   const engineRef = useRef<NativePdfEngineHandle>(null);
   const initialPageRef = useRef(initialPage);
@@ -34,6 +34,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   const totalPagesRef = useRef(0);
   const documentLoadedRef = useRef(false);
   const previousDisplayModeRef = useRef(displayMode);
+  const previousViewportRef = useRef({ height: viewportHeight, width: viewportWidth });
   const onCenterTapRef = useRef(onCenterTap);
   const lastReportedSnapshotRef = useRef<string | null>(null);
   const loadProgressBucketRef = useRef(-1);
@@ -75,6 +76,24 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     const frame = requestAnimationFrame(() => engineRef.current?.setPage(targetPage));
     return () => cancelAnimationFrame(frame);
   }, [displayMode]);
+
+  useEffect(() => {
+    const previousViewport = previousViewportRef.current;
+    previousViewportRef.current = { height: viewportHeight, width: viewportWidth };
+    if (
+      (previousViewport.height === viewportHeight && previousViewport.width === viewportWidth)
+      || !documentLoadedRef.current
+    ) return undefined;
+
+    const targetPage = currentPageRef.current;
+    pdfDevLog('reader:viewport-changed', {
+      from: previousViewport,
+      page: targetPage,
+      to: { height: viewportHeight, width: viewportWidth },
+    });
+    const frame = requestAnimationFrame(() => engineRef.current?.setPage(targetPage));
+    return () => cancelAnimationFrame(frame);
+  }, [viewportHeight, viewportWidth]);
 
   useEffect(() => {
     const target = clampPdfPage(initialPageRef.current, 0);

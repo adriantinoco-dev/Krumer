@@ -16,7 +16,7 @@ import { EpubReader, type EpubReaderHandle } from '../readers/EpubReader';
 import type { EpubRelocationSource, EpubTocItem, EpubViewStatus } from '../readers/epubBridge';
 import { PdfReader } from '../readers/PdfReader';
 import { PDF_DEFAULTS, type PdfDisplayMode } from '../readers/PdfReader.types';
-import { loadPdfPrefs, savePdfDisplayMode } from '../readers/pdf/usePdfPrefs';
+import { loadPdfPrefs, savePdfDisplayMode, savePdfOrientation } from '../readers/pdf/usePdfPrefs';
 import { useEpubPersistence } from '../readers/useEpubPersistence';
 import { useEpubNotes } from '../readers/useEpubNotes';
 import { useOrientation } from '../readers/useOrientation';
@@ -70,7 +70,9 @@ export function ReaderScreen({ navigation, route }: Props) {
   const windowDimensions = useWindowDimensions();
   const readingPreferences = useReadingPreferences(isEpub);
   const readerLayout = useReaderLayoutSettings(isEpub);
-  const { isLandscape } = useOrientation(isEpub ? readingPreferences.preferences.orientation : 'portrait');
+  const [pdfDisplayMode, setPdfDisplayMode] = useState<PdfDisplayMode>(PDF_DEFAULTS.displayMode);
+  const [pdfOrientation, setPdfOrientation] = useState<ReadingPreferences['orientation']>(PDF_DEFAULTS.orientation);
+  const { isLandscape } = useOrientation(isEpub ? readingPreferences.preferences.orientation : pdfOrientation);
   const [progress, setProgress] = useState((book.progressPct ?? 0) / 100);
   const [savedPosition, setSavedPosition] = useState<string | null>(book.progress);
   const [barsVisible, setBarsVisible] = useState(book.format !== 'epub');
@@ -81,7 +83,6 @@ export function ReaderScreen({ navigation, route }: Props) {
   const [layoutSettingsVisible, setLayoutSettingsVisible] = useState(false);
   const [currentPage, setCurrentPage] = useState(book.currentPage ?? 1);
   const [totalPages, setTotalPages] = useState(book.totalPages ?? 0);
-  const [pdfDisplayMode, setPdfDisplayMode] = useState<PdfDisplayMode>(PDF_DEFAULTS.displayMode);
   const [pdfPreferencesHydrated, setPdfPreferencesHydrated] = useState(isEpub);
   const [epubViewStatus, setEpubViewStatus] = useState<EpubViewStatus | null>(null);
   const [readerSettings, setReaderSettings] = useState<ReaderSettings>({
@@ -193,7 +194,10 @@ export function ReaderScreen({ navigation, route }: Props) {
     setPdfPreferencesHydrated(false);
     void loadPdfPrefs()
       .then((preferences) => {
-        if (active) setPdfDisplayMode(preferences.displayMode);
+        if (active) {
+          setPdfDisplayMode(preferences.displayMode);
+          setPdfOrientation(preferences.orientation);
+        }
       })
       .finally(() => {
         if (active) setPdfPreferencesHydrated(true);
@@ -406,9 +410,14 @@ export function ReaderScreen({ navigation, route }: Props) {
       readingPreferences.updatePreferences(patch);
       return;
     }
-    if (!patch.displayMode) return;
-    setPdfDisplayMode(patch.displayMode);
-    void savePdfDisplayMode(patch.displayMode);
+    if (patch.displayMode) {
+      setPdfDisplayMode(patch.displayMode);
+      void savePdfDisplayMode(patch.displayMode);
+    }
+    if (patch.orientation) {
+      setPdfOrientation(patch.orientation);
+      void savePdfOrientation(patch.orientation);
+    }
   }, [isEpub, readingPreferences.updatePreferences]);
 
   const paginationPreferences: ReadingPreferences = isEpub
@@ -417,7 +426,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         ...readingPreferences.preferences,
         displayMode: pdfDisplayMode,
         doubleColumn: false,
-        orientation: PDF_DEFAULTS.orientation,
+        orientation: pdfOrientation,
       };
 
   function changeFontSize(delta: number) {
@@ -1243,6 +1252,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         }}
         onUpdatePreferences={updatePaginationPreferences}
         preferences={paginationPreferences}
+        showColumnOptions={isEpub}
         visible={paginationSettingsVisible}
       />
 

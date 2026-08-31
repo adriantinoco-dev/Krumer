@@ -91,6 +91,7 @@ async function main() {
   const volumeKeysSource = fs.readFileSync('src/readers/readerVolumeKeys.ts', 'utf8');
   const epubVolumeKeysSource = fs.readFileSync('src/readers/epubVolumeKeys.ts', 'utf8');
   const readerScreenSource = fs.readFileSync('src/screens/ReaderScreen.tsx', 'utf8');
+  const paginationModalSource = fs.readFileSync('src/components/PaginationSettingsModal.tsx', 'utf8');
   if (
     !readerSource.includes('usePdfSource(filePath)')
     || !readerSource.includes('forwardRef<PdfReaderHandle, PdfReaderProps>')
@@ -204,14 +205,33 @@ async function main() {
   if (
     !readerScreenSource.includes('loadPdfPrefs, savePdfDisplayMode')
     || !readerScreenSource.includes('const [pdfDisplayMode, setPdfDisplayMode]')
+    || !readerScreenSource.includes('const [pdfOrientation, setPdfOrientation]')
     || !readerScreenSource.includes('displayMode={pdfDisplayMode}')
+    || !readerScreenSource.includes('useOrientation(isEpub ? readingPreferences.preferences.orientation : pdfOrientation)')
+    || !readerScreenSource.includes('setPdfOrientation(preferences.orientation)')
+    || !readerScreenSource.includes('void savePdfOrientation(patch.orientation)')
+    || !readerScreenSource.includes('orientation: pdfOrientation')
     || !readerScreenSource.includes('onUpdatePreferences={updatePaginationPreferences}')
     || !readerScreenSource.includes('preferences={paginationPreferences}')
+    || !readerScreenSource.includes('showColumnOptions={isEpub}')
     || !readerSource.includes("pdfDevLog('reader:display-mode-changed'")
+    || !readerSource.includes('const previousViewportRef = useRef({ height: viewportHeight, width: viewportWidth })')
+    || !readerSource.includes("pdfDevLog('reader:viewport-changed'")
     || !readerScreenSource.includes('const PDF_PROGRESS_SAVE_DELAY_MS = 500')
     || !readerScreenSource.includes('pendingPdfProgressRef.current = { page, total }')
   ) {
-    throw new Error('PDF continuous scrolling is not connected to persisted mode, page restoration, and throttled progress.');
+    throw new Error('PDF mode/orientation can regress in persistence, application, or current-page restoration.');
+  }
+
+  if (
+    !paginationModalSource.includes('showColumnOptions?: boolean;')
+    || !paginationModalSource.includes('showColumnOptions = true')
+    || !paginationModalSource.includes('{showColumnOptions ? (')
+    || !paginationModalSource.includes('showColumnOptions && preferences.displayMode === \'paginated\'')
+    || !paginationModalSource.includes("displayMode: 'paginated'")
+    || !paginationModalSource.includes("orientation: 'portrait'")
+  ) {
+    throw new Error('PDF pagination modal can expose column controls or lose its paginated/portrait reset.');
   }
 
   if (
