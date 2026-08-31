@@ -373,12 +373,13 @@ async function main() {
   }
   if (
     renditionConfigs.length !== 1
+    || renditionConfigs[0].manager !== 'continuous'
     || renditionConfigs[0].spread !== 'always'
     || renditionConfigs[0].resizeOnOrientationChange !== false
     || columnAlignmentCalls.length !== 1
     || columnAlignmentCalls[0].left !== 600
   ) {
-    throw new Error('An EPUB opened at a saved CFI in landscape did not align it in the leading column.');
+    throw new Error('A paginated EPUB did not use seamless chapter views or align a saved CFI in the leading column.');
   }
   if (generatedLocationChunks.length !== 1 || generatedLocationChunks[0] !== 1600) {
     throw new Error('Stable EPUB locations were not generated with fixed 1,600-character blocks.');
@@ -1002,7 +1003,11 @@ async function main() {
   }));
   await wait(0);
   chapter.setSelectedText('');
-  if (renditionConfigs.at(-1).flow !== 'paginated' || renditionConfigs.at(-1).spread !== 'none') {
+  if (
+    renditionConfigs.at(-1).flow !== 'paginated'
+    || renditionConfigs.at(-1).manager !== 'continuous'
+    || renditionConfigs.at(-1).spread !== 'none'
+  ) {
     throw new Error('Portrait mode did not recreate the paginated manager with a single-column spread.');
   }
   if (chapter.document.__krumerVisualStyle.textContent.includes('line-height:')) {

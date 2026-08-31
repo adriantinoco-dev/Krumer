@@ -1599,7 +1599,9 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           var activeBook = book;
           var nextRendition = activeBook.renderTo('viewer', {
             flow: readerLayout.displayMode === 'scroll' ? 'scrolled-doc' : 'paginated',
-            manager: readerLayout.displayMode === 'scroll' ? 'continuous' : 'default',
+            // The default paginated manager clears the current iframe before the
+            // next spine section is rendered, exposing a blank frame between chapters.
+            manager: 'continuous',
             resizeOnOrientationChange: false,
             spread: usesDoubleColumn() ? 'always' : 'none',
             width: '100%',

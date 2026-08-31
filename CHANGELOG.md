@@ -8,6 +8,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Alterado
+- **Mobile — transição entre capítulos EPUB:** o modo paginado agora mantém as views
+  adjacentes preparadas, evitando o frame vazio que fazia a tela piscar ao avançar ou
+  voltar pela fronteira entre capítulos.
 - **Mobile — rescan automático ao retomar a navegação (F4):** Biblioteca, Listas e telas de
   detalhe atualizam a pasta configurada depois que a transição termina, incluindo o retorno
   do leitor. Solicitações simultâneas são serializadas, falhas mantêm a biblioteca em cache e
