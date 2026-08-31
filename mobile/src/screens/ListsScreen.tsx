@@ -17,7 +17,6 @@ import { ListCard } from '../components/ListCard';
 import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import type { MainTabParamList, RootStackParamList } from '../navigation/types';
-import { useAutoRescan } from '../hooks/useAutoRescan';
 import { CONTENT_MAX_WIDTH, getListGridColumns, serifFont, spacing } from '../theme';
 
 type Props = CompositeScreenProps<
@@ -37,7 +36,6 @@ type CollectionItem = {
 export function ListsScreen({ navigation }: Props) {
   const { width } = useWindowDimensions();
   const { books, createList, lists, t, theme } = useApp();
-  useAutoRescan();
 
   const [creating, setCreating] = useState(false);
   const [createName, setCreateName] = useState('');

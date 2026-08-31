@@ -8,11 +8,19 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Alterado
+- **Mobile — rescan automático ao retomar a navegação (F4):** Biblioteca, Listas e telas de
+  detalhe atualizam a pasta configurada depois que a transição termina, incluindo o retorno
+  do leitor. Solicitações simultâneas são serializadas, falhas mantêm a biblioteca em cache e
+  o merge preserva progresso, capas, metadados e a data original de inclusão.
+- **Mobile — animação compartilhada dos bottom-sheets (F3):** o modal de ações dos livros
+  agora reutiliza o mesmo componente de transição dos demais bottom-sheets, mantendo fade
+  do backdrop, slide com easing e fechamento sem piscar de forma consistente.
 - **Tela de abertura com progresso (desktop e Android):** ao entrar no Krumer,
   a inicialização agora exibe a marca, a porcentagem acima de uma barra fina e
   nenhum texto adicional. O progresso parte de 0% e, se necessário, permanece
   em 94% até ser seguro revelar o aplicativo. No desktop, o progresso leva cerca
-  de 1,5 segundo e inicia imediatamente um fade explícito de 1 segundo, inclusive
+  de 3 segundos, mantém os 100% visíveis por 1 segundo e então inicia um fade
+  explícito de 1 segundo, inclusive
   quando o Windows está configurado para reduzir animações. O comportamento
   finalizado no Android permanece inalterado. As travas em `ready` permanecem
   para nunca revelar a interface antes da restauração dos dados necessários.
@@ -44,6 +52,20 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 - **Títulos e autores em negrito nas visualizações em grade:** títulos de livros e nomes de autores agora são exibidos em negrito (`fontWeight: '700'`) em todos os cards e grades da biblioteca e listas (mobile e desktop).
 
 ### Corrigido
+- **Desktop — carregamento centralizado desde o primeiro quadro:** a janela
+  oculta agora já renderiza com as dimensões da área útil da tela e, no Windows,
+  permanece transparente até a maximização e dois quadros de layout terminarem.
+  O ícone, a porcentagem e a barra não saltam mais da esquerda e de cima para o
+  centro durante os primeiros milissegundos.
+- **Desktop — inicialização deixa a tela de carregamento corretamente:** o
+  backend Python não fica mais preso em uma consulta WMI do Windows durante a
+  importação do SQLAlchemy quando é iniciado pelo Electron. A tela continua em
+  94% somente enquanto necessário, chega a 100% e conclui o fade normalmente;
+  o fluxo do Android permanece inalterado.
+- **Desktop — backend encerra junto com o aplicativo:** o fechamento não usa
+  mais o `taskkill` síncrono que podia retornar acesso negado, travar a saída e
+  perder a referência do servidor. O Electron agora encerra diretamente o
+  processo filho que iniciou e pode finalizar sem bloquear a interface.
 - **Metadados — título de séries preservado (Android/desktop):** resultados de
   busca para obras pai com capítulos não substituem mais o título da série;
   o modal também exibe o título local do pai, mesmo quando o Gemini retorna o

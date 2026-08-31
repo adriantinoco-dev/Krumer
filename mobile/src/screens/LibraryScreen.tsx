@@ -14,7 +14,6 @@ import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import type { MainTabParamList, RootStackParamList } from '../navigation/types';
 import { fuzzyMatch } from '../services/fuzzySearch';
-import { useAutoRescan } from '../hooks/useAutoRescan';
 import { BOOK_GRID_MAX_CARD_WIDTH, CONTENT_MAX_WIDTH, getBookGridLayout, radii, serifFont, spacing } from '../theme';
 
 type Props = CompositeScreenProps<
@@ -24,8 +23,7 @@ type Props = CompositeScreenProps<
 
 export function LibraryScreen({ navigation }: Props) {
   const { width } = useWindowDimensions();
-  const { books, preferences, theme, t } = useApp();
-  useAutoRescan();
+  const { books, isScanning, preferences, rescanLibrary, theme, t } = useApp();
 
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('recent');
@@ -111,6 +109,9 @@ export function LibraryScreen({ navigation }: Props) {
             sort={sort}
             onQueryChange={setQuery}
             onSortChange={setSort}
+            onRescan={() => void rescanLibrary()}
+            rescanDisabled={!preferences.libraryFolder}
+            isScanning={isScanning}
           />
         }
         contentContainerStyle={{ flexGrow: 1, paddingBottom: 96 }}
@@ -149,6 +150,9 @@ function LibraryHeader({
   sort,
   onQueryChange,
   onSortChange,
+  onRescan,
+  rescanDisabled,
+  isScanning,
 }: {
   books: Book[];
   continueReading: Book[];
@@ -160,6 +164,9 @@ function LibraryHeader({
   sort: SortKey;
   onQueryChange: (v: string) => void;
   onSortChange: (v: SortKey) => void;
+  onRescan: () => void;
+  rescanDisabled: boolean;
+  isScanning: boolean;
 }) {
   const { theme, t } = useApp();
 
@@ -232,6 +239,9 @@ function LibraryHeader({
         sort={sort}
         onQueryChange={onQueryChange}
         onSortChange={onSortChange}
+        onRescan={onRescan}
+        rescanDisabled={rescanDisabled}
+        isScanning={isScanning}
       />
 
       {/* Stats em 3 colunas modernas e simples (abaixo da busca/filtro) */}

@@ -13,6 +13,7 @@
     "test:epub-runtime": "node scripts/validate-epub-runtime.cjs",
     "test:reading-preferences": "node scripts/validate-reading-preferences.cjs",
     "test:reader-persistence": "node scripts/validate-reader-persistence.cjs",
+    "test:pdf-reader": "node scripts/validate-pdf-reader.cjs",
     "test:metadata": "node scripts/validate-metadata-service.cjs"
   },
   "dependencies": {
@@ -43,7 +44,7 @@
     "react-dom": "19.2.3",
     "react-native": "0.86.2",
     "react-native-blob-util": "^0.19.11",
-    "react-native-pdf": "^6.7.5",
+    "react-native-pdf": "6.7.7",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",

@@ -6,8 +6,8 @@ import * as FileSystem from 'expo-file-system/legacy';
  * copiar content:// (SAF Android 13+) para cache, pois react-native-pdf
  * só lê file://.
  *
- * Extraído de mobile/src/readers/PdfReader.tsx:7 para uso compartilhado
- * entre PdfHorizontal e futuro PdfVertical.
+ * Extraído de PdfReader para que a sessão e as futuras prévias compartilhem
+ * a mesma política de normalização e limpeza.
  */
 
 export function withFileScheme(path: string): string {

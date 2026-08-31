@@ -1,57 +1,74 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { PDF_DEFAULTS, PDF_PREF_KEYS, type PdfColumn, type PdfMode } from '../PdfReader.types';
+import type { ReaderOrientation } from '../../models/readingPreferences';
+import {
+  PDF_DEFAULTS,
+  PDF_PREF_KEYS,
+  type PdfDisplayMode,
+  type PdfPreferences,
+} from '../PdfReader.types';
+import {
+  clampPdfScale,
+  parsePdfDisplayMode,
+  parsePdfOrientation,
+  parseStoredPdfScale,
+} from './pdfState';
 
-/**
- * Persistência de preferências do leitor PDF — paridade com
- * localStorage em reader-pdf.js:34 (krumer_pdf_view_mode) e :36 (krumer_pdf_column).
- *
- * Desktop usa localStorage; mobile usa AsyncStorage. Chaves com prefixo
- * krumer.pdf.* para não colidir com krumer_chapter_view etc.
- */
+export type PdfPreferencesStorage = Pick<typeof AsyncStorage, 'getItem' | 'setItem'>;
 
-export type PdfPrefs = {
-  mode: PdfMode;
-  column: PdfColumn;
-  scale: number;
-};
-
-export async function loadPdfPrefs(): Promise<PdfPrefs> {
+export async function loadPdfPrefs(
+  storage: PdfPreferencesStorage = AsyncStorage,
+): Promise<PdfPreferences> {
   try {
-    const [rawMode, rawColumn, rawZoom] = await Promise.all([
-      AsyncStorage.getItem(PDF_PREF_KEYS.viewMode),
-      AsyncStorage.getItem(PDF_PREF_KEYS.column),
-      AsyncStorage.getItem(PDF_PREF_KEYS.zoom),
+    const [rawDisplayMode, rawOrientation, rawZoom] = await Promise.all([
+      storage.getItem(PDF_PREF_KEYS.displayMode),
+      storage.getItem(PDF_PREF_KEYS.orientation),
+      storage.getItem(PDF_PREF_KEYS.zoom),
     ]);
+    const displayMode = parsePdfDisplayMode(rawDisplayMode);
+    const preferences: PdfPreferences = {
+      displayMode,
+      orientation: parsePdfOrientation(rawOrientation),
+      scale: parseStoredPdfScale(rawZoom),
+    };
 
-    const mode: PdfMode = rawMode === 'vertical' ? 'vertical' : PDF_DEFAULTS.mode;
-    const column: PdfColumn = rawColumn === 'double' ? 'double' : PDF_DEFAULTS.column;
-    const scaleNum = rawZoom ? Number(rawZoom) : PDF_DEFAULTS.scale;
-    const scale =
-      Number.isFinite(scaleNum) && scaleNum >= PDF_DEFAULTS.minScale && scaleNum <= PDF_DEFAULTS.maxScale
-        ? Math.round(scaleNum * 20) / 20 // arredonda para step 0.05
-        : PDF_DEFAULTS.scale;
+    // A implementação parcial gravava horizontal/vertical. Normaliza sem bloquear a leitura.
+    if (rawDisplayMode === 'horizontal' || rawDisplayMode === 'vertical') {
+      void storage.setItem(PDF_PREF_KEYS.displayMode, displayMode).catch(() => undefined);
+    }
 
-    return { mode, column, scale };
+    return preferences;
   } catch {
-    return { mode: PDF_DEFAULTS.mode, column: PDF_DEFAULTS.column, scale: PDF_DEFAULTS.scale };
+    return {
+      displayMode: PDF_DEFAULTS.displayMode,
+      orientation: PDF_DEFAULTS.orientation,
+      scale: PDF_DEFAULTS.scale,
+    };
   }
 }
 
-export async function savePdfMode(mode: PdfMode): Promise<void> {
+export async function savePdfDisplayMode(
+  displayMode: PdfDisplayMode,
+  storage: PdfPreferencesStorage = AsyncStorage,
+): Promise<void> {
   try {
-    await AsyncStorage.setItem(PDF_PREF_KEYS.viewMode, mode);
+    await storage.setItem(PDF_PREF_KEYS.displayMode, displayMode);
   } catch {}
 }
 
-export async function savePdfColumn(column: PdfColumn): Promise<void> {
+export async function savePdfOrientation(
+  orientation: ReaderOrientation,
+  storage: PdfPreferencesStorage = AsyncStorage,
+): Promise<void> {
   try {
-    await AsyncStorage.setItem(PDF_PREF_KEYS.column, column);
+    await storage.setItem(PDF_PREF_KEYS.orientation, orientation);
   } catch {}
 }
 
-export async function savePdfScale(scale: number): Promise<void> {
+export async function savePdfScale(
+  scale: number,
+  storage: PdfPreferencesStorage = AsyncStorage,
+): Promise<void> {
   try {
-    const clamped = Math.min(PDF_DEFAULTS.maxScale, Math.max(PDF_DEFAULTS.minScale, scale));
-    await AsyncStorage.setItem(PDF_PREF_KEYS.zoom, String(clamped));
+    await storage.setItem(PDF_PREF_KEYS.zoom, String(clampPdfScale(scale)));
   } catch {}
 }

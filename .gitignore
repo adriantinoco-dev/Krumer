@@ -42,8 +42,6 @@ android/**/build/
 .pnpm-store
 mobile/**/build
 
-# Docs
-docs/
 
 supabase/
 

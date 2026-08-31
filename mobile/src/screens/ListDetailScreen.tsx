@@ -25,7 +25,6 @@ import {
 import { BookCard } from '../components/BookCard';
 import { BookListModal } from '../components/BookListModal';
 import { useApp } from '../context/AppContext';
-import { useAutoRescan } from '../hooks/useAutoRescan';
 import type { Book } from '../models/item';
 import type { RootStackParamList } from '../navigation/types';
 import { fuzzyMatch } from '../services/fuzzySearch';
@@ -45,7 +44,6 @@ type CollectionData = {
 export function ListDetailScreen({ navigation, route }: Props) {
   const { collectionKey, listId, title: initialTitle } = route.params;
   const { width } = useWindowDimensions();
-  useAutoRescan();
   const {
     books,
     deleteList,

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell, screen } = require('electron');
 const { autoUpdater, CancellationToken } = require('electron-updater');
 const { AuthService } = require('./auth-service');
 const { CLOUD_SYNC_ENABLED } = require('./auth-config');
@@ -180,19 +180,18 @@ function startPythonBackend() {
  */
 function stopPythonBackend() {
   backendReady = false;
-  if (pyProcess) {
-    console.log('Encerrando servidor backend Python...');
-    if (process.platform === 'win32') {
-      try {
-        const { spawnSync } = require('child_process');
-        spawnSync('taskkill', ['/pid', pyProcess.pid, '/f', '/t']);
-      } catch (err) {
-        pyProcess.kill();
-      }
-    } else {
-      pyProcess.kill('SIGTERM');
+  const processToStop = pyProcess;
+  pyProcess = null;
+  if (!processToStop) return;
+
+  console.log('Encerrando servidor backend Python...');
+  try {
+    const signalSent = processToStop.kill('SIGTERM');
+    if (!signalSent) {
+      console.warn('[Backend] O processo Python já estava encerrado.');
     }
-    pyProcess = null;
+  } catch (err) {
+    console.error('[Backend] Falha ao encerrar o processo Python:', err);
   }
 }
 
@@ -277,19 +276,23 @@ async function syncAuthToBackend() {
  */
 async function createWindow() {
   const iconPath = path.join(__dirname, 'frontend', 'assets', 'Krumer-icon.ico');
+  const initialWorkArea = screen.getPrimaryDisplay().workArea;
   backendPort = await selectBackendPort();
   if (backendPort !== 8765) {
     console.warn(`[Backend] Porta 8765 ocupada; usando a porta local ${backendPort}.`);
   }
 
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    x: initialWorkArea.x,
+    y: initialWorkArea.y,
+    width: initialWorkArea.width,
+    height: initialWorkArea.height,
     minWidth: 900,
     minHeight: 600,
     icon: iconPath,
     title: 'Krumer',
     show: false, // evita flash antes de maximizar
+    opacity: process.platform === 'win32' ? 0 : 1,
     backgroundColor: '#111111',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -300,10 +303,33 @@ async function createWindow() {
     }
   });
 
-  // Inicia sempre maximizado
+  // No Windows, maximize() torna a janela visível antes do renderer terminar
+  // de se ajustar à moldura maximizada. Ela permanece transparente até dois
+  // frames após o evento de maximização para o loading nascer no centro final.
   mainWindow.once('ready-to-show', () => {
-    mainWindow.maximize();
-    mainWindow.show();
+    const windowToShow = mainWindow;
+    if (process.platform !== 'win32') {
+      windowToShow.maximize();
+      windowToShow.show();
+      return;
+    }
+
+    let revealStarted = false;
+    const revealAfterStableLayout = () => {
+      if (revealStarted || windowToShow.isDestroyed()) return;
+      revealStarted = true;
+      windowToShow.webContents.executeJavaScript(
+        'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))'
+      ).finally(() => {
+        if (windowToShow.isDestroyed()) return;
+        windowToShow.setOpacity(1);
+        windowToShow.show();
+      });
+    };
+
+    windowToShow.once('maximize', revealAfterStableLayout);
+    windowToShow.maximize();
+    setTimeout(revealAfterStableLayout, 250);
   });
 
   // Abre links externos no navegador padrão do sistema (não dentro do Electron)

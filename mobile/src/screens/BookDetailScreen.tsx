@@ -34,7 +34,6 @@ import { RatingStars } from '../components/RatingStars';
 import { MetadataActionModal } from '../components/MetadataActionModal';
 import { MetadataDialog, type MetadataDialogConfig } from '../components/MetadataDialog';
 import { useApp } from '../context/AppContext';
-import { useAutoRescan } from '../hooks/useAutoRescan';
 import type { Book } from '../models/item';
 import type { RootStackParamList } from '../navigation/types';
 import { CONTENT_MAX_WIDTH, coverShadow, radii, serifFont, spacing, TABLET_BREAKPOINT } from '../theme';
@@ -48,7 +47,6 @@ export function BookDetailScreen({ navigation, route }: Props) {
   const { bookId } = route.params;
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  useAutoRescan();
   const {
     books,
     lists,

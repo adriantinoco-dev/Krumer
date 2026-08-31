@@ -22,6 +22,7 @@ type AppContextValue = {
   lists: SyncList[];
   preferences: MobilePreferences;
   ready: boolean;
+  isScanning: boolean;
   setBooks: (books: Book[]) => Promise<void>;
   rescanLibrary: () => Promise<void>;
   replaceBooksFromSync: (books: Book[]) => Promise<void>;
@@ -58,21 +59,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [lists, setLists] = useState<SyncList[]>([]);
   const [preferences, setPreferenceState] = useState<MobilePreferences>(defaultPreferences);
   const [ready, setReady] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
   const booksRef = useRef<Book[]>([]);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const coversRunningRef = useRef(false);
   const coversRestartRef = useRef(false);
-  const rescanRunningRef = useRef(false);
-  const rescanQueuedRef = useRef(false);
-  const libraryFolderRef = useRef<string | null>(preferences.libraryFolder);
+  const scanRunningRef = useRef(false);
+  const startupScanStartedRef = useRef(false);
 
   useEffect(() => {
     booksRef.current = books;
   }, [books]);
-
-  useEffect(() => {
-    libraryFolderRef.current = preferences.libraryFolder;
-  }, [preferences.libraryFolder]);
 
   useEffect(() => {
     return () => {
@@ -203,28 +200,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [runCoversLoop]);
 
   const rescanLibrary = useCallback(async () => {
-    if (rescanRunningRef.current) {
-      rescanQueuedRef.current = true;
-      return;
-    }
+    const folder = preferences.libraryFolder;
+    if (!folder || scanRunningRef.current) return;
 
-    rescanRunningRef.current = true;
+    scanRunningRef.current = true;
+    setIsScanning(true);
     try {
-      do {
-        rescanQueuedRef.current = false;
-        const folder = libraryFolderRef.current;
-        if (!folder) return;
-
-        const scannedBooks = await scanLibrary(folder);
-        await setBooks(scannedBooks);
-      } while (rescanQueuedRef.current);
+      // Give the loading indicator a frame before traversing the folder.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      const scannedBooks = await scanLibrary(folder);
+      await setBooks(scannedBooks);
     } catch {
-      // A folder can become unavailable while the app is in the background.
-      // Keep the cached library visible and retry on the next focus event.
+      // Keep the cached library visible when the folder is unavailable.
     } finally {
-      rescanRunningRef.current = false;
+      scanRunningRef.current = false;
+      setIsScanning(false);
     }
-  }, [setBooks]);
+  }, [preferences.libraryFolder, setBooks]);
+
+  useEffect(() => {
+    if (!ready || startupScanStartedRef.current) return;
+    startupScanStartedRef.current = true;
+    if (!preferences.hasOnboarded || !preferences.libraryFolder) return;
+    void rescanLibrary();
+  }, [preferences.hasOnboarded, preferences.libraryFolder, ready, rescanLibrary]);
 
   const replaceBooksFromSync = useCallback(async (nextBooks: Book[]) => {
     booksRef.current = nextBooks;
@@ -365,6 +364,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       lists,
       preferences,
       ready,
+      isScanning,
       setBooks,
       rescanLibrary,
       replaceBooksFromSync,
@@ -395,11 +395,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     persistPreferences,
     preferences,
     ready,
-    rescanLibrary,
+    isScanning,
     renameList,
     replaceBooksFromSync,
     replaceListsFromSync,
     setBooks,
+    rescanLibrary,
     toggleBookInList,
     toggleFavorite,
     updateBookCover,

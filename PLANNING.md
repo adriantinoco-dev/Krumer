@@ -213,7 +213,7 @@ Implementação preservada no repositório: migration remota, RPC de merge monot
 - **F1** `[ ]` **Contador de itens recursivo (Android)** — a contagem na biblioteca/listas soma os livros dentro de séries/subpastas, não só o nível raiz. Requer modelar pai/filhos (séries) e contagem recursiva.
 - **F2** `[ ]` **Menu de atalhos nas Configurações (Android)** — seção listando os atalhos/gestos do app por contexto (Geral, Biblioteca, Leitura), adaptando o `shortcutsMap` do desktop para gestos/navegação mobile.
 - **F3** `[x]` **Restaurar capa original (Android)** — botão na edição de metadados que volta à capa original do arquivo (equivalente ao `cover_original_path`). Requer PB3.
-- **F4** `[ ]` **Rescan automático (Android)** — reescanear ao sair da leitura ou voltar à biblioteca/mudar de aba, sem travar a UI.
+- **F4** `[x]` **Rescan automático (Android)** — reescanear ao sair da leitura ou voltar à biblioteca/mudar de aba, sem travar a UI.
 - **F5** `[~]` **Idioma no onboarding + 10 idiomas (Android)** — expandir de 3 para os 10 idiomas do desktop (pt-BR, en, es, fr, de, it, ja, zh, ko, ru) e aplicar no onboarding e no resto do app.
 - **F6** `[ ]` **Modo de visualização de capítulos (Android)** — toggle "Somente Título" ou "Título + Capa" na lista de capítulos de séries, com preferência salva localmente (equivalente ao `window.chapterViewMode`).
 - **F7** `[ ]` **Tela de atualização com changelog (Android)** — notificação de nova versão com changelog via GitHub Releases, exibida uma única vez por versão (equivalente ao `marked.min.js` + GitHub Releases API do desktop).

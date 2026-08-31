@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Pressable,
   ScrollView,
@@ -7,7 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { ArrowDownAZ, ArrowUpDown, BookMarked, Clock, Star, X } from 'lucide-react-native';
+import { ArrowDownAZ, ArrowUpDown, BookMarked, Clock, RefreshCw, Star, X } from 'lucide-react-native';
 import { useApp } from '../context/AppContext';
 import { radii, serifFont, spacing } from '../theme';
 import { ActionSheetModal } from './ActionSheetModal';
@@ -19,9 +20,20 @@ type Props = {
   sort: SortKey;
   onQueryChange: (value: string) => void;
   onSortChange: (value: SortKey) => void;
+  onRescan: () => void;
+  rescanDisabled?: boolean;
+  isScanning?: boolean;
 };
 
-export function SearchSortBar({ query, sort, onQueryChange, onSortChange }: Props) {
+export function SearchSortBar({
+  query,
+  sort,
+  onQueryChange,
+  onSortChange,
+  onRescan,
+  rescanDisabled = false,
+  isScanning = false,
+}: Props) {
   const { theme, t } = useApp();
   const [sortOpen, setSortOpen] = useState(false);
   const inputRef = useRef<TextInput>(null);
@@ -114,6 +126,32 @@ export function SearchSortBar({ query, sort, onQueryChange, onSortChange }: Prop
           </Pressable>
         </Animated.View>
       </View>
+
+      {/* Rescan button */}
+      <Pressable
+        accessibilityLabel={t('scan.action')}
+        accessibilityRole="button"
+        accessibilityState={{ busy: isScanning, disabled: rescanDisabled || isScanning }}
+        disabled={rescanDisabled || isScanning}
+        onPress={onRescan}
+        style={({ pressed }) => ({
+          alignItems: 'center',
+          backgroundColor: pressed && !isScanning ? theme.cardHover : theme.bg,
+          borderColor: theme.accent,
+          borderRadius: radii.lg,
+          borderWidth: 1,
+          height: 42,
+          justifyContent: 'center',
+          opacity: rescanDisabled || isScanning ? 0.55 : 1,
+          width: 42,
+        })}
+      >
+        {isScanning ? (
+          <ActivityIndicator color={theme.accent} size="small" />
+        ) : (
+          <RefreshCw color={theme.accent} size={16} strokeWidth={2} />
+        )}
+      </Pressable>
 
       {/* Sort button */}
       <Pressable

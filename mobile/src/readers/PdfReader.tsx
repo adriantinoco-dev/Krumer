@@ -1,305 +1,207 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { ActivityIndicator, Text, View, useWindowDimensions } from 'react-native';
-import { radii, serifFont, spacing } from '../theme';
 import { useApp } from '../context/AppContext';
-import type { PdfPageSize } from './PdfReader.types';
-import { PDF_DEFAULTS } from './PdfReader.types';
-import { cleanupCachedPdfUri, resolvePdfUri } from './pdf/pdfUri';
+import { radii, serifFont, spacing } from '../theme';
+import { PDF_DEFAULTS, type PdfReaderHandle, type PdfReaderProps } from './PdfReader.types';
+import { NativePdfEngine, type NativePdfEngineHandle } from './pdf/NativePdfEngine';
+import { describePdfSource, pdfDevLog, pdfDevWarn } from './pdf/pdfDebug';
+import { clampPdfPage, classifyPdfTap } from './pdf/pdfState';
 import { loadPdfPrefs } from './pdf/usePdfPrefs';
-import { PdfHorizontal } from './pdf/PdfHorizontal';
+import { usePdfSource } from './pdf/usePdfSource';
 
-/**
- * PdfReader — orquestrador do leitor PDF (D1 + D4 + base D2/D3).
- *
- * Paridade com frontend/js/reader-pdf.js:28 openPdf() + :412 horizontal.
- * - D1: abertura robusta (resolve content://, mede baseAspect via onLoadComplete, clamp initialPage)
- * - D2: placeholder dimensionado (fittedHeight em PdfHorizontal)
- * - D3: render lazy + HiDPI guard (renderingPagesRef + enableAntialiasing)
- * - D4: modo horizontal página única (singlePage=true após capturar total real)
- *
- * Contrato externo mantido: {filePath, initialPage, onPageChange, onCenterTap}
- */
+const PDF_LOAD_TIMEOUT_MS = 12_000;
 
-type PdfReaderProps = {
-  filePath: string;
-  initialPage?: number;
-  onPageChange?: (page: number, total: number) => void;
-  onCenterTap?: () => void;
-};
-
-export function PdfReader({ filePath, initialPage = 1, onPageChange, onCenterTap }: PdfReaderProps) {
+export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader(
+  { filePath, initialPage = 1, onCenterTap, onExternalLink, onPageChange },
+  ref,
+) {
   const { width } = useWindowDimensions();
   const { theme, t } = useApp();
-
-  // D1 — estados de abertura
-  const [resolving, setResolving] = useState(true);
-  const [resolvedUri, setResolvedUri] = useState<string | null>(null);
+  const { error: sourceError, resolvedUri, resolving } = usePdfSource(filePath);
+  const engineRef = useRef<NativePdfEngineHandle>(null);
+  const initialPageRef = useRef(initialPage);
+  const currentPageRef = useRef(clampPdfPage(initialPage, 0));
+  const totalPagesRef = useRef(0);
+  const documentLoadedRef = useRef(false);
+  const lastReportedSnapshotRef = useRef<string | null>(null);
+  const loadProgressBucketRef = useRef(-1);
+  const [currentPage, setCurrentPage] = useState(currentPageRef.current);
+  const [scale, setScale] = useState<number>(PDF_DEFAULTS.scale);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
 
-  // D1/D4 — estado de documento
-  const [currentPage, setCurrentPage] = useState<number>(() => clampPage(initialPage, 1));
-  const [totalPages, setTotalPages] = useState(0);
-  const [pageSize, setPageSize] = useState<PdfPageSize | null>(null);
-  const [scale, setScale] = useState<number>(PDF_DEFAULTS.scale);
-  const [captured, setCaptured] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void loadPdfPrefs().then((preferences) => {
+      if (active) setScale(preferences.scale);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
-  // D4 — singlePage sempre true no mobile horizontal (D4). O hack de capturar com false causava flash de 2 páginas;
-  // em react-native-pdf 6.7.5 o onPageChanged já entrega total correto (139) mesmo com singlePage=true, então mantemos true.
-  const [isSinglePageReady, setIsSinglePageReady] = useState(true);
-
-  // D3 — guard de renderização (reader-pdf.js:16 renderingPages + :395 has)
-  const renderingPagesRef = useRef<Set<number>>(new Set());
-  const hasCapturedTotalRef = useRef(false);
-  const resolvedUriRef = useRef<string | null>(null);
-  const initialPageRef = useRef(initialPage);
-
-  // Manter refs sincronizadas
   useEffect(() => {
     initialPageRef.current = initialPage;
+    const target = clampPdfPage(initialPage, totalPagesRef.current);
+    if (target === currentPageRef.current) return;
+    currentPageRef.current = target;
+    setCurrentPage(target);
+    engineRef.current?.setPage(target);
   }, [initialPage]);
 
-  // D1 — carregar preferências (scale) — modo/coluna ficam para P3/P5, mas já lidos
   useEffect(() => {
-    loadPdfPrefs().then((prefs) => {
-      setScale(prefs.scale);
+    const target = clampPdfPage(initialPageRef.current, 0);
+    currentPageRef.current = target;
+    totalPagesRef.current = 0;
+    documentLoadedRef.current = false;
+    lastReportedSnapshotRef.current = null;
+    loadProgressBucketRef.current = -1;
+    pdfDevLog('reader:session-reset', {
+      initialPage: target,
+      source: describePdfSource(filePath),
     });
-  }, []);
-
-  // Sincroniza currentPage quando initialPage muda externamente (ReaderScreen)
-  useEffect(() => {
-    setCurrentPage(clampPage(initialPage, totalPages || 9999));
-  }, [initialPage, totalPages]);
-
-  // Reset ao trocar de arquivo — espelha openPdf():38-40 + :56-70
-  useEffect(() => {
-    setIsSinglePageReady(true);
-    setPageSize(null);
-    setTotalPages(0);
-    setCaptured(false);
-    hasCapturedTotalRef.current = false;
-    renderingPagesRef.current.clear();
+    setCurrentPage(target);
+    setLoading(true);
     setError(null);
     setErrorDetail(null);
-    setLoading(true);
   }, [filePath]);
 
-  // D1 — resolução de URI + cleanup de cache anterior
   useEffect(() => {
-    let cancelled = false;
-    const prevUri = resolvedUriRef.current;
+    if (!sourceError) return;
+    console.warn('[Krumer PdfReader] falha ao resolver URI', filePath, sourceError);
+    setLoading(false);
+    setError(t('reader.pdfOpenFailed'));
+    setErrorDetail(sourceError);
+  }, [filePath, sourceError, t]);
 
-    setResolving(true);
-    setError(null);
-    setErrorDetail(null);
-    setLoading(true);
-
-    resolvePdfUri(filePath)
-      .then((uri) => {
-        if (cancelled) {
-          // se cancelado, limpar cópia recém-criada se for content://
-          cleanupCachedPdfUri(uri, filePath);
-          return;
-        }
-        // limpar cache anterior se era content://
-        if (prevUri && prevUri !== uri) {
-          cleanupCachedPdfUri(prevUri, filePath);
-        }
-        resolvedUriRef.current = uri;
-        setResolvedUri(uri);
-      })
-      .catch((e: unknown) => {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.warn('[Krumer PdfReader:D1] falha ao resolver URI', filePath, msg);
-        if (!cancelled) {
-          setError(t('reader.pdfOpenFailed'));
-          setErrorDetail(msg);
-          setLoading(false);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setResolving(false);
+  useEffect(() => {
+    if (resolving || !resolvedUri || !loading || error) return;
+    const timer = setTimeout(() => {
+      pdfDevWarn('reader:load-timeout', {
+        currentPage: currentPageRef.current,
+        documentLoaded: documentLoadedRef.current,
+        resolved: describePdfSource(resolvedUri),
+        totalPages: totalPagesRef.current,
       });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [filePath, t]);
-
-  // Cleanup de arquivo temporário no unmount
-  useEffect(() => {
-    return () => {
-      if (resolvedUriRef.current) {
-        cleanupCachedPdfUri(resolvedUriRef.current, filePath);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Fallback anti-infinito: se em 4s não capturou total, destrava loading para não travar em "Carregando documento"
-  useEffect(() => {
-    if (captured || resolving || !resolvedUri) return;
-    const t = setTimeout(() => {
-      console.warn('[Krumer PdfReader:D1] timeout sem onLoadComplete — destravando', { totalPages, isSinglePageReady });
-      if (!hasCapturedTotalRef.current) {
-        // tenta usar fallback: assume 1 página para destravar, onPageChanged pode corrigir depois
-        setLoading(false);
-        if (totalPages === 0) setTotalPages(1);
-        hasCapturedTotalRef.current = true;
-        setCaptured(true);
-        setIsSinglePageReady(true);
-      }
-    }, 4000);
-    return () => clearTimeout(t);
-  }, [captured, resolving, resolvedUri, totalPages, isSinglePageReady]);
-
-  // D1 — onLoadComplete: captura totalPages + pageSize (baseAspect) e ativa singlePage
-  // Espelha reader-pdf.js:63-74 (mede viewport page1) + :88-111 (salva página)
-  const handleLoadComplete = useCallback(
-    (numberOfPages: number, _path: string, size: PdfPageSize) => {
-      console.log('[Krumer PdfReader:D1] onLoadComplete pages=', numberOfPages, ' size=', size, ' singleReady=', isSinglePageReady, ' hasTotal=', hasCapturedTotalRef.current, ' totalPages=', totalPages);
-
-      // D3 — singlePage=true reporta 1 página erroneamente (reader-pdf.js:391)
-      if (isSinglePageReady && numberOfPages === 1 && totalPages > 1) {
-        console.log('[Krumer PdfReader:D3] ignora 1 página em singlePage, mantém total', totalPages);
-        setLoading(false);
-        if (!hasCapturedTotalRef.current) {
-          hasCapturedTotalRef.current = true;
-          setCaptured(true);
-        }
-        return;
-      }
-
-      // Se já capturamos total e recebemos 1 de novo (bounce), ignorar
-      if (hasCapturedTotalRef.current && numberOfPages === 1 && totalPages > 1) {
-        console.log('[Krumer PdfReader:D1] bounce 1 ignorado, mantém', totalPages);
-        setLoading(false);
-        return;
-      }
-
-      console.log('[Krumer PdfReader:D1] capturando total', numberOfPages);
-      setTotalPages(numberOfPages);
-      if (size?.width && size?.height) setPageSize(size);
-      setLoading(false);
-      setError(null);
-      hasCapturedTotalRef.current = true;
-      setCaptured(true);
-
-      // D1 — clamp initialPage como reader-pdf.js:90 if(savedPage <1 || >total) savedPage=1
-      const targetPage = clampPage(initialPageRef.current, numberOfPages);
-      setCurrentPage(targetPage);
-      renderingPagesRef.current.clear();
-      if (onPageChange) onPageChange(targetPage, numberOfPages);
-
-      // D4 — singlePage já true, não precisa switch (mantido para compatibilidade)
-      if (!isSinglePageReady) setIsSinglePageReady(true);
-    },
-    [isSinglePageReady, totalPages, onPageChange],
-  );
-
-  // Fallback se onLoadComplete não disparar (reader-pdf.js:114 handlePageChanged)
-  const handlePageChanged = useCallback(
-    (page: number, numberOfPages: number) => {
-      console.log('[Krumer PdfReader:D1] onPageChanged', page, '/', numberOfPages, ' captured=', hasCapturedTotalRef.current, ' totalPages=', totalPages);
-      // Só usa fallback se ainda não temos total
-      if (!hasCapturedTotalRef.current) {
-        if (numberOfPages === 1 && page === 1) {
-          // pode ser 1 página real ou report fantasma 1/1 de singlePage — aguarda onLoadComplete se ainda não capturou 139
-          // Se já recebemos 139 antes, este 1/1 será tratado no else
-          console.log('[Krumer PdfReader:D1] primeiro onPageChanged, aguardando total real...');
-        }
-        setTotalPages(numberOfPages);
-        setLoading(false);
-        setCaptured(true);
-        const target = clampPage(initialPageRef.current || page, numberOfPages);
-        setCurrentPage(target);
-        if (onPageChange) onPageChange(target, numberOfPages);
-        hasCapturedTotalRef.current = true;
-        setIsSinglePageReady(true);
-      } else {
-        // Pós-captura: corrige total se veio maior (ex: primeiro foi 1/1 fantasma, depois 1/139 correto)
-        if (numberOfPages > totalPages) {
-          console.log('[Krumer PdfReader:D1] corrige total', totalPages, '->', numberOfPages);
-          setTotalPages(numberOfPages);
-        }
-        if (numberOfPages === 1 && totalPages > 1) {
-          console.log('[Krumer PdfReader:D1] ignora onPageChanged 1/1 fantasma, mantém', totalPages);
-          return;
-        }
-        if (page !== currentPage) {
-          const effectiveTotal = numberOfPages > totalPages ? numberOfPages : totalPages;
-          if (effectiveTotal > 0 && (page < 1 || page > effectiveTotal)) {
-            console.log('[Krumer PdfReader:D1] ignora page fora do range', page);
-            return;
-          }
-          setCurrentPage(page);
-          if (onPageChange) onPageChange(page, effectiveTotal || numberOfPages);
-        }
-      }
-    },
-    [currentPage, onPageChange, totalPages],
-  );
-
-  const handleLoadProgress = useCallback((percent: number) => {
-    if (percent >= 1) setTimeout(() => setLoading(false), 500);
-  }, []);
-
-  const handleError = useCallback(
-    (err: unknown) => {
-      const msg = err instanceof Error ? err.message : typeof err === 'string' ? err : JSON.stringify(err ?? '');
-      console.warn('[Krumer PdfReader:D1] onError', filePath, msg);
       setLoading(false);
       setError(t('reader.pdfOpenFailed'));
-      setErrorDetail(msg || null);
-    },
-    [filePath, t],
-  );
+      setErrorDetail(`PDF load timed out after ${PDF_LOAD_TIMEOUT_MS / 1000} seconds.`);
+    }, PDF_LOAD_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [error, loading, resolvedUri, resolving, t]);
 
-  // D4 — navegação com guard D3 (renderingPages)
-  const goToPage = useCallback(
-    (nextPage: number) => {
-      const max = totalPages || 9999;
-      const clamped = clampPage(nextPage, max);
-      if (clamped === currentPage && totalPages > 0) return;
-      if (renderingPagesRef.current.has(clamped)) return;
-      renderingPagesRef.current.add(clamped);
-      setCurrentPage(clamped);
-      // Notifica pai (ReaderScreen.saveProgress) — pct calculado lá, mas mantemos round*10/10 se necessário
-      if (onPageChange && totalPages) onPageChange(clamped, totalPages);
-      setTimeout(() => renderingPagesRef.current.delete(clamped), 300);
-    },
-    [currentPage, totalPages, onPageChange],
-  );
+  const publishPage = useCallback((page: number, total: number) => {
+    if (!Number.isInteger(total) || total < 1) return;
+    const nextPage = clampPdfPage(page, total);
+    currentPageRef.current = nextPage;
+    totalPagesRef.current = total;
+    setCurrentPage(nextPage);
+    setLoading(false);
+    setError(null);
+    setErrorDetail(null);
 
-  // D4 — tap zonas 25/50/25 (reader-pdf.js handleSingleTap equivalente)
-  const handleSingleTap = useCallback(
-    (_page: number, x: number, _y: number) => {
-      const zone = x / width;
-      if (zone < 0.25) {
-        goToPage(currentPage - 1);
-      } else if (zone > 0.75) {
-        goToPage(currentPage + 1);
-      } else {
-        onCenterTap?.();
+    const snapshot = `${nextPage}/${total}`;
+    if (snapshot === lastReportedSnapshotRef.current) return;
+    lastReportedSnapshotRef.current = snapshot;
+    onPageChange?.(nextPage, total);
+  }, [onPageChange]);
+
+  const handleLoadComplete = useCallback((numberOfPages: number) => {
+    pdfDevLog('native:load-complete', {
+      initialPage: initialPageRef.current,
+      numberOfPages,
+    });
+    if (!Number.isInteger(numberOfPages) || numberOfPages < 1) {
+      setLoading(false);
+      setError(t('reader.pdfOpenFailed'));
+      setErrorDetail(`Invalid PDF page count: ${String(numberOfPages)}`);
+      return;
+    }
+    if (documentLoadedRef.current) {
+      pdfDevLog('native:load-complete-after-ready', {
+        currentPage: currentPageRef.current,
+        numberOfPages,
+      });
+      publishPage(currentPageRef.current, numberOfPages);
+      return;
+    }
+    const target = clampPdfPage(initialPageRef.current, numberOfPages);
+    documentLoadedRef.current = true;
+    publishPage(target, numberOfPages);
+    requestAnimationFrame(() => engineRef.current?.setPage(target));
+  }, [publishPage, t]);
+
+  const handlePageChanged = useCallback((page: number, numberOfPages: number) => {
+    if (!documentLoadedRef.current) {
+      if (!Number.isInteger(numberOfPages) || numberOfPages < 1) {
+        pdfDevWarn('native:page-changed-invalid', { numberOfPages, page });
+        return;
       }
-    },
-    [width, currentPage, goToPage, onCenterTap],
-  );
+      const target = clampPdfPage(initialPageRef.current, numberOfPages);
+      documentLoadedRef.current = true;
+      pdfDevLog('native:page-changed-used-as-ready', {
+        numberOfPages,
+        reportedPage: page,
+        targetPage: target,
+      });
+      publishPage(target, numberOfPages);
+      if (page !== target) {
+        requestAnimationFrame(() => engineRef.current?.setPage(target));
+      }
+      return;
+    }
+    pdfDevLog('native:page-changed', { numberOfPages, page });
+    publishPage(page, numberOfPages);
+  }, [publishPage]);
 
-  // ---- Render ----
+  const handleLoadProgress = useCallback((progress: number) => {
+    const bucket = Math.max(0, Math.min(4, Math.floor(progress * 4)));
+    if (bucket === loadProgressBucketRef.current) return;
+    loadProgressBucketRef.current = bucket;
+    pdfDevLog('native:load-progress', { progress: Number(progress.toFixed(2)) });
+  }, []);
+
+  const handleError = useCallback((caught: unknown) => {
+    const detail = describePdfError(caught);
+    pdfDevWarn('native:error', { detail, source: describePdfSource(filePath) });
+    setLoading(false);
+    setError(t('reader.pdfOpenFailed'));
+    setErrorDetail(detail || null);
+  }, [filePath, t]);
+
+  const goToPage = useCallback((page: number) => {
+    const target = clampPdfPage(page, totalPagesRef.current);
+    if (target === currentPageRef.current) return;
+    currentPageRef.current = target;
+    setCurrentPage(target);
+    engineRef.current?.setPage(target);
+  }, []);
+
+  useImperativeHandle(ref, () => ({ goToPage }), [goToPage]);
+
+  const handleSingleTap = useCallback((_page: number, x: number, _y: number) => {
+    const action = classifyPdfTap(x, width);
+    if (action === 'previous') {
+      goToPage(currentPageRef.current - 1);
+    } else if (action === 'next') {
+      goToPage(currentPageRef.current + 1);
+    } else {
+      onCenterTap?.();
+    }
+  }, [goToPage, onCenterTap, width]);
+
+  const handleExternalLink = useCallback((url: string) => {
+    if (/^(https?:|mailto:|tel:)/i.test(url)) {
+      onExternalLink?.(url);
+      return;
+    }
+    console.warn('[Krumer PdfReader] esquema de link externo bloqueado', url);
+  }, [onExternalLink]);
 
   if (error) {
     return (
-      <View
-        style={{
-          alignItems: 'center',
-          backgroundColor: theme.bg,
-          flex: 1,
-          justifyContent: 'center',
-          padding: spacing.lg,
-        }}
-      >
+      <View style={{ alignItems: 'center', backgroundColor: theme.bg, flex: 1, justifyContent: 'center', padding: spacing.lg }}>
         <View
           style={{
             backgroundColor: theme.surface,
@@ -312,38 +214,13 @@ export function PdfReader({ filePath, initialPage = 1, onPageChange, onCenterTap
             width: '100%',
           }}
         >
-          <Text
-            style={{
-              color: theme.accent,
-              fontFamily: serifFont,
-              fontSize: 16,
-              fontWeight: '700',
-              textAlign: 'center',
-            }}
-          >
+          <Text style={{ color: theme.accent, fontFamily: serifFont, fontSize: 16, fontWeight: '700', textAlign: 'center' }}>
             {error}
           </Text>
-          <Text
-            style={{
-              color: theme.textSecondary,
-              fontFamily: serifFont,
-              fontSize: 13,
-              lineHeight: 18,
-              textAlign: 'center',
-            }}
-          >
-            {errorDetail ? errorDetail : t('reader.pdfWebUnavailableDescription')}
+          <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13, lineHeight: 18, textAlign: 'center' }}>
+            {errorDetail || t('reader.pdfWebUnavailableDescription')}
           </Text>
-          <Text
-            selectable
-            style={{
-              color: theme.textMuted,
-              fontFamily: serifFont,
-              fontSize: 10,
-              marginTop: spacing.xs,
-              textAlign: 'center',
-            }}
-          >
+          <Text selectable style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 10, marginTop: spacing.xs, textAlign: 'center' }}>
             {filePath}
           </Text>
         </View>
@@ -362,54 +239,53 @@ export function PdfReader({ filePath, initialPage = 1, onPageChange, onCenterTap
     );
   }
 
-  // D2/D3 — evita flash de 2 páginas: enquanto !captured, PdfHorizontal renderiza em singlePage=false
-  // (scroll contínuo) mas fica oculto atrás de overlay sólido theme.bg. Só quando captured=true
-  // e isSinglePageReady=true mostramos paginado. Mantém ÚNICA instância de Pdf para evitar double-load.
   return (
     <View style={{ backgroundColor: theme.bg, flex: 1 }}>
-      <PdfHorizontal
-        resolvedUri={resolvedUri}
+      <NativePdfEngine
+        ref={engineRef}
         currentPage={currentPage}
-        totalPages={totalPages}
-        pageSize={pageSize}
-        scale={scale}
-        loading={false}
-        isSinglePageReady={isSinglePageReady}
-        onLoadComplete={handleLoadComplete}
-        onPageChanged={handlePageChanged}
-        onLoadProgress={handleLoadProgress}
+        displayMode={PDF_DEFAULTS.displayMode}
         onError={handleError}
+        onExternalLink={handleExternalLink}
+        onLoadComplete={handleLoadComplete}
+        onLoadProgress={handleLoadProgress}
+        onPageChanged={handlePageChanged}
         onSingleTap={handleSingleTap}
+        resolvedUri={resolvedUri}
+        scale={scale}
       />
-      {(loading || !captured) && (
+      {loading ? (
         <View
           pointerEvents="none"
           style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: theme.bg,
             alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 10,
+            backgroundColor: theme.bg,
+            bottom: 0,
             gap: spacing.sm,
+            justifyContent: 'center',
+            left: 0,
+            position: 'absolute',
+            right: 0,
+            top: 0,
+            zIndex: 10,
           }}
         >
           <ActivityIndicator color={theme.accent} size="large" />
-          <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12, marginTop: spacing.sm }}>
+          <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12 }}>
             Carregando documento...
           </Text>
         </View>
-      )}
+      ) : null}
     </View>
   );
-}
+});
 
-function clampPage(page: number, total: number): number {
-  const n = Math.round(Number(page) || 1);
-  if (!Number.isFinite(n) || n < 1) return 1;
-  if (total >= 1 && n > total) return total;
-  return n;
+function describePdfError(caught: unknown): string {
+  if (caught instanceof Error) return caught.message;
+  if (typeof caught === 'string') return caught;
+  try {
+    return JSON.stringify(caught ?? '');
+  } catch {
+    return String(caught ?? '');
+  }
 }

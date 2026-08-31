@@ -149,6 +149,52 @@ Migrations inline em `main.py` via `ALTER TABLE` com try/except.
 - Implementar cache básico offline para biblioteca, capas vistas, metadados principais e preferências. Sincronização real fica para uma fase futura.
 - Firebase é decisão futura para sincronização; não introduzir Firebase no MVP.
 
+### Invariantes do leitor EPUB mobile
+
+Estas regras protegem a correção documentada em `mobile/epub-selection-pagination-reset.md`.
+Aplicam-se a mudanças em `AppContext`, `ReaderScreen`, `EpubReader`, `useEpubPersistence` e
+`epubRuntime`.
+
+- A WebView do `EpubReader` deve permanecer montada durante toda a sessão de leitura. Não usar
+  `key` variável nem condicionar sua montagem a progresso, relocation, seleção de texto,
+  visibilidade das barras ou persistência.
+- Manter `WebView.source` estável. Não reconstruir o HTML do runtime por render, progresso ou
+  mudança de UI; uma nova source ou remontagem reinicializa o epub.js e perde o viewport atual.
+- Funções do `AppContext` consumidas por efeitos devem ter identidade estável. Em especial,
+  `t` deve continuar criado com `useCallback(..., [language])` fora do objeto do provider; não
+  voltar a declarar `t: (key) => ...` inline no `value`.
+- Uma gravação de progresso pode atualizar a biblioteca e sincronização, mas nunca pode fechar,
+  preparar novamente, reabrir ou remontar o leitor. `initialLocator` é o snapshot de abertura;
+  a posição corrente deve seguir pelo bridge/ref de locator, sem substituir esse snapshot a
+  cada relocation.
+- Re-renders normais do contexto são permitidos; efeitos de preparação, abertura e cleanup do
+  `EpubReader` não podem depender de objetos ou callbacks cuja identidade muda quando `books`
+  ou o progresso mudam.
+- Seleção de texto pertence ao documento XHTML dentro da WebView. Long-press, ajuste das alças
+  e clique sintético posterior não podem chamar `next`, `previous`, reabrir o livro ou limpar a
+  posição atual.
+- No modo paginado, o `Selection/Range` deve permanecer contido entre os CFIs `start/end` da
+  localização visível; preservar a direção das alças e o menu nativo. Reaplicar o limite no
+  evento tardio `rendition.selected`, preservar o primeiro snapshot da seleção e restaurar o
+  manager, os scrollers do XHTML e as janelas interna/externa para o `ActionMode` Android não
+  deixar o viewport entre duas colunas. Manter o realinhamento de fallback pelo locator quando
+  o snapshot não existir e a janela curta de estabilização contra auto-scroll tardio. Não
+  limitar nem restaurar essa geometria no modo scroll e não ampliar o limite para o capítulo
+  XHTML inteiro.
+- Não executar `rendition.resize()` durante seleção ativa. No modo paginado, ignorar resize
+  apenas de altura; em mudanças reais de largura/orientação, preservar o anchor/CFI, tentar a
+  restauração in-place e manter o fallback por `displayLocator(anchor)`.
+- Não remover as guardas de seleção/resize nem o contrato de estabilidade de `t` sem prova de
+  regressão equivalente.
+- Antes de concluir qualquer alteração nesse fluxo, executar em `mobile/`:
+  - `node scripts/validate-epub-runtime.cjs`;
+  - `node scripts/validate-reading-preferences.cjs`;
+  - `node scripts/validate-reader-persistence.cjs`;
+  - `node node_modules/typescript/bin/tsc --noEmit`.
+- No teste manual Android, avançar pelo menos 10 páginas e selecionar texto nos modos paginado
+  e scroll. `in-memory EPUB metrics` e `runtime HTML carregado` devem aparecer somente na
+  abertura do EPUB; `progresso persistido` pode aumentar sem provocar nenhum desses dois logs.
+
 ---
 
 ## Estética e design

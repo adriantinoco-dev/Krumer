@@ -5,9 +5,22 @@ import zipfile
 import mimetypes
 import datetime
 import hmac
+import platform
 from pathlib import Path
 from typing import List, Optional
 from contextlib import asynccontextmanager
+
+
+def _skip_windows_wmi_query(*_args):
+    raise OSError("WMI disabled during Krumer backend startup")
+
+
+# Python 3.12 consulta WMI em platform.machine(). Quando o backend e iniciado
+# pelo Electron, essa consulta pode travar antes mesmo do Uvicorn subir. O
+# OSError aciona o fallback nativo para PROCESSOR_ARCHITECTURE/Win32 APIs.
+if os.name == "nt" and hasattr(platform, "_wmi_query"):
+    platform._wmi_query = _skip_windows_wmi_query
+
 
 from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File, Request
 from fastapi.responses import FileResponse, StreamingResponse

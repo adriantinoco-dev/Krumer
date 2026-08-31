@@ -31,8 +31,8 @@ const shortcutsMap = [
 ];
 window.shortcutsMap = shortcutsMap;
 
-const STARTUP_PROGRESS_MS = 1500;
-const STARTUP_EXIT_DELAY_MS = 0;
+const STARTUP_PROGRESS_MS = 3000;
+const STARTUP_EXIT_DELAY_MS = 1000;
 const STARTUP_EXIT_MS = 1000;
 const STARTUP_WAIT_PROGRESS = 94;
 

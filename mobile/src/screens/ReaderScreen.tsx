@@ -163,6 +163,12 @@ export function ReaderScreen({ navigation, route }: Props) {
     if (status.totalPages != null) setTotalPages(status.totalPages);
   }, []);
 
+  const handleExternalLink = useCallback((url: string) => {
+    void Linking.openURL(url).catch((caught: unknown) => {
+      console.warn('[Krumer ReaderScreen] falha ao abrir link externo', caught);
+    });
+  }, []);
+
   useEffect(() => {
     if (!isEpub) AsyncStorage.getItem(`progress_${book.id}`).then(setSavedPosition);
     loadReaderSettings().then(setReaderSettings);
@@ -517,6 +523,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         <PdfReader
           filePath={book.filePath}
           initialPage={savedPosition ? Number(savedPosition) : 1}
+          onExternalLink={handleExternalLink}
           onPageChange={(page, total) => saveProgress(String(page), total ? page / total : 0, page, total)}
           onCenterTap={toggleBars}
         />
@@ -546,11 +553,7 @@ export function ReaderScreen({ navigation, route }: Props) {
               onViewStatus={handleEpubViewStatus}
               readingPreferences={readingPreferences.preferences}
               useBookMargins={readerLayout.settings.useBookMargins}
-              onExternalLink={(url) => {
-                Linking.openURL(url).catch((caught: unknown) => {
-                  console.warn('[Krumer ReaderScreen] falha ao abrir link externo', caught);
-                });
-              }}
+              onExternalLink={handleExternalLink}
             />
           ) : (
             <View style={{ alignItems: 'center', backgroundColor: epubBackground, flex: 1, justifyContent: 'center' }}>
