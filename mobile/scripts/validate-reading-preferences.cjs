@@ -104,9 +104,13 @@ async function main() {
   ) {
     throw new Error('Reader-only orientation unlock/restore lifecycle is missing.');
   }
+  const hasStableReaderStatusBar = readerScreenSource.includes('<StatusBar hidden />')
+    || (
+      readerScreenSource.includes('hidden={isEpub || !barsVisible}')
+      && readerScreenSource.includes('animated={!isEpub}')
+    );
   if (
-    !readerScreenSource.includes('hidden={isEpub || !barsVisible}')
-    || !readerScreenSource.includes('animated={!isEpub}')
+    !hasStableReaderStatusBar
     || !readerScreenSource.includes('EPUB_CHROME_VERTICAL_SCALE = ')
     || !settingsModalSource.includes('statusBarTranslucent')
     || !settingsModalSource.includes('navigationBarTranslucent')

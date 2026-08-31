@@ -3,7 +3,7 @@ import { ActivityIndicator, Animated, Easing, Linking, Modal, PanResponder, Plat
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Anchor, ArrowLeft, Bookmark, BookmarkPlus, Feather, ListTree, Settings, StickyNote, Sun, Trash2, X } from 'lucide-react-native';
+import { Anchor, Bookmark, BookmarkPlus, Feather, ListTree, StickyNote, Sun, Trash2, X } from 'lucide-react-native';
 import * as Brightness from 'expo-brightness';
 import { ReadingSettingsButton } from '../components/ReadingSettingsButton';
 import { ReadingSettingsModal } from '../components/ReadingSettingsModal';
@@ -20,11 +20,10 @@ import { useEpubNotes } from '../readers/useEpubNotes';
 import { useOrientation } from '../readers/useOrientation';
 import { useReadingPreferences } from '../readers/useReadingPreferences';
 import { useReaderLayoutSettings } from '../readers/useReaderLayoutSettings';
-import { ThemeCard } from '../components/ThemeCard';
 import { useApp } from '../context/AppContext';
 import type { EpubLocator, ReaderNote } from '../models/reader';
 import type { RootStackParamList } from '../navigation/types';
-import { radii, serifFont, spacing, type ThemeName } from '../theme';
+import { radii, serifFont, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Reader'>;
 
@@ -62,7 +61,7 @@ async function saveReaderSettings(settings: ReaderSettings) {
 export function ReaderScreen({ navigation, route }: Props) {
   const { book } = route.params;
   const isEpub = book.format === 'epub';
-  const { preferences, setThemeName, theme, t, updateBookProgress } = useApp();
+  const { theme, t, updateBookProgress } = useApp();
   const insets = useSafeAreaInsets();
   const windowDimensions = useWindowDimensions();
   const readingPreferences = useReadingPreferences(isEpub);
@@ -322,7 +321,7 @@ export function ReaderScreen({ navigation, route }: Props) {
     setBars(!barsVisible);
   }
 
-  async function saveProgress(value: string, percent: number, page?: number, total?: number) {
+  const saveProgress = useCallback(async (value: string, percent: number, page?: number, total?: number) => {
     setProgress(percent);
     if (page !== undefined) setCurrentPage(page);
     if (total !== undefined) setTotalPages(total);
@@ -335,7 +334,11 @@ export function ReaderScreen({ navigation, route }: Props) {
       cfi: book.format === 'epub' ? value : null,
       isRead: percent >= 1,
     });
-  }
+  }, [book.currentPage, book.format, book.id, book.totalPages, updateBookProgress]);
+
+  const handlePdfPageChange = useCallback((page: number, total: number) => {
+    void saveProgress(String(page), total ? page / total : 0, page, total);
+  }, [saveProgress]);
 
   function changeFontSize(delta: number) {
     setReaderSettings((prev) => {
@@ -511,12 +514,11 @@ export function ReaderScreen({ navigation, route }: Props) {
     return count;
   }
 
-  const progressPercent = Math.round(progress * 100);
   const hasReadyPageCount = epubViewStatus?.paginationState === 'ready' && currentPage > 0 && totalPages > 0;
 
   return (
     <View style={{ backgroundColor: theme.bg, flex: 1 }}>
-      <StatusBar hidden={isEpub || !barsVisible} animated={!isEpub} />
+      <StatusBar hidden />
 
       {/* Reader content */}
       {book.format === 'pdf' ? (
@@ -524,7 +526,7 @@ export function ReaderScreen({ navigation, route }: Props) {
           filePath={book.filePath}
           initialPage={savedPosition ? Number(savedPosition) : 1}
           onExternalLink={handleExternalLink}
-          onPageChange={(page, total) => saveProgress(String(page), total ? page / total : 0, page, total)}
+          onPageChange={handlePdfPageChange}
           onCenterTap={toggleBars}
         />
       ) : (
@@ -631,41 +633,39 @@ export function ReaderScreen({ navigation, route }: Props) {
         onTouchStart={scheduleHide}
         pointerEvents={barsVisible ? 'auto' : 'none'}
         style={{
-          backgroundColor: isEpub ? epubTopChrome : theme.surface + 'ee',
+          backgroundColor: epubTopChrome,
           borderBottomColor: theme.border,
-          borderBottomWidth: isEpub ? 0 : 1,
-          elevation: isEpub ? 20 : 0,
+          borderBottomWidth: 0,
+          elevation: 20,
           left: 0,
-          opacity: isEpub ? (barsVisible ? 1 : 0) : opacity,
-          paddingBottom: isEpub ? scaleEpubChrome(spacing.sm) : spacing.sm,
+          opacity,
+          paddingBottom: scaleEpubChrome(spacing.sm),
           paddingLeft: Math.max(insets.left, spacing.md),
           paddingRight: Math.max(insets.right, spacing.md),
-          paddingTop: isEpub
-            ? Math.max(insets.top, scaleEpubChrome(Platform.OS === 'ios' ? 44 : 24)) + scaleEpubChrome(spacing.xs)
-            : Math.max(insets.top, Platform.OS === 'ios' ? 44 : 24) + spacing.xs,
+          paddingTop: Math.max(insets.top, scaleEpubChrome(Platform.OS === 'ios' ? 44 : 24)) + scaleEpubChrome(spacing.xs),
           position: 'absolute',
           right: 0,
           top: 0,
           zIndex: 100,
         }}
       >
-        {isEpub ? (
-          <View
-            style={{
-              alignItems: 'center',
-              backgroundColor: epubTopChrome,
-              flexDirection: 'row',
-              minHeight: scaleEpubChrome(44),
-              position: 'relative',
-              zIndex: 101,
-            }}
-          >
-            <View style={{ flexDirection: 'row' }}>
+        <View
+          style={{
+            alignItems: 'center',
+            backgroundColor: epubTopChrome,
+            flexDirection: 'row',
+            minHeight: scaleEpubChrome(44),
+            position: 'relative',
+            zIndex: 101,
+          }}
+        >
+          <View style={{ flexDirection: 'row', width: 88 }}>
             <Pressable
               accessibilityLabel={t('reader.addBookmark')}
-              disabled={!epubPersistence.currentLocator || bookmarkBusy}
+              disabled={isEpub && (!epubPersistence.currentLocator || bookmarkBusy)}
               hitSlop={6}
               onPress={() => {
+                if (!isEpub) return;
                 setBookmarkBusy(true);
                 void epubPersistence.addBookmark()
                   .catch((error) => console.warn('[Krumer ReaderScreen] falha ao criar marcador', error))
@@ -675,7 +675,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                 alignItems: 'center',
                 height: scaleEpubChrome(40),
                 justifyContent: 'center',
-                opacity: !epubPersistence.currentLocator || bookmarkBusy ? 0.32 : pressed ? 0.55 : 1,
+                opacity: isEpub && (!epubPersistence.currentLocator || bookmarkBusy) ? 0.32 : pressed ? 0.55 : 1,
                 width: 44,
               })}
             >
@@ -703,25 +703,27 @@ export function ReaderScreen({ navigation, route }: Props) {
                 strokeWidth={1.7}
               />
             </Pressable>
-            </View>
-            <Text
-              numberOfLines={1}
-              style={{
-                color: epubMuted,
-                fontFamily: serifFont,
-                fontSize: 12,
-                height: scaleEpubChrome(40),
-                includeFontPadding: false,
-                left: EPUB_TOP_BAR_SIDE_WIDTH,
-                position: 'absolute',
-                right: EPUB_TOP_BAR_SIDE_WIDTH,
-                textAlign: 'center',
-                textAlignVertical: 'center',
-              }}
-            >
-              {book.title}
-            </Text>
-            <View style={{ flexDirection: 'row', marginLeft: 'auto' }}>
+          </View>
+
+          <Text
+            numberOfLines={1}
+            style={{
+              color: epubMuted,
+              fontFamily: serifFont,
+              fontSize: 12,
+              height: scaleEpubChrome(40),
+              includeFontPadding: false,
+              left: EPUB_TOP_BAR_SIDE_WIDTH,
+              position: 'absolute',
+              right: EPUB_TOP_BAR_SIDE_WIDTH,
+              textAlign: 'center',
+              textAlignVertical: 'center',
+            }}
+          >
+            {book.title}
+          </Text>
+
+          <View style={{ flexDirection: 'row', marginLeft: 'auto', width: EPUB_TOP_BAR_SIDE_WIDTH }}>
             <ReadingSettingsButton
               color={epubText}
               onPress={() => {
@@ -750,168 +752,32 @@ export function ReaderScreen({ navigation, route }: Props) {
             >
               <X color={epubText} size={20} strokeWidth={1.7} />
             </Pressable>
-            </View>
           </View>
-        ) : (
-          <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.md }}>
-            <Pressable
-              onPress={() => navigation.goBack()}
-              hitSlop={12}
-              style={({ pressed }) => ({
-                borderRadius: radii.sm,
-                opacity: pressed ? 0.6 : 1,
-                padding: spacing.xs,
-              })}
-            >
-              <ArrowLeft color={theme.accent} size={22} />
-            </Pressable>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text
-                numberOfLines={1}
-                style={{
-                  color: theme.textPrimary,
-                  fontFamily: serifFont,
-                  fontSize: 15,
-                  fontWeight: '600',
-                }}
-              >
-                {book.title}
-              </Text>
-              {book.author ? (
-                <Text
-                  numberOfLines={1}
-                  style={{
-                    color: theme.textMuted,
-                    fontFamily: serifFont,
-                    fontSize: 11,
-                  }}
-                >
-                  {book.author}
-                </Text>
-              ) : null}
-            </View>
-          </View>
-        )}
+        </View>
       </Animated.View>
 
-      {/* Bottom bar - apenas PDF (EPUB sem barra/setas) */}
-      {!isEpub && (
-        <Animated.View
-          onTouchStart={scheduleHide}
-          pointerEvents={barsVisible ? 'auto' : 'none'}
-          style={{
-            backgroundColor: theme.surface + 'ee',
-            borderTopColor: theme.border,
-            borderTopWidth: 1,
-            bottom: 0,
-            left: 0,
-            opacity,
-            paddingBottom: Math.max(insets.bottom, 16) + spacing.xs,
-            paddingLeft: Math.max(insets.left, spacing.md),
-            paddingRight: Math.max(insets.right, spacing.md),
-            paddingTop: spacing.sm,
-            position: 'absolute',
-            right: 0,
-          }}
-        >
-          <>
-            {/* Progress bar */}
-            <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm }}>
-              <View
-                style={{
-                  backgroundColor: theme.border,
-                  borderRadius: radii.sm,
-                  flex: 1,
-                  height: 6,
-                  overflow: 'hidden',
-                }}
-              >
-                <View
-                  style={{
-                    backgroundColor: theme.accent,
-                    borderRadius: radii.sm,
-                    height: '100%',
-                    width: `${progressPercent}%`,
-                  }}
-                />
-              </View>
-              <Text
-                style={{
-                  color: theme.accent,
-                  fontFamily: serifFont,
-                  fontSize: 12,
-                  fontWeight: '700',
-                  minWidth: 36,
-                  textAlign: 'right',
-                }}
-              >
-                {progressPercent}%
-              </Text>
-            </View>
-
-            {/* Page info + settings button */}
-            <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text
-                style={{
-                  color: theme.textMuted,
-                  fontFamily: serifFont,
-                  fontSize: 12,
-                }}
-              >
-                {totalPages ? `${t('reader.page')} ${currentPage} / ${totalPages}` : `${progressPercent}%`}
-              </Text>
-              <Pressable
-                onPress={() => {
-                  setSettingsVisible(true);
-                  if (hideTimer.current) clearTimeout(hideTimer.current);
-                }}
-                hitSlop={10}
-                style={({ pressed }) => ({
-                  alignItems: 'center',
-                  backgroundColor: theme.card,
-                  borderColor: theme.border,
-                  borderRadius: radii.sm,
-                  borderWidth: 1,
-                  flexDirection: 'row',
-                  gap: spacing.xs,
-                  opacity: pressed ? 0.7 : 1,
-                  paddingHorizontal: spacing.sm,
-                  paddingVertical: spacing.xs,
-                })}
-              >
-                <Settings color={theme.textSecondary} size={14} />
-                <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 11 }}>
-                  {t('reader.readingSettings')}
-                </Text>
-              </Pressable>
-            </View>
-          </>
-        </Animated.View>
-      )}
-
-      {/* Bottom bar EPUB - Tópicos, layout e brilho */}
-      {isEpub && (
-        <Animated.View
-          onTouchStart={scheduleHide}
-          pointerEvents={barsVisible ? 'auto' : 'none'}
-          style={{
-            backgroundColor: theme.card,
-            borderTopColor: theme.border,
-            borderTopWidth: 1,
-            bottom: 0,
-            elevation: 100,
-            left: 0,
-            opacity,
-            paddingBottom: Math.max(insets.bottom, scaleEpubChrome(12)) + scaleEpubChrome(spacing.xs),
-            paddingLeft: Math.max(insets.left, spacing.md),
-            paddingRight: Math.max(insets.right, spacing.md),
-            paddingTop: scaleEpubChrome(spacing.sm),
-            position: 'absolute',
-            right: 0,
-            zIndex: 100,
-          }}
-        >
-          <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-around', minHeight: scaleEpubChrome(44) }}>
+      {/* Bottom bar compartilhada pelos leitores. */}
+      <Animated.View
+        onTouchStart={scheduleHide}
+        pointerEvents={barsVisible ? 'auto' : 'none'}
+        style={{
+          backgroundColor: theme.card,
+          borderTopColor: theme.border,
+          borderTopWidth: 1,
+          bottom: 0,
+          elevation: 100,
+          left: 0,
+          opacity,
+          paddingBottom: Math.max(insets.bottom, scaleEpubChrome(12)) + scaleEpubChrome(spacing.xs),
+          paddingLeft: Math.max(insets.left, spacing.md),
+          paddingRight: Math.max(insets.right, spacing.md),
+          paddingTop: scaleEpubChrome(spacing.sm),
+          position: 'absolute',
+          right: 0,
+          zIndex: 100,
+        }}
+      >
+        <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-around', minHeight: scaleEpubChrome(44) }}>
             <Pressable
               accessibilityLabel={t('reader.topics')}
               hitSlop={12}
@@ -962,11 +828,10 @@ export function ReaderScreen({ navigation, route }: Props) {
             >
               <Sun color={epubText} size={24} strokeWidth={1.9} />
             </Pressable>
-          </View>
-        </Animated.View>
-      )}
+        </View>
+      </Animated.View>
 
-      <ActionSheetModal backdropColor="rgba(0,0,0,0.53)" onClose={closeBookmarks} visible={bookmarksVisible && isEpub}>
+      <ActionSheetModal backdropColor="rgba(0,0,0,0.53)" onClose={closeBookmarks} visible={bookmarksVisible}>
           <Pressable
             onPress={(event) => event.stopPropagation()}
             style={{
@@ -1067,7 +932,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         navigationBarTranslucent
         onClose={closeToc}
         statusBarTranslucent
-        visible={tocVisible && isEpub}
+        visible={tocVisible}
       >
           <Pressable
             onPress={(event) => event.stopPropagation()}
@@ -1134,7 +999,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         navigationBarTranslucent
         onClose={closeBrightness}
         statusBarTranslucent
-        visible={brightnessVisible && isEpub}
+        visible={brightnessVisible}
       >
           <Pressable
             onPress={(event) => event.stopPropagation()}
@@ -1263,7 +1128,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         }}
         onUpdatePreferences={readingPreferences.updatePreferences}
         preferences={readingPreferences.preferences}
-        visible={settingsVisible && isEpub}
+        visible={settingsVisible}
       />
 
       <PaginationSettingsModal
@@ -1274,7 +1139,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         }}
         onUpdatePreferences={readingPreferences.updatePreferences}
         preferences={readingPreferences.preferences}
-        visible={paginationSettingsVisible && isEpub}
+        visible={paginationSettingsVisible}
       />
 
       <LayoutSettingsModal
@@ -1296,60 +1161,8 @@ export function ReaderScreen({ navigation, route }: Props) {
         }}
         onUpdateSettings={readerLayout.updateSettings}
         settings={readerLayout.settings}
-        visible={layoutSettingsVisible && isEpub}
+        visible={layoutSettingsVisible}
       />
-
-      {/* PDF settings modal */}
-      <ActionSheetModal
-        backdropColor="rgba(0,0,0,0.53)"
-        visible={settingsVisible && !isEpub}
-        onClose={() => {
-          setSettingsVisible(false);
-          scheduleHide();
-        }}
-      >
-          <Pressable
-            onPress={(e) => e.stopPropagation()}
-            style={{
-              backgroundColor: theme.card,
-              borderColor: theme.border,
-              borderTopLeftRadius: radii.lg,
-              borderTopRightRadius: radii.lg,
-              borderWidth: 1,
-              gap: spacing.lg,
-              paddingBottom: Platform.OS === 'ios' ? spacing.xl : spacing.lg,
-              paddingHorizontal: spacing.lg,
-              paddingTop: spacing.lg,
-            }}
-          >
-            {/* Handle indicator */}
-            <View style={{ alignSelf: 'center', backgroundColor: theme.border, borderRadius: 2, height: 4, marginBottom: spacing.xs, width: 36 }} />
-
-            <Text
-              style={{
-                color: theme.textPrimary,
-                fontFamily: serifFont,
-                fontSize: 18,
-                fontWeight: '700',
-              }}
-            >
-              {t('reader.readingSettings')}
-            </Text>
-
-            {/* Theme selector */}
-            <View style={{ gap: spacing.sm }}>
-              <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13 }}>
-                {t('theme.label')}
-              </Text>
-              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                {(['dark', 'light', 'sepia'] as ThemeName[]).map((name) => (
-                  <ThemeCard key={name} value={name} selected={preferences.theme === name} onPress={setThemeName} />
-                ))}
-              </View>
-            </View>
-
-          </Pressable>
-      </ActionSheetModal>
 
       {/* Notes List Modal */}
       <Modal
@@ -1358,7 +1171,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         onRequestClose={closeNotes}
         statusBarTranslucent
         transparent
-        visible={notesVisible && isEpub}
+        visible={notesVisible}
       >
         <View style={{ backgroundColor: 'rgba(0, 0, 0, 0.48 )', flex: 1 }}>
           <Pressable onPress={closeNotes} style={{ alignItems: 'center', flex: 1, justifyContent: 'center', padding: spacing.lg }}>

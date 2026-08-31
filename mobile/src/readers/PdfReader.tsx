@@ -1,13 +1,14 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { ActivityIndicator, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { radii, serifFont, spacing } from '../theme';
 import { PDF_DEFAULTS, type PdfReaderHandle, type PdfReaderProps } from './PdfReader.types';
 import { NativePdfEngine, type NativePdfEngineHandle } from './pdf/NativePdfEngine';
 import { describePdfSource, pdfDevLog, pdfDevWarn } from './pdf/pdfDebug';
-import { clampPdfPage, classifyPdfTap } from './pdf/pdfState';
+import { clampPdfPage } from './pdf/pdfState';
 import { loadPdfPrefs } from './pdf/usePdfPrefs';
 import { usePdfSource } from './pdf/usePdfSource';
+import { subscribeToReaderVolumeKeys } from './readerVolumeKeys';
 
 const PDF_LOAD_TIMEOUT_MS = 12_000;
 
@@ -15,7 +16,6 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   { filePath, initialPage = 1, onCenterTap, onExternalLink, onPageChange },
   ref,
 ) {
-  const { width } = useWindowDimensions();
   const { theme, t } = useApp();
   const { error: sourceError, resolvedUri, resolving } = usePdfSource(filePath);
   const engineRef = useRef<NativePdfEngineHandle>(null);
@@ -171,6 +171,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   }, [filePath, t]);
 
   const goToPage = useCallback((page: number) => {
+    if (totalPagesRef.current < 1 || !documentLoadedRef.current) return;
     const target = clampPdfPage(page, totalPagesRef.current);
     if (target === currentPageRef.current) return;
     currentPageRef.current = target;
@@ -180,16 +181,17 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
 
   useImperativeHandle(ref, () => ({ goToPage }), [goToPage]);
 
-  const handleSingleTap = useCallback((_page: number, x: number, _y: number) => {
-    const action = classifyPdfTap(x, width);
-    if (action === 'previous') {
-      goToPage(currentPageRef.current - 1);
-    } else if (action === 'next') {
-      goToPage(currentPageRef.current + 1);
-    } else {
-      onCenterTap?.();
-    }
-  }, [goToPage, onCenterTap, width]);
+  useEffect(() => subscribeToReaderVolumeKeys((direction) => {
+    if (!documentLoadedRef.current) return;
+    const delta = direction === 'next' ? 1 : -1;
+    pdfDevLog('controls:volume-key', { direction, page: currentPageRef.current });
+    goToPage(currentPageRef.current + delta);
+  }), [goToPage]);
+
+  const handleSingleTap = useCallback((_page: number, _x: number, _y: number) => {
+    pdfDevLog('controls:toggle-bars-tap');
+    onCenterTap?.();
+  }, [onCenterTap]);
 
   const handleExternalLink = useCallback((url: string) => {
     if (/^(https?:|mailto:|tel:)/i.test(url)) {

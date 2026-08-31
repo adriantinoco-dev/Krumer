@@ -1,18 +1,16 @@
-import React from 'react';
+import React, { forwardRef, useImperativeHandle } from 'react';
 import { Text, View } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { radii, serifFont, spacing } from '../theme';
+import type { PdfReaderHandle, PdfReaderProps } from './PdfReader.types';
 
-export function PdfReader({
+export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader({
   filePath,
   initialPage = 1,
   onPageChange: _onPageChange,
-}: {
-  filePath: string;
-  initialPage?: number;
-  onPageChange?: (page: number, total: number) => void;
-}) {
+}, ref) {
   const { theme, t } = useApp();
+  useImperativeHandle(ref, () => ({ goToPage: () => undefined }), []);
 
   // filePath/initialPage são mantidos na assinatura para paridade com .native,
   // mas não são usados na web — leitor nativo não existe no browser.
@@ -66,4 +64,4 @@ export function PdfReader({
       </View>
     </View>
   );
-}
+});

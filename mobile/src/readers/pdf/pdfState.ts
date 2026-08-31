@@ -1,8 +1,6 @@
 import type { ReaderOrientation } from '../../models/readingPreferences';
 import { PDF_DEFAULTS, type PdfDisplayMode } from '../PdfReader.types';
 
-export type PdfTapAction = 'previous' | 'toggle-controls' | 'next';
-
 export function clampPdfPage(page: number, total: number): number {
   const normalized = Math.round(Number(page) || 1);
   if (!Number.isFinite(normalized) || normalized < 1) return 1;
@@ -35,14 +33,4 @@ export function parsePdfDisplayMode(value: string | null): PdfDisplayMode {
 export function parsePdfOrientation(value: string | null): ReaderOrientation {
   if (value === 'free' || value === 'landscape' || value === 'portrait') return value;
   return PDF_DEFAULTS.orientation;
-}
-
-export function classifyPdfTap(x: number, viewportWidth: number): PdfTapAction {
-  if (!Number.isFinite(x) || !Number.isFinite(viewportWidth) || viewportWidth <= 0) {
-    return 'toggle-controls';
-  }
-  const ratio = x / viewportWidth;
-  if (ratio < 0.25) return 'previous';
-  if (ratio > 0.75) return 'next';
-  return 'toggle-controls';
 }

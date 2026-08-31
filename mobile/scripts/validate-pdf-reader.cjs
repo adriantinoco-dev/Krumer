@@ -61,14 +61,6 @@ async function main() {
   if (state.clampPdfPage(0, 20) !== 1 || state.clampPdfPage(99, 20) !== 20) {
     throw new Error('PDF page clamp is invalid.');
   }
-  if (
-    state.classifyPdfTap(10, 100) !== 'previous'
-    || state.classifyPdfTap(50, 100) !== 'toggle-controls'
-    || state.classifyPdfTap(90, 100) !== 'next'
-  ) {
-    throw new Error('PDF tap zones are invalid.');
-  }
-
   const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
   const packageLock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
   if (
@@ -81,11 +73,16 @@ async function main() {
   const readerSource = fs.readFileSync('src/readers/PdfReader.tsx', 'utf8');
   const engineSource = fs.readFileSync('src/readers/pdf/NativePdfEngine.tsx', 'utf8');
   const debugSource = fs.readFileSync('src/readers/pdf/pdfDebug.ts', 'utf8');
+  const volumeKeysSource = fs.readFileSync('src/readers/readerVolumeKeys.ts', 'utf8');
+  const epubVolumeKeysSource = fs.readFileSync('src/readers/epubVolumeKeys.ts', 'utf8');
   const readerScreenSource = fs.readFileSync('src/screens/ReaderScreen.tsx', 'utf8');
   if (
     !readerSource.includes('usePdfSource(filePath)')
     || !readerSource.includes('forwardRef<PdfReaderHandle, PdfReaderProps>')
     || !readerSource.includes('<NativePdfEngine')
+    || !readerSource.includes("pdfDevLog('controls:toggle-bars-tap')")
+    || readerSource.includes('classifyPdfTap')
+    || !readerSource.includes('onCenterTap?.();')
     || readerSource.includes('isSinglePageReady')
     || readerSource.includes('numberOfPages === 1')
   ) {
@@ -122,7 +119,39 @@ async function main() {
     throw new Error('The reader shell is not receiving PDF external links through a stable callback.');
   }
 
-  console.log('PDF Phase 2 adapter, full-document paging, links, annotations, preferences, and source ownership are valid.');
+  if (
+    !readerScreenSource.includes('Bottom bar compartilhada pelos leitores')
+    || readerScreenSource.includes('Bottom bar PDF —')
+    || readerScreenSource.includes('<PdfControls')
+    || !readerScreenSource.includes('<ReadingSettingsButton')
+    || !readerScreenSource.includes('<PaginationSettingsButton')
+    || !readerScreenSource.includes('<ListTree color={epubText}')
+    || !readerScreenSource.includes('<LayoutSettingsButton')
+    || !readerScreenSource.includes('<Feather color={epubText}')
+    || !readerScreenSource.includes('<Sun color={epubText}')
+    || readerScreenSource.includes('visible={settingsVisible && isEpub}')
+    || readerScreenSource.includes('visible={paginationSettingsVisible && isEpub}')
+    || readerScreenSource.includes('visible={layoutSettingsVisible && isEpub}')
+    || readerScreenSource.includes('visible={bookmarksVisible && isEpub}')
+    || readerScreenSource.includes('visible={tocVisible && isEpub}')
+    || readerScreenSource.includes('visible={brightnessVisible && isEpub}')
+    || readerScreenSource.includes('visible={notesVisible && isEpub}')
+    || readerScreenSource.includes('PDF settings modal')
+  ) {
+    throw new Error('PDF and EPUB are not rendering the exact same toolbars and modal entry points.');
+  }
+
+  if (
+    !volumeKeysSource.includes("export type ReaderVolumeDirection = 'next' | 'previous'")
+    || !volumeKeysSource.includes("const EVENT_NAME = 'KrumerVolumeKey'")
+    || !epubVolumeKeysSource.includes('subscribeToReaderVolumeKeys as subscribeToEpubVolumeKeys')
+    || !readerSource.includes('subscribeToReaderVolumeKeys((direction)')
+    || !readerSource.includes("const delta = direction === 'next' ? 1 : -1")
+  ) {
+    throw new Error('Volume Up/Down do not share the EPUB next/previous contract with PDF.');
+  }
+
+  console.log('PDF Phase 3 shared EPUB toolbars, modal entry points, center tap, volume navigation, and adapter are valid.');
 }
 
 main().catch((error) => {
