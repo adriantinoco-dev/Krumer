@@ -81,6 +81,10 @@ async function main() {
   const paginationModalSource = fs.readFileSync('src/components/PaginationSettingsModal.tsx', 'utf8');
   const paginationButtonSource = fs.readFileSync('src/components/PaginationSettingsButton.tsx', 'utf8');
   const epubReaderSource = fs.readFileSync('src/readers/EpubReader.tsx', 'utf8');
+  const readingPreferencesSource = fs.readFileSync('src/readers/useReadingPreferences.ts', 'utf8');
+  const readerLayoutSource = fs.readFileSync('src/readers/useReaderLayoutSettings.ts', 'utf8');
+  const readerSettingsSource = fs.readFileSync('src/readers/readerSettings.ts', 'utf8');
+  const readerStartupSource = fs.readFileSync('src/readers/readerStartup.ts', 'utf8');
   const appContextSource = fs.readFileSync('src/context/AppContext.tsx', 'utf8');
   const appSource = fs.readFileSync('App.tsx', 'utf8');
   const appConfig = JSON.parse(fs.readFileSync('app.json', 'utf8'));
@@ -141,6 +145,17 @@ async function main() {
     || appContextSource.includes('t: (key) => translate(language, key)')
   ) {
     throw new Error('The translation callback must stay stable while book progress updates the app context.');
+  }
+  if (
+    !readingPreferencesSource.includes('getCachedReadingPreferences')
+    || !readingPreferencesSource.includes('pendingReadingPreferences')
+    || !readerLayoutSource.includes('getCachedReaderLayoutSettings')
+    || !readerLayoutSource.includes('pendingReaderLayoutSettings')
+    || !readerSettingsSource.includes('getCachedReaderSettings')
+    || !readerSettingsSource.includes('pendingReaderSettings')
+    || !readerStartupSource.includes('loadStoredReaderSettings()')
+  ) {
+    throw new Error('Reader startup preferences can regress to repeated AsyncStorage hydration.');
   }
   if (
     !/setPreferenceState\(storedPreferences\);\r?\n      setPreferencesReady\(true\);/.test(appContextSource)

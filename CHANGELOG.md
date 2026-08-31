@@ -8,6 +8,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Alterado
+- **Mobile — abertura acelerada de EPUB e PDF:** a tela de detalhes agora pré-aquece arquivo,
+  preferências, fontes e banco antes do toque em Ler. EPUB reutiliza a cópia/base64 preparados
+  e carrega WebView, fontes e arquivo em paralelo; PDF reutiliza uma cópia validada por tamanho
+  e inicia imediatamente quando a URI e as preferências já estão em memória.
 - **Mobile — PDF sem piscar ao abrir modais:** o bloqueio temporário de interação agora usa
   uma camada transparente independente, sem alterar o contêiner nem os callbacks da view
   nativa ao abrir painéis, preservando a página e o zoom atuais sem redesenhar o documento.

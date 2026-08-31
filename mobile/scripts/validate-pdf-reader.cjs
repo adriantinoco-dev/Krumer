@@ -116,6 +116,11 @@ async function main() {
   const readerSource = fs.readFileSync('src/readers/PdfReader.tsx', 'utf8');
   const readerTypesSource = fs.readFileSync('src/readers/PdfReader.types.ts', 'utf8');
   const engineSource = fs.readFileSync('src/readers/pdf/NativePdfEngine.tsx', 'utf8');
+  const pdfUriSource = fs.readFileSync('src/readers/pdf/pdfUri.ts', 'utf8');
+  const pdfSourceHookSource = fs.readFileSync('src/readers/pdf/usePdfSource.ts', 'utf8');
+  const pdfPrefsSource = fs.readFileSync('src/readers/pdf/usePdfPrefs.ts', 'utf8');
+  const readerStartupSource = fs.readFileSync('src/readers/readerStartup.ts', 'utf8');
+  const bookDetailSource = fs.readFileSync('src/screens/BookDetailScreen.tsx', 'utf8');
   const debugSource = fs.readFileSync('src/readers/pdf/pdfDebug.ts', 'utf8');
   const nativePatchSource = fs.readFileSync('scripts/fix-netinfo-gradle9.cjs', 'utf8');
   const installedPdfIndexSource = fs.readFileSync('node_modules/react-native-pdf/index.js', 'utf8');
@@ -143,7 +148,8 @@ async function main() {
     'utf8',
   );
   if (
-    !readerSource.includes('usePdfSource(filePath)')
+    !readerTypesSource.includes('fileSize?: number;')
+    || !readerSource.includes('usePdfSource(filePath, fileSize)')
     || !readerSource.includes('forwardRef<PdfReaderHandle, PdfReaderProps>')
     || !readerSource.includes('<NativePdfEngine')
     || !readerSource.includes('displayMode={displayMode}')
@@ -164,6 +170,27 @@ async function main() {
     || readerSource.includes('numberOfPages === 1')
   ) {
     throw new Error('PdfReader is not using the stable Phase 2 adapter contract.');
+  }
+  if (
+    !pdfUriSource.includes('let cachedPdfResolution: CachedPdfResolution | null = null')
+    || !pdfUriSource.includes('export function getCachedPdfUri')
+    || !pdfUriSource.includes('stablePathHash(filePath)')
+    || !pdfUriSource.includes('existing.size === expectedSize')
+    || !pdfUriSource.includes('prunePdfCache(cacheDir, dest)')
+    || pdfUriSource.includes('${Date.now()}-${safeName}')
+    || !pdfSourceHookSource.includes('getCachedPdfUri(filePath, fileSize)')
+    || !pdfSourceHookSource.includes('resolvePdfUri(filePath, fileSize)')
+    || !pdfPrefsSource.includes('getCachedPdfPrefs')
+    || !readerStartupSource.includes('resolvePdfUri(book.filePath, book.fileSize)')
+    || !readerStartupSource.includes('loadPdfPrefs()')
+    || !readerStartupSource.includes('export function getCachedPdfProgress')
+    || !readerStartupSource.includes('export function loadPdfProgress')
+    || !readerStartupSource.includes('export async function savePdfProgress')
+    || !readerScreenSource.includes('await savePdfProgress(book.id, value)')
+    || !bookDetailSource.includes('preloadReaderBook(defaultReaderBook, preferences.language)')
+    || (readerScreenSource.match(/fileSize=\{book\.fileSize\}/g) ?? []).length < 2
+  ) {
+    throw new Error('PDF startup can regress to repeated copies or post-navigation preference loading.');
   }
   if (
     !engineSource.includes('useMemo(() => ({ cache: true, uri: resolvedUri }), [resolvedUri])')

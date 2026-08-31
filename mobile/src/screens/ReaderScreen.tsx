@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, StatusBar, Text, TextInput, useWindowDimensions, View } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Anchor, Bookmark, BookmarkPlus, Feather, ListTree, StickyNote, Sun, Trash2, X } from 'lucide-react-native';
@@ -16,13 +15,21 @@ import { EpubReader, type EpubReaderHandle } from '../readers/EpubReader';
 import type { EpubRelocationSource, EpubTocItem, EpubViewStatus } from '../readers/epubBridge';
 import { PdfReader } from '../readers/PdfReader';
 import { PDF_DEFAULTS, type PdfDisplayMode, type PdfReaderHandle } from '../readers/PdfReader.types';
-import { loadPdfPrefs, savePdfDisplayMode, savePdfOrientation } from '../readers/pdf/usePdfPrefs';
+import { getCachedPdfPrefs, loadPdfPrefs, savePdfDisplayMode, savePdfOrientation } from '../readers/pdf/usePdfPrefs';
 import { useEpubPersistence } from '../readers/useEpubPersistence';
 import { useEpubNotes } from '../readers/useEpubNotes';
 import { useOrientation } from '../readers/useOrientation';
 import { usePdfBookmarks } from '../readers/usePdfBookmarks';
 import { useReadingPreferences } from '../readers/useReadingPreferences';
 import { useReaderLayoutSettings } from '../readers/useReaderLayoutSettings';
+import {
+  DEFAULT_READER_SETTINGS,
+  getCachedReaderSettings,
+  loadStoredReaderSettings,
+  saveStoredReaderSettings,
+  type ReaderSettings,
+} from '../readers/readerSettings';
+import { getCachedPdfProgress, loadPdfProgress, savePdfProgress } from '../readers/readerStartup';
 import { useApp } from '../context/AppContext';
 import { createPdfLocator, type EpubLocator, type ReaderNote } from '../models/reader';
 import type { ReadingPreferences } from '../models/readingPreferences';
@@ -33,34 +40,18 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Reader'>;
 
 const FONT_SIZE_MIN = 12;
 const FONT_SIZE_MAX = 32;
-const FONT_SIZE_DEFAULT = 18;
+const FONT_SIZE_DEFAULT = DEFAULT_READER_SETTINGS.fontSize;
 const LINE_HEIGHT_MIN = 1.0;
 const LINE_HEIGHT_MAX = 2.4;
-const LINE_HEIGHT_DEFAULT = 1.5;
+const LINE_HEIGHT_DEFAULT = DEFAULT_READER_SETTINGS.lineHeight;
 const HIDE_DELAY = 4000;
 const PDF_PROGRESS_SAVE_DELAY_MS = 500;
 const EPUB_CONTENT_VERTICAL_OFFSET = 26;
 const EPUB_CHROME_VERTICAL_SCALE = 0.6;
 const EPUB_TOP_BAR_SIDE_WIDTH = 132;
-const READER_SETTINGS_KEY = 'krumer.reader.settings';
 
 function scaleEpubChrome(value: number) {
   return Math.round(value * EPUB_CHROME_VERTICAL_SCALE);
-}
-
-type ReaderSettings = {
-  fontSize: number;
-  lineHeight: number;
-};
-
-async function loadReaderSettings(): Promise<ReaderSettings> {
-  const raw = await AsyncStorage.getItem(READER_SETTINGS_KEY);
-  if (!raw) return { fontSize: FONT_SIZE_DEFAULT, lineHeight: LINE_HEIGHT_DEFAULT };
-  return { fontSize: FONT_SIZE_DEFAULT, lineHeight: LINE_HEIGHT_DEFAULT, ...JSON.parse(raw) };
-}
-
-async function saveReaderSettings(settings: ReaderSettings) {
-  await AsyncStorage.setItem(READER_SETTINGS_KEY, JSON.stringify(settings));
 }
 
 export function ReaderScreen({ navigation, route }: Props) {
@@ -71,11 +62,15 @@ export function ReaderScreen({ navigation, route }: Props) {
   const windowDimensions = useWindowDimensions();
   const readingPreferences = useReadingPreferences(isEpub);
   const readerLayout = useReaderLayoutSettings(isEpub);
-  const [pdfDisplayMode, setPdfDisplayMode] = useState<PdfDisplayMode>(PDF_DEFAULTS.displayMode);
-  const [pdfOrientation, setPdfOrientation] = useState<ReadingPreferences['orientation']>(PDF_DEFAULTS.orientation);
+  const initialPdfPreferences = useRef(getCachedPdfPrefs() ?? PDF_DEFAULTS).current;
+  const [pdfDisplayMode, setPdfDisplayMode] = useState<PdfDisplayMode>(initialPdfPreferences.displayMode);
+  const [pdfOrientation, setPdfOrientation] = useState<ReadingPreferences['orientation']>(initialPdfPreferences.orientation);
   const { isLandscape } = useOrientation(isEpub ? readingPreferences.preferences.orientation : pdfOrientation);
   const [progress, setProgress] = useState((book.progressPct ?? 0) / 100);
-  const [savedPosition, setSavedPosition] = useState<string | null>(book.progress);
+  const [savedPosition, setSavedPosition] = useState<string | null>(() => {
+    const cachedPdfProgress = isEpub ? undefined : getCachedPdfProgress(book.id);
+    return cachedPdfProgress === undefined ? book.progress : cachedPdfProgress;
+  });
   const [barsVisible, setBarsVisible] = useState(book.format !== 'epub');
   const [bookmarksVisible, setBookmarksVisible] = useState(false);
   const [bookmarkBusy, setBookmarkBusy] = useState(false);
@@ -84,12 +79,13 @@ export function ReaderScreen({ navigation, route }: Props) {
   const [layoutSettingsVisible, setLayoutSettingsVisible] = useState(false);
   const [currentPage, setCurrentPage] = useState(book.currentPage ?? 1);
   const [totalPages, setTotalPages] = useState(book.totalPages ?? 0);
-  const [pdfPreferencesHydrated, setPdfPreferencesHydrated] = useState(isEpub);
+  const [pdfPreferencesHydrated, setPdfPreferencesHydrated] = useState(
+    isEpub || getCachedPdfPrefs() !== null,
+  );
   const [epubViewStatus, setEpubViewStatus] = useState<EpubViewStatus | null>(null);
-  const [readerSettings, setReaderSettings] = useState<ReaderSettings>({
-    fontSize: FONT_SIZE_DEFAULT,
-    lineHeight: LINE_HEIGHT_DEFAULT,
-  });
+  const [readerSettings, setReaderSettings] = useState<ReaderSettings>(
+    () => getCachedReaderSettings() ?? DEFAULT_READER_SETTINGS,
+  );
   const [tocVisible, setTocVisible] = useState(false);
   const [tocItems, setTocItems] = useState<EpubTocItem[] | null>(null);
   const [tocLoading, setTocLoading] = useState(false);
@@ -207,12 +203,23 @@ export function ReaderScreen({ navigation, route }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!isEpub) AsyncStorage.getItem(`progress_${book.id}`).then(setSavedPosition);
-    loadReaderSettings().then(setReaderSettings);
+    if (!isEpub) {
+      loadPdfProgress(book.id).then(setSavedPosition);
+      return;
+    }
+    loadStoredReaderSettings().then(setReaderSettings);
   }, [book.id, isEpub]);
 
   useEffect(() => {
     if (isEpub) {
+      setPdfPreferencesHydrated(true);
+      return undefined;
+    }
+
+    const cachedPreferences = getCachedPdfPrefs();
+    if (cachedPreferences) {
+      setPdfDisplayMode(cachedPreferences.displayMode);
+      setPdfOrientation(cachedPreferences.orientation);
       setPdfPreferencesHydrated(true);
       return undefined;
     }
@@ -413,7 +420,7 @@ export function ReaderScreen({ navigation, route }: Props) {
     setProgress(percent);
     if (page !== undefined) setCurrentPage(page);
     if (total !== undefined) setTotalPages(total);
-    await AsyncStorage.setItem(`progress_${book.id}`, value);
+    await savePdfProgress(book.id, value);
     await updateBookProgress(book.id, {
       progress: value,
       progressPct: Math.max(0, Math.min(100, percent * 100)),
@@ -486,7 +493,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   function changeFontSize(delta: number) {
     setReaderSettings((prev) => {
       const next = { ...prev, fontSize: Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, prev.fontSize + delta)) };
-      saveReaderSettings(next);
+      saveStoredReaderSettings(next);
       return next;
     });
   }
@@ -496,7 +503,7 @@ export function ReaderScreen({ navigation, route }: Props) {
       const raw = prev.lineHeight + delta;
       const clamped = Math.min(LINE_HEIGHT_MAX, Math.max(LINE_HEIGHT_MIN, Math.round(raw * 10) / 10));
       const next = { ...prev, lineHeight: clamped };
-      saveReaderSettings(next);
+      saveStoredReaderSettings(next);
       return next;
     });
   }
@@ -680,6 +687,7 @@ export function ReaderScreen({ navigation, route }: Props) {
           <PdfReader
             displayMode={pdfDisplayMode}
             filePath={book.filePath}
+            fileSize={book.fileSize}
             initialPage={savedPosition ? Number(savedPosition) : 1}
             interactionEnabled={!pdfModalVisible}
             onExternalLink={handleExternalLink}
@@ -1301,7 +1309,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         onReset={() => {
           const defaults = { ...readerSettings, fontSize: FONT_SIZE_DEFAULT };
           setReaderSettings(defaults);
-          void saveReaderSettings(defaults);
+          void saveStoredReaderSettings(defaults);
           readingPreferences.updatePreferences({
             fontFamily: 'serif',
             fontWeight: 'regular',
@@ -1337,7 +1345,7 @@ export function ReaderScreen({ navigation, route }: Props) {
           readerLayout.resetSettings();
           setReaderSettings((previous) => {
             const next = { ...previous, lineHeight: LINE_HEIGHT_DEFAULT };
-            void saveReaderSettings(next);
+            void saveStoredReaderSettings(next);
             return next;
           });
         }}
@@ -1831,6 +1839,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                         <PdfReader
                           displayMode="paginated"
                           filePath={book.filePath}
+                          fileSize={book.fileSize}
                           initialPage={previewNote.locator.page}
                           interactionEnabled={false}
                         />

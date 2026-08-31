@@ -6,7 +6,7 @@ import { PDF_DEFAULTS, type PdfReaderHandle, type PdfReaderProps } from './PdfRe
 import { NativePdfEngine, type NativePdfEngineHandle } from './pdf/NativePdfEngine';
 import { describePdfSource, pdfDevLog, pdfDevWarn } from './pdf/pdfDebug';
 import { clampPdfPage } from './pdf/pdfState';
-import { loadPdfPrefs } from './pdf/usePdfPrefs';
+import { getCachedPdfPrefs, loadPdfPrefs } from './pdf/usePdfPrefs';
 import { usePdfSource } from './pdf/usePdfSource';
 import { subscribeToReaderVolumeKeys } from './readerVolumeKeys';
 
@@ -28,6 +28,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   {
     displayMode = PDF_DEFAULTS.displayMode,
     filePath,
+    fileSize,
     initialPage = 1,
     interactionEnabled = true,
     onCenterTap,
@@ -38,7 +39,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
 ) {
   const { theme, t } = useApp();
   const { height: viewportHeight, width: viewportWidth } = useWindowDimensions();
-  const { error: sourceError, resolvedUri, resolving } = usePdfSource(filePath);
+  const { error: sourceError, resolvedUri, resolving } = usePdfSource(filePath, fileSize);
   const engineRef = useRef<NativePdfEngineHandle>(null);
   const initialPageRef = useRef(initialPage);
   const currentPageRef = useRef(clampPdfPage(initialPage, 0));
@@ -50,7 +51,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   const interactionEnabledRef = useRef(interactionEnabled);
   const lastReportedSnapshotRef = useRef<string | null>(null);
   const loadProgressBucketRef = useRef(-1);
-  const [scale, setScale] = useState<number>(PDF_DEFAULTS.scale);
+  const [scale, setScale] = useState<number>(() => getCachedPdfPrefs()?.scale ?? PDF_DEFAULTS.scale);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorDetail, setErrorDetail] = useState<string | null>(null);

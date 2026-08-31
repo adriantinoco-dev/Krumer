@@ -38,6 +38,7 @@ import type { Book } from '../models/item';
 import type { RootStackParamList } from '../navigation/types';
 import { CONTENT_MAX_WIDTH, coverShadow, radii, serifFont, spacing, TABLET_BREAKPOINT } from '../theme';
 import { extractYear, searchMetadataForBook } from '../services/metadataService';
+import { preloadReaderBook } from '../readers/readerStartup';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BookDetail'>;
 
@@ -126,6 +127,11 @@ export function BookDetailScreen({ navigation, route }: Props) {
   const progressPct = Math.max(0, Math.min(100, book.progressPct ?? 0));
   const isBookRead = book.isRead || (book.progressPct ?? 0) >= 100;
   const hasPartialProgress = progressPct > 0 && progressPct < 100;
+  const defaultReaderBook = useMemo(() => getReaderBook(book), [book]);
+
+  useEffect(() => {
+    void preloadReaderBook(defaultReaderBook, preferences.language);
+  }, [defaultReaderBook, preferences.language]);
 
   useEffect(() => {
     const target = Math.max(0, Math.min(100, book.progressPct ?? 0));
@@ -176,13 +182,9 @@ export function BookDetailScreen({ navigation, route }: Props) {
   };
 
   const handleOpenReader = (targetBook: Book = book) => {
-    if (targetBook.children && targetBook.children.length > 0) {
-      const inProgress = targetBook.children.find((c) => (c.progressPct ?? 0) > 0 && (c.progressPct ?? 0) < 100);
-      const firstUnread = inProgress ?? targetBook.children.find((c) => !c.isRead && (c.progressPct ?? 0) < 100) ?? targetBook.children[0];
-      navigation.navigate('Reader', { book: firstUnread });
-    } else {
-      navigation.navigate('Reader', { book: targetBook });
-    }
+    const readerBook = getReaderBook(targetBook);
+    void preloadReaderBook(readerBook, preferences.language);
+    navigation.navigate('Reader', { book: readerBook });
   };
 
   const handleOpenEditModal = () => {
@@ -1241,6 +1243,16 @@ function AnimatedFavoriteStar({
       <Star color={color} fill={fill} size={size} />
     </Animated.View>
   );
+}
+
+function getReaderBook(book: Book): Book {
+  if (!book.children?.length) return book;
+  const inProgress = book.children.find(
+    (child) => (child.progressPct ?? 0) > 0 && (child.progressPct ?? 0) < 100,
+  );
+  return inProgress
+    ?? book.children.find((child) => !child.isRead && (child.progressPct ?? 0) < 100)
+    ?? book.children[0];
 }
 
 function findBookById(books: Book[], id: string): Book | null {

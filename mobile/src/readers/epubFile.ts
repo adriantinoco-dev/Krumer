@@ -10,6 +10,13 @@ export type PreparedEpub = {
   estimatedPeakBytes: number;
 };
 
+type PreparedEpubCacheEntry = {
+  key: string;
+  promise: Promise<PreparedEpub>;
+};
+
+let preparedEpubCache: PreparedEpubCacheEntry | null = null;
+
 export class EpubFileError extends Error {
   constructor(
     readonly code: 'FILE_NOT_FOUND' | 'FILE_SIZE_UNKNOWN' | 'FILE_TOO_LARGE' | 'FILE_READ_FAILED',
@@ -46,7 +53,23 @@ function localized(language: LanguageCode, key: Parameters<typeof translate>[1],
   return replacements.reduce((message, value, index) => message.replace(`{${index}}`, value), translate(language, key));
 }
 
-export async function prepareEpubFile(
+export function prepareEpubFile(
+  filePath: string,
+  knownByteLength?: number,
+  language: LanguageCode = DEFAULT_LANGUAGE,
+): Promise<PreparedEpub> {
+  const key = `${filePath}\u0000${knownByteLength ?? 0}\u0000${language}`;
+  if (preparedEpubCache?.key === key) return preparedEpubCache.promise;
+
+  const promise = prepareEpubFileUncached(filePath, knownByteLength, language);
+  preparedEpubCache = { key, promise };
+  void promise.catch(() => {
+    if (preparedEpubCache?.promise === promise) preparedEpubCache = null;
+  });
+  return promise;
+}
+
+async function prepareEpubFileUncached(
   filePath: string,
   knownByteLength?: number,
   language: LanguageCode = DEFAULT_LANGUAGE,
@@ -73,7 +96,10 @@ export async function prepareEpubFile(
       );
     }
 
-    if (source.exists) {
+    const durableCopyIsCurrent = durableFile.exists
+      && durableFile.size > 0
+      && durableFile.size === byteLength;
+    if (source.exists && !durableCopyIsCurrent) {
       await source.copy(durableFile, { overwrite: true });
     }
 

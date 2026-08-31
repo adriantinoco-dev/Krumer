@@ -8,9 +8,44 @@ import {
 
 const READER_LAYOUT_SETTINGS_KEY = '@krumer:reader-layout-settings';
 
+let cachedReaderLayoutSettings: ReaderLayoutSettings | null = null;
+let pendingReaderLayoutSettings: Promise<ReaderLayoutSettings> | null = null;
+
+export function getCachedReaderLayoutSettings(): ReaderLayoutSettings | null {
+  return cachedReaderLayoutSettings;
+}
+
+export function loadStoredReaderLayoutSettings(): Promise<ReaderLayoutSettings> {
+  if (cachedReaderLayoutSettings) return Promise.resolve(cachedReaderLayoutSettings);
+  if (pendingReaderLayoutSettings) return pendingReaderLayoutSettings;
+
+  pendingReaderLayoutSettings = AsyncStorage.getItem(READER_LAYOUT_SETTINGS_KEY)
+    .then((raw) => {
+      if (!raw) return DEFAULT_READER_LAYOUT_SETTINGS;
+      return parseReaderLayoutSettings(JSON.parse(raw)) ?? DEFAULT_READER_LAYOUT_SETTINGS;
+    })
+    .catch(() => DEFAULT_READER_LAYOUT_SETTINGS)
+    .then((settings) => {
+      cachedReaderLayoutSettings = settings;
+      return settings;
+    })
+    .finally(() => {
+      pendingReaderLayoutSettings = null;
+    });
+  return pendingReaderLayoutSettings;
+}
+
+async function saveStoredReaderLayoutSettings(settings: ReaderLayoutSettings) {
+  cachedReaderLayoutSettings = settings;
+  await AsyncStorage.setItem(READER_LAYOUT_SETTINGS_KEY, JSON.stringify(settings));
+}
+
 export function useReaderLayoutSettings(enabled = true) {
-  const [settings, setSettingsState] = useState<ReaderLayoutSettings>(DEFAULT_READER_LAYOUT_SETTINGS);
-  const [hydrated, setHydrated] = useState(!enabled);
+  const cachedSettings = getCachedReaderLayoutSettings();
+  const [settings, setSettingsState] = useState<ReaderLayoutSettings>(
+    cachedSettings ?? DEFAULT_READER_LAYOUT_SETTINGS,
+  );
+  const [hydrated, setHydrated] = useState(!enabled || cachedSettings !== null);
   const settingsRef = useRef(settings);
   const writeQueueRef = useRef(Promise.resolve());
   settingsRef.current = settings;
@@ -20,13 +55,18 @@ export function useReaderLayoutSettings(enabled = true) {
       setHydrated(true);
       return;
     }
+    const cached = getCachedReaderLayoutSettings();
+    if (cached) {
+      settingsRef.current = cached;
+      setSettingsState(cached);
+      setHydrated(true);
+      return;
+    }
     let cancelled = false;
     setHydrated(false);
-    AsyncStorage.getItem(READER_LAYOUT_SETTINGS_KEY)
-      .then((raw) => {
-        if (cancelled || !raw) return;
-        const stored = parseReaderLayoutSettings(JSON.parse(raw));
-        if (!stored) return;
+    loadStoredReaderLayoutSettings()
+      .then((stored) => {
+        if (cancelled) return;
         settingsRef.current = stored;
         setSettingsState(stored);
       })
@@ -40,10 +80,11 @@ export function useReaderLayoutSettings(enabled = true) {
   const updateSettings = useCallback((patch: Partial<ReaderLayoutSettings>) => {
     const next = { ...settingsRef.current, ...patch };
     settingsRef.current = next;
+    cachedReaderLayoutSettings = next;
     setSettingsState(next);
     writeQueueRef.current = writeQueueRef.current
       .catch(() => undefined)
-      .then(() => AsyncStorage.setItem(READER_LAYOUT_SETTINGS_KEY, JSON.stringify(next)))
+      .then(() => saveStoredReaderLayoutSettings(next))
       .catch((error) => console.warn('[Krumer reader layout] falha ao salvar', error));
   }, []);
 

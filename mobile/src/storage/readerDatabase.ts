@@ -83,6 +83,10 @@ async function getDatabase() {
   return databasePromise;
 }
 
+export async function warmReaderDatabase(): Promise<void> {
+  await getDatabase();
+}
+
 function rowToLocator(row: LocatorRow): ReaderLocator | null {
   if (row.format === 'epub') {
     return parseReaderLocator({

@@ -15,9 +15,14 @@ import {
 
 export type PdfPreferencesStorage = Pick<typeof AsyncStorage, 'getItem' | 'setItem'>;
 
-export async function loadPdfPrefs(
-  storage: PdfPreferencesStorage = AsyncStorage,
-): Promise<PdfPreferences> {
+let cachedPdfPreferences: PdfPreferences | null = null;
+let pendingPdfPreferences: Promise<PdfPreferences> | null = null;
+
+export function getCachedPdfPrefs(): PdfPreferences | null {
+  return cachedPdfPreferences;
+}
+
+async function readPdfPrefs(storage: PdfPreferencesStorage): Promise<PdfPreferences> {
   try {
     const [rawDisplayMode, rawOrientation, rawZoom] = await Promise.all([
       storage.getItem(PDF_PREF_KEYS.displayMode),
@@ -46,29 +51,56 @@ export async function loadPdfPrefs(
   }
 }
 
+export function loadPdfPrefs(
+  storage?: PdfPreferencesStorage,
+): Promise<PdfPreferences> {
+  if (storage) return readPdfPrefs(storage);
+  if (cachedPdfPreferences) return Promise.resolve(cachedPdfPreferences);
+  if (pendingPdfPreferences) return pendingPdfPreferences;
+
+  pendingPdfPreferences = readPdfPrefs(AsyncStorage)
+    .then((preferences) => {
+      cachedPdfPreferences = preferences;
+      return preferences;
+    })
+    .finally(() => {
+      pendingPdfPreferences = null;
+    });
+  return pendingPdfPreferences;
+}
+
+function updateCachedPdfPreferences(patch: Partial<PdfPreferences>) {
+  if (!cachedPdfPreferences) return;
+  cachedPdfPreferences = { ...cachedPdfPreferences, ...patch };
+}
+
 export async function savePdfDisplayMode(
   displayMode: PdfDisplayMode,
-  storage: PdfPreferencesStorage = AsyncStorage,
+  storage?: PdfPreferencesStorage,
 ): Promise<void> {
   try {
-    await storage.setItem(PDF_PREF_KEYS.displayMode, displayMode);
+    if (!storage) updateCachedPdfPreferences({ displayMode });
+    await (storage ?? AsyncStorage).setItem(PDF_PREF_KEYS.displayMode, displayMode);
   } catch {}
 }
 
 export async function savePdfOrientation(
   orientation: ReaderOrientation,
-  storage: PdfPreferencesStorage = AsyncStorage,
+  storage?: PdfPreferencesStorage,
 ): Promise<void> {
   try {
-    await storage.setItem(PDF_PREF_KEYS.orientation, orientation);
+    if (!storage) updateCachedPdfPreferences({ orientation });
+    await (storage ?? AsyncStorage).setItem(PDF_PREF_KEYS.orientation, orientation);
   } catch {}
 }
 
 export async function savePdfScale(
   scale: number,
-  storage: PdfPreferencesStorage = AsyncStorage,
+  storage?: PdfPreferencesStorage,
 ): Promise<void> {
   try {
-    await storage.setItem(PDF_PREF_KEYS.zoom, String(clampPdfScale(scale)));
+    const normalizedScale = clampPdfScale(scale);
+    if (!storage) updateCachedPdfPreferences({ scale: normalizedScale });
+    await (storage ?? AsyncStorage).setItem(PDF_PREF_KEYS.zoom, String(normalizedScale));
   } catch {}
 }

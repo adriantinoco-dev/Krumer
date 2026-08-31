@@ -21,6 +21,23 @@ function wait(milliseconds) {
 }
 
 async function main() {
+  const epubReaderSource = fs.readFileSync('src/readers/EpubReader.tsx', 'utf8');
+  const epubFileSource = fs.readFileSync('src/readers/epubFile.ts', 'utf8');
+  const readerStartupSource = fs.readFileSync('src/readers/readerStartup.ts', 'utf8');
+  const bookDetailSource = fs.readFileSync('src/screens/BookDetailScreen.tsx', 'utf8');
+  if (
+    !epubFileSource.includes('let preparedEpubCache: PreparedEpubCacheEntry | null = null')
+    || !epubFileSource.includes('if (preparedEpubCache?.key === key) return preparedEpubCache.promise')
+    || !epubFileSource.includes('const durableCopyIsCurrent = durableFile.exists')
+    || epubReaderSource.includes('if (preparing || !readerFonts.loaded)')
+    || !epubReaderSource.includes('void registerFontFamily(appearance.fontFamily).catch(() => undefined)')
+    || !readerStartupSource.includes('prepareEpubFile(book.filePath, book.fileSize, language)')
+    || !readerStartupSource.includes('preferences.then(({ fontFamily }) => loadEpubFontFaces(fontFamily))')
+    || !bookDetailSource.includes('preloadReaderBook(defaultReaderBook, preferences.language)')
+  ) {
+    throw new Error('EPUB startup can regress to serial runtime, file, font, or preference preparation.');
+  }
+
   const vendor = loadTypeScriptModule('src/readers/epubVendorScript.ts');
   const readerModels = loadTypeScriptModule('src/models/reader.ts');
   const bridge = loadTypeScriptModule('src/readers/epubBridge.ts', {

@@ -13,8 +13,15 @@ type ReadingPreferencesStorage = {
   setItem: (key: string, value: string) => Promise<void>;
 };
 
-export async function loadStoredReadingPreferences(
-  storage: ReadingPreferencesStorage = AsyncStorage,
+let cachedReadingPreferences: ReadingPreferences | null = null;
+let pendingReadingPreferences: Promise<ReadingPreferences> | null = null;
+
+export function getCachedReadingPreferences(): ReadingPreferences | null {
+  return cachedReadingPreferences;
+}
+
+async function readStoredReadingPreferences(
+  storage: ReadingPreferencesStorage,
 ): Promise<ReadingPreferences> {
   const raw = await storage.getItem(READING_PREFERENCES_KEY);
   if (!raw) return DEFAULT_READING_PREFERENCES;
@@ -25,22 +32,51 @@ export async function loadStoredReadingPreferences(
   }
 }
 
+export function loadStoredReadingPreferences(
+  storage?: ReadingPreferencesStorage,
+): Promise<ReadingPreferences> {
+  if (storage) return readStoredReadingPreferences(storage);
+  if (cachedReadingPreferences) return Promise.resolve(cachedReadingPreferences);
+  if (pendingReadingPreferences) return pendingReadingPreferences;
+
+  pendingReadingPreferences = readStoredReadingPreferences(AsyncStorage)
+    .then((preferences) => {
+      cachedReadingPreferences = preferences;
+      return preferences;
+    })
+    .finally(() => {
+      pendingReadingPreferences = null;
+    });
+  return pendingReadingPreferences;
+}
+
 export async function saveStoredReadingPreferences(
   preferences: ReadingPreferences,
-  storage: ReadingPreferencesStorage = AsyncStorage,
+  storage?: ReadingPreferencesStorage,
 ) {
-  await storage.setItem(READING_PREFERENCES_KEY, JSON.stringify(preferences));
+  if (!storage) cachedReadingPreferences = preferences;
+  await (storage ?? AsyncStorage).setItem(READING_PREFERENCES_KEY, JSON.stringify(preferences));
 }
 
 export function useReadingPreferences(enabled = true) {
-  const [preferences, setPreferencesState] = useState<ReadingPreferences>(DEFAULT_READING_PREFERENCES);
-  const [hydrated, setHydrated] = useState(!enabled);
+  const cachedPreferences = getCachedReadingPreferences();
+  const [preferences, setPreferencesState] = useState<ReadingPreferences>(
+    cachedPreferences ?? DEFAULT_READING_PREFERENCES,
+  );
+  const [hydrated, setHydrated] = useState(!enabled || cachedPreferences !== null);
   const preferencesRef = useRef(preferences);
   const writeQueueRef = useRef(Promise.resolve());
   preferencesRef.current = preferences;
 
   useEffect(() => {
     if (!enabled) {
+      setHydrated(true);
+      return;
+    }
+    const cached = getCachedReadingPreferences();
+    if (cached) {
+      preferencesRef.current = cached;
+      setPreferencesState(cached);
       setHydrated(true);
       return;
     }

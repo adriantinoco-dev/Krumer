@@ -31,6 +31,7 @@ export const PDF_PREF_KEYS = {
 export type PdfReaderProps = {
   displayMode?: PdfDisplayMode;
   filePath: string;
+  fileSize?: number;
   initialPage?: number;
   interactionEnabled?: boolean;
   onCenterTap?: () => void;

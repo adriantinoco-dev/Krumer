@@ -1,11 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { describePdfSource, pdfDevLog, pdfDevWarn } from './pdfDebug';
-import { cleanupCachedPdfUri, resolvePdfUri } from './pdfUri';
-
-type ActivePdfSource = {
-  originalFilePath: string;
-  resolvedUri: string;
-};
+import { getCachedPdfUri, resolvePdfUri } from './pdfUri';
 
 export type PdfSourceState = {
   error: string | null;
@@ -13,37 +8,35 @@ export type PdfSourceState = {
   resolving: boolean;
 };
 
-export function usePdfSource(filePath: string): PdfSourceState {
-  const [state, setState] = useState<PdfSourceState & { filePath: string }>({
-    error: null,
-    filePath,
-    resolvedUri: null,
-    resolving: true,
+export function usePdfSource(filePath: string, fileSize?: number): PdfSourceState {
+  const [state, setState] = useState<PdfSourceState & { filePath: string }>(() => {
+    const resolvedUri = getCachedPdfUri(filePath, fileSize);
+    return {
+      error: null,
+      filePath,
+      resolvedUri,
+      resolving: !resolvedUri,
+    };
   });
-  const activeSourceRef = useRef<ActivePdfSource | null>(null);
-
   useEffect(() => {
     let cancelled = false;
-    const previous = activeSourceRef.current;
-    activeSourceRef.current = null;
-    if (previous) {
-      pdfDevLog('source:cleanup-previous', {
-        original: describePdfSource(previous.originalFilePath),
-        resolved: describePdfSource(previous.resolvedUri),
-      });
-      void cleanupCachedPdfUri(previous.resolvedUri, previous.originalFilePath);
+    const cachedUri = getCachedPdfUri(filePath, fileSize);
+    if (cachedUri) {
+      pdfDevLog('source:resolve-cache-hit', { source: describePdfSource(cachedUri) });
+      setState({ error: null, filePath, resolvedUri: cachedUri, resolving: false });
+      return () => {
+        cancelled = true;
+      };
     }
     pdfDevLog('source:resolve-start', { source: describePdfSource(filePath) });
     setState({ error: null, filePath, resolvedUri: null, resolving: true });
 
-    void resolvePdfUri(filePath)
+    void resolvePdfUri(filePath, fileSize)
       .then((resolvedUri) => {
         if (cancelled) {
           pdfDevLog('source:resolve-cancelled', { resolved: describePdfSource(resolvedUri) });
-          void cleanupCachedPdfUri(resolvedUri, filePath);
           return;
         }
-        activeSourceRef.current = { originalFilePath: filePath, resolvedUri };
         pdfDevLog('source:resolve-success', {
           original: describePdfSource(filePath),
           resolved: describePdfSource(resolvedUri),
@@ -60,19 +53,7 @@ export function usePdfSource(filePath: string): PdfSourceState {
     return () => {
       cancelled = true;
     };
-  }, [filePath]);
-
-  useEffect(() => () => {
-    const active = activeSourceRef.current;
-    activeSourceRef.current = null;
-    if (active) {
-      pdfDevLog('source:cleanup-unmount', {
-        original: describePdfSource(active.originalFilePath),
-        resolved: describePdfSource(active.resolvedUri),
-      });
-      void cleanupCachedPdfUri(active.resolvedUri, active.originalFilePath);
-    }
-  }, []);
+  }, [filePath, fileSize]);
 
   if (state.filePath !== filePath) {
     return { error: null, resolvedUri: null, resolving: true };

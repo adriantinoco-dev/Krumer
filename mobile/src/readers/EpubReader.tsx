@@ -25,7 +25,7 @@ import {
   type EpubViewStatus,
 } from './epubBridge';
 import { EpubFileError, prepareEpubFile, type PreparedEpub } from './epubFile';
-import { loadEpubFontFaces, useReaderFonts } from './readerFonts';
+import { loadEpubFontFaces } from './readerFonts';
 import { EPUB_RUNTIME_HANDSHAKE_SCRIPT, EPUB_RUNTIME_HTML } from './epubRuntime';
 import { subscribeToEpubVolumeKeys } from './epubVolumeKeys';
 
@@ -83,7 +83,6 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   forwardedRef,
 ) {
   const { preferences, theme, t } = useApp();
-  const readerFonts = useReaderFonts();
   const webviewRef = useRef<WebViewType>(null);
   const runtimeReadyRef = useRef(false);
   const bookOpenedRef = useRef(false);
@@ -107,7 +106,6 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   const openGenerationRef = useRef(0);
   const appearanceGenerationRef = useRef(0);
   const [prepared, setPrepared] = useState<PreparedEpub | null>(null);
-  const [preparing, setPreparing] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const source = useMemo(() => ({ html: EPUB_RUNTIME_HTML, baseUrl: RUNTIME_ORIGIN }), []);
@@ -246,6 +244,11 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   }, [readOnly, sendCommand]);
 
   useEffect(() => {
+    if (bookOpenedRef.current) return;
+    void registerFontFamily(appearance.fontFamily).catch(() => undefined);
+  }, [appearance.fontFamily, registerFontFamily]);
+
+  useEffect(() => {
     let cancelled = false;
     pendingCommandsRef.current = pendingCommandsRef.current.filter((command) => command.type !== 'OPEN_BOOK');
     if (bookOpenedRef.current && runtimeReadyRef.current) {
@@ -255,7 +258,6 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     openGenerationRef.current += 1;
     appearanceGenerationRef.current += 1;
     setPrepared(null);
-    setPreparing(true);
     setLoading(true);
     setError(null);
 
@@ -272,9 +274,6 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
             : String(caught);
         setLoading(false);
         setError(message);
-      })
-      .finally(() => {
-        if (!cancelled) setPreparing(false);
       });
 
     return () => {
@@ -283,7 +282,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   }, [filePath, fileSize, injectCommand, preferences.language, t]);
 
   useEffect(() => {
-    if (!prepared || !readerFonts.loaded) return;
+    if (!prepared) return;
     const openGeneration = openGenerationRef.current + 1;
     openGenerationRef.current = openGeneration;
     pendingCommandsRef.current = pendingCommandsRef.current.filter((command) => command.type !== 'OPEN_BOOK');
@@ -302,7 +301,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       setLoading(false);
       setError(caught instanceof Error ? caught.message : t('reader.epubFontLoadFailed'));
     });
-  }, [bookId, initialLocator, prepared, readerFonts.loaded, registerFontFamily, sendCommand, t]);
+  }, [bookId, initialLocator, prepared, registerFontFamily, sendCommand, t]);
 
   useEffect(() => {
     if (!bookOpenedRef.current) return;
@@ -316,12 +315,6 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       console.warn('[Krumer EpubReader] falha ao aplicar fonte', caught);
     });
   }, [appearance, registerFontFamily, sendCommand]);
-
-  useEffect(() => {
-    if (!readerFonts.error) return;
-    setLoading(false);
-    setError(`${t('reader.epubFontLoadFailed')}: ${readerFonts.error.message}`);
-  }, [readerFonts.error, t]);
 
   useEffect(() => () => {
     openGenerationRef.current += 1;
@@ -505,14 +498,6 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
             {filePath}
           </Text>
         </View>
-      </View>
-    );
-  }
-
-  if (preparing || !readerFonts.loaded) {
-    return (
-      <View style={{ alignItems: 'center', backgroundColor: visualTheme.backgroundColor, flex: 1, justifyContent: 'center' }}>
-        <ActivityIndicator color="#f97316" size="large" />
       </View>
     );
   }

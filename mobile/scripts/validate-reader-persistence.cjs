@@ -18,6 +18,15 @@ function loadTypeScriptModule(filePath) {
 }
 
 function main() {
+  const readerDatabaseSource = fs.readFileSync('src/storage/readerDatabase.ts', 'utf8');
+  const readerStartupSource = fs.readFileSync('src/readers/readerStartup.ts', 'utf8');
+  if (
+    !readerDatabaseSource.includes('export async function warmReaderDatabase(): Promise<void>')
+    || !readerStartupSource.includes('warmReaderDatabase()')
+  ) {
+    throw new Error('Reader database startup can regress to opening and migrating only after navigation.');
+  }
+
   const migrations = loadTypeScriptModule('src/storage/readerMigrations.ts');
   const models = loadTypeScriptModule('src/models/reader.ts');
   const database = new DatabaseSync(':memory:');
