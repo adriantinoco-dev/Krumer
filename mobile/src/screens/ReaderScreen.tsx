@@ -103,6 +103,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const [noteDraft, setNoteDraft] = useState('');
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const originalBrightnessRef = useRef<number | null>(null);
+  const originalBrightnessUsesSystemRef = useRef<boolean | null>(null);
   const brightnessSupportedRef = useRef(true);
   const lastBrightnessApplyRef = useRef(0);
   const pendingBrightnessRef = useRef(0.7);
@@ -121,6 +122,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const epubMuted = theme.name === 'dark' ? '#a2a2a2' : theme.name === 'sepia' ? '#796c52' : '#6f6f6f';
   const epubTopChrome = theme.name === 'dark' ? '#202020' : theme.name === 'sepia' ? '#f4ecd8' : '#ffffff';
   const epubContentVerticalInset = Math.max(insets.top, insets.bottom, 0) + EPUB_CONTENT_VERTICAL_OFFSET;
+  const readerTopBarSideWidth = isEpub ? EPUB_TOP_BAR_SIDE_WIDTH : 88;
   const previewCardWidth = Math.max(1, Math.min(windowDimensions.width - spacing.lg * 2, 520));
   const previewCardMaxHeight = Math.max(1, windowDimensions.height * 0.88);
   const previewHeaderHeight = 54;
@@ -438,7 +440,6 @@ export function ReaderScreen({ navigation, route }: Props) {
 
   // Brightness initialization (isAvailable + getBrightness)
   useEffect(() => {
-    if (!isEpub) return;
     let mounted = true;
     (async () => {
       try {
@@ -449,6 +450,12 @@ export function ReaderScreen({ navigation, route }: Props) {
           brightnessSupportedRef.current = false;
           return;
         }
+        setBrightnessSupported(true);
+        brightnessSupportedRef.current = true;
+        if (Platform.OS === 'android') {
+          originalBrightnessUsesSystemRef.current = await Brightness.isUsingSystemBrightnessAsync()
+            .catch(() => null);
+        }
         const current = await Brightness.getBrightnessAsync();
         if (mounted && Number.isFinite(current)) {
           const clamped = Math.max(0.1, Math.min(1, current));
@@ -458,18 +465,24 @@ export function ReaderScreen({ navigation, route }: Props) {
           originalBrightnessRef.current = current;
         }
       } catch {
-        if (mounted) setBrightnessSupported(false);
+        if (mounted) {
+          setBrightnessSupported(false);
+          brightnessSupportedRef.current = false;
+        }
       }
     })();
     return () => { mounted = false; };
-  }, [isEpub]);
+  }, [brightnessAnim]);
 
   // Restore original brightness when leaving reader
   useEffect(() => {
     return () => {
       const original = originalBrightnessRef.current;
       if (original !== null && Number.isFinite(original)) {
-        Brightness.setBrightnessAsync(original).catch(() => {});
+        const restoreBrightness = Platform.OS === 'android' && originalBrightnessUsesSystemRef.current === true
+          ? Brightness.restoreSystemBrightnessAsync()
+          : Brightness.setBrightnessAsync(original);
+        restoreBrightness.catch(() => {});
       }
     };
   }, []);
@@ -798,9 +811,9 @@ export function ReaderScreen({ navigation, route }: Props) {
               fontSize: 12,
               height: scaleEpubChrome(40),
               includeFontPadding: false,
-              left: EPUB_TOP_BAR_SIDE_WIDTH,
+              left: readerTopBarSideWidth,
               position: 'absolute',
-              right: EPUB_TOP_BAR_SIDE_WIDTH,
+              right: readerTopBarSideWidth,
               textAlign: 'center',
               textAlignVertical: 'center',
             }}
@@ -808,14 +821,16 @@ export function ReaderScreen({ navigation, route }: Props) {
             {book.title}
           </Text>
 
-          <View style={{ flexDirection: 'row', marginLeft: 'auto', width: EPUB_TOP_BAR_SIDE_WIDTH }}>
-            <ReadingSettingsButton
-              color={epubText}
-              onPress={() => {
-                if (hideTimer.current) clearTimeout(hideTimer.current);
-                setSettingsVisible(true);
-              }}
-            />
+          <View style={{ flexDirection: 'row', marginLeft: 'auto', width: readerTopBarSideWidth }}>
+            {isEpub ? (
+              <ReadingSettingsButton
+                color={epubText}
+                onPress={() => {
+                  if (hideTimer.current) clearTimeout(hideTimer.current);
+                  setSettingsVisible(true);
+                }}
+              />
+            ) : null}
             <PaginationSettingsButton
               color={epubText}
               onPress={() => {
@@ -863,27 +878,31 @@ export function ReaderScreen({ navigation, route }: Props) {
         }}
       >
         <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-around', minHeight: scaleEpubChrome(44) }}>
-            <Pressable
-              accessibilityLabel={t('reader.topics')}
-              hitSlop={12}
-              onPress={openToc}
-              style={({ pressed }) => ({
-                alignItems: 'center',
-                justifyContent: 'center',
-                opacity: pressed ? 0.5 : 1,
-                padding: 12,
-              })}
-            >
-              <ListTree color={epubText} size={24} strokeWidth={1.9} />
-            </Pressable>
+            {isEpub ? (
+              <Pressable
+                accessibilityLabel={t('reader.topics')}
+                hitSlop={12}
+                onPress={openToc}
+                style={({ pressed }) => ({
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: pressed ? 0.5 : 1,
+                  padding: 12,
+                })}
+              >
+                <ListTree color={epubText} size={24} strokeWidth={1.9} />
+              </Pressable>
+            ) : null}
 
-            <LayoutSettingsButton
-              color={epubText}
-              onPress={() => {
-                if (hideTimer.current) clearTimeout(hideTimer.current);
-                setLayoutSettingsVisible(true);
-              }}
-            />
+            {isEpub ? (
+              <LayoutSettingsButton
+                color={epubText}
+                onPress={() => {
+                  if (hideTimer.current) clearTimeout(hideTimer.current);
+                  setLayoutSettingsVisible(true);
+                }}
+              />
+            ) : null}
 
             <Pressable
               accessibilityLabel={t('reader.notes')}
@@ -1017,7 +1036,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         navigationBarTranslucent
         onClose={closeToc}
         statusBarTranslucent
-        visible={tocVisible}
+        visible={tocVisible && isEpub}
       >
           <Pressable
             onPress={(event) => event.stopPropagation()}
@@ -1213,7 +1232,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         }}
         onUpdatePreferences={readingPreferences.updatePreferences}
         preferences={readingPreferences.preferences}
-        visible={settingsVisible}
+        visible={settingsVisible && isEpub}
       />
 
       <PaginationSettingsModal
@@ -1246,7 +1265,7 @@ export function ReaderScreen({ navigation, route }: Props) {
         }}
         onUpdateSettings={readerLayout.updateSettings}
         settings={readerLayout.settings}
-        visible={layoutSettingsVisible}
+        visible={layoutSettingsVisible && isEpub}
       />
 
       {/* Notes List Modal */}

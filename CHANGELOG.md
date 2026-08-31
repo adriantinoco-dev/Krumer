@@ -8,6 +8,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Alterado
+- **Mobile — leitor PDF, Fase 1 (interface e brilho):** o PDF agora exibe somente
+  título, fechar, paginação, brilho, notas e marcadores; tipografia, sumário e layout
+  permanecem exclusivos do EPUB. O ajuste de brilho passa a funcionar também no PDF
+  e, ao fechar o leitor, restaura o valor ou o controle automático original do aparelho.
 - **Mobile — página isolada no PDF paginado:** o Android agora carrega somente a página
   atual no modo paginado, removendo o trilho contínuo de páginas anteriores e seguintes.
   O documento completo permanece carregado apenas no modo scroll.

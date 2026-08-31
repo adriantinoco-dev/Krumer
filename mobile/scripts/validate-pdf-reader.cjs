@@ -218,22 +218,38 @@ async function main() {
     !readerScreenSource.includes('Bottom bar compartilhada pelos leitores')
     || readerScreenSource.includes('Bottom bar PDF —')
     || readerScreenSource.includes('<PdfControls')
+    || !readerScreenSource.includes('const readerTopBarSideWidth = isEpub ? EPUB_TOP_BAR_SIDE_WIDTH : 88')
     || !readerScreenSource.includes('<ReadingSettingsButton')
     || !readerScreenSource.includes('<PaginationSettingsButton')
     || !readerScreenSource.includes('<ListTree color={epubText}')
     || !readerScreenSource.includes('<LayoutSettingsButton')
     || !readerScreenSource.includes('<Feather color={epubText}')
     || !readerScreenSource.includes('<Sun color={epubText}')
-    || readerScreenSource.includes('visible={settingsVisible && isEpub}')
+    || !readerScreenSource.includes('{isEpub ? (\n              <ReadingSettingsButton')
+    || !readerScreenSource.includes('{isEpub ? (\n              <Pressable\n                accessibilityLabel={t(\'reader.topics\')}')
+    || !readerScreenSource.includes('{isEpub ? (\n              <LayoutSettingsButton')
+    || !readerScreenSource.includes('visible={settingsVisible && isEpub}')
     || readerScreenSource.includes('visible={paginationSettingsVisible && isEpub}')
-    || readerScreenSource.includes('visible={layoutSettingsVisible && isEpub}')
+    || !readerScreenSource.includes('visible={layoutSettingsVisible && isEpub}')
     || readerScreenSource.includes('visible={bookmarksVisible && isEpub}')
-    || readerScreenSource.includes('visible={tocVisible && isEpub}')
+    || !readerScreenSource.includes('visible={tocVisible && isEpub}')
     || readerScreenSource.includes('visible={brightnessVisible && isEpub}')
     || readerScreenSource.includes('visible={notesVisible && isEpub}')
     || readerScreenSource.includes('PDF settings modal')
   ) {
-    throw new Error('PDF and EPUB are not rendering the exact same toolbars and modal entry points.');
+    throw new Error('PDF controls can regress to exposing EPUB-only typography, table of contents, or layout actions.');
+  }
+
+  if (
+    !readerScreenSource.includes('const available = await Brightness.isAvailableAsync()')
+    || !readerScreenSource.includes('const current = await Brightness.getBrightnessAsync()')
+    || !readerScreenSource.includes('Brightness.setBrightnessAsync(value)')
+    || !readerScreenSource.includes('originalBrightnessUsesSystemRef.current = await Brightness.isUsingSystemBrightnessAsync()')
+    || !readerScreenSource.includes('? Brightness.restoreSystemBrightnessAsync()')
+    || !readerScreenSource.includes(': Brightness.setBrightnessAsync(original)')
+    || readerScreenSource.includes('if (!isEpub) return;\n    let mounted = true;')
+  ) {
+    throw new Error('PDF brightness must initialize, apply live changes, and restore the original device state on exit.');
   }
 
   if (
@@ -249,7 +265,7 @@ async function main() {
     throw new Error('Volume Up/Down do not scroll continuously or preserve paginated PDF navigation.');
   }
 
-  console.log('PDF Phase 4 continuous scrolling, shared EPUB toolbars, persistence, and adapter are valid.');
+  console.log('PDF reader controls, brightness lifecycle, scrolling, persistence, and adapter are valid.');
 }
 
 main().catch((error) => {

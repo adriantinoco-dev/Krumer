@@ -141,7 +141,7 @@ async function main() {
     throw new Error('The translation callback must stay stable while book progress updates the app context.');
   }
   if (
-    !appContextSource.includes('setPreferenceState(storedPreferences);\n      setPreferencesReady(true);')
+    !/setPreferenceState\(storedPreferences\);\r?\n      setPreferencesReady\(true\);/.test(appContextSource)
     || !appSource.includes('if (!preferencesReady) return null;')
   ) {
     throw new Error('The startup loading screen must wait for the persisted theme before its first render.');
