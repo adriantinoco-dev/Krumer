@@ -155,6 +155,8 @@ async function main() {
     || !nativePatchSource.includes('Constants.PRELOAD_OFFSET = this.enablePaging ? 0 : 20;')
     || !nativePatchSource.includes('scrollByViewport')
     || !nativePatchSource.includes('consumeSkipNextDraw')
+    || !nativePatchSource.includes('captureSinglePageViewport')
+    || !nativePatchSource.includes('restoreSinglePageViewportAfterLoad')
     || !installedPdfIndexSource.includes('if (!!global?.nativeFabricUIManager )')
     || !installedPdfIndexSource.includes('scrollByViewport(fraction)')
     || !installedPdfIndexSource.includes("UIManager.dispatchViewManagerCommand(reactTag, 'scrollByViewport', [fraction])")
@@ -179,9 +181,16 @@ async function main() {
     || !installedPdfViewSource.includes('int reportedPageCount = this.singlePage ? getDocumentPageCount(numberOfPages) : numberOfPages;')
     || !installedPdfViewSource.includes('configurator.pages(this.page - 1);')
     || !installedPdfViewSource.includes('if (this.singlePage && targetPage != this.page)')
+    || !installedPdfViewSource.includes('private void captureSinglePageViewport()')
+    || !installedPdfViewSource.includes('this.preservedSinglePageZoom = Math.max(this.minScale, Math.min(this.maxScale, this.getZoom()));')
+    || !installedPdfViewSource.includes('this.preservedSinglePageXOffset = this.getCurrentXOffset();')
+    || !installedPdfViewSource.includes('this.preservedSinglePageYOffset = this.getCurrentYOffset();')
+    || !installedPdfViewSource.includes('this.restoreSinglePageViewportAfterLoad();')
+    || !installedPdfViewSource.includes('this.zoomTo(targetZoom);\n        this.moveTo(targetXOffset, targetYOffset, true);')
+    || !installedPdfViewSource.includes('this.post(() -> {\n            if (this.isRecycled()) return;')
     || installedPdfViewSource.includes('setTouchesEnabled(false);')
   ) {
-    throw new Error('Paginated PDF can regress to the continuous page rail or lose native navigation.');
+    throw new Error('Paginated PDF can regress in page isolation, native navigation, or zoom/offset preservation.');
   }
   if (
     !debugSource.includes("const PDF_DEBUG_TAG = '[Krumer PDF]'")

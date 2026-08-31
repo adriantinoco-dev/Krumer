@@ -69,6 +69,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 - **Títulos e autores em negrito nas visualizações em grade:** títulos de livros e nomes de autores agora são exibidos em negrito (`fontWeight: '700'`) em todos os cards e grades da biblioteca e listas (mobile e desktop).
 
 ### Corrigido
+- **Mobile — zoom do PDF paginado:** avançar ou voltar uma página isolada agora preserva
+  o nível de zoom e o deslocamento horizontal/vertical escolhidos pelo leitor, sem
+  recentralizar automaticamente o conteúdo após cada troca.
 - **Desktop — carregamento centralizado desde o primeiro quadro:** a janela
   oculta agora já renderiza com as dimensões da área útil da tela e, no Windows,
   permanece transparente até a maximização e dois quadros de layout terminarem.

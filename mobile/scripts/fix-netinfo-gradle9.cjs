@@ -423,6 +423,18 @@ import android.os.ParcelFileDescriptor;`;
     }
     pdfViewSource = pdfViewSource.replace(skipDrawField, skipDrawFieldWithPageCount);
   }
+  const viewportStateAnchor = '    private int documentPageCount = 0;';
+  const preservedViewportState = `${viewportStateAnchor}
+    private boolean restoreSinglePageViewport = false;
+    private float preservedSinglePageZoom = 1;
+    private float preservedSinglePageXOffset = 0;
+    private float preservedSinglePageYOffset = 0;`;
+  if (!pdfViewSource.includes('private boolean restoreSinglePageViewport = false;')) {
+    if (!pdfViewSource.includes(viewportStateAnchor)) {
+      throw new Error('[react-native-pdf-navigation] Could not locate Android viewport state.');
+    }
+    pdfViewSource = pdfViewSource.replace(viewportStateAnchor, preservedViewportState);
+  }
   const thumbnailSinglePageBlock = `            if (this.singlePage) {
                 configurator.pages(this.page-1);
                 setTouchesEnabled(false);
@@ -539,6 +551,86 @@ import android.os.ParcelFileDescriptor;`;
       isolatedAndroidPageNavigation,
     );
   }
+  const isolatedSetPageReload = `            if (pageChanged && !isRecycled()) {
+                drawPdf();`;
+  const preservingSetPageReload = `            if (pageChanged && !isRecycled()) {
+                captureSinglePageViewport();
+                drawPdf();`;
+  if (!pdfViewSource.includes(preservingSetPageReload)) {
+    if (!pdfViewSource.includes(isolatedSetPageReload)) {
+      throw new Error('[react-native-pdf-navigation] Could not locate isolated setPage reload.');
+    }
+    pdfViewSource = pdfViewSource.replace(isolatedSetPageReload, preservingSetPageReload);
+  }
+  const isolatedJumpPageReload = `        if (this.singlePage && targetPage != this.page) {
+            this.page = targetPage;`;
+  const preservingJumpPageReload = `        if (this.singlePage && targetPage != this.page) {
+            captureSinglePageViewport();
+            this.page = targetPage;`;
+  if (!pdfViewSource.includes(preservingJumpPageReload)) {
+    if (!pdfViewSource.includes(isolatedJumpPageReload)) {
+      throw new Error('[react-native-pdf-navigation] Could not locate isolated jumpToPage reload.');
+    }
+    pdfViewSource = pdfViewSource.replace(isolatedJumpPageReload, preservingJumpPageReload);
+  }
+  const pageSetterAnchor = `    // page start from 1
+    public void setPage(int page) {`;
+  const preservedViewportHelpers = `    private void captureSinglePageViewport() {
+        if (!this.singlePage || this.isRecycled() || this.getPageCount() <= 0) return;
+        this.preservedSinglePageZoom = Math.max(this.minScale, Math.min(this.maxScale, this.getZoom()));
+        this.preservedSinglePageXOffset = this.getCurrentXOffset();
+        this.preservedSinglePageYOffset = this.getCurrentYOffset();
+        this.scale = this.preservedSinglePageZoom;
+        this.restoreSinglePageViewport = true;
+    }
+
+    private void restoreSinglePageViewportAfterLoad() {
+        if (!this.restoreSinglePageViewport) {
+            this.zoomTo(this.scale);
+            return;
+        }
+        final float targetZoom = this.preservedSinglePageZoom;
+        final float targetXOffset = this.preservedSinglePageXOffset;
+        final float targetYOffset = this.preservedSinglePageYOffset;
+        this.scale = targetZoom;
+        this.zoomTo(targetZoom);
+        this.moveTo(targetXOffset, targetYOffset, true);
+        this.restoreSinglePageViewport = false;
+        this.post(() -> {
+            if (this.isRecycled()) return;
+            this.zoomTo(targetZoom);
+            this.moveTo(targetXOffset, targetYOffset, true);
+        });
+    }
+
+${pageSetterAnchor}`;
+  if (!pdfViewSource.includes('private void captureSinglePageViewport()')) {
+    if (!pdfViewSource.includes(pageSetterAnchor)) {
+      throw new Error('[react-native-pdf-navigation] Could not locate Android page setter helpers anchor.');
+    }
+    pdfViewSource = pdfViewSource.replace(pageSetterAnchor, preservedViewportHelpers);
+  }
+  const delayedViewportRestore = `        this.scale = targetZoom;
+        this.zoomTo(targetZoom);
+        this.restoreSinglePageViewport = false;`;
+  const immediateViewportRestore = `        this.scale = targetZoom;
+        this.zoomTo(targetZoom);
+        this.moveTo(targetXOffset, targetYOffset, true);
+        this.restoreSinglePageViewport = false;`;
+  if (!pdfViewSource.includes(immediateViewportRestore)) {
+    if (!pdfViewSource.includes(delayedViewportRestore)) {
+      throw new Error('[react-native-pdf-navigation] Could not locate delayed viewport restore.');
+    }
+    pdfViewSource = pdfViewSource.replace(delayedViewportRestore, immediateViewportRestore);
+  }
+  const initialZoomRestore = '        this.zoomTo(this.scale);';
+  const preservedZoomRestore = '        this.restoreSinglePageViewportAfterLoad();';
+  if (!pdfViewSource.includes(preservedZoomRestore)) {
+    if (!pdfViewSource.includes(initialZoomRestore)) {
+      throw new Error('[react-native-pdf-navigation] Could not locate Android load zoom restore.');
+    }
+    pdfViewSource = pdfViewSource.replace(initialZoomRestore, preservedZoomRestore);
+  }
   const consumeSkipDrawAnchor = `    public boolean consumeSkipNextDraw() {
         boolean skip = skipNextDraw;
         skipNextDraw = false;
@@ -641,7 +733,7 @@ ${scaleSetterAnchor}`;
   }
   fs.writeFileSync(reactNativePdfViewPath, pdfViewSource, 'utf8');
 
-  console.log(`[react-native-pdf-navigation] Patched react-native-pdf ${reactNativePdfVersion} page isolation, jumps, and viewport scrolling.`);
+  console.log(`[react-native-pdf-navigation] Patched react-native-pdf ${reactNativePdfVersion} page isolation, jumps, zoom preservation, and viewport scrolling.`);
 } else {
   console.warn('[react-native-pdf-navigation] react-native-pdf not found, skipping navigation patch.');
 }
