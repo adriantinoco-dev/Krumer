@@ -1,5 +1,12 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
-import { View, useWindowDimensions } from 'react-native';
+import React, {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+} from 'react';
+import { type GestureResponderEvent, View, useWindowDimensions } from 'react-native';
 import Pdf from 'react-native-pdf';
 import { useApp } from '../../context/AppContext';
 import {
@@ -10,19 +17,23 @@ import {
 import { describePdfSource, pdfDevLog } from './pdfDebug';
 
 const PDF_SCROLL_PAGE_SPACING = 16;
+const PDF_QUICK_TAP_MAX_DURATION_MS = 240;
+const PDF_QUICK_TAP_MAX_MOVEMENT_DP = 12;
+const PDF_NATIVE_TAP_SUPPRESSION_MS = 650;
 
 export type NativePdfEngineHandle = {
   setPage: (page: number) => void;
 };
 
 type NativePdfEngineProps = {
-  currentPage: number;
   displayMode: PdfDisplayMode;
+  initialPage: number;
   onError: (error: unknown) => void;
   onExternalLink?: (url: string) => void;
   onLoadComplete: (pages: number, path: string, size: PdfPageSize) => void;
   onLoadProgress?: (percent: number) => void;
   onPageChanged: (page: number, total: number) => void;
+  onQuickTap?: (x: number, y: number) => boolean;
   onScaleChanged?: (scale: number) => void;
   onSingleTap: (page: number, x: number, y: number) => void;
   resolvedUri: string;
@@ -33,13 +44,14 @@ type NativePdfEngineProps = {
 export const NativePdfEngine = forwardRef<NativePdfEngineHandle, NativePdfEngineProps>(
   function NativePdfEngine(
     {
-      currentPage,
       displayMode,
+      initialPage,
       onError,
       onExternalLink,
       onLoadComplete,
       onLoadProgress,
       onPageChanged,
+      onQuickTap,
       onScaleChanged,
       onSingleTap,
       resolvedUri,
@@ -50,13 +62,16 @@ export const NativePdfEngine = forwardRef<NativePdfEngineHandle, NativePdfEngine
     const { height, width } = useWindowDimensions();
     const { theme } = useApp();
     const pdfRef = useRef<NativePdfEngineHandle | null>(null);
+    const suppressNativeTapCountRef = useRef(0);
+    const suppressNativeTapUntilRef = useRef(0);
+    const touchStartRef = useRef<{ pageX: number; pageY: number; startedAt: number } | null>(null);
     const source = useMemo(() => ({ cache: true, uri: resolvedUri }), [resolvedUri]);
     const isPaginated = displayMode === 'paginated';
 
     useEffect(() => {
       pdfDevLog('engine:mount', {
         displayMode,
-        page: currentPage,
+        page: initialPage,
         scale,
         source: describePdfSource(resolvedUri),
       });
@@ -69,13 +84,62 @@ export const NativePdfEngine = forwardRef<NativePdfEngineHandle, NativePdfEngine
 
     useImperativeHandle(ref, () => ({
       setPage: (page) => {
-        pdfDevLog('engine:set-page', { page });
         pdfRef.current?.setPage(page);
+        requestAnimationFrame(() => pdfDevLog('engine:set-page', { page }));
       },
     }), []);
 
+    const handleTouchStart = useCallback((event: GestureResponderEvent) => {
+      const { pageX, pageY, touches } = event.nativeEvent;
+      if (touches.length !== 1) {
+        touchStartRef.current = null;
+        return;
+      }
+      touchStartRef.current = { pageX, pageY, startedAt: Date.now() };
+    }, []);
+
+    const handleTouchEnd = useCallback((event: GestureResponderEvent) => {
+      const touchStart = touchStartRef.current;
+      touchStartRef.current = null;
+      if (!touchStart) return;
+
+      const { locationX, locationY, pageX, pageY } = event.nativeEvent;
+      const elapsed = Date.now() - touchStart.startedAt;
+      const movement = Math.hypot(pageX - touchStart.pageX, pageY - touchStart.pageY);
+      if (
+        elapsed > PDF_QUICK_TAP_MAX_DURATION_MS
+        || movement > PDF_QUICK_TAP_MAX_MOVEMENT_DP
+      ) return;
+
+      if (onQuickTap?.(locationX, locationY)) {
+        suppressNativeTapCountRef.current += 1;
+        suppressNativeTapUntilRef.current = Date.now() + PDF_NATIVE_TAP_SUPPRESSION_MS;
+      }
+    }, [onQuickTap]);
+
+    const handleTouchCancel = useCallback(() => {
+      touchStartRef.current = null;
+    }, []);
+
+    const handleNativeSingleTap = useCallback((page: number, x: number, y: number) => {
+      if (
+        suppressNativeTapCountRef.current > 0
+        && Date.now() <= suppressNativeTapUntilRef.current
+      ) {
+        suppressNativeTapCountRef.current -= 1;
+        return;
+      }
+      suppressNativeTapCountRef.current = 0;
+      onSingleTap(page, x, y);
+    }, [onSingleTap]);
+
     return (
-      <View style={{ backgroundColor: theme.bg, flex: 1 }}>
+      <View
+        onTouchCancel={handleTouchCancel}
+        onTouchEnd={handleTouchEnd}
+        onTouchStart={handleTouchStart}
+        style={{ backgroundColor: theme.bg, flex: 1 }}
+      >
         <Pdf
           ref={(instance: NativePdfEngineHandle | null) => {
             pdfRef.current = instance;
@@ -92,10 +156,10 @@ export const NativePdfEngine = forwardRef<NativePdfEngineHandle, NativePdfEngine
           onLoadComplete={onLoadComplete}
           onLoadProgress={onLoadProgress}
           onPageChanged={onPageChanged}
-          onPageSingleTap={onSingleTap}
+          onPageSingleTap={handleNativeSingleTap}
           onPressLink={onExternalLink}
           onScaleChanged={onScaleChanged}
-          page={currentPage}
+          page={initialPage}
           scale={scale}
           scrollEnabled
           showsHorizontalScrollIndicator={false}

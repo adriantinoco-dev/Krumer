@@ -1,5 +1,5 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, PixelRatio, Platform, Text, useWindowDimensions, View } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { radii, serifFont, spacing } from '../theme';
 import { PDF_DEFAULTS, type PdfReaderHandle, type PdfReaderProps } from './PdfReader.types';
@@ -11,6 +11,7 @@ import { usePdfSource } from './pdf/usePdfSource';
 import { subscribeToReaderVolumeKeys } from './readerVolumeKeys';
 
 const PDF_LOAD_TIMEOUT_MS = 12_000;
+const PDF_SIDE_TAP_RATIO = 0.25;
 
 export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader(
   {
@@ -24,6 +25,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   ref,
 ) {
   const { theme, t } = useApp();
+  const { width: viewportWidth } = useWindowDimensions();
   const { error: sourceError, resolvedUri, resolving } = usePdfSource(filePath);
   const engineRef = useRef<NativePdfEngineHandle>(null);
   const initialPageRef = useRef(initialPage);
@@ -31,13 +33,14 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   const totalPagesRef = useRef(0);
   const documentLoadedRef = useRef(false);
   const previousDisplayModeRef = useRef(displayMode);
+  const onCenterTapRef = useRef(onCenterTap);
   const lastReportedSnapshotRef = useRef<string | null>(null);
   const loadProgressBucketRef = useRef(-1);
-  const [currentPage, setCurrentPage] = useState(currentPageRef.current);
   const [scale, setScale] = useState<number>(PDF_DEFAULTS.scale);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
+  onCenterTapRef.current = onCenterTap;
 
   useEffect(() => {
     let active = true;
@@ -54,7 +57,6 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     const target = clampPdfPage(initialPage, totalPagesRef.current);
     if (target === currentPageRef.current) return;
     currentPageRef.current = target;
-    setCurrentPage(target);
     engineRef.current?.setPage(target);
   }, [initialPage]);
 
@@ -84,7 +86,6 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
       initialPage: target,
       source: describePdfSource(filePath),
     });
-    setCurrentPage(target);
     setLoading(true);
     setError(null);
     setErrorDetail(null);
@@ -119,7 +120,6 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     const nextPage = clampPdfPage(page, total);
     currentPageRef.current = nextPage;
     totalPagesRef.current = total;
-    setCurrentPage(nextPage);
     setLoading(false);
     setError(null);
     setErrorDetail(null);
@@ -198,7 +198,6 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     const target = clampPdfPage(page, totalPagesRef.current);
     if (target === currentPageRef.current) return;
     currentPageRef.current = target;
-    setCurrentPage(target);
     engineRef.current?.setPage(target);
   }, []);
 
@@ -207,14 +206,44 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   useEffect(() => subscribeToReaderVolumeKeys((direction) => {
     if (!documentLoadedRef.current) return;
     const delta = direction === 'next' ? 1 : -1;
-    pdfDevLog('controls:volume-key', { direction, page: currentPageRef.current });
     goToPage(currentPageRef.current + delta);
+    const page = currentPageRef.current;
+    requestAnimationFrame(() => pdfDevLog('controls:volume-key', { direction, page }));
   }), [goToPage]);
 
-  const handleSingleTap = useCallback((_page: number, _x: number, _y: number) => {
+  const handleTapAtX = useCallback((tapX: number, source: 'quick' | 'native') => {
+    if (tapX <= viewportWidth * PDF_SIDE_TAP_RATIO) {
+      goToPage(currentPageRef.current - 1);
+      requestAnimationFrame(() => {
+        pdfDevLog('controls:side-tap', {
+          direction: 'previous',
+          source,
+          tapX,
+          viewportWidth,
+        });
+      });
+      return true;
+    }
+    if (tapX >= viewportWidth * (1 - PDF_SIDE_TAP_RATIO)) {
+      goToPage(currentPageRef.current + 1);
+      requestAnimationFrame(() => {
+        pdfDevLog('controls:side-tap', { direction: 'next', source, tapX, viewportWidth });
+      });
+      return true;
+    }
+    return false;
+  }, [goToPage, viewportWidth]);
+
+  const handleQuickTap = useCallback((tapX: number, _tapY: number) => (
+    handleTapAtX(tapX, 'quick')
+  ), [handleTapAtX]);
+
+  const handleSingleTap = useCallback((_page: number, x: number, _y: number) => {
+    const tapX = Platform.OS === 'android' ? x / PixelRatio.get() : x;
+    if (handleTapAtX(tapX, 'native')) return;
     pdfDevLog('controls:toggle-bars-tap');
-    onCenterTap?.();
-  }, [onCenterTap]);
+    onCenterTapRef.current?.();
+  }, [handleTapAtX]);
 
   const handleExternalLink = useCallback((url: string) => {
     if (/^(https?:|mailto:|tel:)/i.test(url)) {
@@ -268,13 +297,14 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     <View style={{ backgroundColor: theme.bg, flex: 1 }}>
       <NativePdfEngine
         ref={engineRef}
-        currentPage={currentPage}
         displayMode={displayMode}
+        initialPage={initialPageRef.current}
         onError={handleError}
         onExternalLink={handleExternalLink}
         onLoadComplete={handleLoadComplete}
         onLoadProgress={handleLoadProgress}
         onPageChanged={handlePageChanged}
+        onQuickTap={handleQuickTap}
         onSingleTap={handleSingleTap}
         resolvedUri={resolvedUri}
         scale={scale}

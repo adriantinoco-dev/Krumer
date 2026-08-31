@@ -112,3 +112,184 @@ if (fs.existsSync(graphicsConversionsPath)) {
     console.log('[netinfo-gradle9] Patched React Native graphicsConversions.h C++ fallback (std::format -> to_string).');
   }
 }
+
+// Keep react-native-pdf page navigation inside the already loaded Android viewer.
+// Version 6.7.7 feeds setPage through a prop update, whose update transaction calls
+// drawPdf() and flashes while the whole document is loaded again.
+const reactNativePdfRoot = path.join(__dirname, '..', 'node_modules', 'react-native-pdf');
+const reactNativePdfPackagePath = path.join(reactNativePdfRoot, 'package.json');
+const reactNativePdfIndexPath = path.join(reactNativePdfRoot, 'index.js');
+const reactNativePdfManagerPath = path.join(
+  reactNativePdfRoot,
+  'android',
+  'src',
+  'main',
+  'java',
+  'org',
+  'wonday',
+  'pdf',
+  'PdfManager.java',
+);
+const reactNativePdfViewPath = path.join(
+  reactNativePdfRoot,
+  'android',
+  'src',
+  'main',
+  'java',
+  'org',
+  'wonday',
+  'pdf',
+  'PdfView.java',
+);
+
+if (
+  fs.existsSync(reactNativePdfPackagePath)
+  && fs.existsSync(reactNativePdfIndexPath)
+  && fs.existsSync(reactNativePdfManagerPath)
+  && fs.existsSync(reactNativePdfViewPath)
+) {
+  const reactNativePdfVersion = JSON.parse(
+    fs.readFileSync(reactNativePdfPackagePath, 'utf8'),
+  ).version;
+  if (reactNativePdfVersion !== '6.7.7') {
+    throw new Error(
+      `[react-native-pdf-navigation] Unsupported react-native-pdf ${reactNativePdfVersion}; expected 6.7.7.`,
+    );
+  }
+
+  let pdfIndexSource = fs.readFileSync(reactNativePdfIndexPath, 'utf8').replace(/\r\n/g, '\n');
+  const paperAndFabricSetPageDispatch = `        if (!!global?.nativeFabricUIManager ) {
+            if (this._root) {
+                PdfViewCommands.setNativePage(
+                    this._root,
+                    pageNumber,
+                );
+            }
+          } else {
+            this.setNativeProps({
+                page: pageNumber
+            });
+          }`;
+  const androidCommandSetPageDispatch = `        if (this._root && (Platform.OS === 'android' || !!global?.nativeFabricUIManager)) {
+            PdfViewCommands.setNativePage(
+                this._root,
+                pageNumber,
+            );
+        } else {
+            this.setNativeProps({
+                page: pageNumber
+            });
+        }`;
+  if (!pdfIndexSource.includes(paperAndFabricSetPageDispatch)) {
+    if (!pdfIndexSource.includes(androidCommandSetPageDispatch)) {
+      throw new Error('[react-native-pdf-navigation] Could not locate setPage dispatch.');
+    }
+    pdfIndexSource = pdfIndexSource.replace(
+      androidCommandSetPageDispatch,
+      paperAndFabricSetPageDispatch,
+    );
+    fs.writeFileSync(reactNativePdfIndexPath, pdfIndexSource, 'utf8');
+  }
+
+  let pdfManagerSource = fs.readFileSync(reactNativePdfManagerPath, 'utf8').replace(/\r\n/g, '\n');
+  const originalNativePageCommand = `    public void setNativePage(PdfView view, int page) {
+        pdfView.setPage(page);
+    }`;
+  const previousNativePageCommand = `    public void setNativePage(PdfView view, int page) {
+        pdfView.jumpToPage(page);
+    }`;
+  const nativePageCommand = `    public void setNativePage(PdfView view, int page) {
+        view.jumpToPage(page);
+    }`;
+  if (!pdfManagerSource.includes(nativePageCommand)) {
+    if (pdfManagerSource.includes(previousNativePageCommand)) {
+      pdfManagerSource = pdfManagerSource.replace(previousNativePageCommand, nativePageCommand);
+    } else if (pdfManagerSource.includes(originalNativePageCommand)) {
+      pdfManagerSource = pdfManagerSource.replace(originalNativePageCommand, nativePageCommand);
+    } else {
+      throw new Error('[react-native-pdf-navigation] Could not locate Android page command.');
+    }
+  }
+  const originalAfterUpdate = `    public void onAfterUpdateTransaction(PdfView pdfView) {
+        super.onAfterUpdateTransaction(pdfView);
+        pdfView.drawPdf();
+    }`;
+  const guardedAfterUpdate = `    public void onAfterUpdateTransaction(PdfView pdfView) {
+        super.onAfterUpdateTransaction(pdfView);
+        if (pdfView.consumeSkipNextDraw()) return;
+        pdfView.drawPdf();
+    }`;
+  if (!pdfManagerSource.includes(guardedAfterUpdate)) {
+    if (!pdfManagerSource.includes(originalAfterUpdate)) {
+      throw new Error('[react-native-pdf-navigation] Could not locate Android update transaction.');
+    }
+    pdfManagerSource = pdfManagerSource.replace(originalAfterUpdate, guardedAfterUpdate);
+  }
+  fs.writeFileSync(reactNativePdfManagerPath, pdfManagerSource, 'utf8');
+
+  let pdfViewSource = fs.readFileSync(reactNativePdfViewPath, 'utf8').replace(/\r\n/g, '\n');
+  const skipDrawFieldAnchor = '    private boolean scrollEnabled = true;';
+  const skipDrawField = `${skipDrawFieldAnchor}\n    private boolean skipNextDraw = false;`;
+  if (!pdfViewSource.includes(skipDrawField)) {
+    if (!pdfViewSource.includes(skipDrawFieldAnchor)) {
+      throw new Error('[react-native-pdf-navigation] Could not locate Android viewer state.');
+    }
+    pdfViewSource = pdfViewSource.replace(skipDrawFieldAnchor, skipDrawField);
+  }
+  const originalAndroidPageSetter = `    public void setPage(int page) {
+        this.page = page>1?page:1;
+    }`;
+  const previousAndroidPageSetter = `    public void setPage(int page) {
+        this.page = page>1?page:1;
+    }
+
+    public void jumpToPage(int page) {
+        int targetPage = page > 1 ? page : 1;
+        this.page = targetPage;
+        if (!isRecycled() && getPageCount() > 0) {
+            jumpTo(targetPage - 1, false);
+        }
+    }`;
+  const androidPageSetterWithoutReload = `    public void setPage(int page) {
+        int targetPage = page > 1 ? page : 1;
+        this.page = targetPage;
+        if (!isRecycled() && getPageCount() > 0) {
+            jumpTo(targetPage - 1, false);
+            skipNextDraw = true;
+        }
+    }
+
+    public void jumpToPage(int page) {
+        int targetPage = page > 1 ? page : 1;
+        this.page = targetPage;
+        if (!isRecycled() && getPageCount() > 0) {
+            jumpTo(targetPage - 1, false);
+        }
+    }
+
+    public boolean consumeSkipNextDraw() {
+        boolean skip = skipNextDraw;
+        skipNextDraw = false;
+        return skip;
+    }`;
+  if (!pdfViewSource.includes(androidPageSetterWithoutReload)) {
+    if (pdfViewSource.includes(previousAndroidPageSetter)) {
+      pdfViewSource = pdfViewSource.replace(
+        previousAndroidPageSetter,
+        androidPageSetterWithoutReload,
+      );
+    } else if (pdfViewSource.includes(originalAndroidPageSetter)) {
+      pdfViewSource = pdfViewSource.replace(
+        originalAndroidPageSetter,
+        androidPageSetterWithoutReload,
+      );
+    } else {
+      throw new Error('[react-native-pdf-navigation] Could not locate Android page setter.');
+    }
+  }
+  fs.writeFileSync(reactNativePdfViewPath, pdfViewSource, 'utf8');
+
+  console.log(`[react-native-pdf-navigation] Patched react-native-pdf ${reactNativePdfVersion} page jumps.`);
+} else {
+  console.warn('[react-native-pdf-navigation] react-native-pdf not found, skipping navigation patch.');
+}

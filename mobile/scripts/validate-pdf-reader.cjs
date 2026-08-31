@@ -73,6 +73,16 @@ async function main() {
   const readerSource = fs.readFileSync('src/readers/PdfReader.tsx', 'utf8');
   const engineSource = fs.readFileSync('src/readers/pdf/NativePdfEngine.tsx', 'utf8');
   const debugSource = fs.readFileSync('src/readers/pdf/pdfDebug.ts', 'utf8');
+  const nativePatchSource = fs.readFileSync('scripts/fix-netinfo-gradle9.cjs', 'utf8');
+  const installedPdfIndexSource = fs.readFileSync('node_modules/react-native-pdf/index.js', 'utf8');
+  const installedPdfManagerSource = fs.readFileSync(
+    'node_modules/react-native-pdf/android/src/main/java/org/wonday/pdf/PdfManager.java',
+    'utf8',
+  );
+  const installedPdfViewSource = fs.readFileSync(
+    'node_modules/react-native-pdf/android/src/main/java/org/wonday/pdf/PdfView.java',
+    'utf8',
+  );
   const volumeKeysSource = fs.readFileSync('src/readers/readerVolumeKeys.ts', 'utf8');
   const epubVolumeKeysSource = fs.readFileSync('src/readers/epubVolumeKeys.ts', 'utf8');
   const readerScreenSource = fs.readFileSync('src/screens/ReaderScreen.tsx', 'utf8');
@@ -82,9 +92,16 @@ async function main() {
     || !readerSource.includes('<NativePdfEngine')
     || !readerSource.includes('displayMode={displayMode}')
     || readerSource.includes('displayMode={PDF_DEFAULTS.displayMode}')
+    || !readerSource.includes('onCenterTapRef.current = onCenterTap')
+    || !readerSource.includes('onCenterTapRef.current?.();')
+    || !readerSource.includes('const PDF_SIDE_TAP_RATIO = 0.25')
+    || !readerSource.includes("const tapX = Platform.OS === 'android' ? x / PixelRatio.get() : x")
+    || !readerSource.includes("handleTapAtX(tapX, 'quick')")
+    || !readerSource.includes('onQuickTap={handleQuickTap}')
+    || !readerSource.includes('goToPage(currentPageRef.current - 1)')
+    || !readerSource.includes('goToPage(currentPageRef.current + 1)')
     || !readerSource.includes("pdfDevLog('controls:toggle-bars-tap')")
     || readerSource.includes('classifyPdfTap')
-    || !readerSource.includes('onCenterTap?.();')
     || readerSource.includes('isSinglePageReady')
     || readerSource.includes('numberOfPages === 1')
   ) {
@@ -95,6 +112,9 @@ async function main() {
     || !engineSource.includes("const isPaginated = displayMode === 'paginated'")
     || !engineSource.includes('enablePaging={isPaginated}')
     || !engineSource.includes('horizontal={isPaginated}')
+    || !engineSource.includes('initialPage: number')
+    || !engineSource.includes('page={initialPage}')
+    || engineSource.includes('page={currentPage}')
     || !engineSource.includes('spacing={isPaginated ? 0 : PDF_SCROLL_PAGE_SPACING}')
     || !engineSource.includes('singlePage={false}')
     || !engineSource.includes('enableAnnotationRendering')
@@ -105,6 +125,29 @@ async function main() {
   }
   if ((engineSource.match(/<Pdf\b/g) ?? []).length !== 1) {
     throw new Error('Continuous PDF scrolling must keep a single native viewer instance.');
+  }
+  if (
+    !engineSource.includes('const PDF_QUICK_TAP_MAX_DURATION_MS = 240')
+    || !engineSource.includes('onTouchStart={handleTouchStart}')
+    || !engineSource.includes('onTouchEnd={handleTouchEnd}')
+    || !engineSource.includes('onTouchCancel={handleTouchCancel}')
+    || !engineSource.includes('suppressNativeTapUntilRef.current')
+    || !engineSource.includes('onPageSingleTap={handleNativeSingleTap}')
+  ) {
+    throw new Error('PDF side taps can regress to the delayed native single-tap callback.');
+  }
+  if (
+    !nativePatchSource.includes('[react-native-pdf-navigation]')
+    || !nativePatchSource.includes('consumeSkipNextDraw')
+    || !installedPdfIndexSource.includes('if (!!global?.nativeFabricUIManager )')
+    || installedPdfIndexSource.includes("Platform.OS === 'android' || !!global?.nativeFabricUIManager")
+    || !installedPdfManagerSource.includes('view.jumpToPage(page);')
+    || !installedPdfManagerSource.includes('if (pdfView.consumeSkipNextDraw())')
+    || !installedPdfViewSource.includes('public void jumpToPage(int page)')
+    || !installedPdfViewSource.includes('jumpTo(targetPage - 1, false);')
+    || !installedPdfViewSource.includes('public boolean consumeSkipNextDraw()')
+  ) {
+    throw new Error('Programmatic PDF navigation can reload the document and flash between pages.');
   }
   if (
     !debugSource.includes("const PDF_DEBUG_TAG = '[Krumer PDF]'")
