@@ -559,16 +559,93 @@ import android.os.ParcelFileDescriptor;`;
     }
     pdfViewSource = pdfViewSource.replace(nativeScaleStateAnchor, nativeScaleState);
   }
+  const viewportRestoreStateAnchor = '    private Runnable pendingNativeScaleRender = null;';
+  const viewportRestoreState = `${viewportRestoreStateAnchor}
+    private int viewportRestoreGeneration = 0;
+    private Runnable pendingViewportRestore = null;`;
+  if (!pdfViewSource.includes('private int viewportRestoreGeneration = 0;')) {
+    if (!pdfViewSource.includes(viewportRestoreStateAnchor)) {
+      throw new Error('[react-native-pdf-navigation] Could not locate Android viewport restore state.');
+    }
+    pdfViewSource = pdfViewSource.replace(viewportRestoreStateAnchor, viewportRestoreState);
+  }
+  const legacyScaleReport = '            event.putString("message", "scaleChanged|"+(pageWidth/originalWidth));';
+  const nativeScaleReport = `            float reportedScale = Math.max(this.minScale, Math.min(this.maxScale, this.getZoom()));
+            this.scale = reportedScale;
+            event.putString("message", "scaleChanged|"+reportedScale);`;
+  if (!pdfViewSource.includes('"scaleChanged|"+reportedScale')) {
+    if (!pdfViewSource.includes(legacyScaleReport)) {
+      throw new Error('[react-native-pdf-navigation] Could not locate Android scale report.');
+    }
+    pdfViewSource = pdfViewSource.replace(legacyScaleReport, nativeScaleReport);
+  }
+  const originalSizeChanged = `    @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        if ((w > 0 && h > 0) || this.oldW > 0 || this.oldH > 0) {
+            super.onSizeChanged(w, h, this.oldW, this.oldH);
+            this.oldW = w;
+            this.oldH = h;
+        }
+    }`;
+  const stableSizeChanged = `    @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        boolean viewportChanged = w > 0 && h > 0
+            && this.oldW > 0 && this.oldH > 0
+            && (w != this.oldW || h != this.oldH);
+        float targetZoom = !this.isRecycled() && this.getPageCount() > 0
+            ? Math.max(this.minScale, Math.min(this.maxScale, this.getZoom()))
+            : Math.max(this.minScale, Math.min(this.maxScale, this.scale));
+        if (viewportChanged) {
+            cancelPendingViewportRestore();
+            if (targetZoom <= 1.001f) {
+                this.restoreSinglePageViewport = false;
+                this.preservedSinglePageZoom = 1f;
+                this.preservedSinglePageXOffset = 0.5f;
+                this.preservedSinglePageYOffset = 0.5f;
+            }
+        }
+        if ((w > 0 && h > 0) || this.oldW > 0 || this.oldH > 0) {
+            super.onSizeChanged(w, h, this.oldW, this.oldH);
+            this.oldW = w;
+            this.oldH = h;
+        }
+        if (viewportChanged) {
+            final int expectedGeneration = this.viewportRestoreGeneration;
+            final int expectedWidth = w;
+            final int expectedHeight = h;
+            final float expectedZoom = targetZoom;
+            this.pendingViewportRestore = () -> {
+                if (expectedGeneration != this.viewportRestoreGeneration) return;
+                this.pendingViewportRestore = null;
+                if (this.getWidth() != expectedWidth || this.getHeight() != expectedHeight) return;
+                stabilizeSinglePageViewportAfterResize(expectedZoom);
+            };
+            this.post(this.pendingViewportRestore);
+        }
+    }`;
+  if (!pdfViewSource.includes('stabilizeSinglePageViewportAfterResize(expectedZoom);')) {
+    if (!pdfViewSource.includes(originalSizeChanged)) {
+      throw new Error('[react-native-pdf-navigation] Could not locate Android viewport resize lifecycle.');
+    }
+    pdfViewSource = pdfViewSource.replace(originalSizeChanged, stableSizeChanged);
+  }
   const drawPdfAnchor = `    public void drawPdf() {
         showLog(format("drawPdf path:%s %s", this.path, this.page));`;
   const drawPdfWithZoomCancellation = `    public void drawPdf() {
         cancelPendingNativeScaleRender();
         showLog(format("drawPdf path:%s %s", this.path, this.page));`;
-  if (!pdfViewSource.includes(drawPdfWithZoomCancellation)) {
-    if (!pdfViewSource.includes(drawPdfAnchor)) {
+  const drawPdfWithAsyncCancellation = `    public void drawPdf() {
+        cancelPendingNativeScaleRender();
+        cancelPendingViewportRestore();
+        showLog(format("drawPdf path:%s %s", this.path, this.page));`;
+  if (!pdfViewSource.includes(drawPdfWithAsyncCancellation)) {
+    const existingDrawPdf = pdfViewSource.includes(drawPdfWithZoomCancellation)
+      ? drawPdfWithZoomCancellation
+      : drawPdfAnchor;
+    if (!pdfViewSource.includes(existingDrawPdf)) {
       throw new Error('[react-native-pdf-navigation] Could not locate Android PDF opening lifecycle.');
     }
-    pdfViewSource = pdfViewSource.replace(drawPdfAnchor, drawPdfWithZoomCancellation);
+    pdfViewSource = pdfViewSource.replace(existingDrawPdf, drawPdfWithAsyncCancellation);
   }
   const attachedLifecycle = `    @Override
     protected void onAttachedToWindow() {
@@ -584,11 +661,23 @@ import android.os.ParcelFileDescriptor;`;
         pendingNativeScale = Float.NaN;
         super.onDetachedFromWindow();
     }`;
-  if (!pdfViewSource.includes('protected void onDetachedFromWindow()')) {
-    if (!pdfViewSource.includes(attachedLifecycle)) {
+  const viewportAwareLifecycle = `${attachedLifecycle}
+
+    @Override
+    protected void onDetachedFromWindow() {
+        cancelPendingNativeScaleRender();
+        cancelPendingViewportRestore();
+        pendingNativeScale = Float.NaN;
+        super.onDetachedFromWindow();
+    }`;
+  if (!pdfViewSource.includes('cancelPendingViewportRestore();\n        pendingNativeScale = Float.NaN;\n        super.onDetachedFromWindow();')) {
+    const existingLifecycle = pdfViewSource.includes(zoomAwareLifecycle)
+      ? zoomAwareLifecycle
+      : attachedLifecycle;
+    if (!pdfViewSource.includes(existingLifecycle)) {
       throw new Error('[react-native-pdf-navigation] Could not locate Android PDF view lifecycle.');
     }
-    pdfViewSource = pdfViewSource.replace(attachedLifecycle, zoomAwareLifecycle);
+    pdfViewSource = pdfViewSource.replace(existingLifecycle, viewportAwareLifecycle);
   }
   const thumbnailSinglePageBlock = `            if (this.singlePage) {
                 configurator.pages(this.page-1);
@@ -795,18 +884,48 @@ import android.os.ParcelFileDescriptor;`;
         return Math.max(0f, Math.min(1f, value));
     }
 
+    private void cancelPendingViewportRestore() {
+        this.viewportRestoreGeneration += 1;
+        if (this.pendingViewportRestore == null) return;
+        removeCallbacks(this.pendingViewportRestore);
+        this.pendingViewportRestore = null;
+    }
+
+    private void stabilizeSinglePageViewportAfterResize(float requestedZoom) {
+        if (!this.singlePage || this.isRecycled() || this.getPageCount() <= 0) return;
+        float targetZoom = Math.max(this.minScale, Math.min(this.maxScale, requestedZoom));
+        this.scale = targetZoom;
+        stopFling();
+        if (Math.abs(this.getZoom() - targetZoom) >= 0.001f) {
+            this.zoomTo(targetZoom);
+        }
+        if (targetZoom <= 1.001f) {
+            this.moveTo(0f, 0f, true);
+        } else {
+            this.moveTo(this.getCurrentXOffset(), this.getCurrentYOffset(), true);
+        }
+        this.loadPages();
+        this.invalidate();
+    }
+
     private void captureSinglePageViewport() {
         if (!this.singlePage || this.isRecycled() || this.getPageCount() <= 0) return;
+        cancelPendingViewportRestore();
         this.preservedSinglePageZoom = Math.max(this.minScale, Math.min(this.maxScale, this.getZoom()));
-        SizeF currentPageSize = this.getPageSize(0);
-        float scaledWidth = Math.max(1f, currentPageSize.getWidth() * this.preservedSinglePageZoom);
-        float scaledHeight = Math.max(1f, currentPageSize.getHeight() * this.preservedSinglePageZoom);
-        this.preservedSinglePageXOffset = clampUnit(
-            (-this.getCurrentXOffset() + this.getWidth() / 2f) / scaledWidth
-        );
-        this.preservedSinglePageYOffset = clampUnit(
-            (-this.getCurrentYOffset() + this.getHeight() / 2f) / scaledHeight
-        );
+        if (this.preservedSinglePageZoom <= 1.001f) {
+            this.preservedSinglePageXOffset = 0.5f;
+            this.preservedSinglePageYOffset = 0.5f;
+        } else {
+            SizeF currentPageSize = this.getPageSize(0);
+            float scaledWidth = Math.max(1f, currentPageSize.getWidth() * this.preservedSinglePageZoom);
+            float scaledHeight = Math.max(1f, currentPageSize.getHeight() * this.preservedSinglePageZoom);
+            this.preservedSinglePageXOffset = clampUnit(
+                (-this.getCurrentXOffset() + this.getWidth() / 2f) / scaledWidth
+            );
+            this.preservedSinglePageYOffset = clampUnit(
+                (-this.getCurrentYOffset() + this.getHeight() / 2f) / scaledHeight
+            );
+        }
         this.scale = this.preservedSinglePageZoom;
         this.restoreSinglePageViewport = true;
     }
@@ -819,6 +938,8 @@ import android.os.ParcelFileDescriptor;`;
         final float targetZoom = this.preservedSinglePageZoom;
         final float targetFocusX = this.preservedSinglePageXOffset;
         final float targetFocusY = this.preservedSinglePageYOffset;
+        cancelPendingViewportRestore();
+        final int expectedGeneration = this.viewportRestoreGeneration;
         this.scale = targetZoom;
         this.zoomTo(targetZoom);
         SizeF targetPageSize = this.getPageSize(0);
@@ -826,19 +947,22 @@ import android.os.ParcelFileDescriptor;`;
         float targetYOffset = this.getHeight() / 2f - targetFocusY * targetPageSize.getHeight() * targetZoom;
         this.moveTo(targetXOffset, targetYOffset, true);
         this.restoreSinglePageViewport = false;
-        this.post(() -> {
-            if (this.isRecycled()) return;
+        this.pendingViewportRestore = () -> {
+            if (expectedGeneration != this.viewportRestoreGeneration) return;
+            this.pendingViewportRestore = null;
+            if (this.isRecycled() || this.getPageCount() <= 0) return;
             this.zoomTo(targetZoom);
             SizeF restoredPageSize = this.getPageSize(0);
             float restoredXOffset = this.getWidth() / 2f - targetFocusX * restoredPageSize.getWidth() * targetZoom;
             float restoredYOffset = this.getHeight() / 2f - targetFocusY * restoredPageSize.getHeight() * targetZoom;
             this.moveTo(restoredXOffset, restoredYOffset, true);
-        });
+        };
+        this.post(this.pendingViewportRestore);
     }
 
 ${pageSetterAnchor}`;
-  if (!pdfViewSource.includes('private static float clampUnit(float value)')) {
-    const existingViewportHelpersPattern = /    private void captureSinglePageViewport\(\) \{[\s\S]*?    \/\/ page start from 1\n    public void setPage\(int page\) \{/;
+  if (!pdfViewSource.includes('private void stabilizeSinglePageViewportAfterResize(float requestedZoom)')) {
+    const existingViewportHelpersPattern = /    private (?:static float clampUnit\(float value\)|void captureSinglePageViewport\(\)) \{[\s\S]*?    \/\/ page start from 1\n    public void setPage\(int page\) \{/;
     if (existingViewportHelpersPattern.test(pdfViewSource)) {
       pdfViewSource = pdfViewSource.replace(existingViewportHelpersPattern, preservedViewportHelpers);
     } else if (!pdfViewSource.includes('private void captureSinglePageViewport()')) {
@@ -849,7 +973,10 @@ ${pageSetterAnchor}`;
     } else {
       throw new Error('[react-native-pdf-navigation] Could not normalize Android viewport helpers.');
     }
-  } else if (!pdfViewSource.includes('final float targetFocusX = this.preservedSinglePageXOffset;')) {
+  } else if (
+    !pdfViewSource.includes('final float targetFocusX = this.preservedSinglePageXOffset;')
+    || !pdfViewSource.includes('expectedGeneration != this.viewportRestoreGeneration')
+  ) {
     throw new Error('[react-native-pdf-navigation] Android viewport helpers are only partially normalized.');
   }
   const initialZoomRestore = '        this.zoomTo(this.scale);';
@@ -1034,6 +1161,7 @@ ${scaleSetterAnchor}`;
   const resettingPathSetter = `    public void setPath(String path) {
         if (this.path == null || !this.path.equals(path)) {
             cancelPendingNativeScaleRender();
+            cancelPendingViewportRestore();
             pendingNativeScale = Float.NaN;
             documentPageCount = 0;
             restoreSinglePageViewport = false;

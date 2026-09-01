@@ -8,6 +8,11 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Corrigido
+- **Mobile — zoom e paginação após rotação do PDF:** o viewer Android agora invalida
+  restaurações atrasadas quando o viewport muda, reenquadra e centraliza a página em 100%
+  depois que as novas dimensões estabilizam e preserva somente o ponto focal válido acima de
+  100%. O avanço paginado usa o centro exato em zoom natural e callbacks protegidos por geração,
+  evitando que uma página ou orientação anterior sobrescreva a geometria atual.
 - **Mobile — enquadramento de 100% no PDF:** o modo paginado agora usa ajuste completo da
   página, mantendo-a inteira e centralizada em 100%, enquanto o modo scroll continua
   ajustado à largura. Ao girar o aparelho, o viewer recalcula o enquadramento para a nova

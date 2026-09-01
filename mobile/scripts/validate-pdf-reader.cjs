@@ -255,6 +255,9 @@ async function main() {
     || !nativePatchSource.includes('consumeSkipNextDraw')
     || !nativePatchSource.includes('captureSinglePageViewport')
     || !nativePatchSource.includes('restoreSinglePageViewportAfterLoad')
+    || !nativePatchSource.includes('viewportRestoreGeneration')
+    || !nativePatchSource.includes('stabilizeSinglePageViewportAfterResize')
+    || !nativePatchSource.includes('"scaleChanged|"+reportedScale')
     || !installedPdfIndexSource.includes('if (!!global?.nativeFabricUIManager )')
     || !installedPdfIndexSource.includes('scrollByViewport(fraction)')
     || !installedPdfIndexSource.includes("UIManager.dispatchViewManagerCommand(reactTag, 'scrollByViewport', [fraction])")
@@ -276,7 +279,10 @@ async function main() {
     || !installedPdfViewSource.includes('private static final long NATIVE_SCALE_SETTLE_DELAY_MS = 160L;')
     || !installedPdfViewSource.includes('private float pendingNativeScale = Float.NaN;')
     || !installedPdfViewSource.includes('private int nativeScaleGeneration = 0;')
+    || !installedPdfViewSource.includes('private int viewportRestoreGeneration = 0;')
+    || !installedPdfViewSource.includes('private Runnable pendingViewportRestore = null;')
     || !installedPdfViewSource.includes('removeCallbacks(pendingNativeScaleRender);')
+    || !installedPdfViewSource.includes('removeCallbacks(this.pendingViewportRestore);')
     || !installedPdfViewSource.includes('postDelayed(pendingNativeScaleRender, NATIVE_SCALE_SETTLE_DELAY_MS);')
     || !installedPdfViewSource.includes('scheduledGeneration != nativeScaleGeneration')
     || !installedPdfViewSource.includes('this.applyPendingNativeScaleIfReady();')
@@ -285,9 +291,11 @@ async function main() {
     || !installedPdfViewSource.includes('stopFling();\n        zoomCenteredTo(targetScale')
     || !installedPdfViewSource.includes('zoomCenteredTo(targetScale, new PointF(getWidth() / 2f, getHeight() / 2f));\n        invalidate();\n        scheduleNativeScaleRender();')
     || !installedPdfViewSource.includes('cancelPendingNativeScaleRender();\n            jumpTo(targetPage - 1, false);')
-    || !installedPdfViewSource.includes('cancelPendingNativeScaleRender();\n            pendingNativeScale = Float.NaN;\n            documentPageCount = 0;')
+    || !installedPdfViewSource.includes('cancelPendingNativeScaleRender();\n            cancelPendingViewportRestore();\n            pendingNativeScale = Float.NaN;\n            documentPageCount = 0;')
     || !installedPdfViewSource.includes('public void drawPdf() {\n        cancelPendingNativeScaleRender();')
+    || !installedPdfViewSource.includes('cancelPendingNativeScaleRender();\n        cancelPendingViewportRestore();\n        showLog(format("drawPdf')
     || !installedPdfViewSource.includes('protected void onDetachedFromWindow() {\n        cancelPendingNativeScaleRender();')
+    || !installedPdfViewSource.includes('cancelPendingNativeScaleRender();\n        cancelPendingViewportRestore();\n        pendingNativeScale = Float.NaN;')
     || !installedPdfViewSource.includes('moveRelativeTo(0, -getHeight() * limitedFraction);')
     || !installedPdfViewSource.includes('setPositionOffset(getPositionOffset(), true);')
     || !installedPdfViewSource.includes('case 0:\n                this.fitPolicy = FitPolicy.WIDTH;')
@@ -311,19 +319,41 @@ async function main() {
     || installedSinglePageNavigationBranches.some((branch) => branch.includes('jumpTo('))
     || !installedPdfViewSource.includes('private void captureSinglePageViewport()')
     || !installedPdfViewSource.includes('private static float clampUnit(float value)')
+    || !installedPdfViewSource.includes('private void stabilizeSinglePageViewportAfterResize(float requestedZoom)')
     || !installedPdfViewSource.includes('this.preservedSinglePageZoom = Math.max(this.minScale, Math.min(this.maxScale, this.getZoom()));')
+    || !installedPdfViewSource.includes('if (this.preservedSinglePageZoom <= 1.001f)')
+    || !installedPdfViewSource.includes('this.preservedSinglePageXOffset = 0.5f;\n            this.preservedSinglePageYOffset = 0.5f;')
     || !installedPdfViewSource.includes('(-this.getCurrentXOffset() + this.getWidth() / 2f) / scaledWidth')
     || !installedPdfViewSource.includes('(-this.getCurrentYOffset() + this.getHeight() / 2f) / scaledHeight')
     || installedPdfViewSource.includes('this.preservedSinglePageXOffset = this.getCurrentXOffset();')
     || installedPdfViewSource.includes('this.preservedSinglePageYOffset = this.getCurrentYOffset();')
     || !installedPdfViewSource.includes('this.restoreSinglePageViewportAfterLoad();')
     || !installedPdfViewSource.includes('final float targetFocusX = this.preservedSinglePageXOffset;')
+    || !installedPdfViewSource.includes('final int expectedGeneration = this.viewportRestoreGeneration;')
     || !installedPdfViewSource.includes('float targetXOffset = this.getWidth() / 2f - targetFocusX * targetPageSize.getWidth() * targetZoom;')
     || !installedPdfViewSource.includes('this.moveTo(targetXOffset, targetYOffset, true);')
-    || !installedPdfViewSource.includes('this.post(() -> {\n            if (this.isRecycled()) return;')
+    || !installedPdfViewSource.includes('this.pendingViewportRestore = () -> {\n            if (expectedGeneration != this.viewportRestoreGeneration) return;')
+    || !installedPdfViewSource.includes('this.post(this.pendingViewportRestore);')
+    || !installedPdfViewSource.includes('float reportedScale = Math.max(this.minScale, Math.min(this.maxScale, this.getZoom()));')
+    || !installedPdfViewSource.includes('event.putString("message", "scaleChanged|"+reportedScale);')
+    || installedPdfViewSource.includes('"scaleChanged|"+(pageWidth/originalWidth)')
     || installedPdfViewSource.includes('setTouchesEnabled(false);')
   ) {
     throw new Error('Paginated PDF can regress in page isolation, native navigation, or zoom/offset preservation.');
+  }
+  const nativeResizeLifecycleSource = installedPdfViewSource.match(
+    /protected void onSizeChanged\(int w, int h, int oldw, int oldh\) \{[\s\S]*?\n    \}\n\n    @Override\n    public void loadComplete/,
+  )?.[0] ?? '';
+  if (
+    !nativeResizeLifecycleSource
+    || !nativeResizeLifecycleSource.includes('cancelPendingViewportRestore();')
+    || !nativeResizeLifecycleSource.includes('this.restoreSinglePageViewport = false;')
+    || !nativeResizeLifecycleSource.includes('this.preservedSinglePageXOffset = 0.5f;')
+    || !nativeResizeLifecycleSource.includes('expectedGeneration != this.viewportRestoreGeneration')
+    || !nativeResizeLifecycleSource.includes('this.getWidth() != expectedWidth || this.getHeight() != expectedHeight')
+    || !nativeResizeLifecycleSource.includes('stabilizeSinglePageViewportAfterResize(expectedZoom);')
+  ) {
+    throw new Error('Paginated PDF resize must invalidate stale restores and refit the settled native viewport.');
   }
   const nativeScaleMethodSource = installedPdfViewSource.match(
     /public void setNativeScale\(float requestedScale\) \{[\s\S]*?\n    \}/,
