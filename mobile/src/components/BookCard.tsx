@@ -8,7 +8,7 @@ import type { Book } from '../models/item';
 import { coverShadow, serifFont, spacing } from '../theme';
 
 const COVER_RADIUS = 10;
-const COVER_ASPECT_RATIO = 193 / 264;
+const COVER_ASPECT_RATIO = 220 / 300;
 
 export function BookCard({
   book,

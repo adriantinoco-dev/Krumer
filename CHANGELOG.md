@@ -7,7 +7,18 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ## [Unreleased]
 
+### Corrigido
+- **Mobile — falha `Already closed` no zoom do PDF:** atualizações de escala agora ajustam a
+  view nativa carregada e renovam apenas seu cache de páginas, sem chamar `drawPdf()` nem
+  fechar o documento enquanto a thread de renderização ainda processa bitmaps.
+
 ### Alterado
+- **Mobile — controle de zoom do PDF:** a barra superior agora oferece um painel compacto com
+  ajuste de 5% entre 50% e 200% e restauração para 100%. O valor acompanha o gesto de pinça,
+  persiste entre leituras e é aplicado sem remontar o documento nativo.
+- **Mobile — PDF paginado sem trilho nem piscada:** o Android agora mantém um único documento
+  nativo aberto, pré-renderiza a página adjacente e filtra o desenho para exibir somente a
+  página ativa. Avançar e voltar não recarregam o PDF e preservam zoom e deslocamento relativo.
 - **Mobile — abertura acelerada de EPUB e PDF:** a tela de detalhes agora pré-aquece arquivo,
   preferências, fontes e banco antes do toque em Ler. EPUB reutiliza a cópia/base64 preparados
   e carrega WebView, fontes e arquivo em paralelo; PDF reutiliza uma cópia validada por tamanho

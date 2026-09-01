@@ -8,7 +8,7 @@ import { coverShadow, serifFont, spacing } from '../theme';
 
 const COVER_RADIUS = 10;
 const CARD_WIDTH = 140;
-const COVER_HEIGHT = Math.round(CARD_WIDTH / (193 / 264)); // 191px
+const COVER_HEIGHT = Math.round(CARD_WIDTH / (220 / 300)); // 191px
 
 export function BookCardContinue({
   book,
