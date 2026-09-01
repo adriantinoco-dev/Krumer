@@ -40,5 +40,7 @@ export type PdfReaderProps = {
 };
 
 export type PdfReaderHandle = {
+  getScale: () => number;
   goToPage: (page: number) => void;
+  setScale: (scale: number) => void;
 };

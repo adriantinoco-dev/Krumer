@@ -8,6 +8,8 @@ import { ReadingSettingsButton } from '../components/ReadingSettingsButton';
 import { ReadingSettingsModal } from '../components/ReadingSettingsModal';
 import { LayoutSettingsButton } from '../components/LayoutSettingsButton';
 import { LayoutSettingsModal } from '../components/LayoutSettingsModal';
+import { PdfZoomButton } from '../components/PdfZoomButton';
+import { PdfZoomModal } from '../components/PdfZoomModal';
 import { PaginationSettingsButton } from '../components/PaginationSettingsButton';
 import { PaginationSettingsModal } from '../components/PaginationSettingsModal';
 import { ActionSheetModal } from '../components/ActionSheetModal';
@@ -15,6 +17,7 @@ import { EpubReader, type EpubReaderHandle } from '../readers/EpubReader';
 import type { EpubRelocationSource, EpubTocItem, EpubViewStatus } from '../readers/epubBridge';
 import { PdfReader } from '../readers/PdfReader';
 import { PDF_DEFAULTS, type PdfDisplayMode, type PdfReaderHandle } from '../readers/PdfReader.types';
+import { clampPdfScale } from '../readers/pdf/pdfState';
 import { getCachedPdfPrefs, loadPdfPrefs, savePdfDisplayMode, savePdfOrientation } from '../readers/pdf/usePdfPrefs';
 import { useEpubPersistence } from '../readers/useEpubPersistence';
 import { useEpubNotes } from '../readers/useEpubNotes';
@@ -65,6 +68,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const initialPdfPreferences = useRef(getCachedPdfPrefs() ?? PDF_DEFAULTS).current;
   const [pdfDisplayMode, setPdfDisplayMode] = useState<PdfDisplayMode>(initialPdfPreferences.displayMode);
   const [pdfOrientation, setPdfOrientation] = useState<ReadingPreferences['orientation']>(initialPdfPreferences.orientation);
+  const [pdfScale, setPdfScale] = useState<number>(PDF_DEFAULTS.scale);
   const { isLandscape } = useOrientation(isEpub ? readingPreferences.preferences.orientation : pdfOrientation);
   const [progress, setProgress] = useState((book.progressPct ?? 0) / 100);
   const [savedPosition, setSavedPosition] = useState<string | null>(() => {
@@ -76,6 +80,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const [bookmarkBusy, setBookmarkBusy] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [paginationSettingsVisible, setPaginationSettingsVisible] = useState(false);
+  const [pdfZoomVisible, setPdfZoomVisible] = useState(false);
   const [layoutSettingsVisible, setLayoutSettingsVisible] = useState(false);
   const [currentPage, setCurrentPage] = useState(book.currentPage ?? 1);
   const [totalPages, setTotalPages] = useState(book.totalPages ?? 0);
@@ -121,7 +126,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const epubMuted = theme.name === 'dark' ? '#a2a2a2' : theme.name === 'sepia' ? '#796c52' : '#6f6f6f';
   const epubTopChrome = theme.name === 'dark' ? '#202020' : theme.name === 'sepia' ? '#f4ecd8' : '#ffffff';
   const epubContentVerticalInset = Math.max(insets.top, insets.bottom, 0) + EPUB_CONTENT_VERTICAL_OFFSET;
-  const readerTopBarSideWidth = isEpub ? EPUB_TOP_BAR_SIDE_WIDTH : 88;
+  const readerTopBarSideWidth = EPUB_TOP_BAR_SIDE_WIDTH;
   const previewCardWidth = Math.max(1, Math.min(windowDimensions.width - spacing.lg * 2, 520));
   const previewCardMaxHeight = Math.max(1, windowDimensions.height * 0.88);
   const previewHeaderHeight = 54;
@@ -138,6 +143,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const pdfModalVisible = !isEpub && (
     bookmarksVisible
     || paginationSettingsVisible
+    || pdfZoomVisible
     || brightnessVisible
     || notesVisible
     || detailVisible
@@ -480,6 +486,23 @@ export function ReaderScreen({ navigation, route }: Props) {
       void savePdfOrientation(patch.orientation);
     }
   }, [isEpub, readingPreferences.updatePreferences]);
+
+  const updatePdfScale = useCallback((requestedScale: number) => {
+    const nextScale = clampPdfScale(requestedScale);
+    setPdfScale(nextScale);
+    pdfReaderRef.current?.setScale(nextScale);
+  }, []);
+
+  const openPdfZoom = useCallback(() => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    setPdfScale(pdfReaderRef.current?.getScale() ?? initialPdfPreferences.scale);
+    setPdfZoomVisible(true);
+  }, [initialPdfPreferences.scale]);
+
+  const closePdfZoom = useCallback(() => {
+    setPdfZoomVisible(false);
+    scheduleHide();
+  }, [scheduleHide]);
 
   const paginationPreferences: ReadingPreferences = isEpub
     ? readingPreferences.preferences
@@ -898,6 +921,7 @@ export function ReaderScreen({ navigation, route }: Props) {
                 }}
               />
             ) : null}
+            {!isEpub ? <PdfZoomButton color={epubText} onPress={openPdfZoom} /> : null}
             <PaginationSettingsButton
               color={epubText}
               onPress={() => {
@@ -1330,6 +1354,14 @@ export function ReaderScreen({ navigation, route }: Props) {
         preferences={paginationPreferences}
         showColumnOptions={isEpub}
         visible={paginationSettingsVisible}
+      />
+
+      <PdfZoomModal
+        onChange={updatePdfScale}
+        onClose={closePdfZoom}
+        onReset={() => updatePdfScale(PDF_DEFAULTS.scale)}
+        scale={pdfScale}
+        visible={pdfZoomVisible && !isEpub}
       />
 
       <LayoutSettingsModal

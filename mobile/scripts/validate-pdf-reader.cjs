@@ -143,6 +143,9 @@ async function main() {
   const readerNotesSource = fs.readFileSync('src/readers/useEpubNotes.ts', 'utf8');
   const readerScreenSource = fs.readFileSync('src/screens/ReaderScreen.tsx', 'utf8');
   const paginationModalSource = fs.readFileSync('src/components/PaginationSettingsModal.tsx', 'utf8');
+  const zoomButtonSource = fs.readFileSync('src/components/PdfZoomButton.tsx', 'utf8');
+  const zoomModalSource = fs.readFileSync('src/components/PdfZoomModal.tsx', 'utf8');
+  const translationsSource = fs.readFileSync('src/i18n/translations.ts', 'utf8');
   const mainActivitySource = fs.readFileSync(
     'android/app/src/main/java/com/adriantinoco/krumer/MainActivity.kt',
     'utf8',
@@ -224,13 +227,20 @@ async function main() {
     || !engineSource.includes("singlePage={Platform.OS === 'android' && isPaginated}")
     || !engineSource.includes('scrollByViewport: (fraction: number) => void')
     || !engineSource.includes('pdfRef.current?.scrollByViewport(fraction)')
+    || !engineSource.includes('setScale: (scale: number) => void')
+    || !engineSource.includes('pdfRef.current?.setNativeScale(scale)')
   ) {
     throw new Error('PDF paginated rendering can regress to multiple pages in the viewport.');
   }
+  const installedPageNavigationSource = installedPdfViewSource.match(
+    /public void setPage\(int page\) \{[\s\S]*?public boolean consumeSkipNextDraw\(\)/,
+  )?.[0] ?? '';
   if (
     !nativePatchSource.includes('[react-native-pdf-navigation]')
     || !nativePatchSource.includes('Constants.PRELOAD_OFFSET = this.enablePaging ? 0 : 20;')
     || !nativePatchSource.includes('scrollByViewport')
+    || !nativePatchSource.includes('setNativeScale')
+    || !nativePatchSource.includes('zoomCenteredTo(targetScale, new PointF(getWidth() / 2f, getHeight() / 2f));')
     || !nativePatchSource.includes('consumeSkipNextDraw')
     || !nativePatchSource.includes('captureSinglePageViewport')
     || !nativePatchSource.includes('restoreSinglePageViewportAfterLoad')
@@ -239,25 +249,38 @@ async function main() {
     || !installedPdfIndexSource.includes("UIManager.dispatchViewManagerCommand(reactTag, 'scrollByViewport', [fraction])")
     || installedPdfIndexSource.includes("Platform.OS === 'android' || !!global?.nativeFabricUIManager")
     || !installedPdfTypesSource.includes('scrollByViewport: (fraction: number) => void;')
-    || !installedPdfFabricSource.includes("supportedCommands: ['setNativePage', 'scrollByViewport']")
+    || !installedPdfIndexSource.includes('setNativeScale(scale)')
+    || !installedPdfIndexSource.includes("UIManager.dispatchViewManagerCommand(reactTag, 'setNativeScale', [scale])")
+    || !installedPdfTypesSource.includes('setNativeScale: (scale: number) => void;')
+    || !installedPdfFabricSource.includes("supportedCommands: ['setNativePage', 'scrollByViewport', 'setNativeScale']")
     || !installedPdfManagerSource.includes('view.jumpToPage(page);')
     || !installedPdfManagerSource.includes('scrollByViewport(root, (float) args.getDouble(0));')
+    || !installedPdfManagerSource.includes('setNativeScale(root, (float) args.getDouble(0));')
     || !installedPdfManagerSource.includes('if (pdfView.consumeSkipNextDraw())')
     || !installedPdfViewSource.includes('public void jumpToPage(int page)')
     || !installedPdfViewSource.includes('jumpTo(targetPage - 1, false);')
     || !installedPdfViewSource.includes('public boolean consumeSkipNextDraw()')
     || !installedPdfViewSource.includes('public void scrollByViewport(float fraction)')
+    || !installedPdfViewSource.includes('public void setNativeScale(float requestedScale)')
+    || !installedPdfViewSource.includes('zoomCenteredTo(targetScale, new PointF(getWidth() / 2f, getHeight() / 2f));')
+    || !installedPdfViewSource.includes('float targetScale = Math.max(this.minScale, Math.min(this.maxScale, requestedScale));')
+    || !installedPdfViewSource.includes('stopFling();\n        zoomCenteredTo(targetScale')
+    || !installedPdfViewSource.includes('zoomCenteredTo(targetScale, new PointF(getWidth() / 2f, getHeight() / 2f));\n        loadPages();\n        invalidate();')
     || !installedPdfViewSource.includes('moveRelativeTo(0, -getHeight() * limitedFraction);')
     || !installedPdfViewSource.includes('setPositionOffset(getPositionOffset(), true);')
     || !installedPdfViewSource.includes('.pageSnap(this.pageSnap && this.scrollEnabled)')
     || !installedPdfViewSource.includes('.pageFling(this.pageFling && this.scrollEnabled)')
     || !installedPdfViewSource.includes('Constants.PRELOAD_OFFSET = this.enablePaging ? 0 : 20;')
     || !installedPdfViewSource.includes('private int documentPageCount = 0;')
+    || !installedPdfViewSource.includes('preservedSinglePageZoom = 1;\n            preservedSinglePageXOffset = 0;')
     || !installedPdfViewSource.includes('private int countDocumentPages()')
     || !installedPdfViewSource.includes('int reportedPage = this.singlePage ? this.page : page + 1;')
     || !installedPdfViewSource.includes('int reportedPageCount = this.singlePage ? getDocumentPageCount(numberOfPages) : numberOfPages;')
-    || !installedPdfViewSource.includes('configurator.pages(this.page - 1);')
-    || !installedPdfViewSource.includes('if (this.singlePage && targetPage != this.page)')
+    || installedPdfViewSource.includes('configurator.pages(this.page - 1);')
+    || installedPdfViewSource.includes('if (this.singlePage && targetPage != this.page)')
+    || !installedPdfViewSource.includes('if (pageChanged && !isRecycled() && getPageCount() > 0)')
+    || !installedPageNavigationSource
+    || installedPageNavigationSource.includes('drawPdf(')
     || !installedPdfViewSource.includes('private void captureSinglePageViewport()')
     || !installedPdfViewSource.includes('this.preservedSinglePageZoom = Math.max(this.minScale, Math.min(this.maxScale, this.getZoom()));')
     || !installedPdfViewSource.includes('this.preservedSinglePageXOffset = this.getCurrentXOffset();')
@@ -268,6 +291,12 @@ async function main() {
     || installedPdfViewSource.includes('setTouchesEnabled(false);')
   ) {
     throw new Error('Paginated PDF can regress in page isolation, native navigation, or zoom/offset preservation.');
+  }
+  const nativeScaleMethodSource = installedPdfViewSource.match(
+    /public void setNativeScale\(float requestedScale\) \{[\s\S]*?\n    \}/,
+  )?.[0] ?? '';
+  if (!nativeScaleMethodSource || nativeScaleMethodSource.includes('drawPdf(')) {
+    throw new Error('Imperative PDF zoom must update the loaded viewer without drawing/reopening the document.');
   }
   if (
     !debugSource.includes("const PDF_DEBUG_TAG = '[Krumer PDF]'")
@@ -371,7 +400,7 @@ async function main() {
     !readerScreenSource.includes('Bottom bar compartilhada pelos leitores')
     || readerScreenSource.includes('Bottom bar PDF —')
     || readerScreenSource.includes('<PdfControls')
-    || !readerScreenSource.includes('const readerTopBarSideWidth = isEpub ? EPUB_TOP_BAR_SIDE_WIDTH : 88')
+    || !readerScreenSource.includes('const readerTopBarSideWidth = EPUB_TOP_BAR_SIDE_WIDTH')
     || !readerScreenSource.includes('<ReadingSettingsButton')
     || !readerScreenSource.includes('<PaginationSettingsButton')
     || !readerScreenSource.includes('<ListTree color={epubText}')
@@ -379,8 +408,8 @@ async function main() {
     || !readerScreenSource.includes('<Feather color={epubText}')
     || !readerScreenSource.includes('<Sun color={epubText}')
     || !readerScreenSource.includes('{isEpub ? (\n              <ReadingSettingsButton')
-    || !readerScreenSource.includes('{isEpub ? (\n              <Pressable\n                accessibilityLabel={t(\'reader.topics\')}')
-    || !readerScreenSource.includes('{isEpub ? (\n              <LayoutSettingsButton')
+    || !/\{isEpub \? \(\s*<Pressable\s*accessibilityLabel=\{t\('reader\.topics'\)\}/.test(readerScreenSource)
+    || !/\{isEpub \? \(\s*<LayoutSettingsButton/.test(readerScreenSource)
     || !readerScreenSource.includes('visible={settingsVisible && isEpub}')
     || readerScreenSource.includes('visible={paginationSettingsVisible && isEpub}')
     || !readerScreenSource.includes('visible={layoutSettingsVisible && isEpub}')
@@ -391,6 +420,38 @@ async function main() {
     || readerScreenSource.includes('PDF settings modal')
   ) {
     throw new Error('PDF controls can regress to exposing EPUB-only typography, table of contents, or layout actions.');
+  }
+
+  if (
+    !readerTypesSource.includes('getScale: () => number;')
+    || !readerTypesSource.includes('setScale: (scale: number) => void;')
+    || !readerSource.includes('const initialScaleRef = useRef<number>(PDF_DEFAULTS.scale)')
+    || !readerSource.includes('const currentScaleRef = useRef<number>(initialScaleRef.current)')
+    || !readerSource.includes('void savePdfScale(PDF_DEFAULTS.scale)')
+    || !readerSource.includes('currentScaleRef.current = PDF_DEFAULTS.scale')
+    || !readerSource.includes('engineRef.current?.setScale(nextScale)')
+    || !readerSource.includes('onScaleChanged={handleScaleChanged}')
+    || !readerSource.includes('scale={initialScaleRef.current}')
+    || readerSource.includes('setScale(preferences.scale)')
+    || !readerScreenSource.includes('const [pdfZoomVisible, setPdfZoomVisible]')
+    || !readerScreenSource.includes('|| pdfZoomVisible')
+    || !readerScreenSource.includes('<PdfZoomButton')
+    || !readerScreenSource.includes('<PdfZoomModal')
+    || !readerScreenSource.includes('pdfReaderRef.current?.getScale()')
+    || !readerScreenSource.includes('pdfReaderRef.current?.setScale(nextScale)')
+    || readerScreenSource.indexOf('<PdfZoomButton') > readerScreenSource.indexOf('<PaginationSettingsButton')
+    || !zoomButtonSource.includes("t('reader.zoomSettings')")
+    || !zoomModalSource.includes('PDF_DEFAULTS.scaleStep')
+    || !zoomModalSource.includes('PDF_DEFAULTS.minScale')
+    || !zoomModalSource.includes('PDF_DEFAULTS.maxScale')
+    || !zoomModalSource.includes("BackHandler.addEventListener('hardwareBackPress'")
+    || !zoomModalSource.includes('onPress={onClose}')
+    || zoomModalSource.includes('<Modal')
+    || !translationsSource.includes("'reader.zoomIn': 'Aumentar zoom'")
+    || !translationsSource.includes("'reader.zoomOut': 'Reducir zoom'")
+    || !translationsSource.includes("'reader.zoomReset': 'Reset to 100%'")
+  ) {
+    throw new Error('PDF zoom can regress in controls, limits, persistence, centering, or native-view stability.');
   }
 
   if (
@@ -424,7 +485,7 @@ async function main() {
     throw new Error('Volume Up/Down do not scroll continuously or preserve paginated PDF navigation.');
   }
 
-  console.log('PDF reader controls, bookmarks, notes, preview isolation, scrolling, persistence, and adapter are valid.');
+  console.log('PDF reader controls, centered in-place zoom, bookmarks, notes, scrolling, persistence, and adapter are valid.');
 }
 
 main().catch((error) => {

@@ -266,6 +266,11 @@ export type TranslationKey =
   | 'reader.spacing'
   | 'reader.scrollMode'
   | 'reader.singleColumn'
+  | 'reader.zoomCurrent'
+  | 'reader.zoomIn'
+  | 'reader.zoomOut'
+  | 'reader.zoomReset'
+  | 'reader.zoomSettings'
   | 'scan.action'
   | 'scan.scanning'
   | 'settings.about'
@@ -574,6 +579,11 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.spacing': 'Spacing',
     'reader.scrollMode': 'Scroll',
     'reader.singleColumn': 'Single',
+    'reader.zoomCurrent': 'Current zoom',
+    'reader.zoomIn': 'Zoom in',
+    'reader.zoomOut': 'Zoom out',
+    'reader.zoomReset': 'Reset to 100%',
+    'reader.zoomSettings': 'Zoom',
     'scan.action': 'Scan',
     'scan.scanning': 'Scanning',
     'settings.about': 'About',
@@ -871,6 +881,11 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.spacing': 'Espaçamento',
     'reader.scrollMode': 'Rolagem',
     'reader.singleColumn': 'Simples',
+    'reader.zoomCurrent': 'Zoom atual',
+    'reader.zoomIn': 'Aumentar zoom',
+    'reader.zoomOut': 'Diminuir zoom',
+    'reader.zoomReset': 'Restaurar para 100%',
+    'reader.zoomSettings': 'Zoom',
     'scan.action': 'Escanear',
     'scan.scanning': 'Escaneando',
     'settings.about': 'Sobre',
@@ -1168,6 +1183,11 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.spacing': 'Espaciado',
     'reader.scrollMode': 'Desplazamiento',
     'reader.singleColumn': 'Simple',
+    'reader.zoomCurrent': 'Zoom actual',
+    'reader.zoomIn': 'Aumentar zoom',
+    'reader.zoomOut': 'Reducir zoom',
+    'reader.zoomReset': 'Restablecer al 100%',
+    'reader.zoomSettings': 'Zoom',
     'scan.action': 'Escanear',
     'scan.scanning': 'Escaneando',
     'settings.about': 'Acerca de',

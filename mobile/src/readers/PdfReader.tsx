@@ -5,8 +5,8 @@ import { radii, serifFont, spacing } from '../theme';
 import { PDF_DEFAULTS, type PdfReaderHandle, type PdfReaderProps } from './PdfReader.types';
 import { NativePdfEngine, type NativePdfEngineHandle } from './pdf/NativePdfEngine';
 import { describePdfSource, pdfDevLog, pdfDevWarn } from './pdf/pdfDebug';
-import { clampPdfPage } from './pdf/pdfState';
-import { getCachedPdfPrefs, loadPdfPrefs } from './pdf/usePdfPrefs';
+import { clampPdfPage, clampPdfScale } from './pdf/pdfState';
+import { savePdfScale } from './pdf/usePdfPrefs';
 import { usePdfSource } from './pdf/usePdfSource';
 import { subscribeToReaderVolumeKeys } from './readerVolumeKeys';
 
@@ -51,7 +51,10 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   const interactionEnabledRef = useRef(interactionEnabled);
   const lastReportedSnapshotRef = useRef<string | null>(null);
   const loadProgressBucketRef = useRef(-1);
-  const [scale, setScale] = useState<number>(() => getCachedPdfPrefs()?.scale ?? PDF_DEFAULTS.scale);
+  // Cada sessão de leitura começa no ajuste natural da página. O zoom escolhido
+  // pelo usuário permanece válido somente enquanto este livro está aberto.
+  const initialScaleRef = useRef<number>(PDF_DEFAULTS.scale);
+  const currentScaleRef = useRef<number>(initialScaleRef.current);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
@@ -59,13 +62,9 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   interactionEnabledRef.current = interactionEnabled;
 
   useEffect(() => {
-    let active = true;
-    void loadPdfPrefs().then((preferences) => {
-      if (active) setScale(preferences.scale);
-    });
-    return () => {
-      active = false;
-    };
+    // Limpa preferências antigas da implementação anterior para que nenhum
+    // zoom persistido volte a ser aplicado em uma nova abertura.
+    void savePdfScale(PDF_DEFAULTS.scale);
   }, []);
 
   useEffect(() => {
@@ -114,6 +113,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     currentPageRef.current = target;
     totalPagesRef.current = 0;
     documentLoadedRef.current = false;
+    currentScaleRef.current = PDF_DEFAULTS.scale;
     lastReportedSnapshotRef.current = null;
     loadProgressBucketRef.current = -1;
     pdfDevLog('reader:session-reset', {
@@ -186,7 +186,12 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     const target = clampPdfPage(initialPageRef.current, numberOfPages);
     documentLoadedRef.current = true;
     publishPage(target, numberOfPages);
-    requestAnimationFrame(() => engineRef.current?.setPage(target));
+    requestAnimationFrame(() => {
+      engineRef.current?.setPage(target);
+      if (Math.abs(currentScaleRef.current - initialScaleRef.current) >= 0.001) {
+        engineRef.current?.setScale(currentScaleRef.current);
+      }
+    });
   }, [publishPage, t]);
 
   const handlePageChanged = useCallback((page: number, numberOfPages: number) => {
@@ -235,7 +240,21 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     engineRef.current?.setPage(target);
   }, []);
 
-  useImperativeHandle(ref, () => ({ goToPage }), [goToPage]);
+  const getScale = useCallback(() => currentScaleRef.current, []);
+
+  const setScale = useCallback((requestedScale: number) => {
+    const nextScale = clampPdfScale(requestedScale);
+    currentScaleRef.current = nextScale;
+    if (documentLoadedRef.current) engineRef.current?.setScale(nextScale);
+  }, []);
+
+  const handleScaleChanged = useCallback((reportedScale: number) => {
+    const nextScale = clampPdfScale(reportedScale);
+    if (Math.abs(nextScale - currentScaleRef.current) < 0.001) return;
+    currentScaleRef.current = nextScale;
+  }, []);
+
+  useImperativeHandle(ref, () => ({ getScale, goToPage, setScale }), [getScale, goToPage, setScale]);
 
   useEffect(() => {
     if (!interactionEnabled) return undefined;
@@ -354,9 +373,10 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
         onLoadProgress={handleLoadProgress}
         onPageChanged={handlePageChanged}
         onQuickTap={handleQuickTap}
+        onScaleChanged={handleScaleChanged}
         onSingleTap={handleSingleTap}
         resolvedUri={resolvedUri}
-        scale={scale}
+        scale={initialScaleRef.current}
       />
       {loading ? (
         <View

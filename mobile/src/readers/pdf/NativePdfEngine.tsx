@@ -25,6 +25,13 @@ const PDF_NATIVE_TAP_SUPPRESSION_MS = 650;
 export type NativePdfEngineHandle = {
   scrollByViewport: (fraction: number) => void;
   setPage: (page: number) => void;
+  setScale: (scale: number) => void;
+};
+
+type ReactNativePdfHandle = {
+  scrollByViewport: (fraction: number) => void;
+  setPage: (page: number) => void;
+  setNativeScale: (scale: number) => void;
 };
 
 type NativePdfEngineProps = {
@@ -63,7 +70,7 @@ export const NativePdfEngine = memo(forwardRef<NativePdfEngineHandle, NativePdfE
   ) {
     const { height, width } = useWindowDimensions();
     const { theme } = useApp();
-    const pdfRef = useRef<NativePdfEngineHandle | null>(null);
+    const pdfRef = useRef<ReactNativePdfHandle | null>(null);
     const suppressNativeTapCountRef = useRef(0);
     const suppressNativeTapUntilRef = useRef(0);
     const touchStartRef = useRef<{ pageX: number; pageY: number; startedAt: number } | null>(null);
@@ -92,6 +99,10 @@ export const NativePdfEngine = memo(forwardRef<NativePdfEngineHandle, NativePdfE
       setPage: (page) => {
         pdfRef.current?.setPage(page);
         requestAnimationFrame(() => pdfDevLog('engine:set-page', { page }));
+      },
+      setScale: (scale) => {
+        pdfRef.current?.setNativeScale(scale);
+        requestAnimationFrame(() => pdfDevLog('engine:set-scale', { scale }));
       },
     }), []);
 
@@ -147,7 +158,7 @@ export const NativePdfEngine = memo(forwardRef<NativePdfEngineHandle, NativePdfE
         style={{ backgroundColor: theme.bg, flex: 1 }}
       >
         <Pdf
-          ref={(instance: NativePdfEngineHandle | null) => {
+          ref={(instance: ReactNativePdfHandle | null) => {
             pdfRef.current = instance;
           }}
           enableAnnotationRendering

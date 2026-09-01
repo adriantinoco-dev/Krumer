@@ -8,6 +8,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Corrigido
+- **Mobile — troca de páginas PDF sem piscada:** a navegação paginada agora salta para a
+  página seguinte no viewer nativo já aberto, sem chamar `drawPdf()` nem reconstruir o
+  documento durante a troca.
 - **Mobile — falha `Already closed` no zoom do PDF:** atualizações de escala agora ajustam a
   view nativa carregada e renovam apenas seu cache de páginas, sem chamar `drawPdf()` nem
   fechar o documento enquanto a thread de renderização ainda processa bitmaps.
@@ -15,7 +18,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ### Alterado
 - **Mobile — controle de zoom do PDF:** a barra superior agora oferece um painel compacto com
   ajuste de 5% entre 50% e 200% e restauração para 100%. O valor acompanha o gesto de pinça,
-  persiste entre leituras e é aplicado sem remontar o documento nativo.
+  permanece ao trocar de página e é aplicado ao redor do centro visível, imitando a pinça sem
+  remontar ou reabrir o documento nativo. Cada nova abertura começa em 100%.
 - **Mobile — PDF paginado sem trilho nem piscada:** o Android agora mantém um único documento
   nativo aberto, pré-renderiza a página adjacente e filtra o desenho para exibir somente a
   página ativa. Avançar e voltar não recarregam o PDF e preservam zoom e deslocamento relativo.
