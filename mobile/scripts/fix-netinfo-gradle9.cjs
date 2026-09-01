@@ -473,19 +473,34 @@ import android.os.ParcelFileDescriptor;`;
       .replace('"loadComplete|"+numberOfPages+"|"+width', '"loadComplete|"+reportedPageCount+"|"+width');
   }
   const pagingGestureOptions = [
-    ['.pageSnap(this.pageSnap)', '.pageSnap(this.pageSnap && this.scrollEnabled)'],
-    ['.pageFling(this.pageFling)', '.pageFling(this.pageFling && this.scrollEnabled)'],
+    [
+      ['.pageSnap(this.pageSnap)', '.pageSnap(this.pageSnap && this.scrollEnabled)'],
+      '.pageSnap(this.pageSnap && this.scrollEnabled && !this.singlePage)',
+    ],
+    [
+      ['.pageFling(this.pageFling)', '.pageFling(this.pageFling && this.scrollEnabled)'],
+      '.pageFling(this.pageFling && this.scrollEnabled && !this.singlePage)',
+    ],
   ];
-  for (const [originalOption, patchedOption] of pagingGestureOptions) {
+  for (const [originalOptions, patchedOption] of pagingGestureOptions) {
     if (pdfViewSource.includes(patchedOption)) continue;
-    if (!pdfViewSource.includes(originalOption)) {
-      throw new Error(`[react-native-pdf-navigation] Could not locate Android paging option ${originalOption}.`);
+    const originalOption = originalOptions.find((option) => pdfViewSource.includes(option));
+    if (!originalOption) {
+      throw new Error(`[react-native-pdf-navigation] Could not locate Android paging option ${patchedOption}.`);
     }
     pdfViewSource = pdfViewSource.replace(originalOption, patchedOption);
   }
+  const disabledSinglePageSwipe = '.enableSwipe(!this.singlePage && this.scrollEnabled)';
+  const enabledSinglePagePan = '.enableSwipe(this.scrollEnabled)';
+  if (!pdfViewSource.includes(enabledSinglePagePan)) {
+    if (!pdfViewSource.includes(disabledSinglePageSwipe)) {
+      throw new Error('[react-native-pdf-navigation] Could not locate Android swipe option.');
+    }
+    pdfViewSource = pdfViewSource.replace(disabledSinglePageSwipe, enabledSinglePagePan);
+  }
   const preloadOffsetAnchor = '            Configurator configurator;';
   const paginatedPreloadOffset = [
-    '            // Keep the paginated viewer tight while page changes use jumpTo() in place.',
+    '            // Keep the isolated paginated viewer tight; page changes reload only the selected page.',
     '            // Scroll mode keeps the library default so continuous reading remains smooth.',
     '            Constants.PRELOAD_OFFSET = this.enablePaging ? 0 : 20;',
     '',
@@ -514,16 +529,66 @@ import android.os.ParcelFileDescriptor;`;
     pdfViewSource = pdfViewSource.replace(skipDrawField, skipDrawFieldWithPageCount);
   }
   const viewportStateAnchor = '    private int documentPageCount = 0;';
-  const preservedViewportState = `${viewportStateAnchor}
+  const legacyPreservedViewportState = `${viewportStateAnchor}
     private boolean restoreSinglePageViewport = false;
     private float preservedSinglePageZoom = 1;
     private float preservedSinglePageXOffset = 0;
     private float preservedSinglePageYOffset = 0;`;
-  if (!pdfViewSource.includes('private boolean restoreSinglePageViewport = false;')) {
+  const preservedViewportState = `${viewportStateAnchor}
+    private boolean restoreSinglePageViewport = false;
+    private float preservedSinglePageZoom = 1;
+    private float preservedSinglePageXOffset = 0.5f;
+    private float preservedSinglePageYOffset = 0.5f;`;
+  if (pdfViewSource.includes(legacyPreservedViewportState)) {
+    pdfViewSource = pdfViewSource.replace(legacyPreservedViewportState, preservedViewportState);
+  } else if (!pdfViewSource.includes('private boolean restoreSinglePageViewport = false;')) {
     if (!pdfViewSource.includes(viewportStateAnchor)) {
       throw new Error('[react-native-pdf-navigation] Could not locate Android viewport state.');
     }
     pdfViewSource = pdfViewSource.replace(viewportStateAnchor, preservedViewportState);
+  }
+  const nativeScaleStateAnchor = '    private float preservedSinglePageYOffset = 0.5f;';
+  const nativeScaleState = `${nativeScaleStateAnchor}
+    private static final long NATIVE_SCALE_SETTLE_DELAY_MS = 160L;
+    private float pendingNativeScale = Float.NaN;
+    private int nativeScaleGeneration = 0;
+    private Runnable pendingNativeScaleRender = null;`;
+  if (!pdfViewSource.includes('private static final long NATIVE_SCALE_SETTLE_DELAY_MS = 160L;')) {
+    if (!pdfViewSource.includes(nativeScaleStateAnchor)) {
+      throw new Error('[react-native-pdf-navigation] Could not locate Android zoom scheduler state.');
+    }
+    pdfViewSource = pdfViewSource.replace(nativeScaleStateAnchor, nativeScaleState);
+  }
+  const drawPdfAnchor = `    public void drawPdf() {
+        showLog(format("drawPdf path:%s %s", this.path, this.page));`;
+  const drawPdfWithZoomCancellation = `    public void drawPdf() {
+        cancelPendingNativeScaleRender();
+        showLog(format("drawPdf path:%s %s", this.path, this.page));`;
+  if (!pdfViewSource.includes(drawPdfWithZoomCancellation)) {
+    if (!pdfViewSource.includes(drawPdfAnchor)) {
+      throw new Error('[react-native-pdf-navigation] Could not locate Android PDF opening lifecycle.');
+    }
+    pdfViewSource = pdfViewSource.replace(drawPdfAnchor, drawPdfWithZoomCancellation);
+  }
+  const attachedLifecycle = `    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        if (this.isRecycled())
+            this.drawPdf();
+    }`;
+  const zoomAwareLifecycle = `${attachedLifecycle}
+
+    @Override
+    protected void onDetachedFromWindow() {
+        cancelPendingNativeScaleRender();
+        pendingNativeScale = Float.NaN;
+        super.onDetachedFromWindow();
+    }`;
+  if (!pdfViewSource.includes('protected void onDetachedFromWindow()')) {
+    if (!pdfViewSource.includes(attachedLifecycle)) {
+      throw new Error('[react-native-pdf-navigation] Could not locate Android PDF view lifecycle.');
+    }
+    pdfViewSource = pdfViewSource.replace(attachedLifecycle, zoomAwareLifecycle);
   }
   const thumbnailSinglePageBlock = `            if (this.singlePage) {
                 configurator.pages(this.page-1);
@@ -537,10 +602,12 @@ import android.os.ParcelFileDescriptor;`;
             configurator.onTap(this);`;
   const noReloadSinglePageBlock = `            configurator.onTap(this);`;
   if (pdfViewSource.includes(isolatedSinglePageBlock)) {
-    pdfViewSource = pdfViewSource.replace(isolatedSinglePageBlock, noReloadSinglePageBlock);
+    // Already isolated.
   } else if (pdfViewSource.includes(thumbnailSinglePageBlock)) {
-    pdfViewSource = pdfViewSource.replace(thumbnailSinglePageBlock, noReloadSinglePageBlock);
-  } else if (pdfViewSource.includes('configurator.pages(this.page - 1);')) {
+    pdfViewSource = pdfViewSource.replace(thumbnailSinglePageBlock, isolatedSinglePageBlock);
+  } else if (pdfViewSource.includes(noReloadSinglePageBlock)) {
+    pdfViewSource = pdfViewSource.replace(noReloadSinglePageBlock, isolatedSinglePageBlock);
+  } else if (!pdfViewSource.includes(isolatedSinglePageBlock)) {
     throw new Error('[react-native-pdf-navigation] Could not normalize Android single-page configuration.');
   }
   const originalAndroidPageSetter = `    public void setPage(int page) {
@@ -672,8 +739,21 @@ import android.os.ParcelFileDescriptor;`;
   const finalAndroidPageNavigation = `    public void setPage(int page) {
         int targetPage = clampDocumentPage(page);
         boolean pageChanged = targetPage != this.page;
+        if (this.singlePage) {
+            if (pageChanged && !isRecycled()) {
+                cancelPendingNativeScaleRender();
+                captureSinglePageViewport();
+                this.page = targetPage;
+                drawPdf();
+                skipNextDraw = true;
+            } else {
+                this.page = targetPage;
+            }
+            return;
+        }
         this.page = targetPage;
         if (pageChanged && !isRecycled() && getPageCount() > 0) {
+            cancelPendingNativeScaleRender();
             jumpTo(targetPage - 1, false);
             skipNextDraw = true;
         }
@@ -682,8 +762,20 @@ import android.os.ParcelFileDescriptor;`;
     public void jumpToPage(int page) {
         int targetPage = clampDocumentPage(page);
         boolean pageChanged = targetPage != this.page;
+        if (this.singlePage) {
+            if (pageChanged && !isRecycled()) {
+                cancelPendingNativeScaleRender();
+                captureSinglePageViewport();
+                this.page = targetPage;
+                drawPdf();
+            } else {
+                this.page = targetPage;
+            }
+            return;
+        }
         this.page = targetPage;
         if (pageChanged && !isRecycled() && getPageCount() > 0) {
+            cancelPendingNativeScaleRender();
             jumpTo(targetPage - 1, false);
         }
     }`;
@@ -699,11 +791,22 @@ import android.os.ParcelFileDescriptor;`;
   }
   const pageSetterAnchor = `    // page start from 1
     public void setPage(int page) {`;
-  const preservedViewportHelpers = `    private void captureSinglePageViewport() {
+  const preservedViewportHelpers = `    private static float clampUnit(float value) {
+        return Math.max(0f, Math.min(1f, value));
+    }
+
+    private void captureSinglePageViewport() {
         if (!this.singlePage || this.isRecycled() || this.getPageCount() <= 0) return;
         this.preservedSinglePageZoom = Math.max(this.minScale, Math.min(this.maxScale, this.getZoom()));
-        this.preservedSinglePageXOffset = this.getCurrentXOffset();
-        this.preservedSinglePageYOffset = this.getCurrentYOffset();
+        SizeF currentPageSize = this.getPageSize(0);
+        float scaledWidth = Math.max(1f, currentPageSize.getWidth() * this.preservedSinglePageZoom);
+        float scaledHeight = Math.max(1f, currentPageSize.getHeight() * this.preservedSinglePageZoom);
+        this.preservedSinglePageXOffset = clampUnit(
+            (-this.getCurrentXOffset() + this.getWidth() / 2f) / scaledWidth
+        );
+        this.preservedSinglePageYOffset = clampUnit(
+            (-this.getCurrentYOffset() + this.getHeight() / 2f) / scaledHeight
+        );
         this.scale = this.preservedSinglePageZoom;
         this.restoreSinglePageViewport = true;
     }
@@ -714,46 +817,56 @@ import android.os.ParcelFileDescriptor;`;
             return;
         }
         final float targetZoom = this.preservedSinglePageZoom;
-        final float targetXOffset = this.preservedSinglePageXOffset;
-        final float targetYOffset = this.preservedSinglePageYOffset;
+        final float targetFocusX = this.preservedSinglePageXOffset;
+        final float targetFocusY = this.preservedSinglePageYOffset;
         this.scale = targetZoom;
         this.zoomTo(targetZoom);
+        SizeF targetPageSize = this.getPageSize(0);
+        float targetXOffset = this.getWidth() / 2f - targetFocusX * targetPageSize.getWidth() * targetZoom;
+        float targetYOffset = this.getHeight() / 2f - targetFocusY * targetPageSize.getHeight() * targetZoom;
         this.moveTo(targetXOffset, targetYOffset, true);
         this.restoreSinglePageViewport = false;
         this.post(() -> {
             if (this.isRecycled()) return;
             this.zoomTo(targetZoom);
-            this.moveTo(targetXOffset, targetYOffset, true);
+            SizeF restoredPageSize = this.getPageSize(0);
+            float restoredXOffset = this.getWidth() / 2f - targetFocusX * restoredPageSize.getWidth() * targetZoom;
+            float restoredYOffset = this.getHeight() / 2f - targetFocusY * restoredPageSize.getHeight() * targetZoom;
+            this.moveTo(restoredXOffset, restoredYOffset, true);
         });
     }
 
 ${pageSetterAnchor}`;
-  if (!pdfViewSource.includes('private void captureSinglePageViewport()')) {
-    if (!pdfViewSource.includes(pageSetterAnchor)) {
-      throw new Error('[react-native-pdf-navigation] Could not locate Android page setter helpers anchor.');
+  if (!pdfViewSource.includes('private static float clampUnit(float value)')) {
+    const existingViewportHelpersPattern = /    private void captureSinglePageViewport\(\) \{[\s\S]*?    \/\/ page start from 1\n    public void setPage\(int page\) \{/;
+    if (existingViewportHelpersPattern.test(pdfViewSource)) {
+      pdfViewSource = pdfViewSource.replace(existingViewportHelpersPattern, preservedViewportHelpers);
+    } else if (!pdfViewSource.includes('private void captureSinglePageViewport()')) {
+      if (!pdfViewSource.includes(pageSetterAnchor)) {
+        throw new Error('[react-native-pdf-navigation] Could not locate Android page setter helpers anchor.');
+      }
+      pdfViewSource = pdfViewSource.replace(pageSetterAnchor, preservedViewportHelpers);
+    } else {
+      throw new Error('[react-native-pdf-navigation] Could not normalize Android viewport helpers.');
     }
-    pdfViewSource = pdfViewSource.replace(pageSetterAnchor, preservedViewportHelpers);
-  }
-  const delayedViewportRestore = `        this.scale = targetZoom;
-        this.zoomTo(targetZoom);
-        this.restoreSinglePageViewport = false;`;
-  const immediateViewportRestore = `        this.scale = targetZoom;
-        this.zoomTo(targetZoom);
-        this.moveTo(targetXOffset, targetYOffset, true);
-        this.restoreSinglePageViewport = false;`;
-  if (!pdfViewSource.includes(immediateViewportRestore)) {
-    if (!pdfViewSource.includes(delayedViewportRestore)) {
-      throw new Error('[react-native-pdf-navigation] Could not locate delayed viewport restore.');
-    }
-    pdfViewSource = pdfViewSource.replace(delayedViewportRestore, immediateViewportRestore);
+  } else if (!pdfViewSource.includes('final float targetFocusX = this.preservedSinglePageXOffset;')) {
+    throw new Error('[react-native-pdf-navigation] Android viewport helpers are only partially normalized.');
   }
   const initialZoomRestore = '        this.zoomTo(this.scale);';
   const preservedZoomRestore = '        this.restoreSinglePageViewportAfterLoad();';
+  const preservedZoomRestoreWithPendingScale = `${preservedZoomRestore}
+        this.applyPendingNativeScaleIfReady();`;
   if (!pdfViewSource.includes(preservedZoomRestore)) {
     if (!pdfViewSource.includes(initialZoomRestore)) {
       throw new Error('[react-native-pdf-navigation] Could not locate Android load zoom restore.');
     }
     pdfViewSource = pdfViewSource.replace(initialZoomRestore, preservedZoomRestore);
+  }
+  if (!pdfViewSource.includes(preservedZoomRestoreWithPendingScale)) {
+    if (!pdfViewSource.includes(preservedZoomRestore)) {
+      throw new Error('[react-native-pdf-navigation] Could not locate Android pending zoom restore.');
+    }
+    pdfViewSource = pdfViewSource.replace(preservedZoomRestore, preservedZoomRestoreWithPendingScale);
   }
   const consumeSkipDrawAnchor = `    public boolean consumeSkipNextDraw() {
         boolean skip = skipNextDraw;
@@ -824,6 +937,49 @@ ${scaleSetterAnchor}`;
     }
     pdfViewSource = pdfViewSource.replace(scaleSetterAnchor, isolatedPageHelpers);
   }
+  const pageClampAnchor = `    private int clampDocumentPage(int requestedPage) {
+        int targetPage = requestedPage > 1 ? requestedPage : 1;
+        return documentPageCount > 0 ? Math.min(targetPage, documentPageCount) : targetPage;
+    }`;
+  const nativeScaleHelpers = `${pageClampAnchor}
+
+    private void cancelPendingNativeScaleRender() {
+        nativeScaleGeneration += 1;
+        if (pendingNativeScaleRender == null) return;
+        removeCallbacks(pendingNativeScaleRender);
+        pendingNativeScaleRender = null;
+    }
+
+    private void scheduleNativeScaleRender() {
+        cancelPendingNativeScaleRender();
+        final int scheduledGeneration = nativeScaleGeneration;
+        pendingNativeScaleRender = () -> {
+            if (scheduledGeneration != nativeScaleGeneration) return;
+            pendingNativeScaleRender = null;
+            if (isRecycled() || getPageCount() <= 0) return;
+            loadPages();
+            invalidate();
+        };
+        postDelayed(pendingNativeScaleRender, NATIVE_SCALE_SETTLE_DELAY_MS);
+    }
+
+    private void applyPendingNativeScaleIfReady() {
+        if (Float.isNaN(pendingNativeScale) || isRecycled() || getPageCount() <= 0) return;
+        float targetScale = pendingNativeScale;
+        pendingNativeScale = Float.NaN;
+        if (Math.abs(getZoom() - targetScale) >= 0.001f) {
+            stopFling();
+            zoomCenteredTo(targetScale, new PointF(getWidth() / 2f, getHeight() / 2f));
+            invalidate();
+        }
+        scheduleNativeScaleRender();
+    }`;
+  if (!pdfViewSource.includes('private void scheduleNativeScaleRender()')) {
+    if (!pdfViewSource.includes(pageClampAnchor)) {
+      throw new Error('[react-native-pdf-navigation] Could not locate Android zoom scheduler helpers anchor.');
+    }
+    pdfViewSource = pdfViewSource.replace(pageClampAnchor, nativeScaleHelpers);
+  }
   const previousLiveScaleSetter = `    public void setScale(float scale) {
         float targetScale = scale;
         this.scale = targetScale;
@@ -838,6 +994,23 @@ ${scaleSetterAnchor}`;
   const nativeCenteredScaleSetter = `${scaleSetterAnchor}
 
     public void setNativeScale(float requestedScale) {
+        if (Float.isNaN(requestedScale) || Float.isInfinite(requestedScale)) return;
+        float targetScale = Math.max(this.minScale, Math.min(this.maxScale, requestedScale));
+        this.scale = targetScale;
+        if (isRecycled() || getPageCount() <= 0) {
+            pendingNativeScale = targetScale;
+            return;
+        }
+        pendingNativeScale = Float.NaN;
+        if (Math.abs(getZoom() - targetScale) < 0.001f) return;
+        stopFling();
+        zoomCenteredTo(targetScale, new PointF(getWidth() / 2f, getHeight() / 2f));
+        invalidate();
+        scheduleNativeScaleRender();
+    }`;
+  const immediateNativeScaleSetter = `${scaleSetterAnchor}
+
+    public void setNativeScale(float requestedScale) {
         if (Float.isNaN(requestedScale) || Float.isInfinite(requestedScale) || isRecycled()) return;
         float targetScale = Math.max(this.minScale, Math.min(this.maxScale, requestedScale));
         this.scale = targetScale;
@@ -847,7 +1020,9 @@ ${scaleSetterAnchor}`;
         loadPages();
         invalidate();
     }`;
-  if (!pdfViewSource.includes('public void setNativeScale(float requestedScale)')) {
+  if (pdfViewSource.includes(immediateNativeScaleSetter)) {
+    pdfViewSource = pdfViewSource.replace(immediateNativeScaleSetter, nativeCenteredScaleSetter);
+  } else if (!pdfViewSource.includes('public void setNativeScale(float requestedScale)')) {
     if (pdfViewSource.includes(previousLiveScaleSetter)) {
       pdfViewSource = pdfViewSource.replace(previousLiveScaleSetter, nativeCenteredScaleSetter);
     } else if (pdfViewSource.includes(scaleSetterAnchor)) {
@@ -856,33 +1031,31 @@ ${scaleSetterAnchor}`;
       throw new Error('[react-native-pdf-navigation] Could not locate Android native scale setter anchor.');
     }
   }
-  const originalPathSetter = `    public void setPath(String path) {
-        this.path = path;
-    }`;
   const resettingPathSetter = `    public void setPath(String path) {
         if (this.path == null || !this.path.equals(path)) {
+            cancelPendingNativeScaleRender();
+            pendingNativeScale = Float.NaN;
             documentPageCount = 0;
             restoreSinglePageViewport = false;
             preservedSinglePageZoom = 1;
-            preservedSinglePageXOffset = 0;
-            preservedSinglePageYOffset = 0;
+            preservedSinglePageXOffset = 0.5f;
+            preservedSinglePageYOffset = 0.5f;
         }
         this.path = path;
     }`;
-  if (!pdfViewSource.includes('preservedSinglePageZoom = 1;\n            preservedSinglePageXOffset = 0;')) {
-    const previousResettingPathSetter = `    public void setPath(String path) {
-        if (this.path == null || !this.path.equals(path)) {
-            documentPageCount = 0;
-        }
-        this.path = path;
-    }`;
-    if (pdfViewSource.includes(previousResettingPathSetter)) {
-      pdfViewSource = pdfViewSource.replace(previousResettingPathSetter, resettingPathSetter);
-    } else if (pdfViewSource.includes(originalPathSetter)) {
-      pdfViewSource = pdfViewSource.replace(originalPathSetter, resettingPathSetter);
-    } else {
+  if (!pdfViewSource.includes(resettingPathSetter)) {
+    const pathSetterPattern = /    public void setPath\(String path\) \{[\s\S]*?\n    \}\n\n    private (?:static float clampUnit|void captureSinglePageViewport)/;
+    const existingPathSetter = pdfViewSource.match(pathSetterPattern)?.[0];
+    if (!existingPathSetter) {
       throw new Error('[react-native-pdf-navigation] Could not locate Android path setter.');
     }
+    const nextHelper = existingPathSetter.includes('private static float clampUnit')
+      ? '    private static float clampUnit'
+      : '    private void captureSinglePageViewport';
+    pdfViewSource = pdfViewSource.replace(
+      existingPathSetter,
+      `${resettingPathSetter}\n\n${nextHelper}`,
+    );
   }
   const originalLinkPageHandler = `    private void handlePage(int page) {
         this.jumpTo(page);
@@ -902,7 +1075,7 @@ ${scaleSetterAnchor}`;
   }
   fs.writeFileSync(reactNativePdfViewPath, pdfViewSource, 'utf8');
 
-  console.log(`[react-native-pdf-navigation] Patched react-native-pdf ${reactNativePdfVersion} in-place page jumps, centered zoom, and viewport scrolling.`);
+  console.log(`[react-native-pdf-navigation] Patched react-native-pdf ${reactNativePdfVersion} isolated-page panning, debounced centered zoom, and viewport scrolling.`);
 } else {
   console.warn('[react-native-pdf-navigation] react-native-pdf not found, skipping navigation patch.');
 }

@@ -21,6 +21,8 @@ const PDF_SCROLL_PAGE_SPACING = 16;
 const PDF_QUICK_TAP_MAX_DURATION_MS = 240;
 const PDF_QUICK_TAP_MAX_MOVEMENT_DP = 12;
 const PDF_NATIVE_TAP_SUPPRESSION_MS = 650;
+const PDF_FIT_WIDTH = 0;
+const PDF_FIT_BOTH = 2;
 
 export type NativePdfEngineHandle = {
   scrollByViewport: (fraction: number) => void;
@@ -76,6 +78,7 @@ export const NativePdfEngine = memo(forwardRef<NativePdfEngineHandle, NativePdfE
     const touchStartRef = useRef<{ pageX: number; pageY: number; startedAt: number } | null>(null);
     const source = useMemo(() => ({ cache: true, uri: resolvedUri }), [resolvedUri]);
     const isPaginated = displayMode === 'paginated';
+    const fitPolicy = isPaginated ? PDF_FIT_BOTH : PDF_FIT_WIDTH;
 
     useEffect(() => {
       pdfDevLog('engine:mount', {
@@ -165,7 +168,7 @@ export const NativePdfEngine = memo(forwardRef<NativePdfEngineHandle, NativePdfE
           enableAntialiasing
           enableDoubleTapZoom={false}
           enablePaging={isPaginated}
-          fitPolicy={0}
+          fitPolicy={fitPolicy}
           horizontal={isPaginated}
           maxScale={PDF_DEFAULTS.maxScale}
           minScale={PDF_DEFAULTS.minScale}
@@ -178,7 +181,7 @@ export const NativePdfEngine = memo(forwardRef<NativePdfEngineHandle, NativePdfE
           onScaleChanged={onScaleChanged}
           page={initialPage}
           scale={scale}
-          scrollEnabled={isPaginated ? false : true}
+          scrollEnabled={Platform.OS === 'android' || !isPaginated}
           showsHorizontalScrollIndicator={false}
           showsVerticalScrollIndicator={false}
           singlePage={Platform.OS === 'android' && isPaginated}

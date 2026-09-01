@@ -8,21 +8,25 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Corrigido
-- **Mobile — troca de páginas PDF sem piscada:** a navegação paginada agora salta para a
-  página seguinte no viewer nativo já aberto, sem chamar `drawPdf()` nem reconstruir o
-  documento durante a troca.
-- **Mobile — falha `Already closed` no zoom do PDF:** atualizações de escala agora ajustam a
-  view nativa carregada e renovam apenas seu cache de páginas, sem chamar `drawPdf()` nem
-  fechar o documento enquanto a thread de renderização ainda processa bitmaps.
+- **Mobile — enquadramento de 100% no PDF:** o modo paginado agora usa ajuste completo da
+  página, mantendo-a inteira e centralizada em 100%, enquanto o modo scroll continua
+  ajustado à largura. Ao girar o aparelho, o viewer recalcula o enquadramento para a nova
+  área e preserva o ponto focal relativo quando o zoom está acima de 100%.
+- **Mobile — trilho de páginas e pan no PDF paginado:** o Android volta a carregar somente
+  a página selecionada no viewer nativo. O arraste com um dedo movimenta livremente a página
+  ampliada, enquanto snap/fling permanecem desligados e toques laterais ou volume continuam
+  responsáveis por trocar de página. A troca reaplica o zoom e o ponto focal normalizado,
+  limitado às dimensões da nova página.
+- **Mobile — falha `Already closed` no zoom do PDF:** ajustes consecutivos de escala agora
+  atualizam a view imediatamente, mas agrupam a renovação do cache após 160 ms de inatividade.
+  Tarefas antigas são canceladas ao receber outro zoom, trocar página/arquivo ou fechar a view,
+  evitando disputar páginas que a thread do PDFium ainda está renderizando ou encerrando.
 
 ### Alterado
 - **Mobile — controle de zoom do PDF:** a barra superior agora oferece um painel compacto com
   ajuste de 5% entre 50% e 200% e restauração para 100%. O valor acompanha o gesto de pinça,
   permanece ao trocar de página e é aplicado ao redor do centro visível, imitando a pinça sem
   remontar ou reabrir o documento nativo. Cada nova abertura começa em 100%.
-- **Mobile — PDF paginado sem trilho nem piscada:** o Android agora mantém um único documento
-  nativo aberto, pré-renderiza a página adjacente e filtra o desenho para exibir somente a
-  página ativa. Avançar e voltar não recarregam o PDF e preservam zoom e deslocamento relativo.
 - **Mobile — abertura acelerada de EPUB e PDF:** a tela de detalhes agora pré-aquece arquivo,
   preferências, fontes e banco antes do toque em Ler. EPUB reutiliza a cópia/base64 preparados
   e carrega WebView, fontes e arquivo em paralelo; PDF reutiliza uma cópia validada por tamanho
@@ -103,8 +107,8 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   pressionado agora repete continuamente o deslocamento na direção correspondente. Toques
   curtos permanecem unitários, e EPUB/PDF paginado continuam ignorando repetições longas.
 - **Mobile — zoom do PDF paginado:** avançar ou voltar uma página isolada agora preserva
-  o nível de zoom e o deslocamento horizontal/vertical escolhidos pelo leitor, sem
-  recentralizar automaticamente o conteúdo após cada troca.
+  o nível de zoom e o ponto focal relativo escolhido pelo leitor, adaptando-o às dimensões
+  da nova página sem recentralizar automaticamente o conteúdo.
 - **Desktop — carregamento centralizado desde o primeiro quadro:** a janela
   oculta agora já renderiza com as dimensões da área útil da tela e, no Windows,
   permanece transparente até a maximização e dois quadros de layout terminarem.
