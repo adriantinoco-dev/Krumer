@@ -689,15 +689,13 @@ import android.os.ParcelFileDescriptor;`;
                 configurator.pages(this.page - 1);
             }
             configurator.onTap(this);`;
-  const noReloadSinglePageBlock = `            configurator.onTap(this);`;
-  if (pdfViewSource.includes(isolatedSinglePageBlock)) {
-    // Already isolated.
-  } else if (pdfViewSource.includes(thumbnailSinglePageBlock)) {
-    pdfViewSource = pdfViewSource.replace(thumbnailSinglePageBlock, isolatedSinglePageBlock);
-  } else if (pdfViewSource.includes(noReloadSinglePageBlock)) {
-    pdfViewSource = pdfViewSource.replace(noReloadSinglePageBlock, isolatedSinglePageBlock);
-  } else if (!pdfViewSource.includes(isolatedSinglePageBlock)) {
-    throw new Error('[react-native-pdf-navigation] Could not normalize Android single-page configuration.');
+  const fullDocumentConfiguration = `            configurator.onTap(this);`;
+  if (pdfViewSource.includes(thumbnailSinglePageBlock)) {
+    pdfViewSource = pdfViewSource.replace(thumbnailSinglePageBlock, fullDocumentConfiguration);
+  } else if (pdfViewSource.includes(isolatedSinglePageBlock)) {
+    pdfViewSource = pdfViewSource.replace(isolatedSinglePageBlock, fullDocumentConfiguration);
+  } else if (!pdfViewSource.includes(fullDocumentConfiguration)) {
+    throw new Error('[react-native-pdf-navigation] Could not normalize Android PDF configuration.');
   }
   const originalAndroidPageSetter = `    public void setPage(int page) {
         this.page = page>1?page:1;
@@ -828,21 +826,10 @@ import android.os.ParcelFileDescriptor;`;
   const finalAndroidPageNavigation = `    public void setPage(int page) {
         int targetPage = clampDocumentPage(page);
         boolean pageChanged = targetPage != this.page;
-        if (this.singlePage) {
-            if (pageChanged && !isRecycled()) {
-                cancelPendingNativeScaleRender();
-                captureSinglePageViewport();
-                this.page = targetPage;
-                drawPdf();
-                skipNextDraw = true;
-            } else {
-                this.page = targetPage;
-            }
-            return;
-        }
         this.page = targetPage;
         if (pageChanged && !isRecycled() && getPageCount() > 0) {
             cancelPendingNativeScaleRender();
+            cancelPendingViewportRestore();
             jumpTo(targetPage - 1, false);
             skipNextDraw = true;
         }
@@ -851,21 +838,12 @@ import android.os.ParcelFileDescriptor;`;
     public void jumpToPage(int page) {
         int targetPage = clampDocumentPage(page);
         boolean pageChanged = targetPage != this.page;
-        if (this.singlePage) {
-            if (pageChanged && !isRecycled()) {
-                cancelPendingNativeScaleRender();
-                captureSinglePageViewport();
-                this.page = targetPage;
-                drawPdf();
-            } else {
-                this.page = targetPage;
-            }
-            return;
-        }
         this.page = targetPage;
         if (pageChanged && !isRecycled() && getPageCount() > 0) {
             cancelPendingNativeScaleRender();
+            cancelPendingViewportRestore();
             jumpTo(targetPage - 1, false);
+            skipNextDraw = true;
         }
     }`;
   if (!pdfViewSource.includes(finalAndroidPageNavigation)) {
@@ -1203,7 +1181,7 @@ ${scaleSetterAnchor}`;
   }
   fs.writeFileSync(reactNativePdfViewPath, pdfViewSource, 'utf8');
 
-  console.log(`[react-native-pdf-navigation] Patched react-native-pdf ${reactNativePdfVersion} isolated-page panning, debounced centered zoom, and viewport scrolling.`);
+  console.log(`[react-native-pdf-navigation] Patched react-native-pdf ${reactNativePdfVersion} jumpTo page navigation, debounced centered zoom, and viewport scrolling.`);
 } else {
   console.warn('[react-native-pdf-navigation] react-native-pdf not found, skipping navigation patch.');
 }

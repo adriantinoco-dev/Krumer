@@ -53,7 +53,7 @@ async function main() {
   if (
     memory.get(types.PDF_PREF_KEYS.displayMode) !== 'paginated'
     || memory.get(types.PDF_PREF_KEYS.orientation) !== 'free'
-    || memory.get(types.PDF_PREF_KEYS.zoom) !== '2'
+    || memory.get(types.PDF_PREF_KEYS.zoom) !== '4'
   ) {
     throw new Error('PDF preferences were not persisted with normalized values.');
   }
@@ -161,9 +161,13 @@ async function main() {
     || !readerSource.includes('onCenterTapRef.current?.();')
     || !readerSource.includes('const PDF_SIDE_TAP_RATIO = 0.25')
     || !readerSource.includes('const PDF_VOLUME_SCROLL_VIEWPORT_RATIO = 0.18')
+    || !readerSource.includes('const handleNativeSingleTap')
+    || !readerSource.includes('const handleWebSingleTap')
     || !readerSource.includes("const tapX = Platform.OS === 'android' ? x / PixelRatio.get() : x")
     || !readerSource.includes("handleTapAtX(tapX, 'quick')")
+    || !readerSource.includes("handleTapAtX(x, 'webview')")
     || !readerSource.includes('onQuickTap={handleQuickTap}')
+    || !readerSource.includes('if (currentScaleRef.current > PDF_DEFAULTS.scale + 0.001) return false')
     || !readerSource.includes("if (displayMode !== 'paginated') return false")
     || !readerSource.includes('goToPage(currentPageRef.current - 1)')
     || !readerSource.includes('goToPage(currentPageRef.current + 1)')
@@ -209,7 +213,7 @@ async function main() {
     || !engineSource.includes('page={initialPage}')
     || engineSource.includes('page={currentPage}')
     || !engineSource.includes('spacing={isPaginated ? 0 : PDF_SCROLL_PAGE_SPACING}')
-    || !engineSource.includes("singlePage={Platform.OS === 'android' && isPaginated}")
+    || !engineSource.includes('singlePage={false}')
     || !engineSource.includes('enableAnnotationRendering')
     || !engineSource.includes('onPressLink={onExternalLink}')
     || !engineSource.includes('pdfRef.current?.setPage(page)')
@@ -229,20 +233,19 @@ async function main() {
     || !engineSource.includes("scrollEnabled={Platform.OS === 'android' || !isPaginated}")
     || !engineSource.includes('minScale={PDF_DEFAULTS.minScale}')
     || !engineSource.includes('scale={scale}')
-    || !engineSource.includes("singlePage={Platform.OS === 'android' && isPaginated}")
-    || !engineSource.includes('scrollByViewport: (fraction: number) => void')
+    || !engineSource.includes('singlePage={false}')
+    || (!engineSource.includes('scrollByViewport: (fraction: number) => void')
+      && !engineSource.includes('type PdfEngineHandle'))
     || !engineSource.includes('pdfRef.current?.scrollByViewport(fraction)')
-    || !engineSource.includes('setScale: (scale: number) => void')
+    || (!engineSource.includes('setScale: (scale: number) => void')
+      && !engineSource.includes('type PdfEngineHandle'))
     || !engineSource.includes('pdfRef.current?.setNativeScale(scale)')
   ) {
-    throw new Error('PDF paginated rendering can regress in isolated-page panning or zoom controls.');
+    throw new Error('PDF paginated rendering can regress in full-document navigation or zoom controls.');
   }
   const installedPageNavigationSource = installedPdfViewSource.match(
     /public void setPage\(int page\) \{[\s\S]*?public boolean consumeSkipNextDraw\(\)/,
   )?.[0] ?? '';
-  const installedSinglePageNavigationBranches = installedPageNavigationSource.match(
-    /if \(this\.singlePage\) \{[\s\S]*?return;\n        \}\n        this\.page = targetPage;/g,
-  ) ?? [];
   if (
     !nativePatchSource.includes('[react-native-pdf-navigation]')
     || !nativePatchSource.includes('Constants.PRELOAD_OFFSET = this.enablePaging ? 0 : 20;')
@@ -290,7 +293,7 @@ async function main() {
     || !installedPdfViewSource.includes('float targetScale = Math.max(this.minScale, Math.min(this.maxScale, requestedScale));')
     || !installedPdfViewSource.includes('stopFling();\n        zoomCenteredTo(targetScale')
     || !installedPdfViewSource.includes('zoomCenteredTo(targetScale, new PointF(getWidth() / 2f, getHeight() / 2f));\n        invalidate();\n        scheduleNativeScaleRender();')
-    || !installedPdfViewSource.includes('cancelPendingNativeScaleRender();\n            jumpTo(targetPage - 1, false);')
+    || !installedPdfViewSource.includes('cancelPendingNativeScaleRender();\n            cancelPendingViewportRestore();\n            jumpTo(targetPage - 1, false);')
     || !installedPdfViewSource.includes('cancelPendingNativeScaleRender();\n            cancelPendingViewportRestore();\n            pendingNativeScale = Float.NaN;\n            documentPageCount = 0;')
     || !installedPdfViewSource.includes('public void drawPdf() {\n        cancelPendingNativeScaleRender();')
     || !installedPdfViewSource.includes('cancelPendingNativeScaleRender();\n        cancelPendingViewportRestore();\n        showLog(format("drawPdf')
@@ -310,13 +313,16 @@ async function main() {
     || !installedPdfViewSource.includes('private int countDocumentPages()')
     || !installedPdfViewSource.includes('int reportedPage = this.singlePage ? this.page : page + 1;')
     || !installedPdfViewSource.includes('int reportedPageCount = this.singlePage ? getDocumentPageCount(numberOfPages) : numberOfPages;')
-    || !installedPdfViewSource.includes('configurator.pages(this.page - 1);')
+    || !installedPdfViewSource.includes('configurator.onTap(this);')
+    || installedPdfViewSource.includes('configurator.pages(')
+    || installedPdfViewSource.includes('setTouchesEnabled(false);')
     || !installedPageNavigationSource
-    || !installedPageNavigationSource.includes('if (this.singlePage)')
-    || !installedPageNavigationSource.includes('captureSinglePageViewport();\n                this.page = targetPage;\n                drawPdf();')
+    || installedPageNavigationSource.includes('if (this.singlePage)')
+    || installedPageNavigationSource.includes('captureSinglePageViewport()')
+    || installedPageNavigationSource.includes('drawPdf();')
     || !installedPageNavigationSource.includes('if (pageChanged && !isRecycled() && getPageCount() > 0)')
-    || installedSinglePageNavigationBranches.length !== 2
-    || installedSinglePageNavigationBranches.some((branch) => branch.includes('jumpTo('))
+    || (installedPageNavigationSource.match(/jumpTo\(targetPage - 1, false\);/g) ?? []).length !== 2
+    || !installedPageNavigationSource.includes('cancelPendingViewportRestore();')
     || !installedPdfViewSource.includes('private void captureSinglePageViewport()')
     || !installedPdfViewSource.includes('private static float clampUnit(float value)')
     || !installedPdfViewSource.includes('private void stabilizeSinglePageViewportAfterResize(float requestedZoom)')
@@ -339,7 +345,7 @@ async function main() {
     || installedPdfViewSource.includes('"scaleChanged|"+(pageWidth/originalWidth)')
     || installedPdfViewSource.includes('setTouchesEnabled(false);')
   ) {
-    throw new Error('Paginated PDF can regress in page isolation, native navigation, or zoom/offset preservation.');
+    throw new Error('Paginated PDF can regress in native jumpTo navigation or zoom/offset preservation.');
   }
   const nativeResizeLifecycleSource = installedPdfViewSource.match(
     /protected void onSizeChanged\(int w, int h, int oldw, int oldh\) \{[\s\S]*?\n    \}\n\n    @Override\n    public void loadComplete/,
@@ -508,6 +514,11 @@ async function main() {
     || !readerScreenSource.includes('<PdfZoomModal')
     || !readerScreenSource.includes('pdfReaderRef.current?.getScale()')
     || !readerScreenSource.includes('pdfReaderRef.current?.setScale(nextScale)')
+    || !readerTypesSource.includes('onScaleChange?: (scale: number) => void;')
+    || !readerSource.includes('onScaleChange?.(nextScale)')
+    || !readerScreenSource.includes('onScaleChange={setPdfScale}')
+    || !readerScreenSource.includes('displayMode={pdfDisplayMode}')
+    || !zoomModalSource.includes("'reader.zoomFitWidthHint' : 'reader.zoomFitPageHint'")
     || readerScreenSource.indexOf('<PdfZoomButton') > readerScreenSource.indexOf('<PaginationSettingsButton')
     || !zoomButtonSource.includes("t('reader.zoomSettings')")
     || !zoomModalSource.includes('PDF_DEFAULTS.scaleStep')
@@ -554,7 +565,7 @@ async function main() {
     throw new Error('Volume Up/Down do not scroll continuously or preserve paginated PDF navigation.');
   }
 
-  console.log('PDF reader controls, responsive 100% fitting, isolated-page panning, debounced zoom, bookmarks, notes, scrolling, persistence, and adapter are valid.');
+  console.log('PDF reader controls, responsive 100% fitting, native jumpTo navigation, debounced zoom, bookmarks, notes, scrolling, persistence, and adapter are valid.');
 }
 
 main().catch((error) => {

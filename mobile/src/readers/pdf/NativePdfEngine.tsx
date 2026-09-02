@@ -12,6 +12,7 @@ import Pdf from 'react-native-pdf';
 import { useApp } from '../../context/AppContext';
 import {
   PDF_DEFAULTS,
+  type PdfEngineHandle,
   type PdfDisplayMode,
   type PdfPageSize,
 } from '../PdfReader.types';
@@ -24,11 +25,7 @@ const PDF_NATIVE_TAP_SUPPRESSION_MS = 650;
 const PDF_FIT_WIDTH = 0;
 const PDF_FIT_BOTH = 2;
 
-export type NativePdfEngineHandle = {
-  scrollByViewport: (fraction: number) => void;
-  setPage: (page: number) => void;
-  setScale: (scale: number) => void;
-};
+export type NativePdfEngineHandle = PdfEngineHandle;
 
 type ReactNativePdfHandle = {
   scrollByViewport: (fraction: number) => void;
@@ -184,7 +181,7 @@ export const NativePdfEngine = memo(forwardRef<NativePdfEngineHandle, NativePdfE
           scrollEnabled={Platform.OS === 'android' || !isPaginated}
           showsHorizontalScrollIndicator={false}
           showsVerticalScrollIndicator={false}
-          singlePage={Platform.OS === 'android' && isPaginated}
+          singlePage={false}
           source={source}
           spacing={isPaginated ? 0 : PDF_SCROLL_PAGE_SPACING}
           style={{ backgroundColor: theme.bg, flex: 1, height, width }}

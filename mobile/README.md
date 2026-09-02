@@ -2,7 +2,7 @@
 
 Versao Android do Krumer em React Native / Expo.
 
-Este app vive no mesmo repositorio do desktop, mas mantem dependencias e codigo separados em `mobile/`. A UI principal e 100% nativa React Native; WebView e usada apenas dentro do leitor EPUB.
+Este app vive no mesmo repositorio do desktop, mas mantem dependencias e codigo separados em `mobile/`. A UI principal e 100% nativa React Native; WebView e usada dentro dos leitores EPUB e PDF opcional.
 
 ## Estado atual
 
@@ -12,7 +12,20 @@ Este app vive no mesmo repositorio do desktop, mas mantem dependencias e codigo 
 - Configuracoes agrupadas com subtelas de Geral, Tema, API Key e Sobre.
 - Scanner local de `.epub` e `.pdf` com progresso visual.
 - Extracao de capa EPUB via ZIP/OPF e thumbnail PDF via modulo nativo.
-- Leitor EPUB com WebView + epub.js e leitor PDF com `react-native-pdf`.
+- Leitor EPUB com WebView + epub.js e leitor PDF com `react-native-pdf` (padrão)
+  ou PDF.js + foliate-js em WebView, selecionável nas configurações com fallback
+  automático para o motor nativo. O motor WebView mantém pan, scroll e pinch
+  dentro do runtime e confirma a escala apenas ao fim do gesto.
+- A Fase 4 da migração mantém o rollout reversível: o modo scroll do WebView usa
+  placeholders, pré-carrega somente páginas próximas e limita canvases/concurrency;
+  o motor nativo continua como padrão. Métricas locais de abertura, páginas,
+  ranges e escala são registradas somente no log de desenvolvimento (`__DEV__`),
+  sem enviar informação do arquivo à rede.
+- A Fase 5 inclui `npm run benchmark:pdf-engines` para comparar os dois motores no
+  mesmo aparelho. O relatório mede primeira página, latências p50/p95, zoom,
+  PSS/CPU/temperatura e sinais de ANR/crash/OOM; `--compare native.json webview.json`
+  aplica o limite inicial de 1,5× e mantém a decisão de rollout explícita.
+  O roteiro completo está em `../docs/PDF_ENGINE_BENCHMARK.md`.
 - Busca de metadados via Gemini REST, individual e em lote de até 10 obras,
   com prévia e aplicação explícita.
 - Supabase Auth e sincronizacao offline-first estão preparados no código, mas congelados durante o beta; o acesso à conta exibe um aviso e os dados permanecem locais.
@@ -38,6 +51,10 @@ falha de Codegen volte quando `node_modules` for recriado.
 - EPUB copiado para `Paths.document/reader-books` antes da abertura; a WebView recebe somente os bytes do livro selecionado.
 - Leitura integral limitada a 16 MiB, com estimativa de pico de memoria registrada no log. Arquivos maiores sao recusados de forma controlada ate a estrategia de I/O da F7.
 - WebView sem acesso generico a arquivos, sem navegacao remota e com CSP local; links externos sao entregues ao shell nativo.
+- A bridge do PDF WebView usa JSON v1 e valida `READY`, `BOOK_OPENED`,
+  `PAGE_CHANGED`, `LOAD_PROGRESS`, `SCALE_CHANGED`, `READ_RANGE`,
+  `RUNTIME_METRICS` e `ERROR`; as métricas são diagnósticas e não persistem
+  conteúdo do documento.
 
 Antes do build, copie `.env.example` para `.env.local` e configure `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` com o OAuth Client ID do tipo **Web application**. O projeto Google tambem precisa de um OAuth Client ID Android para o package `com.adriantinoco.krumer` e os SHA-1 de desenvolvimento/producao. O passo a passo completo fica em `../docs/arquitetura-sync-supabase.md`.
 

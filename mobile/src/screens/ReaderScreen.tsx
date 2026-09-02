@@ -18,6 +18,7 @@ import type { EpubRelocationSource, EpubTocItem, EpubViewStatus } from '../reade
 import { PdfReader } from '../readers/PdfReader';
 import { PDF_DEFAULTS, type PdfDisplayMode, type PdfReaderHandle } from '../readers/PdfReader.types';
 import { clampPdfScale } from '../readers/pdf/pdfState';
+import { usePdfEnginePreference } from '../readers/pdf/usePdfEnginePreference';
 import { getCachedPdfPrefs, loadPdfPrefs, savePdfDisplayMode, savePdfOrientation } from '../readers/pdf/usePdfPrefs';
 import { useEpubPersistence } from '../readers/useEpubPersistence';
 import { useEpubNotes } from '../readers/useEpubNotes';
@@ -65,6 +66,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const windowDimensions = useWindowDimensions();
   const readingPreferences = useReadingPreferences(isEpub);
   const readerLayout = useReaderLayoutSettings(isEpub);
+  const pdfEnginePreference = usePdfEnginePreference(!isEpub);
   const initialPdfPreferences = useRef(getCachedPdfPrefs() ?? PDF_DEFAULTS).current;
   const [pdfDisplayMode, setPdfDisplayMode] = useState<PdfDisplayMode>(initialPdfPreferences.displayMode);
   const [pdfOrientation, setPdfOrientation] = useState<ReadingPreferences['orientation']>(initialPdfPreferences.orientation);
@@ -489,7 +491,6 @@ export function ReaderScreen({ navigation, route }: Props) {
 
   const updatePdfScale = useCallback((requestedScale: number) => {
     const nextScale = clampPdfScale(requestedScale);
-    setPdfScale(nextScale);
     pdfReaderRef.current?.setScale(nextScale);
   }, []);
 
@@ -702,19 +703,25 @@ export function ReaderScreen({ navigation, route }: Props) {
 
   return (
     <View style={{ backgroundColor: theme.bg, flex: 1 }}>
-      <StatusBar hidden />
+      <StatusBar
+        animated={false}
+        barStyle={theme.name === 'dark' ? 'light-content' : 'dark-content'}
+        hidden={false}
+      />
 
       {/* Reader content */}
       {book.format === 'pdf' ? (
-        pdfPreferencesHydrated ? (
+        pdfPreferencesHydrated && pdfEnginePreference.hydrated ? (
           <PdfReader
             displayMode={pdfDisplayMode}
+            engine={pdfEnginePreference.engine}
             filePath={book.filePath}
             fileSize={book.fileSize}
             initialPage={savedPosition ? Number(savedPosition) : 1}
             interactionEnabled={!pdfModalVisible}
             onExternalLink={handleExternalLink}
             onPageChange={handlePdfPageChange}
+            onScaleChange={setPdfScale}
             onCenterTap={toggleBars}
             ref={pdfReaderRef}
           />
@@ -1357,6 +1364,7 @@ export function ReaderScreen({ navigation, route }: Props) {
       />
 
       <PdfZoomModal
+        displayMode={pdfDisplayMode}
         onChange={updatePdfScale}
         onClose={closePdfZoom}
         onReset={() => updatePdfScale(PDF_DEFAULTS.scale)}

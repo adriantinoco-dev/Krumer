@@ -4,6 +4,18 @@ import type { DisplayMode, ReaderOrientation } from '../models/readingPreference
 
 export type PdfDisplayMode = DisplayMode;
 
+/** Engines disponíveis para renderizar PDFs no Android. */
+export type PdfEngineKind = 'native' | 'webview';
+
+export const DEFAULT_PDF_ENGINE: PdfEngineKind = 'native';
+
+/** Contrato comum que as engines nativa e WebView devem implementar. */
+export type PdfEngineHandle = {
+  scrollByViewport: (fraction: number) => void;
+  setPage: (page: number) => void;
+  setScale: (scale: number) => void;
+};
+
 export type PdfPageSize = { width: number; height: number };
 
 export type PdfPreferences = {
@@ -16,8 +28,8 @@ export const PDF_DEFAULTS = {
   displayMode: 'paginated' as PdfDisplayMode,
   orientation: 'portrait' as ReaderOrientation,
   scale: 1.0,
-  minScale: 0.5,
-  maxScale: 2.0,
+  minScale: 0.1,
+  maxScale: 4.0,
   scaleStep: 0.05,
 } as const;
 
@@ -30,6 +42,8 @@ export const PDF_PREF_KEYS = {
 
 export type PdfReaderProps = {
   displayMode?: PdfDisplayMode;
+  /** Seleção da engine de renderização; nativo é o padrão compatível. */
+  engine?: PdfEngineKind;
   filePath: string;
   fileSize?: number;
   initialPage?: number;
@@ -37,6 +51,7 @@ export type PdfReaderProps = {
   onCenterTap?: () => void;
   onExternalLink?: (url: string) => void;
   onPageChange?: (page: number, total: number) => void;
+  onScaleChange?: (scale: number) => void;
 };
 
 export type PdfReaderHandle = {

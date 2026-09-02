@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import { Folder, Globe, Grid3x3, Info, KeyRound, Moon, Sparkles } from 'lucide-react-native';
+import { BookOpen, Folder, Globe, Grid3x3, Info, KeyRound, Moon, Sparkles } from 'lucide-react-native';
 import { AnimatedLanguageCard } from '../components/AnimatedLanguageCard';
 import { ApiKeyInput } from '../components/ApiKeyInput';
 import { FolderPickerField } from '../components/FolderPickerField';
@@ -16,6 +16,8 @@ import { MetadataIntroModal } from '../components/MetadataIntroModal';
 import { MetadataDialog, type MetadataDialogConfig } from '../components/MetadataDialog';
 import { useApp } from '../context/AppContext';
 import { languages } from '../i18n/translations';
+import { DEFAULT_PDF_ENGINE, type PdfEngineKind } from '../readers/PdfReader.types';
+import { usePdfEnginePreference } from '../readers/pdf/usePdfEnginePreference';
 import { scanLibrary } from '../services/libraryScanner';
 import { radii, serifFont, SETTINGS_MAX_WIDTH, spacing, type ThemeName } from '../theme';
 import type { MainTabParamList, RootStackParamList } from '../navigation/types';
@@ -57,9 +59,11 @@ export function SettingsScreen({ navigation }: Props) {
   const [themeVisible, setThemeVisible] = useState(false);
   const [apiVisible, setApiVisible] = useState(false);
   const [booksPerRowVisible, setBooksPerRowVisible] = useState(false);
+  const [pdfEngineVisible, setPdfEngineVisible] = useState(false);
   const [metadataIntroVisible, setMetadataIntroVisible] = useState(false);
   const [metadataBatchVisible, setMetadataBatchVisible] = useState(false);
   const [metadataDialog, setMetadataDialog] = useState<MetadataDialogConfig | null>(null);
+  const pdfEnginePreference = usePdfEnginePreference();
 
   const [folder, setFolder] = useState(preferences.libraryFolder);
   const [apiKey, setApiKey] = useState('');
@@ -71,6 +75,9 @@ export function SettingsScreen({ navigation }: Props) {
   const language = languages.find((item) => item.code === preferences.language)?.name ?? 'English';
   const themeLabel =
     preferences.theme === 'dark' ? t('theme.dark') : preferences.theme === 'light' ? t('theme.light') : t('theme.sepia');
+  const pdfEngineLabel = pdfEnginePreference.engine === DEFAULT_PDF_ENGINE
+    ? t('settings.pdfEngineNative')
+    : t('settings.pdfEngineWebView');
 
   function folderName(path: string | null): string {
     if (!path) return '';
@@ -193,6 +200,15 @@ export function SettingsScreen({ navigation }: Props) {
           onPress={() => {
             setBooksPerRowVisible(true);
           }}
+        />
+
+        {/* READING */}
+        <SectionHeader label={t('settings.sectionReading')} />
+        <SettingsRow
+          title={t('settings.pdfEngine')}
+          subtitle={pdfEngineLabel}
+          icon={BookOpen}
+          onPress={() => setPdfEngineVisible(true)}
         />
 
         {/* LIBRARY */}
@@ -358,6 +374,61 @@ export function SettingsScreen({ navigation }: Props) {
               </Pressable>
             ))}
           </View>
+        </View>
+      </SettingsModal>
+
+      {/* PDF engine modal. Both engines share the PdfReader contract; only the
+          selected engine is mounted for a reading session. */}
+      <SettingsModal visible={pdfEngineVisible} onClose={() => setPdfEngineVisible(false)} title={t('settings.pdfEngine')}>
+        <View style={{ gap: spacing.sm }}>
+          {([
+            {
+              description: t('settings.pdfEngineNativeDescription'),
+              enabled: true,
+              kind: 'native' as PdfEngineKind,
+              label: t('settings.pdfEngineNative'),
+            },
+            {
+              description: t('settings.pdfEngineWebViewDescription'),
+              enabled: true,
+              kind: 'webview' as PdfEngineKind,
+              label: t('settings.pdfEngineWebView'),
+            },
+          ]).map((option) => {
+            const selected = pdfEnginePreference.engine === option.kind;
+            return (
+              <Pressable
+                accessibilityLabel={`${option.label}: ${option.description}`}
+                accessibilityRole="button"
+                disabled={!option.enabled}
+                key={option.kind}
+                onPress={() => {
+                  pdfEnginePreference.updateEngine(option.kind);
+                  setPdfEngineVisible(false);
+                }}
+                style={({ pressed }) => ({
+                  backgroundColor: selected ? theme.accentMuted : theme.card,
+                  borderColor: selected ? theme.accent : theme.border,
+                  borderRadius: radii.md,
+                  borderWidth: 1,
+                  opacity: option.enabled ? (pressed ? 0.75 : 1) : 0.5,
+                  padding: spacing.md,
+                })}
+              >
+                <Text style={{ color: selected ? theme.accent : theme.textPrimary, fontFamily: serifFont, fontSize: 15, fontWeight: '600' }}>
+                  {option.label}
+                </Text>
+                <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 12, marginTop: spacing.xs }}>
+                  {option.description}
+                </Text>
+                {!option.enabled ? (
+                  <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 11, marginTop: spacing.xs }}>
+                    {t('settings.pdfEngineWebViewPending')}
+                  </Text>
+                ) : null}
+              </Pressable>
+            );
+          })}
         </View>
       </SettingsModal>
 

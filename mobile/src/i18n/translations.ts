@@ -267,6 +267,8 @@ export type TranslationKey =
   | 'reader.scrollMode'
   | 'reader.singleColumn'
   | 'reader.zoomCurrent'
+  | 'reader.zoomFitPageHint'
+  | 'reader.zoomFitWidthHint'
   | 'reader.zoomIn'
   | 'reader.zoomOut'
   | 'reader.zoomReset'
@@ -286,6 +288,13 @@ export type TranslationKey =
   | 'settings.sectionAppearance'
   | 'settings.sectionIntegrations'
   | 'settings.sectionLibrary'
+  | 'settings.sectionReading'
+  | 'settings.pdfEngine'
+  | 'settings.pdfEngineNative'
+  | 'settings.pdfEngineNativeDescription'
+  | 'settings.pdfEngineWebView'
+  | 'settings.pdfEngineWebViewDescription'
+  | 'settings.pdfEngineWebViewPending'
   | 'settings.syncDesc'
   | 'settings.syncTitle'
   | 'sync.betaAction'
@@ -580,6 +589,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.scrollMode': 'Scroll',
     'reader.singleColumn': 'Single',
     'reader.zoomCurrent': 'Current zoom',
+    'reader.zoomFitPageHint': '100% fits the whole page.',
+    'reader.zoomFitWidthHint': '100% fits the page width.',
     'reader.zoomIn': 'Zoom in',
     'reader.zoomOut': 'Zoom out',
     'reader.zoomReset': 'Reset to 100%',
@@ -599,6 +610,13 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'settings.sectionAppearance': 'APPEARANCE',
     'settings.sectionIntegrations': 'INTEGRATIONS',
     'settings.sectionLibrary': 'LIBRARY',
+    'settings.sectionReading': 'READING',
+    'settings.pdfEngine': 'PDF engine',
+    'settings.pdfEngineNative': 'Native',
+    'settings.pdfEngineNativeDescription': 'The current Android PDF reader using PDFium.',
+    'settings.pdfEngineWebView': 'WebView',
+    'settings.pdfEngineWebViewDescription': 'PDF.js inside a stable WebView.',
+    'settings.pdfEngineWebViewPending': 'Available in the next PDF reader phase.',
     'settings.syncDesc': 'Cloud sync will be available after the beta.',
     'settings.syncTitle': 'Sync across devices',
     'sync.betaAction': 'Got it',
@@ -882,6 +900,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.scrollMode': 'Rolagem',
     'reader.singleColumn': 'Simples',
     'reader.zoomCurrent': 'Zoom atual',
+    'reader.zoomFitPageHint': '100% ajusta a página inteira.',
+    'reader.zoomFitWidthHint': '100% ajusta à largura da página.',
     'reader.zoomIn': 'Aumentar zoom',
     'reader.zoomOut': 'Diminuir zoom',
     'reader.zoomReset': 'Restaurar para 100%',
@@ -901,6 +921,13 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'settings.sectionAppearance': 'APARÊNCIA',
     'settings.sectionIntegrations': 'INTEGRAÇÕES',
     'settings.sectionLibrary': 'BIBLIOTECA',
+    'settings.sectionReading': 'LEITURA',
+    'settings.pdfEngine': 'Motor de PDF',
+    'settings.pdfEngineNative': 'Nativo',
+    'settings.pdfEngineNativeDescription': 'Leitor Android atual baseado em PDFium.',
+    'settings.pdfEngineWebView': 'WebView',
+    'settings.pdfEngineWebViewDescription': 'PDF.js dentro de uma WebView estável.',
+    'settings.pdfEngineWebViewPending': 'Disponível na próxima fase do leitor PDF.',
     'settings.syncDesc': 'A sincronização com a nuvem estará disponível após o beta.',
     'settings.syncTitle': 'Sincronizar entre dispositivos',
     'sync.betaAction': 'Entendi',
@@ -1184,6 +1211,8 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.scrollMode': 'Desplazamiento',
     'reader.singleColumn': 'Simple',
     'reader.zoomCurrent': 'Zoom actual',
+    'reader.zoomFitPageHint': '100% ajusta la página completa.',
+    'reader.zoomFitWidthHint': '100% ajusta al ancho de la página.',
     'reader.zoomIn': 'Aumentar zoom',
     'reader.zoomOut': 'Reducir zoom',
     'reader.zoomReset': 'Restablecer al 100%',
@@ -1203,6 +1232,13 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'settings.sectionAppearance': 'APARIENCIA',
     'settings.sectionIntegrations': 'INTEGRACIONES',
     'settings.sectionLibrary': 'BIBLIOTECA',
+    'settings.sectionReading': 'LECTURA',
+    'settings.pdfEngine': 'Motor de PDF',
+    'settings.pdfEngineNative': 'Nativo',
+    'settings.pdfEngineNativeDescription': 'Lector Android actual basado en PDFium.',
+    'settings.pdfEngineWebView': 'WebView',
+    'settings.pdfEngineWebViewDescription': 'PDF.js dentro de una WebView estable.',
+    'settings.pdfEngineWebViewPending': 'Disponible en la próxima fase del lector PDF.',
     'settings.syncDesc': 'La sincronización en la nube estará disponible después de la beta.',
     'settings.syncTitle': 'Sincronizar entre dispositivos',
     'sync.betaAction': 'Entendido',

@@ -1,12 +1,13 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BackHandler, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Minus, Plus } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
-import { PDF_DEFAULTS } from '../readers/PdfReader.types';
+import { PDF_DEFAULTS, type PdfDisplayMode } from '../readers/PdfReader.types';
 import { radii, serifFont, spacing } from '../theme';
 
 type Props = {
+  displayMode: PdfDisplayMode;
   onChange: (scale: number) => void;
   onClose: () => void;
   onReset: () => void;
@@ -14,14 +15,22 @@ type Props = {
   visible: boolean;
 };
 
-export function PdfZoomModal({ onChange, onClose, onReset, scale, visible }: Props) {
+export function PdfZoomModal({ displayMode, onChange, onClose, onReset, scale, visible }: Props) {
   const { theme, t } = useApp();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const panelWidth = Math.min(280, width - Math.max(insets.left + insets.right, 0) - 24);
   const percentage = Math.round(scale * 100);
-  const canDecrease = scale > PDF_DEFAULTS.minScale;
-  const canIncrease = scale < PDF_DEFAULTS.maxScale;
+  const [requestedScale, setRequestedScale] = useState(scale);
+  const canDecrease = requestedScale > PDF_DEFAULTS.minScale;
+  const canIncrease = requestedScale < PDF_DEFAULTS.maxScale;
+
+  useEffect(() => {
+    if (visible) setRequestedScale(scale);
+    // Reset the button baseline once per opening. Confirmed scale updates keep
+    // flowing into the displayed percentage without undoing rapid queued taps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
 
   useEffect(() => {
     if (!visible) return undefined;
@@ -35,8 +44,10 @@ export function PdfZoomModal({ onChange, onClose, onReset, scale, visible }: Pro
   if (!visible) return null;
 
   const changeBy = (delta: number) => {
-    const steppedScale = Math.round((scale + delta) * 100) / 100;
-    onChange(Math.max(PDF_DEFAULTS.minScale, Math.min(PDF_DEFAULTS.maxScale, steppedScale)));
+    const steppedScale = Math.round((requestedScale + delta) * 100) / 100;
+    const nextScale = Math.max(PDF_DEFAULTS.minScale, Math.min(PDF_DEFAULTS.maxScale, steppedScale));
+    setRequestedScale(nextScale);
+    onChange(nextScale);
   };
 
   return (
@@ -102,17 +113,32 @@ export function PdfZoomModal({ onChange, onClose, onReset, scale, visible }: Pro
             </ZoomAction>
           </View>
 
+          <Text
+            style={{
+              color: theme.textMuted,
+              fontFamily: serifFont,
+              fontSize: 11,
+              lineHeight: 16,
+              textAlign: 'center',
+            }}
+          >
+            {t(displayMode === 'scroll' ? 'reader.zoomFitWidthHint' : 'reader.zoomFitPageHint')}
+          </Text>
+
           <View style={{ backgroundColor: theme.border, height: 1 }} />
 
           <Pressable
             accessibilityLabel={t('reader.zoomReset')}
             accessibilityRole="button"
-            disabled={Math.abs(scale - PDF_DEFAULTS.scale) < 0.001}
-            onPress={onReset}
+            disabled={Math.abs(requestedScale - PDF_DEFAULTS.scale) < 0.001}
+            onPress={() => {
+              setRequestedScale(PDF_DEFAULTS.scale);
+              onReset();
+            }}
             style={({ pressed }) => ({
               alignItems: 'center',
               alignSelf: 'center',
-              opacity: Math.abs(scale - PDF_DEFAULTS.scale) < 0.001 ? 0.4 : pressed ? 0.55 : 1,
+              opacity: Math.abs(requestedScale - PDF_DEFAULTS.scale) < 0.001 ? 0.4 : pressed ? 0.55 : 1,
               paddingHorizontal: spacing.md,
               paddingVertical: spacing.xs,
             })}

@@ -7,7 +7,76 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ## [Unreleased]
 
+### Preparação
+- **Mobile — engines de PDF reversíveis (Fases 0 e 1):** o PDF agora possui um
+  contrato explícito para engines nativa e WebView, com preferência persistida
+  (nativo como padrão), validação de fallback e manifesto fixando PDF.js 5.5.207
+  e o commit revisado do foliate-js para a implementação faseada do runtime.
+
+### Adicionado
+- **Mobile — engine PDF WebView (Fase 2):** runtime local com PDF.js 5.5.207,
+  foliate-js fixed-layout e transporte de ranges por bridge versionada. A engine
+  WebView agora pode ser escolhida nas configurações; somente a engine
+  selecionada é montada por sessão, o nativo continua como padrão e falhas do
+  runtime fazem fallback automático para o motor nativo da sessão.
+- **Mobile — paridade de interação do PDF WebView (Fase 3):** o runtime agora
+  reconhece pinça de dois dedos dentro das páginas, aplica prévia visual sem
+  re-render a cada quadro e confirma a escala com preservação do ponto focal.
+  A escala confirmada volta pela bridge versionada para manter o estado do leitor
+  e o painel de zoom sincronizados; os limites de 50%–400% e o fallback
+  para o motor nativo permanecem ativos.
+- **Mobile — scroll virtualizado e rollout observável do PDF WebView (Fase 4 da migração):**
+  o modo scroll mantém placeholders dimensionados, carrega somente páginas próximas
+  ao viewport, limita concorrência e descarta canvases distantes. O runtime também
+  reporta métricas locais de abertura, páginas carregadas, ranges, bytes e escala
+  confirmada; a bridge valida o evento e o fallback por sessão continua reversível.
+- **Mobile — comparação dos motores PDF (Fase 5 da migração):** foi adicionado um
+  benchmark reproduzível que coleta métricas de primeira página, troca de página,
+  zoom, PSS, CPU, temperatura e sinais de ANR/crash/OOM via logcat/ADB. O relatório
+  compara nativo e WebView com limite inicial de 1,5× e só considera o WebView apto
+  a piloto; nenhuma remoção do motor nativo é feita nesta etapa.
+
 ### Corrigido
+- **Mobile — robustez e acabamento do PDF WebView (P2):** leituras parciais
+  agora têm fila limitada, timeout e descarte por livro/geração, impedindo que
+  uma resposta atrasada contamine o próximo PDF. Páginas com falha no modo
+  scroll exibem estado visual e fazem retry com backoff limitado, mantendo uma
+  ação manual após o limite. Repetições dos botões de volume passam a atualizar
+  um único destino animado, a barra de status permanece visível e o
+  `androidLayerType="hardware"` ganhou uma chave e um roteiro A/B observável sem
+  substituir o padrão `none` sem evidência de aparelho. O handshake `READY` do
+  WebView agora tolera a inicialização tardia da ponte nativa e erros de script
+  são reportados ao leitor em vez de virarem apenas timeout. Metadados, sumário
+  e rótulos de página corrompidos agora são tratados como opcionais, e falhas
+  restantes incluem estágio e stack reduzida para diagnóstico. O controlador
+  de gestos é empacotado como fonte estática, evitando o placeholder `[bytecode]`
+  do `Function.prototype.toString()` do Hermes dentro do WebView.
+- **Mobile — acabamento visual e gestos do PDF WebView:** páginas paginadas
+  começam centralizadas também quando há pequeno overflow vertical; o `touch-action`
+  fica reservado ao controlador compartilhado para evitar que o Android roube a
+  pinça; fontes embutidas usam o renderizador de paths do PDF.js para evitar tofu
+  em iframes; e anotações de link deixam de criar âncoras clicáveis sobre o texto.
+- **Mobile — centralização do PDF WebView em portrait:** o caminho paginado de
+  página única passa a calcular margens explícitas nos dois eixos, evitando que
+  o Android/WebView resolva margens automáticas no topo do viewport; a âncora de
+  troca de página também preserva o ponto médio do eventual overflow vertical.
+- **Mobile — renderização e estabilidade do PDF WebView (P1):** o zoom
+  confirmado agora prioriza a página visível em uma fila global limitada,
+  renderiza vizinhas depois e usa orçamento adaptativo de bitmap para ganhar
+  nitidez sem multiplicar o pico de memória. Canvas, texto selecionável e links
+  passam a ser reconstruídos fora da tela e trocados juntos; o percentual do
+  painel só muda após a renderização confirmada. Rotação, mudança entre paginado
+  e scroll e alterações de escala preservam página e âncora normalizada, e a UI
+  explicita que 100% significa página inteira no paginado e largura da página
+  no scroll.
+- **Mobile — gestos essenciais do PDF WebView (P0):** tap, pan, swipe,
+  seleção, links e pinça agora passam por um único controlador de ponteiros,
+  com captura/cancelamento completos e coordenadas normalizadas entre iframes.
+  O pan funciona também sobre páginas com texto, o swipe paginado respeita RTL
+  e fica bloqueado enquanto há conteúdo ampliado, e links/seleções não disparam
+  mais taps ou viradas de página. A pinça usa o ponto real entre os dedos,
+  acompanha o deslocamento do gesto e preserva essa âncora ao confirmar o zoom
+  nos modos paginado e scroll.
 - **Mobile — zoom e paginação após rotação do PDF:** o viewer Android agora invalida
   restaurações atrasadas quando o viewport muda, reenquadra e centraliza a página em 100%
   depois que as novas dimensões estabilizam e preserva somente o ponto focal válido acima de
