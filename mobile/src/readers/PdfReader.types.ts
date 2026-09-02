@@ -12,6 +12,8 @@ export const DEFAULT_PDF_ENGINE: PdfEngineKind = 'native';
 /** Contrato comum que as engines nativa e WebView devem implementar. */
 export type PdfEngineHandle = {
   scrollByViewport: (fraction: number) => void;
+  startViewportScroll: (direction: 1 | -1) => void;
+  stopViewportScroll: () => void;
   setPage: (page: number) => void;
   setScale: (scale: number) => void;
 };

@@ -131,11 +131,44 @@ fs.writeFileSync(
   'utf8',
 );
 
+function evaluateTypeScriptModule(filePath, resolveModule) {
+  const compiled = typescript.transpileModule(fs.readFileSync(filePath, 'utf8'), {
+    compilerOptions: {
+      module: typescript.ModuleKind.CommonJS,
+      target: typescript.ScriptTarget.ES2020,
+    },
+    fileName: filePath,
+  }).outputText;
+  const evaluatedModule = { exports: {} };
+  const factory = new Function('require', 'module', 'exports', compiled);
+  factory(resolveModule, evaluatedModule, evaluatedModule.exports);
+  return evaluatedModule.exports;
+}
+
+const vendorExports = evaluateTypeScriptModule(
+  path.join(generatedRoot, 'pdfWebVendor.ts'),
+  (request) => { throw new Error(`Unexpected generated vendor import: ${request}`); },
+);
+const gestureExports = evaluateTypeScriptModule(
+  gestureControllerPath,
+  (request) => { throw new Error(`Unexpected gesture import: ${request}`); },
+);
+const runtimeExports = evaluateTypeScriptModule(runtimeSourcePath, (request) => {
+  if (request === './generated/pdfWebVendor') return vendorExports;
+  if (request === './generated/pdfGestureController') return gestureExports;
+  throw new Error(`Unexpected PDF runtime import: ${request}`);
+});
+const runtimeAssetRoot = path.join(mobileRoot, 'assets', 'pdf-web');
+const runtimeAssetPath = path.join(runtimeAssetRoot, 'pdf-runtime.html');
+fs.mkdirSync(runtimeAssetRoot, { recursive: true });
+fs.writeFileSync(runtimeAssetPath, runtimeExports.PDF_WEB_RUNTIME_HTML, 'utf8');
+
 console.log(JSON.stringify({
   pdfjsVersion: installed.version,
   requiredFiles,
   generatedVendor: 'src/readers/pdf/web/generated/pdfWebVendor.ts',
   generatedGestureController: 'src/readers/pdf/web/generated/pdfGestureController.ts',
+  generatedRuntimeAsset: 'assets/pdf-web/pdf-runtime.html',
   foliateRepository: 'https://github.com/readest/foliate-js',
   foliateCommit: 'ca3f118269f8d78811ef17a1b147363c321273d7',
   runtime: 'PDF.js + foliate-js fixed-layout + range bridge',

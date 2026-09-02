@@ -212,7 +212,13 @@ let annotationLayerBuilderCSS = null
 const activeRenderTasks = new WeakMap()
 // Generation counter per document to detect stale renders after async gaps
 const renderGenerations = new WeakMap()
-const renderedScales = new WeakMap()
+const layerGenerations = new WeakMap()
+const renderedStates = new WeakMap()
+const layerStates = new WeakMap()
+const layerWorkByDocument = new WeakMap()
+const renderWorkByDocument = new WeakMap()
+const textContentCache = new WeakMap()
+const annotationsCache = new WeakMap()
 // Keep PDF.js raster work bounded across every iframe in the WebView. A scale
 // commit can touch a visible page, its neighbours and a detached preload in the
 // same tick; letting each iframe render independently stalls gestures and
@@ -272,6 +278,30 @@ export const getRenderDpr = (page, zoom, priority = 0) => {
     return Math.max(1, dpr)
 }
 
+export const planProgressiveRender = ({
+    color, desiredDpr, previewDpr, priority, rendered, scale, work,
+}) => {
+    const renderedMatches = rendered
+        && rendered.color === color
+        && Math.abs(rendered.scale - scale) <= 0.001
+    if (renderedMatches && (rendered.dpr + 0.001 >= desiredDpr || priority === 0)) {
+        return { action: 'reuse', upgrade: rendered.dpr + 0.001 < desiredDpr }
+    }
+    const workMatches = work
+        && work.color === color
+        && Math.abs(work.zoom - scale) <= 0.001
+    if (workMatches && priority === 0) {
+        return { action: 'promote', upgrade: work.dpr + 0.001 < desiredDpr }
+    }
+    if (workMatches && work.dpr + 0.001 >= desiredDpr) {
+        return { action: 'reuse-work', upgrade: false }
+    }
+    if (priority === 0 && previewDpr + 0.001 < desiredDpr) {
+        return { action: 'preview', upgrade: true }
+    }
+    return { action: 'render', upgrade: false }
+}
+
 const setLayerScale = (element, zoom) => {
     element.style.setProperty('--total-scale-factor', zoom)
     element.style.setProperty('--user-unit', '1')
@@ -285,74 +315,142 @@ const isDocumentAttached = doc => {
     return Boolean(view && (!frame || frame.isConnected))
 }
 
+const getCachedTextContent = page => {
+    let pending = textContentCache.get(page)
+    if (!pending) {
+        pending = page.getTextContent()
+        textContentCache.set(page, pending)
+    }
+    return pending
+}
+
+const getCachedAnnotations = page => {
+    let pending = annotationsCache.get(page)
+    if (!pending) {
+        pending = page.getAnnotations().then(items =>
+            items.filter(annotation => annotation?.subtype !== 'Link'))
+        annotationsCache.set(page, pending)
+    }
+    return pending
+}
+
+const scheduleInteractionLayers = (page, doc, zoom) => {
+    if (!doc || !isDocumentAttached(doc)) return Promise.resolve(false)
+    const current = layerStates.get(doc)
+    if (current && Math.abs(current.scale - zoom) <= 0.001) return Promise.resolve(true)
+    const existing = layerWorkByDocument.get(doc)
+    if (existing && Math.abs(existing.scale - zoom) <= 0.001) return existing.promise
+
+    const generation = (layerGenerations.get(doc) || 0) + 1
+    layerGenerations.set(doc, generation)
+    const promise = new Promise(resolve => setTimeout(async () => {
+        const container = doc.querySelector('.textLayer')
+        const div = doc.querySelector('.annotationLayer')
+        if (!container || !div || !isDocumentAttached(doc)) return resolve(false)
+        const viewport = page.getViewport({ scale: zoom })
+        const stagedText = doc.createElement('div')
+        const stagedAnnotations = doc.createElement('div')
+        stagedText.className = 'textLayer'
+        stagedAnnotations.className = 'annotationLayer'
+        setLayerScale(stagedText, zoom)
+        setLayerScale(stagedAnnotations, zoom)
+        try {
+            const textLayer = new pdfjsLib.TextLayer({
+                textContentSource: await getCachedTextContent(page),
+                container: stagedText,
+                viewport,
+            })
+            await textLayer.render()
+            const fontScale = getFontScale(doc)
+            if (fontScale !== 1) stagedText.style.setProperty('--text-scale-factor',
+                `calc(var(--total-scale-factor) * var(--min-font-size) / ${fontScale})`)
+            for (const hiddenCanvas of doc.querySelectorAll('.hiddenCanvasElement'))
+                Object.assign(hiddenCanvas.style, {
+                    position: 'absolute', top: '0', left: '0', width: '0', height: '0', display: 'none',
+                })
+            const endOfContent = doc.createElement('div')
+            endOfContent.className = 'endOfContent'
+            stagedText.append(endOfContent)
+            const linkService = {
+                goToDestination: destination => globalThis.__KRUMER_PDF_GO_TO__?.(destination),
+                getDestinationHash: dest => `#krumer-pdf-dest=${encodeURIComponent(JSON.stringify(dest))}`,
+                getAnchorUrl: () => '',
+                addLinkAttributes: link => {
+                    link.removeAttribute?.('href')
+                    link.removeAttribute?.('target')
+                    link.style.pointerEvents = 'none'
+                },
+            }
+            await new pdfjsLib.AnnotationLayer({
+                page, viewport, div: stagedAnnotations, linkService,
+            }).render({ annotations: await getCachedAnnotations(page) })
+        } catch {
+            return resolve(false)
+        }
+        const visual = renderedStates.get(doc)
+        if (layerGenerations.get(doc) !== generation
+            || !visual || Math.abs(visual.scale - zoom) > 0.001
+            || !isDocumentAttached(doc)) return resolve(false)
+        container.style.cssText = stagedText.style.cssText
+        div.style.cssText = stagedAnnotations.style.cssText
+        container.replaceChildren(...stagedText.childNodes)
+        div.replaceChildren(...stagedAnnotations.childNodes)
+        container.style.removeProperty('visibility')
+        container.style.removeProperty('pointer-events')
+        div.style.removeProperty('visibility')
+        div.style.removeProperty('pointer-events')
+        layerStates.set(doc, { scale: zoom })
+        const index = Number(doc.defaultView?.frameElement?.dataset.sectionIndex)
+        globalThis.__KRUMER_PDF_RENDER_EVENT__?.({ index, phase: 'layers', scale: zoom })
+        doc.dispatchEvent(new CustomEvent('krumer-pdf-layers-ready'))
+        resolve(true)
+    }, 0)).finally(() => {
+        if (layerWorkByDocument.get(doc)?.generation === generation) {
+            layerWorkByDocument.delete(doc)
+        }
+    })
+    layerWorkByDocument.set(doc, { generation, promise, scale: zoom })
+    return promise
+}
+
 const render = async (page, doc, zoom, pageColors, priority = 0) => {
     if (!doc || !isDocumentAttached(doc)) return false
-
-    // Increment generation to invalidate any in-progress render for this doc
     const generation = (renderGenerations.get(doc) || 0) + 1
     renderGenerations.set(doc, generation)
-
-    // Cancel any in-progress render task for this document
     const existingTask = activeRenderTasks.get(doc)
     if (existingTask) {
         existingTask.cancel()
         activeRenderTasks.delete(doc)
     }
 
-    // Rasterise the page bitmap over-sampled (clamped for the iOS content-process
-    // memory budget, see getRenderDpr / readest #5118) but lay the whole DOM out
-    // at the true display size. The <canvas> element natively downscales its
-    // bitmap to its CSS box, so the raster stays crisp WITHOUT scaling the
-    // document. Persistently scaling the document with `transform` promotes the
-    // whole page to one over-sized GPU IOSurface that OOM-kills the iOS
-    // WebContent process; `zoom` also throws off text-selection geometry. The
-    // queue may keep the previous page briefly transformed as a low-resolution
-    // preview, but the committed canvas/text/annotation layers always return to
-    // real display coordinates.
     const renderDpr = getRenderDpr(page, zoom, priority)
-    const renderScale = zoom * renderDpr
-    // The bitmap viewport is over-sampled; the display viewport drives the CSS
-    // box, the text layer and the annotation layer (all in display coordinates).
-    const renderViewport = page.getViewport({ scale: renderScale })
+    const renderViewport = page.getViewport({ scale: zoom * renderDpr })
     const displayViewport = page.getViewport({ scale: zoom })
-
-    // The page canvas lives in its iframe document. The PDF runtime opens the
-    // document with `disableFontFace` so embedded glyphs are emitted as paths;
-    // this avoids relying on the PDFDocument ownerDocument's FontFaceSet.
     const canvas = doc.createElement('canvas')
     canvas.height = renderViewport.height
     canvas.width = renderViewport.width
-    // The CSS box is the un-truncated display size, so the (integer-truncated)
-    // over-sampled bitmap is scaled by the browser to fill the page box exactly.
-    // Pinning the box to the display viewport (rather than letting the truncated
-    // bitmap drive layout) also keeps the left page flush to the spine of a
-    // two-page spread instead of exposing a one-pixel white seam (#4587).
     canvas.style.width = `${displayViewport.width}px`
     canvas.style.height = `${displayViewport.height}px`
-    const canvasContext = canvas.getContext('2d')
-    const renderTask = page.render({ canvasContext, viewport: renderViewport, pageColors })
+    const renderTask = page.render({
+        canvasContext: canvas.getContext('2d'),
+        viewport: renderViewport,
+        pageColors,
+    })
     activeRenderTasks.set(doc, renderTask)
-
     try {
         await renderTask.promise
     } catch {
-        // Render was cancelled or failed — release canvas bitmap memory
         canvas.width = 0
         canvas.height = 0
         return false
     } finally {
-        if (activeRenderTasks.get(doc) === renderTask) {
-            activeRenderTasks.delete(doc)
-        }
+        if (activeRenderTasks.get(doc) === renderTask) activeRenderTasks.delete(doc)
     }
-
-    // Bail out if a newer render has started or iframe was removed
     if (renderGenerations.get(doc) !== generation || !isDocumentAttached(doc)) {
         canvas.width = 0
         canvas.height = 0
         return false
     }
-
     const canvasElement = doc.querySelector('#canvas')
     const container = doc.querySelector('.textLayer')
     const div = doc.querySelector('.annotationLayer')
@@ -361,117 +459,39 @@ const render = async (page, doc, zoom, pageColors, priority = 0) => {
         canvas.height = 0
         return false
     }
-
-    // Build text and annotation DOM off-screen while the previous canvas and
-    // interaction layers stay intact. Swapping all three in one JS task avoids
-    // the transient blank/misaligned state that used to break selection and
-    // links during a high-resolution zoom commit.
-    let stagedText
-    let stagedAnnotations
-    try {
-        stagedText = doc.createElement('div')
-        stagedText.className = 'textLayer'
-        setLayerScale(stagedText, zoom)
-        const textLayer = new pdfjsLib.TextLayer({
-            textContentSource: await page.streamTextContent(),
-            container: stagedText, viewport: displayViewport,
-        })
-        await textLayer.render()
-
-        // Bail out if superseded after async text layer render
-        if (renderGenerations.get(doc) !== generation || !isDocumentAttached(doc)) {
-            canvas.width = 0
-            canvas.height = 0
-            return false
-        }
-
-    // Counteract the OS font-size accessibility scaling on the text layer's glyph
-    // size only (see getFontScale). `--text-scale-factor` feeds `font-size` and
-    // nothing else, so dividing it leaves positions (which scale with
-    // `--total-scale-factor`) aligned with the canvas at any font-size setting.
-        const fontScale = getFontScale(doc)
-        if (fontScale !== 1) stagedText.style.setProperty('--text-scale-factor',
-            `calc(var(--total-scale-factor) * var(--min-font-size) / ${fontScale})`)
-
-    // hide "offscreen" canvases appended to document when rendering text layer
-    // https://github.com/mozilla/pdf.js/blob/642b9a5ae67ef642b9a8808fd9efd447e8c350e2/web/pdf_viewer.css#L51-L58
-        for (const hiddenCanvas of doc.querySelectorAll('.hiddenCanvasElement'))
-            Object.assign(hiddenCanvas.style, {
-                position: 'absolute',
-                top: '0',
-                left: '0',
-                width: '0',
-                height: '0',
-                display: 'none',
-            })
-
-    // fix text selection
-    // https://github.com/mozilla/pdf.js/blob/642b9a5ae67ef642b9a8808fd9efd447e8c350e2/web/text_layer_builder.js#L105-L107
-        const endOfContent = doc.createElement('div')
-        endOfContent.className = 'endOfContent'
-        stagedText.append(endOfContent)
-
-        stagedAnnotations = doc.createElement('div')
-        stagedAnnotations.className = 'annotationLayer'
-        setLayerScale(stagedAnnotations, zoom)
-        const linkService = {
-            goToDestination: destination => globalThis.__KRUMER_PDF_GO_TO__?.(destination),
-            getDestinationHash: dest => `#krumer-pdf-dest=${encodeURIComponent(JSON.stringify(dest))}`,
-            // pdf.js AnnotationLayer calls getAnchorUrl for named-action / GoTo link
-            // annotations; without it the render rejects with "getAnchorUrl is not a
-            // function" (READEST-2M). Match pdf.js SimpleLinkService, which returns ''.
-            getAnchorUrl: () => '',
-            // Link annotations are filtered below. Keep this method inert as a
-            // second line of defence for annotation types that embed an anchor.
-            addLinkAttributes: link => {
-                link.removeAttribute?.('href')
-                link.removeAttribute?.('target')
-                link.style.pointerEvents = 'none'
-            },
-        }
-        // The PDF canvas already contains the link's printed text. Rendering a
-        // transparent annotation anchor on top made Android show a blue/tofu
-        // rectangle and allowed accidental navigation while turning pages.
-        const annotations = (await page.getAnnotations())
-            .filter(annotation => annotation?.subtype !== 'Link')
-        await new pdfjsLib.AnnotationLayer({
-            page, viewport: displayViewport, div: stagedAnnotations, linkService,
-        }).render({
-            annotations,
-        })
-    } catch {
-        canvas.width = 0
-        canvas.height = 0
-        return false
-    }
-
-    // A newer scale won while text/annotations were being assembled. Keep the
-    // old coherent page and release this superseded bitmap.
-    if (renderGenerations.get(doc) !== generation || !isDocumentAttached(doc)) {
-        canvas.width = 0
-        canvas.height = 0
-        return false
-    }
-
     const oldCanvas = canvasElement.querySelector('canvas')
+    const existingLayers = layerStates.get(doc)
+    if (!existingLayers || Math.abs(existingLayers.scale - zoom) > 0.001) {
+        container.style.visibility = 'hidden'
+        container.style.pointerEvents = 'none'
+        div.style.visibility = 'hidden'
+        div.style.pointerEvents = 'none'
+    }
     setLayerScale(doc.documentElement, zoom)
-    container.style.cssText = stagedText.style.cssText
-    div.style.cssText = stagedAnnotations.style.cssText
     canvasElement.replaceChildren(canvas)
-    container.replaceChildren(...stagedText.childNodes)
-    div.replaceChildren(...stagedAnnotations.childNodes)
-    renderedScales.set(doc, zoom)
+    renderedStates.set(doc, {
+        color: JSON.stringify(pageColors ?? null),
+        dpr: renderDpr,
+        generation,
+        scale: zoom,
+    })
     doc.body.style.removeProperty('transform')
     doc.body.style.removeProperty('transform-origin')
     if (oldCanvas) {
         oldCanvas.width = 0
         oldCanvas.height = 0
     }
+    globalThis.__KRUMER_PDF_RENDER_EVENT__?.({
+        dpr: renderDpr,
+        index: Number(doc.defaultView?.frameElement?.dataset.sectionIndex),
+        phase: priority === 0 ? 'final' : 'preview',
+        scale: zoom,
+    })
     return true
 }
 
 const drainRenderQueue = () => {
-    renderQueue.sort((a, b) => a.priority - b.priority || a.id - b.id)
+    renderQueue.sort((a, b) => a.queuePriority - b.queuePriority || a.id - b.id)
     while (activePageRenders < MAX_CONCURRENT_PAGE_RENDERS && renderQueue.length) {
         const request = renderQueue.shift()
         if (!request || request.cancelled) continue
@@ -493,42 +513,116 @@ const drainRenderQueue = () => {
         )).then(rendered => request.resolve(rendered === true))
             .catch(() => request.resolve(false))
             .finally(() => {
-            activePageRenders = Math.max(0, activePageRenders - 1)
-            drainRenderQueue()
-        })
+                if (renderWorkByDocument.get(request.doc) === request) {
+                    renderWorkByDocument.delete(request.doc)
+                }
+                activePageRenders = Math.max(0, activePageRenders - 1)
+                drainRenderQueue()
+            })
     }
+}
+
+const queueRaster = (page, doc, zoom, pageColors, priority) => {
+    let resolveRequest
+    const promise = new Promise(resolve => { resolveRequest = resolve })
+    const request = {
+        cancelled: false,
+        color: JSON.stringify(pageColors ?? null),
+        doc,
+        dpr: getRenderDpr(page, zoom, priority),
+        id: ++nextRenderRequestId,
+        page,
+        pageColors,
+        priority,
+        promise,
+        queuePriority: priority,
+        resolve: resolveRequest,
+        started: false,
+        zoom,
+    }
+    queuedRenderByDocument.set(doc, request)
+    renderWorkByDocument.set(doc, request)
+    renderQueue.push(request)
+    drainRenderQueue()
+    return promise
+}
+
+const queueFinalUpgrade = (page, doc, zoom, pageColors) => {
+    setTimeout(() => {
+        if (!isDocumentAttached(doc)) return
+        const desiredDpr = getRenderDpr(page, zoom, 0)
+        const current = renderedStates.get(doc)
+        if (current
+            && current.color === JSON.stringify(pageColors ?? null)
+            && Math.abs(current.scale - zoom) <= 0.001
+            && current.dpr + 0.001 >= desiredDpr) return
+        const work = renderWorkByDocument.get(doc)
+        if (work && Math.abs(work.zoom - zoom) <= 0.001 && work.dpr + 0.001 >= desiredDpr) return
+        queueRaster(page, doc, zoom, pageColors, 0)
+    }, 0)
 }
 
 export const scheduleRender = (page, doc, zoom, pageColors, priority = 0) => {
     if (!doc || !isDocumentAttached(doc)) return Promise.resolve(false)
-    const renderedScale = renderedScales.get(doc)
-    if (renderedScale && Math.abs(renderedScale - zoom) > 0.001) {
+    priority = Math.max(0, Number(priority) || 0)
+    const color = JSON.stringify(pageColors ?? null)
+    const desiredDpr = getRenderDpr(page, zoom, priority)
+    const rendered = renderedStates.get(doc)
+    const work = renderWorkByDocument.get(doc)
+    const previewDpr = getRenderDpr(page, zoom, 1)
+    const plan = planProgressiveRender({
+        color, desiredDpr, previewDpr, priority, rendered, scale: zoom, work,
+    })
+    if (rendered && Math.abs(rendered.scale - zoom) > 0.001) {
         doc.body.style.transformOrigin = 'top left'
-        doc.body.style.transform = `scale(${zoom / renderedScale})`
+        doc.body.style.transform = `scale(${zoom / rendered.scale})`
     }
-    const queued = queuedRenderByDocument.get(doc)
-    if (queued && !queued.started) {
-        queued.cancelled = true
-        queued.resolve(false)
-    }
-    // Superseded active work has no value. PDF.js cancels safely at its next
-    // graphics checkpoint, which frees a queue slot for the newest scale.
-    activeRenderTasks.get(doc)?.cancel()
-    return new Promise(resolve => {
-        const request = {
-            cancelled: false,
-            doc,
-            id: ++nextRenderRequestId,
-            page,
-            pageColors,
-            priority: Math.max(0, Number(priority) || 0),
-            resolve,
-            started: false,
-            zoom,
+
+    if (plan.action === 'reuse') {
+        if (priority === 0) {
+            scheduleInteractionLayers(page, doc, zoom)
+            if (plan.upgrade) queueFinalUpgrade(page, doc, zoom, pageColors)
         }
-        queuedRenderByDocument.set(doc, request)
-        renderQueue.push(request)
-        drainRenderQueue()
+        return Promise.resolve(true)
+    }
+
+    if (work && (plan.action === 'promote' || plan.action === 'reuse-work')) {
+        if (plan.action === 'promote') {
+            // A detached/nearby preload becomes the visible preview. Its
+            // promise is reused; only the eventual higher-DPR upgrade is new.
+            work.queuePriority = 0
+            const promoted = work.promise.then(ready => {
+                if (ready) {
+                    scheduleInteractionLayers(page, doc, zoom)
+                    if (plan.upgrade) queueFinalUpgrade(page, doc, zoom, pageColors)
+                }
+                return ready
+            })
+            renderQueue.sort((a, b) => a.queuePriority - b.queuePriority || a.id - b.id)
+            return promoted
+        }
+        return work.promise
+    }
+
+    if (work) {
+        if (!work.started) {
+            work.cancelled = true
+            work.resolve(false)
+            if (queuedRenderByDocument.get(doc) === work) queuedRenderByDocument.delete(doc)
+        } else {
+            activeRenderTasks.get(doc)?.cancel()
+        }
+    }
+
+    if (priority !== 0) return queueRaster(page, doc, zoom, pageColors, priority)
+    const previewPriority = plan.action === 'preview' ? 1 : 0
+    const preview = queueRaster(page, doc, zoom, pageColors, previewPriority)
+    return preview.then(ready => {
+        if (ready) {
+            scheduleInteractionLayers(page, doc, zoom)
+            if (previewPriority !== 0) queueFinalUpgrade(page, doc, zoom, pageColors)
+        }
+        return ready
     })
 }
 
@@ -623,7 +717,7 @@ const MAX_CACHED_PAGES = 16
 // WebView's heap, crashing on 50 MB+ PDFs (readest #3470). Throttle here.
 const MAX_CONCURRENT_RANGES = 2
 
-export const makePDF = async file => {
+export const makePDF = async (file, options = {}) => {
     await loadPDFJS()
     const transport = new pdfjsLib.PDFDataRangeTransport(file.size, [])
     // Bound the concurrent range reads instead of dispatching them all at once.
@@ -665,68 +759,6 @@ export const makePDF = async file => {
     }
     const pdf = await loadingTask.promise
 
-    // Get viewport dimensions from first page for fixed-layout rendering
-    const firstPage = await pdf.getPage(1)
-    const firstViewport = firstPage.getViewport({ scale: 1 })
-    const book = { rendition: {
-        layout: 'pre-paginated',
-        spread: 'none',
-        viewport: { width: firstViewport.width, height: firstViewport.height },
-    } }
-
-    // Metadata, outlines and page labels are optional presentation data. A
-    // malformed object in any of these sections must not prevent the pages
-    // themselves from opening in the reader.
-    let metadataResult = null
-    try {
-        metadataResult = await pdf.getMetadata()
-    } catch (error) {
-        console.warn('[Krumer PDF] metadata unavailable', error)
-    }
-    const { metadata, info } = metadataResult ?? {}
-    try {
-        book.metadata = parsePDFMetadata({ info, xmp: metadata?.getRaw?.() })
-    } catch (error) {
-        console.warn('[Krumer PDF] metadata parse failed', error)
-        book.metadata = {}
-    }
-
-    // PDFs bound right-to-left (Japanese photo books, manga) declare it in the
-    // catalog's ViewerPreferences; surface it as book.dir so the fixed-layout
-    // renderer pairs and orders two-page spreads right-to-left.
-    const viewerPreferences = await pdf.getViewerPreferences().catch(() => null)
-    const direction = viewerPreferences?.get?.('Direction')
-        ?? viewerPreferences?.Direction
-    if (direction === 'R2L') book.dir = 'rtl'
-
-    let outline = null
-    try {
-        outline = await pdf.getOutline()
-    } catch (error) {
-        console.warn('[Krumer PDF] outline unavailable', error)
-    }
-    if (Array.isArray(outline)) {
-        try {
-            book.toc = await Promise.all(outline.map(item => makeTOCItem(item, pdf)))
-        } catch (error) {
-            console.warn('[Krumer PDF] outline parse failed', error)
-            book.toc = null
-        }
-    } else {
-        book.toc = null
-    }
-
-    // Page labels (PDF 32000-1 §12.4.2) are the numbers printed on the pages
-    // -- roman-numeral front matter, a body that restarts at 1 -- and are what
-    // the book's own TOC means by "page 139", as opposed to the physical index
-    // into the file. Expose them as the page list so they reach readers through
-    // the same `pageItem` channel as an EPUB page-list nav. Like PDF.js, ignore
-    // labels that merely restate the physical page numbers or are all empty.
-    const labels = await pdf.getPageLabels().catch(() => null)
-    book.pageList = labels?.some((label, i) => label && label !== String(i + 1))
-        ? labels.map((label, i) => ({ label, href: JSON.stringify(i), index: i }))
-        : null
-
     const cache = new Map()
     const pageCache = new Map()
     const getPage = async (i) => {
@@ -747,9 +779,34 @@ export const makePDF = async file => {
             pageCache.delete(oldestKey)
             oldPage?.cleanup()
         }
-
         return page
     }
+
+    // Decode the restored page immediately. The same cached PDFPageProxy is
+    // then reused by the first visible section instead of always touching page
+    // one and requesting the restored page afterwards.
+    const initialPage = Math.max(0, Math.min(
+        pdf.numPages - 1,
+        Math.round(Number(options.initialPage) || 0),
+    ))
+    const [firstPage, viewerPreferences] = await Promise.all([
+        getPage(initialPage),
+        pdf.getViewerPreferences().catch(() => null),
+    ])
+    const firstViewport = firstPage.getViewport({ scale: 1 })
+    const book = { rendition: {
+        layout: 'pre-paginated',
+        spread: 'none',
+        viewport: { width: firstViewport.width, height: firstViewport.height },
+    } }
+
+    // PDFs bound right-to-left (Japanese photo books, manga) declare it in the
+    // catalog's ViewerPreferences; surface it as book.dir so the fixed-layout
+    // renderer pairs and orders two-page spreads right-to-left.
+    const direction = viewerPreferences?.get?.('Direction')
+        ?? viewerPreferences?.Direction
+    if (direction === 'R2L') book.dir = 'rtl'
+
     book.sections = Array.from({ length: pdf.numPages }).map((_, i) => ({
         id: i,
         load: async () => {

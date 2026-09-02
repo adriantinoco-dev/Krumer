@@ -3,7 +3,7 @@ const fs = require('fs');
 const vm = require('vm');
 const ts = require('typescript');
 
-const read = (relativePath) => fs.readFileSync(relativePath, 'utf8');
+const read = (relativePath) => fs.readFileSync(relativePath, 'utf8').replace(/\r\n/g, '\n');
 
 function loadTypeScriptModule(relativePath) {
   const compiled = ts.transpileModule(read(relativePath), {
@@ -68,7 +68,12 @@ async function main() {
   assert(runtimeSource.includes('payload.bookId !== pending.bookId'));
   assert(runtimeSource.includes('function queueViewportScroll(fraction)'));
   assert(runtimeSource.includes('start + viewer.clientHeight * fraction'));
-  assert(runtimeSource.includes('viewer.scrollTop += delta * 0.32'));
+  assert(runtimeSource.includes('function startViewportScroll(direction)'));
+  assert(runtimeSource.includes('function stopViewportScroll()'));
+  assert(runtimeSource.includes('viewer.clientHeight * viewportScrollVelocity * frameMs / 1000'));
+  assert(runtimeSource.includes('1 - Math.pow(0.68, frameMs / 16.667)'));
+  assert(runtimeSource.includes("window.addEventListener('message', receiveMessage)"));
+  assert(runtimeSource.includes("document.addEventListener('message', receiveMessage)"));
   assert(!runtimeSource.includes("viewer.scrollBy({ top: viewer.clientHeight * fraction, behavior: 'smooth' })"));
   assert(runtimeSource.includes('var readyAttempts = 0;'));
   assert(runtimeSource.includes('setTimeout(announceReady, 50);'));
@@ -86,6 +91,11 @@ async function main() {
   assert(engineSource.includes('message.payload.bookId !== resolvedUri'));
   assert(engineSource.includes('process.env.EXPO_PUBLIC_PDF_WEBVIEW_LAYER_TYPE'));
   assert(engineSource.includes('androidLayerType={PDF_WEB_ANDROID_LAYER_TYPE}'));
+  assert(engineSource.includes('webviewRef.current?.postMessage(JSON.stringify(command))'));
+  assert(engineSource.includes('handle: file.open(FileMode.ReadOnly)'));
+  assert(engineSource.includes('cacheEnabled'));
+  assert(!engineSource.includes('incognito'));
+  assert(!engineSource.includes('injectJavaScript'));
   assert(engineSource.includes('message.payload.code'));
 
   assert(fixedSource.includes('#scrollMaxRetries = 3'));
@@ -94,11 +104,11 @@ async function main() {
   assert(fixedSource.includes("status.className = 'scroll-page-error-status'"));
   assert(fixedSource.includes('this.#retryScrollPage(pageData, true)'));
   assert(generatedVendorSource.includes('scroll-page-error-status'));
-  assert(generatedVendorSource.includes('outline unavailable'));
-  assert(generatedVendorSource.includes('outline parse failed'));
+  assert(!generatedVendorSource.includes('outline unavailable'));
+  assert(!generatedVendorSource.includes('outline parse failed'));
   assert(generatedGestureSource.includes('function createPdfGestureController(options)'));
   assert(!generatedGestureSource.includes('[bytecode]'));
-  assert(generatedVendorSource.includes('metadata unavailable'));
+  assert(!generatedVendorSource.includes('metadata unavailable'));
 
   assert(readerScreenSource.includes('hidden={false}'));
   assert(readerScreenSource.includes("barStyle={theme.name === 'dark' ? 'light-content' : 'dark-content'}"));
@@ -120,6 +130,13 @@ async function main() {
     type: 'READ_RANGE',
     payload: { begin: 0, end: 1024, requestId: 'range-2' },
   })), null);
+  const volumeMetrics = bridge.parsePdfWebBridgeEvent(JSON.stringify({
+    version: 1,
+    id: 'volume-metrics',
+    type: 'VOLUME_SCROLL_METRICS',
+    payload: { durationMs: 1000, frames: 60, maxFrameMs: 20, slowFrames: 2 },
+  }));
+  assert(volumeMetrics && volumeMetrics.payload.slowFrames === 2);
 
   const runtime = loadRuntimeModule();
   const runtimeMarker = '<script type="module" nonce="krumer-pdf-runtime">';
@@ -139,6 +156,7 @@ async function main() {
     scrolled: false,
   };
   const runtimeWindow = {
+    addEventListener() {},
     ReactNativeWebView: {
       postMessage(value) { runtimeMessages.push(JSON.parse(value)); },
     },
@@ -151,8 +169,8 @@ async function main() {
     Number,
     Promise,
     Set,
-    document: { getElementById: () => runtimeViewer },
-    requestAnimationFrame: (callback) => setTimeout(callback, 0),
+    document: { addEventListener() {}, getElementById: () => runtimeViewer },
+    requestAnimationFrame: (callback) => setTimeout(() => callback(Date.now()), 0),
     cancelAnimationFrame: clearTimeout,
     setTimeout,
     clearTimeout,
@@ -165,7 +183,7 @@ async function main() {
   assert(runtimeMessages.some((message) => message.type === 'READY'), 'The runtime did not emit READY.');
 
   const delayedMessages = [];
-  const delayedWindow = { ReactNativeWebView: null };
+  const delayedWindow = { addEventListener() {}, ReactNativeWebView: null };
   const delayedSandbox = { ...runtimeSandbox, window: delayedWindow };
   delayedSandbox.globalThis = delayedSandbox;
   vm.runInNewContext(runtimeScript, delayedSandbox);

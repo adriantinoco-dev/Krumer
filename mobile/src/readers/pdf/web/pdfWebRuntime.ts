@@ -604,6 +604,17 @@ const bridgeRuntime = `
     var maxPendingRanges = 24;
     var viewportScrollFrame = null;
     var viewportScrollTarget = null;
+    var viewportScrollDirection = 0;
+    var viewportScrollVelocity = 0;
+    var viewportScrollLastAt = 0;
+    var volumeScrollStartedAt = 0;
+    var volumeScrollFrames = 0;
+    var volumeScrollSlowFrames = 0;
+    var volumeScrollMaxFrameMs = 0;
+    var lastLoadProgress = -1;
+    var lastLoadProgressAt = 0;
+    var receivedCommandIds = new Set();
+    var pendingNavigation = null;
 
     function eventId() {
       nextEventId += 1;
@@ -619,6 +630,28 @@ const bridgeRuntime = `
         payload: payload || {},
       }));
     }
+
+    function postPerformanceMetric(stage, page, extra) {
+      post('PERFORMANCE_METRIC', Object.assign({
+        elapsedMs: runtimeOpenedAt ? Math.max(0, Date.now() - runtimeOpenedAt) : 0,
+        page: Math.max(1, Number(page) || 1),
+        stage: stage,
+      }, extra || {}));
+    }
+
+    globalThis.__KRUMER_PDF_RENDER_EVENT__ = function (detail) {
+      if (!book || !detail || !Number.isInteger(detail.index)) return;
+      var page = detail.index + 1;
+      if (!pendingNavigation || pendingNavigation.page !== page) return;
+      var stage = detail.phase === 'final' ? 'final-ready'
+        : detail.phase === 'layers' ? 'layers-ready' : null;
+      if (!stage || pendingNavigation[stage]) return;
+      pendingNavigation[stage] = true;
+      postPerformanceMetric(stage, page, {
+        navigationMs: Math.max(0, Date.now() - pendingNavigation.startedAt),
+        preloadHit: pendingNavigation.preloadHit,
+      });
+    };
 
     function safeMessage(error) {
       var message = error && error.stack
@@ -719,40 +752,112 @@ const bridgeRuntime = `
       });
     }
 
+    function postVolumeScrollMetrics() {
+      if (!volumeScrollStartedAt) return;
+      post('VOLUME_SCROLL_METRICS', {
+        durationMs: Math.max(0, Date.now() - volumeScrollStartedAt),
+        frames: volumeScrollFrames,
+        maxFrameMs: Math.round(volumeScrollMaxFrameMs),
+        slowFrames: volumeScrollSlowFrames,
+      });
+      volumeScrollStartedAt = 0;
+      volumeScrollFrames = 0;
+      volumeScrollSlowFrames = 0;
+      volumeScrollMaxFrameMs = 0;
+    }
+
     function cancelViewportScroll() {
       if (viewportScrollFrame != null) cancelAnimationFrame(viewportScrollFrame);
       viewportScrollFrame = null;
       viewportScrollTarget = null;
+      viewportScrollDirection = 0;
+      viewportScrollVelocity = 0;
+      viewportScrollLastAt = 0;
+      postVolumeScrollMetrics();
+    }
+
+    function ensureViewportScrollFrame() {
+      if (viewportScrollFrame != null) return;
+      viewportScrollLastAt = 0;
+      viewportScrollFrame = requestAnimationFrame(animateViewportScroll);
+    }
+
+    function animateViewportScroll(now) {
+      if (!viewer.scrolled) {
+        cancelViewportScroll();
+        return;
+      }
+      var rawFrameMs = viewportScrollLastAt ? Math.max(0, now - viewportScrollLastAt) : 16.667;
+      var frameMs = Math.min(48, rawFrameMs);
+      viewportScrollLastAt = now;
+      if (volumeScrollStartedAt) {
+        volumeScrollFrames += 1;
+        if (rawFrameMs > 24) volumeScrollSlowFrames += 1;
+        volumeScrollMaxFrameMs = Math.max(volumeScrollMaxFrameMs, rawFrameMs);
+      }
+
+      var maxTop = Math.max(0, viewer.scrollHeight - viewer.clientHeight);
+      if (viewportScrollTarget != null && viewportScrollDirection === 0) {
+        viewportScrollTarget = Math.max(0, Math.min(maxTop, viewportScrollTarget));
+        var remaining = viewportScrollTarget - viewer.scrollTop;
+        if (Math.abs(remaining) <= 0.75) {
+          viewer.scrollTop = viewportScrollTarget;
+          viewportScrollTarget = null;
+        } else {
+          var progress = 1 - Math.pow(0.68, frameMs / 16.667);
+          viewer.scrollTop += remaining * progress;
+        }
+      } else {
+        viewportScrollTarget = null;
+        var targetVelocity = viewportScrollDirection * 3.2;
+        var smoothingMs = viewportScrollDirection ? 75 : 120;
+        var smoothing = 1 - Math.exp(-frameMs / smoothingMs);
+        viewportScrollVelocity += (targetVelocity - viewportScrollVelocity) * smoothing;
+        if (Math.abs(viewportScrollVelocity) < 0.01 && viewportScrollDirection === 0) {
+          viewportScrollVelocity = 0;
+        } else {
+          viewer.scrollTop += viewer.clientHeight * viewportScrollVelocity * frameMs / 1000;
+          if (viewer.scrollTop <= 0 || viewer.scrollTop >= maxTop) {
+            viewportScrollDirection = 0;
+            viewportScrollVelocity = 0;
+          }
+        }
+      }
+
+      if (viewportScrollTarget != null || viewportScrollDirection !== 0 || viewportScrollVelocity !== 0) {
+        viewportScrollFrame = requestAnimationFrame(animateViewportScroll);
+        return;
+      }
+      viewportScrollFrame = null;
+      viewportScrollLastAt = 0;
+      postVolumeScrollMetrics();
     }
 
     function queueViewportScroll(fraction) {
       if (!viewer.scrolled || !Number.isFinite(fraction)) return;
+      viewportScrollDirection = 0;
+      viewportScrollVelocity = 0;
       var maxTop = Math.max(0, viewer.scrollHeight - viewer.clientHeight);
       var start = viewportScrollTarget == null ? viewer.scrollTop : viewportScrollTarget;
       viewportScrollTarget = Math.max(0, Math.min(
         maxTop,
         start + viewer.clientHeight * fraction,
       ));
-      if (viewportScrollFrame != null) return;
+      ensureViewportScrollFrame();
+    }
 
-      var animate = function () {
-        if (!viewer.scrolled || viewportScrollTarget == null) {
-          cancelViewportScroll();
-          return;
-        }
-        var currentMaxTop = Math.max(0, viewer.scrollHeight - viewer.clientHeight);
-        viewportScrollTarget = Math.max(0, Math.min(currentMaxTop, viewportScrollTarget));
-        var delta = viewportScrollTarget - viewer.scrollTop;
-        if (Math.abs(delta) <= 0.75) {
-          viewer.scrollTop = viewportScrollTarget;
-          viewportScrollFrame = null;
-          viewportScrollTarget = null;
-          return;
-        }
-        viewer.scrollTop += delta * 0.32;
-        viewportScrollFrame = requestAnimationFrame(animate);
-      };
-      viewportScrollFrame = requestAnimationFrame(animate);
+    function startViewportScroll(direction) {
+      if (!viewer.scrolled || (direction !== 1 && direction !== -1)) return;
+      viewportScrollTarget = null;
+      viewportScrollDirection = direction;
+      if (!volumeScrollStartedAt) volumeScrollStartedAt = Date.now();
+      ensureViewportScrollFrame();
+    }
+
+    function stopViewportScroll() {
+      viewportScrollDirection = 0;
+      viewportScrollTarget = null;
+      ensureViewportScrollFrame();
     }
 
     function bridgeFile(byteLength) {
@@ -783,10 +888,23 @@ const bridgeRuntime = `
       attachFrameEvents(detail.doc, detail.index || 0);
     });
     viewer.addEventListener('pointerdown', cancelViewportScroll, true);
+    viewer.addEventListener('preload-hit', function (event) {
+      var index = event.detail && event.detail.index;
+      if (pendingNavigation && pendingNavigation.page === index + 1) {
+        pendingNavigation.preloadHit = true;
+      }
+    });
     viewer.addEventListener('relocate', function (event) {
       var detail = event.detail || {};
       if (!Number.isInteger(detail.index) || detail.index < 0 || detail.index >= totalPages) return;
       currentPage = detail.index + 1;
+      if (pendingNavigation && pendingNavigation.page === currentPage && !pendingNavigation.preview) {
+        pendingNavigation.preview = true;
+        postPerformanceMetric('preview-visible', currentPage, {
+          navigationMs: Math.max(0, Date.now() - pendingNavigation.startedAt),
+          preloadHit: pendingNavigation.preloadHit,
+        });
+      }
       post('PAGE_CHANGED', {
         page: currentPage,
         reason: detail.reason === 'page' || detail.reason === 'scroll' || detail.reason === 'restore'
@@ -815,6 +933,9 @@ const bridgeRuntime = `
       runtimeRangeTimeouts = 0;
       runtimeRangeRejected = 0;
       runtimePagesLoaded = 0;
+      lastLoadProgress = -1;
+      lastLoadProgressAt = 0;
+      pendingNavigation = null;
       gestureController.resetFrames();
       if (viewer.destroy) viewer.destroy();
       if (viewer.shadowRoot) {
@@ -848,10 +969,17 @@ const bridgeRuntime = `
       try {
         globalThis.__KRUMER_PDF_PROGRESS__ = function (info) {
           if (myGeneration !== generation || !info || !info.total) return;
-          post('LOAD_PROGRESS', { progress: Math.max(0, Math.min(1, info.loaded / info.total)) });
+          var progress = Math.max(0, Math.min(1, info.loaded / info.total));
+          var now = Date.now();
+          if (progress < 1 && progress - lastLoadProgress < 0.05 && now - lastLoadProgressAt < 200) return;
+          lastLoadProgress = progress;
+          lastLoadProgressAt = now;
+          post('LOAD_PROGRESS', { progress: progress });
         };
         openStage = 'make-pdf';
-        var nextBook = await globalThis.__KRUMER_MAKE_PDF__(bridgeFile(payload.byteLength));
+        var nextBook = await globalThis.__KRUMER_MAKE_PDF__(bridgeFile(payload.byteLength), {
+          initialPage: Math.max(0, Math.round(Number(payload.initialPage) || 1) - 1),
+        });
         if (myGeneration !== generation) {
           if (nextBook && nextBook.destroy) nextBook.destroy();
           return;
@@ -859,6 +987,7 @@ const bridgeRuntime = `
         book = nextBook;
         totalPages = book.sections.length;
         currentPage = clampPage(pendingPage == null ? payload.initialPage : pendingPage);
+        postPerformanceMetric('document-opened', currentPage);
         currentScale = clampScale(payload.scale);
         viewer.setAttribute('spread', 'none');
         openStage = 'open-viewer';
@@ -873,6 +1002,11 @@ const bridgeRuntime = `
         }
         viewer.setAttribute('scale-factor', String(currentScale * 100));
         openStage = 'position-page';
+        pendingNavigation = {
+          page: currentPage,
+          preloadHit: false,
+          startedAt: Date.now(),
+        };
         await viewer.goTo(Promise.resolve({ index: currentPage - 1 }));
         post('BOOK_OPENED', {
           bookId: bookId,
@@ -894,6 +1028,11 @@ const bridgeRuntime = `
       var command;
       try { command = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { return; }
       if (!command || command.version !== BRIDGE_VERSION || !command.payload) return;
+      if (command.id && receivedCommandIds.has(command.id)) return;
+      if (command.id) {
+        receivedCommandIds.add(command.id);
+        if (receivedCommandIds.size > 64) receivedCommandIds.delete(receivedCommandIds.values().next().value);
+      }
       var payload = command.payload;
       try {
         if (command.type === 'OPEN_BOOK') return openBook(payload);
@@ -916,6 +1055,11 @@ const bridgeRuntime = `
         if (command.type === 'SET_PAGE') {
           cancelViewportScroll();
           currentPage = clampPage(payload.page);
+          pendingNavigation = {
+            page: currentPage,
+            preloadHit: false,
+            startedAt: Date.now(),
+          };
           await viewer.goTo(Promise.resolve({ index: currentPage - 1 }));
           return;
         }
@@ -936,13 +1080,22 @@ const bridgeRuntime = `
         }
         if (command.type === 'SCROLL_BY_VIEWPORT') {
           queueViewportScroll(Number(payload.fraction));
+          return;
         }
+        if (command.type === 'START_VIEWPORT_SCROLL') {
+          startViewportScroll(Number(payload.direction));
+          return;
+        }
+        if (command.type === 'STOP_VIEWPORT_SCROLL') stopViewportScroll();
       } catch (error) {
         reportError('COMMAND_FAILED', error);
       }
     }
 
     globalThis.KrumerPdfBridge = { receive: receive };
+    function receiveMessage(event) { receive(event && event.data); }
+    window.addEventListener('message', receiveMessage);
+    document.addEventListener('message', receiveMessage);
     function announceReady() {
       if (readyPosts >= 3 || readyAttempts >= 100) return;
       readyAttempts += 1;

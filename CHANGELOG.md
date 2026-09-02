@@ -14,6 +14,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   e o commit revisado do foliate-js para a implementação faseada do runtime.
 
 ### Adicionado
+- **Mobile — desempenho do leitor PDF WebView:** o runtime PDF.js/foliate agora
+  é gerado como asset HTML local cacheável e preparado em paralelo ao arquivo.
+  A primeira imagem e as trocas de página usam preview progressivo, refinamento
+  final no mesmo DPR e camadas de texto/anotações assíncronas; preloads em curso
+  são promovidos e navegações obsoletas são descartadas por geração. O scroll
+  mantém métricas de layout cacheadas, encontra a página por busca binária e o
+  hold dos botões de volume usa uma única animação temporal com telemetria de
+  frames lentos. O bridge passou a usar `postMessage`, reaproveita um handle de
+  arquivo por sessão e expõe métricas separadas de runtime, documento, preview,
+  qualidade final, camadas e acerto de preload.
 - **Mobile — engine PDF WebView (Fase 2):** runtime local com PDF.js 5.5.207,
   foliate-js fixed-layout e transporte de ranges por bridge versionada. A engine
   WebView agora pode ser escolhida nas configurações; somente a engine

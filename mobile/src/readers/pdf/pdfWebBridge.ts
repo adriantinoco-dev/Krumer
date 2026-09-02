@@ -13,6 +13,8 @@ export type PdfWebBridgeCommand =
   | BridgeEnvelope<'SET_SCALE', { scale: number }>
   | BridgeEnvelope<'SET_DISPLAY_MODE', { displayMode: 'paginated' | 'scroll' }>
   | BridgeEnvelope<'SCROLL_BY_VIEWPORT', { fraction: number }>
+  | BridgeEnvelope<'START_VIEWPORT_SCROLL', { direction: 1 | -1 }>
+  | BridgeEnvelope<'STOP_VIEWPORT_SCROLL', Record<string, never>>
   | BridgeEnvelope<'READ_RANGE_RESULT', {
       bookId: string;
       dataBase64?: string;
@@ -45,6 +47,19 @@ export type PdfWebBridgeEvent =
       rangeRequests: number;
       rangeTimeouts: number;
       scale: number;
+    }>
+  | BridgeEnvelope<'VOLUME_SCROLL_METRICS', {
+      durationMs: number;
+      frames: number;
+      maxFrameMs: number;
+      slowFrames: number;
+    }>
+  | BridgeEnvelope<'PERFORMANCE_METRIC', {
+      elapsedMs: number;
+      navigationMs?: number;
+      page: number;
+      preloadHit?: boolean;
+      stage: 'document-opened' | 'preview-visible' | 'final-ready' | 'layers-ready';
     }>
   | BridgeEnvelope<'SINGLE_TAP', { page: number; x: number; y: number }>
   | BridgeEnvelope<'LINK_PRESSED', { url: string }>
@@ -155,6 +170,26 @@ export function parsePdfWebBridgeEvent(raw: string): PdfWebBridgeEvent | null {
       && isFiniteInteger(payload.rangeTimeouts, 0)
       && isFiniteNumber(payload.scale, 0.5)
       && payload.scale <= 4
+      ? value as PdfWebBridgeEvent : null;
+  }
+  if (value.type === 'VOLUME_SCROLL_METRICS') {
+    return isFiniteInteger(payload.durationMs, 0)
+      && isFiniteInteger(payload.frames, 0)
+      && isFiniteNumber(payload.maxFrameMs, 0)
+      && isFiniteInteger(payload.slowFrames, 0)
+      && payload.slowFrames <= payload.frames
+      ? value as PdfWebBridgeEvent : null;
+  }
+  if (value.type === 'PERFORMANCE_METRIC') {
+    const validStage = payload.stage === 'document-opened'
+      || payload.stage === 'preview-visible'
+      || payload.stage === 'final-ready'
+      || payload.stage === 'layers-ready';
+    return validStage
+      && isFiniteInteger(payload.elapsedMs, 0)
+      && isFiniteInteger(payload.page, 1)
+      && (payload.navigationMs === undefined || isFiniteInteger(payload.navigationMs, 0))
+      && (payload.preloadHit === undefined || typeof payload.preloadHit === 'boolean')
       ? value as PdfWebBridgeEvent : null;
   }
   if (value.type === 'SINGLE_TAP') {

@@ -4,11 +4,12 @@
 const fs = require('fs');
 const { execFileSync } = require('child_process');
 
-const REPORT_VERSION = 1;
+const REPORT_VERSION = 2;
 const DEFAULT_PACKAGE = 'com.adriantinoco.krumer';
 const MAX_RATIO = 1.5;
-const MIN_FIRST_PAGE_SAMPLES = 3;
-const MIN_INTERACTION_SAMPLES = 5;
+const MIN_FIRST_PAGE_SAMPLES = 5;
+const MIN_PAGE_SAMPLES = 30;
+const MIN_ZOOM_SAMPLES = 5;
 const METRIC_MARKER = '[Krumer PDF] metric';
 
 function usage() {
@@ -27,6 +28,9 @@ Parse an exported logcat file without a connected device:
 
 Compare two reports (native first, WebView second):
   node scripts/benchmark-pdf-engines.cjs --compare native.json webview.json
+
+Compare the optimized WebView against the current-commit baseline:
+  node scripts/benchmark-pdf-engines.cjs --compare-baseline before.json after.json
 `);
 }
 
@@ -117,6 +121,13 @@ function summariseMetrics(metrics) {
   const scaleReady = metricSamples(metrics, 'reader:scale-ready', 'latencyMs');
   const scaleGestures = metricSamples(metrics, 'reader:scale-ready', 'gestureMs');
   const runtimeOpen = metricSamples(metrics, 'web:runtime-open', 'elapsedMs');
+  const runtimeReady = metricSamples(metrics, 'web:runtime-ready', 'elapsedMs');
+  const documentOpened = metricSamples(metrics, 'web:document-opened', 'elapsedMs');
+  const previewVisible = metricSamples(metrics, 'web:preview-visible', 'navigationMs');
+  const finalReady = metricSamples(metrics, 'web:final-ready', 'navigationMs');
+  const layersReady = metricSamples(metrics, 'web:layers-ready', 'navigationMs');
+  const volumeFrames = metricSamples(metrics, 'web:volume-scroll', 'frames');
+  const volumeSlowFrames = metricSamples(metrics, 'web:volume-scroll', 'slowFrames');
   const rangeBytes = metricSamples(metrics, 'web:runtime-open', 'rangeBytes');
   const rangeRequests = metricSamples(metrics, 'web:runtime-open', 'rangeRequests');
   const rangeRejected = metricSamples(metrics, 'web:runtime-open', 'rangeRejected');
@@ -153,6 +164,41 @@ function summariseMetrics(metrics) {
       p95: percentile(scaleGestures, 0.95),
     },
     webRuntime: {
+      runtimeReadyMs: {
+        count: runtimeReady.length,
+        p50: percentile(runtimeReady, 0.5),
+        p95: percentile(runtimeReady, 0.95),
+      },
+      documentOpenedMs: {
+        count: documentOpened.length,
+        p50: percentile(documentOpened, 0.5),
+        p95: percentile(documentOpened, 0.95),
+      },
+      previewLatencyMs: {
+        count: previewVisible.length,
+        p50: percentile(previewVisible, 0.5),
+        p95: percentile(previewVisible, 0.95),
+      },
+      finalLatencyMs: {
+        count: finalReady.length,
+        p50: percentile(finalReady, 0.5),
+        p95: percentile(finalReady, 0.95),
+      },
+      layersLatencyMs: {
+        count: layersReady.length,
+        p50: percentile(layersReady, 0.5),
+        p95: percentile(layersReady, 0.95),
+      },
+      preloadHits: metrics.filter((metric) =>
+        metric.event === 'web:preview-visible' && metric.preloadHit === true).length,
+      volumeScroll: {
+        frames: volumeFrames.reduce((sum, value) => sum + value, 0),
+        slowFrames: volumeSlowFrames.reduce((sum, value) => sum + value, 0),
+        slowFrameRatio: volumeFrames.reduce((sum, value) => sum + value, 0)
+          ? volumeSlowFrames.reduce((sum, value) => sum + value, 0)
+            / volumeFrames.reduce((sum, value) => sum + value, 0)
+          : null,
+      },
       firstPageMs: {
         count: runtimeOpen.length,
         mean: average(runtimeOpen),
@@ -286,6 +332,9 @@ function captureReport(args) {
       'Links: internal and external links remain functional.',
       'Bookmarks and notes: create, reopen and navigate to both.',
       'Scroll/paginated: traverse at least 100 pages and repeat the memory snapshot.',
+      'Cold/warm opening: collect at least 5 samples of each on the same PDFs.',
+      'Sequential navigation: collect at least 30 page changes in each engine.',
+      'Volume hold: hold for 10 seconds and confirm at most 5% of frames exceed 24 ms.',
       'Android layer A/B: repeat the same route with none and hardware; do not change the default without evidence.',
       'No visible OOM, ANR, crash or continuous PSS growth.',
     ],
@@ -302,7 +351,7 @@ function captureReport(args) {
 
 function readReport(filePath) {
   const report = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  if (!report || report.schemaVersion !== REPORT_VERSION || !report.summary) {
+  if (!report || ![1, REPORT_VERSION].includes(report.schemaVersion) || !report.summary) {
     throw new Error(`Invalid PDF benchmark report: ${filePath}`);
   }
   return report;
@@ -360,10 +409,10 @@ function compareReports(nativeReport, webReport) {
     && webReport.snapshot?.pssKb
     && nativeReport.summary.firstPageMs.count >= MIN_FIRST_PAGE_SAMPLES
     && webReport.summary.firstPageMs.count >= MIN_FIRST_PAGE_SAMPLES
-    && nativeReport.summary.pageLatencyMs.count >= MIN_INTERACTION_SAMPLES
-    && webReport.summary.pageLatencyMs.count >= MIN_INTERACTION_SAMPLES
-    && nativeReport.summary.scaleLatencyMs.count >= MIN_INTERACTION_SAMPLES
-    && webReport.summary.scaleLatencyMs.count >= MIN_INTERACTION_SAMPLES,
+    && nativeReport.summary.pageLatencyMs.count >= MIN_PAGE_SAMPLES
+    && webReport.summary.pageLatencyMs.count >= MIN_PAGE_SAMPLES
+    && nativeReport.summary.scaleLatencyMs.count >= MIN_ZOOM_SAMPLES
+    && webReport.summary.scaleLatencyMs.count >= MIN_ZOOM_SAMPLES,
   );
   const decision = failed.length || !stability.pass
     ? 'keep-webview-experimental'
@@ -381,7 +430,8 @@ function compareReports(nativeReport, webReport) {
       sampleGate,
       minimumSamples: {
         firstPage: MIN_FIRST_PAGE_SAMPLES,
-        interaction: MIN_INTERACTION_SAMPLES,
+        page: MIN_PAGE_SAMPLES,
+        zoom: MIN_ZOOM_SAMPLES,
       },
       requiredManualChecks: nativeReport.manualChecklist,
     },
@@ -398,6 +448,44 @@ function compareReports(nativeReport, webReport) {
   return result;
 }
 
+function compareBaselineReports(baseline, candidate) {
+  const checks = [];
+  const addRatio = (metric, before, after, limit) => {
+    const value = ratio(after, before);
+    checks.push({ metric, baseline: before ?? null, candidate: after ?? null,
+      ratio: value, limit, pass: value === null ? null : value <= limit });
+  };
+  addRatio('firstPageMs.p50', baseline.summary.firstPageMs.p50,
+    candidate.summary.firstPageMs.p50, 0.7);
+  addRatio('firstPageMs.p95', baseline.summary.firstPageMs.p95,
+    candidate.summary.firstPageMs.p95, 1);
+  addRatio('pageLatencyMs.p50', baseline.summary.pageLatencyMs.p50,
+    candidate.summary.pageLatencyMs.p50, 0.7);
+  addRatio('pageLatencyMs.p95', baseline.summary.pageLatencyMs.p95,
+    candidate.summary.pageLatencyMs.p95, 1);
+  addRatio('pssKb', baseline.snapshot?.pssKb, candidate.snapshot?.pssKb, 1.1);
+  const slowFrameRatio = candidate.summary.webRuntime?.volumeScroll?.slowFrameRatio ?? null;
+  checks.push({
+    metric: 'volumeScroll.slowFrameRatio',
+    baseline: baseline.summary.webRuntime?.volumeScroll?.slowFrameRatio ?? null,
+    candidate: slowFrameRatio,
+    limit: 0.05,
+    pass: finite(slowFrameRatio) ? slowFrameRatio <= 0.05 : null,
+  });
+  const measured = checks.filter((check) => check.pass !== null);
+  const failed = checks.filter((check) => check.pass === false);
+  const result = {
+    schemaVersion: REPORT_VERSION,
+    comparedAt: new Date().toISOString(),
+    mode: 'webview-baseline',
+    checks,
+    decision: failed.length ? 'regression-or-target-missed'
+      : measured.length === checks.length ? 'optimization-targets-met' : 'insufficient-measurements',
+  };
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
 function main() {
   const args = parseArgs(process.argv);
   if (args.help || args.h) {
@@ -408,6 +496,12 @@ function main() {
     const paths = [args.compare, ...(Array.isArray(args._) ? args._ : [])];
     if (paths.length < 2) throw new Error('Use --compare native.json webview.json.');
     compareReports(readReport(paths[0]), readReport(paths[1]));
+    return;
+  }
+  if (args['compare-baseline']) {
+    const paths = [args['compare-baseline'], ...(Array.isArray(args._) ? args._ : [])];
+    if (paths.length < 2) throw new Error('Use --compare-baseline before.json after.json.');
+    compareBaselineReports(readReport(paths[0]), readReport(paths[1]));
     return;
   }
   captureReport(args);

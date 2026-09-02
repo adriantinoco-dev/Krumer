@@ -9,7 +9,7 @@ import { describePdfSource, pdfDevLog, pdfDevMetric, pdfDevWarn } from './pdf/pd
 import { clampPdfPage, clampPdfScale } from './pdf/pdfState';
 import { savePdfScale } from './pdf/usePdfPrefs';
 import { usePdfSource } from './pdf/usePdfSource';
-import { subscribeToReaderVolumeKeys } from './readerVolumeKeys';
+import { subscribeToReaderVolumeKeyEvents } from './readerVolumeKeys';
 
 const PDF_LOAD_TIMEOUT_MS = 12_000;
 const PDF_SIDE_TAP_RATIO = 0.25;
@@ -387,21 +387,44 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
 
   useEffect(() => {
     if (!interactionEnabled) return undefined;
-    return subscribeToReaderVolumeKeys((direction) => {
+    let webviewScrollHeld = false;
+    const stop = subscribeToReaderVolumeKeyEvents((event) => {
       if (!documentLoadedRef.current) return;
       if (displayMode === 'scroll') {
-        const fraction = direction === 'next'
+        const fraction = event.direction === 'next'
           ? PDF_VOLUME_SCROLL_VIEWPORT_RATIO
           : -PDF_VOLUME_SCROLL_VIEWPORT_RATIO;
+        if (activeEngineRef.current === 'webview') {
+          if (event.phase === 'press') {
+            engineRef.current?.scrollByViewport(fraction);
+          } else if (event.phase === 'repeat' && !webviewScrollHeld) {
+            webviewScrollHeld = true;
+            engineRef.current?.startViewportScroll(event.direction === 'next' ? 1 : -1);
+          } else if (event.phase === 'release' && webviewScrollHeld) {
+            webviewScrollHeld = false;
+            engineRef.current?.stopViewportScroll();
+          }
+          return;
+        }
+        if (event.phase === 'release') return;
         engineRef.current?.scrollByViewport(fraction);
-        requestAnimationFrame(() => pdfDevLog('controls:volume-scroll', { direction, fraction }));
+        requestAnimationFrame(() => pdfDevLog('controls:volume-scroll', {
+          direction: event.direction,
+          fraction,
+          phase: event.phase,
+        }));
         return;
       }
-      const delta = direction === 'next' ? 1 : -1;
+      if (event.phase !== 'press') return;
+      const delta = event.direction === 'next' ? 1 : -1;
       goToPage(currentPageRef.current + delta);
       const page = currentPageRef.current;
-      requestAnimationFrame(() => pdfDevLog('controls:volume-key', { direction, page }));
-    }, { allowRepeats: displayMode === 'scroll' });
+      requestAnimationFrame(() => pdfDevLog('controls:volume-key', { direction: event.direction, page }));
+    });
+    return () => {
+      if (webviewScrollHeld) engineRef.current?.stopViewportScroll();
+      stop();
+    };
   }, [displayMode, goToPage, interactionEnabled]);
 
   const handleTapAtX = useCallback((tapX: number, source: 'quick' | 'native' | 'webview') => {
@@ -489,7 +512,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     );
   }
 
-  if (resolving || !resolvedUri) {
+  if (activeEngine !== 'webview' && (resolving || !resolvedUri)) {
     return (
       <View style={{ alignItems: 'center', backgroundColor: theme.bg, flex: 1, justifyContent: 'center' }}>
         <ActivityIndicator color={theme.accent} size="large" />
@@ -518,7 +541,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
           resolvedUri={resolvedUri}
           scale={initialScaleRef.current}
         />
-      ) : (
+      ) : resolvedUri ? (
         <NativePdfEngine
         ref={engineRef}
         displayMode={displayMode}
@@ -534,7 +557,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
         resolvedUri={resolvedUri}
         scale={initialScaleRef.current}
         />
-      )}
+      ) : null}
       {loading ? (
         <View
           pointerEvents="none"
@@ -553,7 +576,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
         >
           <ActivityIndicator color={theme.accent} size="large" />
           <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12 }}>
-            Carregando documento...
+            {resolving || !resolvedUri ? 'Preparando PDF...' : 'Carregando documento...'}
           </Text>
         </View>
       ) : null}

@@ -6,6 +6,8 @@ import { prepareEpubFile } from './epubFile';
 import { loadEpubFontFaces } from './readerFonts';
 import { loadStoredReaderSettings } from './readerSettings';
 import { resolvePdfUri } from './pdf/pdfUri';
+import { preparePdfWebRuntime } from './pdf/pdfWebRuntimeAsset';
+import { loadPdfEnginePreference } from './pdf/usePdfEnginePreference';
 import { loadPdfPrefs } from './pdf/usePdfPrefs';
 import { loadStoredReadingPreferences } from './useReadingPreferences';
 import { loadStoredReaderLayoutSettings } from './useReaderLayoutSettings';
@@ -64,10 +66,15 @@ export function preloadReaderBook(book: Book, language: LanguageCode): Promise<v
       preferences.then(({ fontFamily }) => loadEpubFontFaces(fontFamily)),
     );
   } else {
+    const engine = loadPdfEnginePreference();
     tasks.push(
       resolvePdfUri(book.filePath, book.fileSize),
       loadPdfPrefs(),
       loadPdfProgress(book.id),
+      engine,
+      engine.then((selectedEngine) => (
+        selectedEngine === 'webview' ? preparePdfWebRuntime() : undefined
+      )),
     );
   }
 

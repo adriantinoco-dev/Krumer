@@ -2,8 +2,10 @@ const fs = require('fs');
 const vm = require('vm');
 const ts = require('typescript');
 
+const readText = (filePath) => fs.readFileSync(filePath, 'utf8').replace(/\r\n/g, '\n');
+
 function loadTypeScriptModule(filePath, imports = {}) {
-  const source = fs.readFileSync(filePath, 'utf8');
+  const source = readText(filePath);
   const compiled = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   }).outputText;
@@ -96,10 +98,21 @@ async function main() {
   volumeListener('previous');
   volumeListener('previous:repeat');
   stopScrollVolume();
+  const lifecycleVolumeEvents = [];
+  const stopLifecycleVolume = volumeKeys.subscribeToReaderVolumeKeyEvents((event) => {
+    lifecycleVolumeEvents.push(`${event.direction}:${event.phase}:${event.repeatCount}`);
+  });
+  volumeListener({ direction: 'next', phase: 'press', repeatCount: 0, eventTime: 10 });
+  volumeListener({ direction: 'next', phase: 'repeat', repeatCount: 1, eventTime: 20 });
+  volumeListener({ direction: 'next', phase: 'release', repeatCount: 0, eventTime: 30 });
+  stopLifecycleVolume();
   if (
     JSON.stringify(paginatedVolumeEvents) !== JSON.stringify(['next'])
     || JSON.stringify(scrollVolumeEvents) !== JSON.stringify(['previous', 'previous'])
-    || JSON.stringify(volumeEnabledStates) !== JSON.stringify([true, false, true, false])
+    || JSON.stringify(lifecycleVolumeEvents) !== JSON.stringify([
+      'next:press:0', 'next:repeat:1', 'next:release:0',
+    ])
+    || JSON.stringify(volumeEnabledStates) !== JSON.stringify([true, false, true, false, true, false])
   ) {
     throw new Error('Volume long-press events are not isolated to repeat-enabled reader modes.');
   }
@@ -113,18 +126,18 @@ async function main() {
     throw new Error('react-native-pdf must remain pinned to the installed 6.7.7 contract.');
   }
 
-  const readerSource = fs.readFileSync('src/readers/PdfReader.tsx', 'utf8');
-  const readerTypesSource = fs.readFileSync('src/readers/PdfReader.types.ts', 'utf8');
-  const engineSource = fs.readFileSync('src/readers/pdf/NativePdfEngine.tsx', 'utf8');
-  const pdfUriSource = fs.readFileSync('src/readers/pdf/pdfUri.ts', 'utf8');
-  const pdfSourceHookSource = fs.readFileSync('src/readers/pdf/usePdfSource.ts', 'utf8');
-  const pdfPrefsSource = fs.readFileSync('src/readers/pdf/usePdfPrefs.ts', 'utf8');
-  const readerStartupSource = fs.readFileSync('src/readers/readerStartup.ts', 'utf8');
-  const bookDetailSource = fs.readFileSync('src/screens/BookDetailScreen.tsx', 'utf8');
-  const debugSource = fs.readFileSync('src/readers/pdf/pdfDebug.ts', 'utf8');
-  const nativePatchSource = fs.readFileSync('scripts/fix-netinfo-gradle9.cjs', 'utf8');
-  const installedPdfIndexSource = fs.readFileSync('node_modules/react-native-pdf/index.js', 'utf8');
-  const installedPdfTypesSource = fs.readFileSync('node_modules/react-native-pdf/index.d.ts', 'utf8');
+  const readerSource = readText('src/readers/PdfReader.tsx');
+  const readerTypesSource = readText('src/readers/PdfReader.types.ts');
+  const engineSource = readText('src/readers/pdf/NativePdfEngine.tsx');
+  const pdfUriSource = readText('src/readers/pdf/pdfUri.ts');
+  const pdfSourceHookSource = readText('src/readers/pdf/usePdfSource.ts');
+  const pdfPrefsSource = readText('src/readers/pdf/usePdfPrefs.ts');
+  const readerStartupSource = readText('src/readers/readerStartup.ts');
+  const bookDetailSource = readText('src/screens/BookDetailScreen.tsx');
+  const debugSource = readText('src/readers/pdf/pdfDebug.ts');
+  const nativePatchSource = readText('scripts/fix-netinfo-gradle9.cjs');
+  const installedPdfIndexSource = readText('node_modules/react-native-pdf/index.js');
+  const installedPdfTypesSource = readText('node_modules/react-native-pdf/index.d.ts');
   const installedPdfFabricSource = fs.readFileSync(
     'node_modules/react-native-pdf/fabric/RNPDFPdfNativeComponent.js',
     'utf8',
@@ -137,15 +150,15 @@ async function main() {
     'node_modules/react-native-pdf/android/src/main/java/org/wonday/pdf/PdfView.java',
     'utf8',
   );
-  const volumeKeysSource = fs.readFileSync('src/readers/readerVolumeKeys.ts', 'utf8');
-  const epubVolumeKeysSource = fs.readFileSync('src/readers/epubVolumeKeys.ts', 'utf8');
-  const pdfBookmarksSource = fs.readFileSync('src/readers/usePdfBookmarks.ts', 'utf8');
-  const readerNotesSource = fs.readFileSync('src/readers/useEpubNotes.ts', 'utf8');
-  const readerScreenSource = fs.readFileSync('src/screens/ReaderScreen.tsx', 'utf8');
-  const paginationModalSource = fs.readFileSync('src/components/PaginationSettingsModal.tsx', 'utf8');
-  const zoomButtonSource = fs.readFileSync('src/components/PdfZoomButton.tsx', 'utf8');
-  const zoomModalSource = fs.readFileSync('src/components/PdfZoomModal.tsx', 'utf8');
-  const translationsSource = fs.readFileSync('src/i18n/translations.ts', 'utf8');
+  const volumeKeysSource = readText('src/readers/readerVolumeKeys.ts');
+  const epubVolumeKeysSource = readText('src/readers/epubVolumeKeys.ts');
+  const pdfBookmarksSource = readText('src/readers/usePdfBookmarks.ts');
+  const readerNotesSource = readText('src/readers/useEpubNotes.ts');
+  const readerScreenSource = readText('src/screens/ReaderScreen.tsx');
+  const paginationModalSource = readText('src/components/PaginationSettingsModal.tsx');
+  const zoomButtonSource = readText('src/components/PdfZoomButton.tsx');
+  const zoomModalSource = readText('src/components/PdfZoomModal.tsx');
+  const translationsSource = readText('src/i18n/translations.ts');
   const mainActivitySource = fs.readFileSync(
     'android/app/src/main/java/com/adriantinoco/krumer/MainActivity.kt',
     'utf8',
@@ -548,19 +561,23 @@ async function main() {
 
   if (
     !volumeKeysSource.includes("export type ReaderVolumeDirection = 'next' | 'previous'")
+    || !volumeKeysSource.includes("export type ReaderVolumeKeyPhase = 'press' | 'repeat' | 'release'")
     || !volumeKeysSource.includes("const EVENT_NAME = 'KrumerVolumeKey'")
     || !volumeKeysSource.includes("value === 'next:repeat' || value === 'previous:repeat'")
-    || !volumeKeysSource.includes('event.repeated && !allowRepeats')
+    || !volumeKeysSource.includes('subscribeToReaderVolumeKeyEvents')
+    || !volumeKeysSource.includes("event.phase === 'release' || (event.phase === 'repeat' && !allowRepeats)")
     || !epubVolumeKeysSource.includes('subscribeToReaderVolumeKeys as subscribeToEpubVolumeKeys')
-    || !readerSource.includes('subscribeToReaderVolumeKeys((direction)')
-    || !readerSource.includes("}, { allowRepeats: displayMode === 'scroll' })")
+    || !readerSource.includes('subscribeToReaderVolumeKeyEvents((event)')
     || !readerSource.includes("if (displayMode === 'scroll')")
     || !readerSource.includes('engineRef.current?.scrollByViewport(fraction)')
+    || !readerSource.includes('engineRef.current?.startViewportScroll')
+    || !readerSource.includes('engineRef.current?.stopViewportScroll()')
     || !readerSource.includes("pdfDevLog('controls:volume-scroll'")
-    || !readerSource.includes("const delta = direction === 'next' ? 1 : -1")
-    || !mainActivitySource.includes('if (event.action == KeyEvent.ACTION_DOWN)')
-    || mainActivitySource.includes('event.repeatCount == 0')
-    || !mainActivitySource.includes('if (event.repeatCount > 0) "$direction:repeat" else direction')
+    || !readerSource.includes("const delta = event.direction === 'next' ? 1 : -1")
+    || !mainActivitySource.includes('event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP')
+    || !mainActivitySource.includes('"release"')
+    || !mainActivitySource.includes('"repeat"')
+    || !mainActivitySource.includes('"press"')
   ) {
     throw new Error('Volume Up/Down do not scroll continuously or preserve paginated PDF navigation.');
   }

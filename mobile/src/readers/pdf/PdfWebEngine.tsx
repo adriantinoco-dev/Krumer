@@ -6,6 +6,7 @@ import React, {
   useImperativeHandle,
   useMemo,
   useRef,
+  useState,
 } from 'react';
 import { View } from 'react-native';
 import { File, FileMode } from 'expo-file-system';
@@ -14,6 +15,7 @@ import type { WebView as WebViewType, WebViewMessageEvent } from 'react-native-w
 import { useApp } from '../../context/AppContext';
 import { PDF_DEFAULTS, type PdfEngineHandle, type PdfDisplayMode, type PdfPageSize } from '../PdfReader.types';
 import { describePdfSource, pdfDevLog, pdfDevMetric, pdfDevWarn } from './pdfDebug';
+import { getCachedPdfWebRuntimeUri, preparePdfWebRuntime } from './pdfWebRuntimeAsset';
 import {
   createPdfWebBridgeCommand,
   PDF_WEB_BRIDGE_QUEUE_LIMIT,
@@ -21,9 +23,6 @@ import {
   type PdfWebBridgeCommand,
   type PdfWebRuntimeMetrics,
 } from './pdfWebBridge';
-import { PDF_WEB_RUNTIME_HTML } from './web/pdfWebRuntime';
-
-const RUNTIME_ORIGIN = 'https://krumer.pdf.local/';
 const RUNTIME_READY_TIMEOUT_MS = 12_000;
 const MAX_CONCURRENT_RANGES = 2;
 const MAX_PENDING_RANGES = 24;
@@ -43,7 +42,7 @@ type PdfWebEngineProps = {
   onPageChanged: (page: number, total: number) => void;
   onScaleChanged?: (scale: number) => void;
   onSingleTap: (page: number, x: number, y: number) => void;
-  resolvedUri: string;
+  resolvedUri: string | null;
   scale: number;
 };
 
@@ -71,18 +70,11 @@ function bytesToBase64(bytes: Uint8Array): string {
   return result;
 }
 
-async function readPdfRange(uri: string, begin: number, end: number): Promise<string> {
+async function readPdfRange(handle: ReturnType<File['open']>, begin: number, end: number): Promise<string> {
   const length = end - begin;
   if (length <= 0 || length > MAX_RANGE_BYTES) throw new Error('Invalid PDF byte range.');
-  const file = new File(uri);
-  if (!file.exists) throw new Error('PDF file is no longer available.');
-  const handle = file.open(FileMode.ReadOnly);
-  try {
-    handle.offset = begin;
-    return bytesToBase64(handle.readBytes(length));
-  } finally {
-    handle.close();
-  }
+  handle.offset = begin;
+  return bytesToBase64(handle.readBytes(length));
 }
 
 /** PDF.js + foliate-js fixed-layout engine running inside one stable WebView. */
@@ -112,21 +104,23 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
     const openGenerationRef = useRef(0);
     const rangeQueueRef = useRef<RangeRequest[]>([]);
     const activeRangeCountRef = useRef(0);
+    const activeFileRef = useRef<{
+      handle: ReturnType<File['open']>;
+      uri: string;
+    } | null>(null);
     const currentPageRef = useRef(initialPage);
     const totalPagesRef = useRef(0);
-    const source = useMemo(() => ({ html: PDF_WEB_RUNTIME_HTML, baseUrl: RUNTIME_ORIGIN }), []);
+    const runtimeStartedAtRef = useRef(Date.now());
+    const [runtimeUri, setRuntimeUri] = useState(getCachedPdfWebRuntimeUri);
+    const source = useMemo(() => (runtimeUri ? { uri: runtimeUri } : null), [runtimeUri]);
 
-    const injectCommand = useCallback((command: PdfWebBridgeCommand) => {
-      const serialized = JSON.stringify(command);
-      const safeArgument = JSON.stringify(serialized);
-      webviewRef.current?.injectJavaScript(
-        `window.KrumerPdfBridge && window.KrumerPdfBridge.receive(${safeArgument}); true;`,
-      );
+    const postCommand = useCallback((command: PdfWebBridgeCommand) => {
+      webviewRef.current?.postMessage(JSON.stringify(command));
     }, []);
 
     const sendCommand = useCallback((command: PdfWebBridgeCommand) => {
       if (runtimeReadyRef.current) {
-        injectCommand(command);
+        postCommand(command);
         return;
       }
       if (pendingCommandsRef.current.length >= PDF_WEB_BRIDGE_QUEUE_LIMIT) {
@@ -134,22 +128,34 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
         return;
       }
       pendingCommandsRef.current.push(command);
-    }, [injectCommand, onError]);
+    }, [onError, postCommand]);
 
     const flushPendingCommands = useCallback(() => {
       const commands = pendingCommandsRef.current.splice(0, PDF_WEB_BRIDGE_QUEUE_LIMIT);
-      commands.forEach(injectCommand);
-    }, [injectCommand]);
+      commands.forEach(postCommand);
+    }, [postCommand]);
+
+    const closeActiveFile = useCallback(() => {
+      const activeFile = activeFileRef.current;
+      activeFileRef.current = null;
+      try {
+        activeFile?.handle.close();
+      } catch {
+        // Closing is idempotent from the reader's point of view.
+      }
+    }, []);
 
     const drainRangeQueue = useCallback(() => {
       while (activeRangeCountRef.current < MAX_CONCURRENT_RANGES && rangeQueueRef.current.length) {
         const request = rangeQueueRef.current.shift();
         if (!request) break;
+        const activeFile = activeFileRef.current;
+        if (!activeFile || activeFile.uri !== request.bookId) continue;
         activeRangeCountRef.current += 1;
-        void readPdfRange(request.bookId, request.begin, request.end)
+        void readPdfRange(activeFile.handle, request.begin, request.end)
           .then((dataBase64) => {
             if (request.generation !== openGenerationRef.current) return;
-            injectCommand(createPdfWebBridgeCommand('READ_RANGE_RESULT', {
+            postCommand(createPdfWebBridgeCommand('READ_RANGE_RESULT', {
               bookId: request.bookId,
               dataBase64,
               requestId: request.requestId,
@@ -157,7 +163,7 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
           })
           .catch((error: unknown) => {
             if (request.generation !== openGenerationRef.current) return;
-            injectCommand(createPdfWebBridgeCommand('READ_RANGE_RESULT', {
+            postCommand(createPdfWebBridgeCommand('READ_RANGE_RESULT', {
               bookId: request.bookId,
               error: error instanceof Error ? error.message : String(error),
               requestId: request.requestId,
@@ -168,7 +174,7 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
             drainRangeQueue();
           });
       }
-    }, [injectCommand]);
+    }, [postCommand]);
 
     const handleMessage = useCallback((event: WebViewMessageEvent) => {
       const message = parsePdfWebBridgeEvent(event.nativeEvent.data);
@@ -178,15 +184,20 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
       }
 
       if (message.type === 'READY') {
+        if (runtimeReadyRef.current) return;
         runtimeReadyRef.current = true;
         if (readyTimerRef.current) clearTimeout(readyTimerRef.current);
+        pdfDevMetric('web:runtime-ready', {
+          elapsedMs: Date.now() - runtimeStartedAtRef.current,
+          engine: 'webview',
+        });
         flushPendingCommands();
         return;
       }
       if (message.type === 'READ_RANGE') {
         if (message.payload.bookId !== resolvedUri) return;
         if (rangeQueueRef.current.length + activeRangeCountRef.current >= MAX_PENDING_RANGES) {
-          injectCommand(createPdfWebBridgeCommand('READ_RANGE_RESULT', {
+          postCommand(createPdfWebBridgeCommand('READ_RANGE_RESULT', {
             bookId: message.payload.bookId,
             error: 'PDF byte range queue is full.',
             requestId: message.payload.requestId,
@@ -204,7 +215,7 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
         if (message.payload.bookId !== resolvedUri) return;
         currentPageRef.current = message.payload.page;
         totalPagesRef.current = message.payload.totalPages;
-        onLoadComplete(message.payload.totalPages, resolvedUri, {
+        onLoadComplete(message.payload.totalPages, message.payload.bookId, {
           height: message.payload.height,
           width: message.payload.width,
         });
@@ -246,6 +257,23 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
         });
         return;
       }
+      if (message.type === 'VOLUME_SCROLL_METRICS') {
+        pdfDevMetric('web:volume-scroll', {
+          engine: 'webview',
+          ...message.payload,
+          slowFrameRatio: message.payload.frames
+            ? message.payload.slowFrames / message.payload.frames
+            : 0,
+        });
+        return;
+      }
+      if (message.type === 'PERFORMANCE_METRIC') {
+        pdfDevMetric(`web:${message.payload.stage}`, {
+          engine: 'webview',
+          ...message.payload,
+        });
+        return;
+      }
       if (message.type === 'SINGLE_TAP') {
         // Runtime viewport CSS pixels and React Native layout points are both
         // density-independent here; keep the coordinate space explicit.
@@ -266,11 +294,17 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
           : message.payload.message;
         onError(new Error(detail));
       }
-    }, [drainRangeQueue, flushPendingCommands, injectCommand, onError, onExternalLink, onLoadComplete, onLoadProgress, onPageChanged, onScaleChanged, onSingleTap, resolvedUri]);
+    }, [drainRangeQueue, flushPendingCommands, onError, onExternalLink, onLoadComplete, onLoadProgress, onPageChanged, onScaleChanged, onSingleTap, postCommand, resolvedUri]);
 
     useImperativeHandle(ref, () => ({
       scrollByViewport: (fraction) => {
         sendCommand(createPdfWebBridgeCommand('SCROLL_BY_VIEWPORT', { fraction }));
+      },
+      startViewportScroll: (direction) => {
+        sendCommand(createPdfWebBridgeCommand('START_VIEWPORT_SCROLL', { direction }));
+      },
+      stopViewportScroll: () => {
+        sendCommand(createPdfWebBridgeCommand('STOP_VIEWPORT_SCROLL', {}));
       },
       setPage: (page) => {
         currentPageRef.current = page;
@@ -282,25 +316,46 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
     }), [sendCommand]);
 
     useEffect(() => {
+      runtimeStartedAtRef.current = Date.now();
+      let cancelled = false;
+      void preparePdfWebRuntime()
+        .then((uri) => {
+          if (!cancelled) setRuntimeUri(uri);
+        })
+        .catch(onError);
+      return () => {
+        cancelled = true;
+      };
+    }, [onError]);
+
+    useEffect(() => {
+      if (!runtimeUri) return undefined;
       const timer = setTimeout(() => {
         if (!runtimeReadyRef.current) onError(new Error('PDF WebView runtime did not become ready.'));
       }, RUNTIME_READY_TIMEOUT_MS);
       readyTimerRef.current = timer;
       return () => clearTimeout(timer);
-    }, [onError]);
+    }, [onError, runtimeUri]);
 
     useEffect(() => {
+      if (!resolvedUri) return undefined;
       const generation = openGenerationRef.current + 1;
       openGenerationRef.current = generation;
       rangeQueueRef.current = [];
       pendingCommandsRef.current = pendingCommandsRef.current.filter((command) => command.type !== 'OPEN_BOOK');
       if (runtimeReadyRef.current) sendCommand(createPdfWebBridgeCommand('CLOSE_BOOK', {}));
+      closeActiveFile();
 
       let byteLength = Math.max(0, Math.trunc(fileSize ?? 0));
       try {
         const file = new File(resolvedUri);
         byteLength = file.size || byteLength;
+        activeFileRef.current = {
+          handle: file.open(FileMode.ReadOnly),
+          uri: resolvedUri,
+        };
       } catch (error) {
+        closeActiveFile();
         onError(error);
         return undefined;
       }
@@ -321,9 +376,10 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
       return () => {
         if (openGenerationRef.current === generation) {
           pendingCommandsRef.current = pendingCommandsRef.current.filter((command) => command.type !== 'OPEN_BOOK');
+          closeActiveFile();
         }
       };
-    }, [fileSize, onError, resolvedUri, sendCommand]);
+    }, [closeActiveFile, fileSize, onError, resolvedUri, sendCommand]);
 
     useEffect(() => {
       sendCommand(createPdfWebBridgeCommand('SET_DISPLAY_MODE', { displayMode }));
@@ -335,35 +391,37 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
 
     useEffect(() => () => {
       openGenerationRef.current += 1;
-      if (runtimeReadyRef.current) injectCommand(createPdfWebBridgeCommand('CLOSE_BOOK', {}));
+      if (runtimeReadyRef.current) postCommand(createPdfWebBridgeCommand('CLOSE_BOOK', {}));
+      closeActiveFile();
       pendingCommandsRef.current = [];
       rangeQueueRef.current = [];
       runtimeReadyRef.current = false;
-    }, [injectCommand]);
+    }, [closeActiveFile, postCommand]);
 
     const handleNavigationRequest = useCallback((request: { url: string }) => {
       const { url } = request;
       if (
         url === 'about:blank'
-        || url.startsWith(RUNTIME_ORIGIN)
+        || (runtimeUri !== null && url.startsWith(runtimeUri))
         || url.startsWith('blob:')
         || url.startsWith('data:')
       ) return true;
       if (/^(https?:|mailto:|tel:)/i.test(url)) onExternalLink?.(url);
       return false;
-    }, [onExternalLink]);
+    }, [onExternalLink, runtimeUri]);
+
+    if (!source) return <View style={{ backgroundColor: theme.bg, flex: 1 }} />;
 
     return (
       <View style={{ backgroundColor: theme.bg, flex: 1 }}>
         <WebView
           ref={webviewRef}
           androidLayerType={PDF_WEB_ANDROID_LAYER_TYPE}
-          allowFileAccess={false}
+          allowFileAccess
           allowFileAccessFromFileURLs={false}
           allowUniversalAccessFromFileURLs={false}
-          cacheEnabled={false}
+          cacheEnabled
           domStorageEnabled={false}
-          incognito
           javaScriptCanOpenWindowsAutomatically={false}
           javaScriptEnabled
           mixedContentMode="never"

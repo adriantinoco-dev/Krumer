@@ -1,10 +1,13 @@
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
 
 export type ReaderVolumeDirection = 'next' | 'previous';
+export type ReaderVolumeKeyPhase = 'press' | 'repeat' | 'release';
 
-type ReaderVolumeKeyEvent = {
+export type ReaderVolumeKeyEvent = {
   direction: ReaderVolumeDirection;
-  repeated: boolean;
+  eventTime?: number;
+  phase: ReaderVolumeKeyPhase;
+  repeatCount: number;
 };
 
 type ReaderVolumeKeysOptions = {
@@ -22,20 +25,37 @@ const volumeKeysModule = NativeModules.KrumerVolumeKeys as KrumerVolumeKeysModul
 
 export function parseReaderVolumeKeyEvent(value: unknown): ReaderVolumeKeyEvent | null {
   if (value === 'next' || value === 'previous') {
-    return { direction: value, repeated: false };
+    return { direction: value, phase: 'press', repeatCount: 0 };
   }
   if (value === 'next:repeat' || value === 'previous:repeat') {
     return {
       direction: value.startsWith('next') ? 'next' : 'previous',
-      repeated: true,
+      phase: 'repeat',
+      repeatCount: 1,
     };
+  }
+  if (typeof value === 'object' && value !== null) {
+    const event = value as Record<string, unknown>;
+    const direction = event.direction;
+    const phase = event.phase;
+    const repeatCount = event.repeatCount;
+    const eventTime = event.eventTime;
+    if (
+      (direction === 'next' || direction === 'previous')
+      && (phase === 'press' || phase === 'repeat' || phase === 'release')
+      && typeof repeatCount === 'number'
+      && Number.isInteger(repeatCount)
+      && repeatCount >= 0
+      && (eventTime === undefined || (typeof eventTime === 'number' && Number.isFinite(eventTime)))
+    ) {
+      return { direction, eventTime, phase, repeatCount };
+    }
   }
   return null;
 }
 
-export function subscribeToReaderVolumeKeys(
-  onDirection: (direction: ReaderVolumeDirection) => void,
-  { allowRepeats = false }: ReaderVolumeKeysOptions = {},
+export function subscribeToReaderVolumeKeyEvents(
+  onEvent: (event: ReaderVolumeKeyEvent) => void,
 ) {
   if (Platform.OS !== 'android' || !volumeKeysModule) return () => undefined;
 
@@ -43,12 +63,21 @@ export function subscribeToReaderVolumeKeys(
   volumeKeysModule.setEnabled(true);
   const subscription = emitter.addListener(EVENT_NAME, (value: unknown) => {
     const event = parseReaderVolumeKeyEvent(value);
-    if (!event || (event.repeated && !allowRepeats)) return;
-    onDirection(event.direction);
+    if (event) onEvent(event);
   });
 
   return () => {
     subscription.remove();
     volumeKeysModule.setEnabled(false);
   };
+}
+
+export function subscribeToReaderVolumeKeys(
+  onDirection: (direction: ReaderVolumeDirection) => void,
+  { allowRepeats = false }: ReaderVolumeKeysOptions = {},
+) {
+  return subscribeToReaderVolumeKeyEvents((event) => {
+    if (event.phase === 'release' || (event.phase === 'repeat' && !allowRepeats)) return;
+    onDirection(event.direction);
+  });
 }

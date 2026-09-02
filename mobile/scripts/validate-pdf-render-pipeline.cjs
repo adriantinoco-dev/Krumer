@@ -1,7 +1,7 @@
 const assert = require('assert');
 const fs = require('fs');
 
-const read = (relativePath) => fs.readFileSync(relativePath, 'utf8');
+const read = (relativePath) => fs.readFileSync(relativePath, 'utf8').replace(/\r\n/g, '\n');
 
 async function loadFixedLayout() {
   global.HTMLElement = class HTMLElement {};
@@ -32,21 +32,32 @@ async function main() {
   const zoomModal = read('src/components/PdfZoomModal.tsx');
 
   assert(pdf.includes('const MAX_CONCURRENT_PAGE_RENDERS = 2'));
-  assert(pdf.includes('renderQueue.sort((a, b) => a.priority - b.priority'));
+  assert(pdf.includes('renderQueue.sort((a, b) => a.queuePriority - b.queuePriority'));
   assert(pdf.includes('activeRenderTasks.get(doc)?.cancel()'));
   assert(pdf.includes('MAX_VISIBLE_CANVAS_PIXELS'));
   assert(pdf.includes('MAX_BACKGROUND_CANVAS_PIXELS'));
-  assert(pdf.includes("stagedText = doc.createElement('div')"));
-  assert(pdf.includes("stagedAnnotations = doc.createElement('div')"));
+  assert(pdf.includes("const stagedText = doc.createElement('div')"));
+  assert(pdf.includes("const stagedAnnotations = doc.createElement('div')"));
   assert(pdf.includes(".filter(annotation => annotation?.subtype !== 'Link')"));
   assert(pdf.includes('disableFontFace: true'));
   assert(pdf.includes('useSystemFonts: true'));
   assert(pdf.indexOf('container.replaceChildren(...stagedText.childNodes)')
     > pdf.indexOf('await new pdfjsLib.AnnotationLayer'));
+  assert(pdf.includes('const renderedStates = new WeakMap()'));
+  assert(pdf.includes('const textContentCache = new WeakMap()'));
+  assert(pdf.includes('const annotationsCache = new WeakMap()'));
+  assert(pdf.includes("phase: priority === 0 ? 'final' : 'preview'"));
+  assert(pdf.includes('A detached/nearby preload becomes the visible preview'));
+  assert(pdf.includes('scheduleInteractionLayers(page, doc, zoom)'));
   assert(pdf.includes('scheduleRender(page, doc, scale, pageColors, priority)'));
 
   assert(fixed.includes('distance <= 2'));
   assert(fixed.includes('priority: 2'));
+  assert(fixed.includes('#preloadPromises = new Map()'));
+  assert(fixed.includes('const navigationGeneration = ++this.#navigationGeneration'));
+  assert(fixed.includes('findScrollPageIndex('));
+  assert(fixed.includes('#rebuildScrollMetrics()'));
+  assert(fixed.includes('this.#scrollEventFrame = requestAnimationFrame'));
   assert(fixed.includes('renderComplete = Promise.resolve()'));
   assert(fixed.includes("this.dispatchEvent(new CustomEvent('render-complete'"));
   assert(fixed.includes('this.#layoutScrollFrame(page, scale)'));
@@ -77,6 +88,14 @@ async function main() {
   assert(zoomModal.includes("'reader.zoomFitWidthHint' : 'reader.zoomFitPageHint'"));
 
   const helpers = await loadFixedLayout();
+  const longPages = Array.from({ length: 300 }, (_, index) => ({
+    index,
+    size: 1000 + index,
+    start: index * 1200,
+  }));
+  assert.strictEqual(helpers.findScrollPageIndex(longPages, 0), 0);
+  assert.strictEqual(helpers.findScrollPageIndex(longPages, 1200 * 157 + 500), 157);
+  assert.strictEqual(helpers.findScrollPageIndex(longPages, 1200 * 299 + 900), 299);
   const captured = helpers.capturePaginatedAnchor({
     clientHeight: 500,
     clientWidth: 300,
@@ -136,6 +155,21 @@ async function main() {
   const pdfAdapter = await loadPdfAdapter();
   const page = { getViewport: ({ scale }) => ({ height: 100 * scale, width: 100 * scale }) };
   assert(pdfAdapter.getRenderDpr(page, 1, 0) > pdfAdapter.getRenderDpr(page, 1, 2));
+  const signature = { color: '{}', dpr: 2, scale: 1 };
+  assert.deepStrictEqual(pdfAdapter.planProgressiveRender({
+    color: '{}', desiredDpr: 2, previewDpr: 1.5, priority: 0, rendered: signature, scale: 1,
+  }), { action: 'reuse', upgrade: false });
+  assert.deepStrictEqual(pdfAdapter.planProgressiveRender({
+    color: '{}', desiredDpr: 2.5, previewDpr: 2, priority: 0,
+    scale: 1, work: { color: '{}', dpr: 2, zoom: 1 },
+  }), { action: 'promote', upgrade: true });
+  assert.deepStrictEqual(pdfAdapter.planProgressiveRender({
+    color: '{}', desiredDpr: 2.5, previewDpr: 2, priority: 0, scale: 1,
+  }), { action: 'preview', upgrade: true });
+  assert.deepStrictEqual(pdfAdapter.planProgressiveRender({
+    color: '{}', desiredDpr: 2.5, previewDpr: 2, priority: 0,
+    rendered: signature, scale: 1.5,
+  }), { action: 'preview', upgrade: true });
 
   console.log('PDF render queue, adaptive sharpness, committed scale, and viewport anchors are valid.');
 }
