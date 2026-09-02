@@ -58,8 +58,12 @@ export function createPdfGestureController(options: any) {
     var y = Number(event?.clientY) || 0;
     if (surface.frame?.getBoundingClientRect) {
       var frameRect = surface.frame.getBoundingClientRect();
-      x += frameRect.left;
-      y += frameRect.top;
+      // Pointer coordinates inside an iframe are untransformed CSS pixels.
+      // Include its live pinch scale when mapping them back to the viewport.
+      var scaleX = surface.frame.clientWidth ? frameRect.width / surface.frame.clientWidth : 1;
+      var scaleY = surface.frame.clientHeight ? frameRect.height / surface.frame.clientHeight : 1;
+      x = frameRect.left + x * scaleX;
+      y = frameRect.top + y * scaleY;
     }
     return { x: x - root.left, y: y - root.top };
   }
@@ -691,7 +695,11 @@ const bridgeRuntime = `
     function commitScale(nextScale, gestureMs) {
       currentScale = clampScale(nextScale);
       var commitId = ++scaleCommitId;
-      viewer.setAttribute('scale-factor', String(currentScale * 100));
+      if (currentScale === 1 && gestureMs === undefined) {
+        viewer.resetZoom();
+      } else {
+        viewer.setAttribute('scale-factor', String(currentScale * 100));
+      }
       // The native UI reflects the scale only after the visible render window
       // has settled. Superseded commits never report stale percentages.
       Promise.resolve(viewer.renderComplete).then(function () {
@@ -855,9 +863,7 @@ const bridgeRuntime = `
     }
 
     function stopViewportScroll() {
-      viewportScrollDirection = 0;
-      viewportScrollTarget = null;
-      ensureViewportScrollFrame();
+      cancelViewportScroll();
     }
 
     function bridgeFile(byteLength) {

@@ -2008,6 +2008,16 @@ export class FixedLayout extends HTMLElement {
                 }
             })
     }
+    resetZoom() {
+        // 100% is the current viewport fit, independent of the canvas's raster
+        // size or the focal point left by the last pinch. Keep the scroll-mode
+        // reading anchor; only paginated pages return to their visual centre.
+        this.#pinchAnchor = null
+        this.#paginatedAnchor = { x: 0.5, y: 0.5 }
+        this.#zoom = this.#scrollMode ? 'fit-width' : 'fit-page'
+        this.setAttribute('scale-factor', '100')
+        if (this.#scrollMode && !this.#scrollHorizontal) this.scrollLeft = 0
+    }
     pinchZoom(ratio, focal = {}) {
         // Scroll mode: scale the whole scroll container around the fingers and
         // translate with their moving midpoint. Paging/virtualization remains

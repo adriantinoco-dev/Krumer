@@ -260,6 +260,37 @@ function main() {
   assert(!runtimeSource.includes("doc.addEventListener('click'"),
     'PDF page links still have a clickable document-level handler.');
 
+  // The live preview transforms the iframe itself. Android reports the next
+  // pointer event in that frame's local coordinates, even for stationary fingers.
+  controller.resetFrames();
+  scale = 1;
+  let scaledRect = { left: 20, top: 30, width: 400, height: 800 };
+  const scaledFrame = {
+    clientWidth: 400,
+    clientHeight: 800,
+    getBoundingClientRect: () => scaledRect,
+  };
+  const scaledDoc = new FakeTarget({ frame: scaledFrame, nodeType: 9 });
+  controller.attach(scaledDoc, { doc: scaledDoc, frame: scaledFrame, index: 2 });
+  scaledDoc.dispatch('pointerdown', pointerEvent(20, 100, 200, plainTarget));
+  scaledDoc.dispatch('pointerdown', pointerEvent(21, 200, 200, plainTarget));
+  scaledDoc.dispatch('pointermove', pointerEvent(21, 300, 200, plainTarget));
+  flushFrames();
+  assert(pinchPreviews.at(-1).ratio === 2, 'Pinch did not reach the requested 200%.');
+  scaledRect = { left: -80, top: -170, width: 800, height: 1600 };
+  for (let tick = 0; tick < 5; tick += 1) {
+    scaledDoc.dispatch('pointermove', pointerEvent(21, 200, 200, plainTarget));
+    scaledDoc.dispatch('pointermove', pointerEvent(20, 100, 200, plainTarget));
+    flushFrames();
+    assert(pinchPreviews.at(-1).ratio === 2,
+      'Stationary fingers changed the zoom after the iframe was transformed.');
+    assert(pinchPreviews.at(-1).focal.deltaX === 50 && pinchPreviews.at(-1).focal.deltaY === 0,
+      'The transformed iframe fed its own movement back into the pinch focal point.');
+  }
+  scaledDoc.dispatch('pointerup', pointerEvent(21, 200, 200, plainTarget));
+  scaledDoc.dispatch('pointerup', pointerEvent(20, 100, 200, plainTarget));
+  assert(commits.at(-1).value === 2, 'Pinch release lost the stable visual scale.');
+
   controller.destroy();
   console.log('PDF WebView unified tap, pan, pinch, swipe, selection, and link gestures are valid.');
 }

@@ -47,6 +47,15 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   a piloto; nenhuma remoção do motor nativo é feita nesta etapa.
 
 ### Corrigido
+- **Mobile — restaurar zoom do PDF:** 100% volta a aplicar o encaixe da página
+  inteira centralizada no modo paginado e da largura no modo scroll, preservando
+  o ponto de leitura. A escala da pinça deixa de ser arredondada em passos de 5%
+  na exibição, e a restauração continua disponível mesmo quando o painel mostra 100%.
+- **Mobile — zoom e volume no PDF WebView:** a pinça passa a ampliar o canvas
+  existente por transformação visual, sem rasterizar novamente a página a cada
+  zoom, e considera a escala dos frames nas coordenadas dos dedos. Pressionar e
+  segurar volume reutiliza o passo existente de +18%/−18% do viewport em cada
+  repetição; soltar interrompe a rolagem mantida sem desaceleração residual.
 - **Mobile — robustez e acabamento do PDF WebView (P2):** leituras parciais
   agora têm fila limitada, timeout e descarte por livro/geração, impedindo que
   uma resposta atrasada contamine o próximo PDF. Páginas com falha no modo

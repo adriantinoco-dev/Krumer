@@ -356,7 +356,10 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     const nextScale = clampPdfScale(requestedScale);
     const pendingScale = pendingScaleMetricRef.current?.scale;
     if (pendingScale !== undefined && Math.abs(pendingScale - nextScale) < 0.001) return;
-    if (pendingScale === undefined && Math.abs(currentScaleRef.current - nextScale) < 0.001) return;
+    // Restoring 100% must reapply the fit even if the displayed scale is already
+    // 100% (for example after a pan or a very small pinch).
+    if (nextScale !== PDF_DEFAULTS.scale && pendingScale === undefined
+      && Math.abs(currentScaleRef.current - nextScale) < 0.001) return;
     if (documentLoadedRef.current) {
       pendingScaleMetricRef.current = { scale: nextScale, startedAt: Date.now() };
       pdfDevMetric('reader:scale-request', { engine: activeEngineRef.current, scale: nextScale });
@@ -365,7 +368,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   }, []);
 
   const handleScaleChanged = useCallback((reportedScale: number) => {
-    const nextScale = clampPdfScale(reportedScale);
+    const nextScale = clampPdfScale(reportedScale, false);
     const pendingScale = pendingScaleMetricRef.current;
     if (pendingScale && Math.abs(nextScale - pendingScale.scale) < 0.01) {
       pdfDevMetric('reader:scale-ready', {
@@ -395,15 +398,13 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
           ? PDF_VOLUME_SCROLL_VIEWPORT_RATIO
           : -PDF_VOLUME_SCROLL_VIEWPORT_RATIO;
         if (activeEngineRef.current === 'webview') {
-          if (event.phase === 'press') {
-            engineRef.current?.scrollByViewport(fraction);
-          } else if (event.phase === 'repeat' && !webviewScrollHeld) {
-            webviewScrollHeld = true;
-            engineRef.current?.startViewportScroll(event.direction === 'next' ? 1 : -1);
-          } else if (event.phase === 'release' && webviewScrollHeld) {
+          if (event.phase === 'release') {
+            if (webviewScrollHeld) engineRef.current?.stopViewportScroll();
             webviewScrollHeld = false;
-            engineRef.current?.stopViewportScroll();
+            return;
           }
+          webviewScrollHeld = event.phase === 'repeat';
+          engineRef.current?.scrollByViewport(fraction);
           return;
         }
         if (event.phase === 'release') return;

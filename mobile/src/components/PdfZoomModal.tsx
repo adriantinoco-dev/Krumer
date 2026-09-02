@@ -130,7 +130,6 @@ export function PdfZoomModal({ displayMode, onChange, onClose, onReset, scale, v
           <Pressable
             accessibilityLabel={t('reader.zoomReset')}
             accessibilityRole="button"
-            disabled={Math.abs(requestedScale - PDF_DEFAULTS.scale) < 0.001}
             onPress={() => {
               setRequestedScale(PDF_DEFAULTS.scale);
               onReset();
@@ -138,7 +137,7 @@ export function PdfZoomModal({ displayMode, onChange, onClose, onReset, scale, v
             style={({ pressed }) => ({
               alignItems: 'center',
               alignSelf: 'center',
-              opacity: Math.abs(requestedScale - PDF_DEFAULTS.scale) < 0.001 ? 0.4 : pressed ? 0.55 : 1,
+              opacity: pressed ? 0.55 : 1,
               paddingHorizontal: spacing.md,
               paddingVertical: spacing.xs,
             })}

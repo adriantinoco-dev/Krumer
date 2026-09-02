@@ -226,6 +226,7 @@ const annotationsCache = new WeakMap()
 const MAX_CONCURRENT_PAGE_RENDERS = 2
 const renderQueue = []
 const queuedRenderByDocument = new WeakMap()
+const visualScales = new WeakMap()
 let activePageRenders = 0
 let nextRenderRequestId = 0
 
@@ -307,6 +308,12 @@ const setLayerScale = (element, zoom) => {
     element.style.setProperty('--user-unit', '1')
     element.style.setProperty('--scale-round-x', '1px')
     element.style.setProperty('--scale-round-y', '1px')
+}
+
+const applyVisualScale = (doc, rasterScale) => {
+    const ratio = (visualScales.get(doc) ?? rasterScale) / rasterScale
+    doc.body.style.transformOrigin = 'top left'
+    doc.body.style.transform = `scale(${ratio})`
 }
 
 const isDocumentAttached = doc => {
@@ -475,8 +482,7 @@ const render = async (page, doc, zoom, pageColors, priority = 0) => {
         generation,
         scale: zoom,
     })
-    doc.body.style.removeProperty('transform')
-    doc.body.style.removeProperty('transform-origin')
+    applyVisualScale(doc, zoom)
     if (oldCanvas) {
         oldCanvas.width = 0
         oldCanvas.height = 0
@@ -565,19 +571,20 @@ const queueFinalUpgrade = (page, doc, zoom, pageColors) => {
 export const scheduleRender = (page, doc, zoom, pageColors, priority = 0) => {
     if (!doc || !isDocumentAttached(doc)) return Promise.resolve(false)
     priority = Math.max(0, Number(priority) || 0)
-    const color = JSON.stringify(pageColors ?? null)
-    const desiredDpr = getRenderDpr(page, zoom, priority)
+    visualScales.set(doc, zoom)
     const rendered = renderedStates.get(doc)
     const work = renderWorkByDocument.get(doc)
+    // Keep this page's canvas and text at their original raster scale. Zoom
+    // only transforms the existing content, including while its first render
+    // is pending; it must not rebuild the page after each pinch.
+    zoom = rendered?.scale ?? work?.zoom ?? zoom
+    if (rendered) applyVisualScale(doc, rendered.scale)
+    const color = JSON.stringify(pageColors ?? null)
+    const desiredDpr = getRenderDpr(page, zoom, priority)
     const previewDpr = getRenderDpr(page, zoom, 1)
     const plan = planProgressiveRender({
         color, desiredDpr, previewDpr, priority, rendered, scale: zoom, work,
     })
-    if (rendered && Math.abs(rendered.scale - zoom) > 0.001) {
-        doc.body.style.transformOrigin = 'top left'
-        doc.body.style.transform = `scale(${zoom / rendered.scale})`
-    }
-
     if (plan.action === 'reuse') {
         if (priority === 0) {
             scheduleInteractionLayers(page, doc, zoom)

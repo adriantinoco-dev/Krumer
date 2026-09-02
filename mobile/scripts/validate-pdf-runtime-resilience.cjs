@@ -75,6 +75,47 @@ async function main() {
   assert(runtimeSource.includes("window.addEventListener('message', receiveMessage)"));
   assert(runtimeSource.includes("document.addEventListener('message', receiveMessage)"));
   assert(!runtimeSource.includes("viewer.scrollBy({ top: viewer.clientHeight * fraction, behavior: 'smooth' })"));
+  // Run the existing 18% animation and verify release cancels every queued frame.
+  const scrollFunctions = runtimeSource.slice(
+    runtimeSource.indexOf('    function postVolumeScrollMetrics()'),
+    runtimeSource.indexOf('    function bridgeFile(byteLength)'),
+  );
+  const frames = new Map();
+  let nextFrame = 0;
+  let now = 0;
+  const scrollViewer = { scrolled: true, scrollTop: 1000, scrollHeight: 20000, clientHeight: 1000 };
+  const scroll = vm.runInNewContext(`(function () {
+    var viewportScrollFrame = null, viewportScrollTarget = null, viewportScrollDirection = 0;
+    var viewportScrollVelocity = 0, viewportScrollLastAt = 0, volumeScrollStartedAt = 0;
+    var volumeScrollFrames = 0, volumeScrollSlowFrames = 0, volumeScrollMaxFrameMs = 0;
+    ${scrollFunctions}
+    return { queueViewportScroll, stopViewportScroll };
+  })()`, {
+    viewer: scrollViewer,
+    post() {},
+    requestAnimationFrame: (callback) => { frames.set(++nextFrame, callback); return nextFrame; },
+    cancelAnimationFrame: (id) => frames.delete(id),
+  });
+  const tick = () => {
+    const callbacks = [...frames.values()];
+    frames.clear();
+    now += 16.667;
+    callbacks.forEach(callback => callback(now));
+  };
+  scroll.queueViewportScroll(0.18);
+  for (let i = 0; i < 60 && frames.size; i += 1) tick();
+  assert.strictEqual(scrollViewer.scrollTop, 1180);
+  scroll.queueViewportScroll(-0.18);
+  scroll.queueViewportScroll(-0.18);
+  for (let i = 0; i < 60 && frames.size; i += 1) tick();
+  assert.strictEqual(scrollViewer.scrollTop, 820);
+  scroll.queueViewportScroll(0.18);
+  tick();
+  scroll.stopViewportScroll();
+  const stoppedTop = scrollViewer.scrollTop;
+  for (let i = 0; i < 10; i += 1) tick();
+  assert.strictEqual(frames.size, 0, 'Release left volume scrolling scheduled.');
+  assert.strictEqual(scrollViewer.scrollTop, stoppedTop, 'Scroll drifted after release.');
   assert(runtimeSource.includes('var readyAttempts = 0;'));
   assert(runtimeSource.includes('setTimeout(announceReady, 50);'));
   assert(runtimeSource.includes("post('READY', { engine: 'pdf.js', engineVersion: '5.5.207' })"));

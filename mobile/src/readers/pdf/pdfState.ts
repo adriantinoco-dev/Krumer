@@ -8,9 +8,10 @@ export function clampPdfPage(page: number, total: number): number {
   return normalized;
 }
 
-export function clampPdfScale(value: number): number {
+export function clampPdfScale(value: number, snapToStep = true): number {
   if (!Number.isFinite(value)) return PDF_DEFAULTS.scale;
   const clamped = Math.min(PDF_DEFAULTS.maxScale, Math.max(PDF_DEFAULTS.minScale, value));
+  if (!snapToStep) return clamped;
   const snapped = Math.round(clamped / PDF_DEFAULTS.scaleStep) * PDF_DEFAULTS.scaleStep;
   return Math.round(snapped * 100) / 100;
 }

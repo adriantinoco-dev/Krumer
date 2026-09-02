@@ -77,6 +77,32 @@ async function main() {
     && paginatedModeFlip < fixed.indexOf('this.goToSpread(spread.index, spread.side'));
 
   assert(runtime.includes('Promise.resolve(viewer.renderComplete).then'));
+  const vm = require('vm');
+  const commitScaleSource = runtime.slice(
+    runtime.indexOf('    function commitScale(nextScale, gestureMs)'),
+    runtime.indexOf('    var gestureController ='),
+  );
+  const zoomActions = [];
+  const commitScale = vm.runInNewContext(`(function () {
+    var currentScale = 2, scaleCommitId = 0, book = {};
+    ${commitScaleSource}
+    return commitScale;
+  })()`, {
+    clampScale: value => value,
+    post() {},
+    viewer: {
+      renderComplete: Promise.resolve(),
+      resetZoom: () => zoomActions.push('fit'),
+      setAttribute: (name, value) => zoomActions.push([name, value]),
+    },
+  });
+  commitScale(1);
+  assert.deepStrictEqual(zoomActions, ['fit'], 'Restoring 100% must restore the viewport fit.');
+  commitScale(1, 120);
+  commitScale(2);
+  assert.deepStrictEqual(zoomActions.slice(1), [['scale-factor', '100'], ['scale-factor', '200']],
+    'Only an explicit reset should discard the pinch focal point.');
+  assert(fixed.includes("this.#zoom = this.#scrollMode ? 'fit-width' : 'fit-page'"));
   assert(runtime.includes("viewer.setAttribute('zoom', 'fit-page')"));
   assert(runtime.includes("viewer.setAttribute('zoom', 'fit-width')"));
   assert(!webEngine.includes('onScaleChanged?.(nextScale);'));
@@ -171,7 +197,63 @@ async function main() {
     rendered: signature, scale: 1.5,
   }), { action: 'preview', upgrade: true });
 
-  console.log('PDF render queue, adaptive sharpness, committed scale, and viewport anchors are valid.');
+  // Exercise the actual render queue: zoom must retain the canvas and its
+  // dimensions, also when a second zoom arrives before the first raster is ready.
+  Object.defineProperty(global, 'devicePixelRatio', { configurable: true, value: 1 });
+  const style = () => ({
+    setProperty(name, value) { this[name] = value; },
+    removeProperty(name) { delete this[name]; },
+  });
+  let liveCanvas = null;
+  const textLayer = { style: style() };
+  const annotationLayer = { style: style() };
+  const canvasContainer = {
+    querySelector: () => liveCanvas,
+    replaceChildren: (canvas) => { liveCanvas = canvas; },
+  };
+  const doc = {
+    defaultView: { frameElement: { isConnected: true, dataset: { sectionIndex: '0' } } },
+    body: { style: style() },
+    documentElement: { style: style() },
+    createElement: () => ({ style: style(), getContext: () => ({}) }),
+    querySelector: (selector) => ({
+      '#canvas': canvasContainer, '.textLayer': textLayer, '.annotationLayer': annotationLayer,
+    })[selector],
+  };
+  let renderCount = 0;
+  let completeRaster;
+  const rasterPage = {
+    ...page,
+    render() {
+      renderCount += 1;
+      return { promise: new Promise(resolve => { completeRaster = resolve; }), cancel() {} };
+    },
+  };
+  const initialRender = pdfAdapter.scheduleRender(rasterPage, doc, 1, null, 1);
+  const pendingZoom = pdfAdapter.scheduleRender(rasterPage, doc, 2, null, 1);
+  assert.strictEqual(renderCount, 1, 'Zoom restarted the raster still being loaded.');
+  completeRaster();
+  await Promise.all([initialRender, pendingZoom]);
+  assert.strictEqual(doc.body.style.transform, 'scale(2)', 'The first raster overwrote the pending zoom.');
+  const initialCanvas = liveCanvas;
+  for (const zoom of [4, 0.5, 1.6, 1]) {
+    await pdfAdapter.scheduleRender(rasterPage, doc, zoom, null, 0);
+    assert.strictEqual(renderCount, 1, 'Zoom rasterized the page again.');
+    assert.strictEqual(liveCanvas, initialCanvas, 'Zoom replaced the existing canvas.');
+    assert.strictEqual(liveCanvas.width, 100, 'Zoom resized or cleared the original bitmap.');
+    assert.strictEqual(doc.body.style.transform, `scale(${zoom})`);
+  }
+  // Real fitted scales are usually fractional PDF-point-to-viewport ratios.
+  // Reset must fit those dimensions without treating the raster as 100%.
+  const fittedScale = 0.63;
+  await pdfAdapter.scheduleRender(rasterPage, doc, fittedScale * 2, null, 0);
+  await pdfAdapter.scheduleRender(rasterPage, doc, fittedScale, null, 0);
+  assert.strictEqual(liveCanvas, initialCanvas, 'Restoring fit replaced the original canvas.');
+  const cssRatio = Number(doc.body.style.transform.match(/scale\(([^)]+)\)/)[1]);
+  assert.strictEqual(parseFloat(liveCanvas.style.width) * cssRatio, 63,
+    '100% did not restore the fitted page width independently of the raster scale.');
+
+  console.log('PDF render queue, canvas-preserving visual zoom, and viewport anchors are valid.');
 }
 
 main().catch((error) => {

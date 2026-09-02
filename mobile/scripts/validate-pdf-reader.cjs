@@ -63,6 +63,9 @@ async function main() {
   if (state.clampPdfPage(0, 20) !== 1 || state.clampPdfPage(99, 20) !== 20) {
     throw new Error('PDF page clamp is invalid.');
   }
+  if (state.clampPdfScale(1.024, false) !== 1.024 || state.clampPdfScale(0.981, false) !== 0.981) {
+    throw new Error('A pinch near 100% must keep its actual scale instead of snapping to 100%.');
+  }
 
   let volumeListener = null;
   const volumeEnabledStates = [];
@@ -570,7 +573,7 @@ async function main() {
     || !readerSource.includes('subscribeToReaderVolumeKeyEvents((event)')
     || !readerSource.includes("if (displayMode === 'scroll')")
     || !readerSource.includes('engineRef.current?.scrollByViewport(fraction)')
-    || !readerSource.includes('engineRef.current?.startViewportScroll')
+    || readerSource.includes('engineRef.current?.startViewportScroll')
     || !readerSource.includes('engineRef.current?.stopViewportScroll()')
     || !readerSource.includes("pdfDevLog('controls:volume-scroll'")
     || !readerSource.includes("const delta = event.direction === 'next' ? 1 : -1")
@@ -580,6 +583,87 @@ async function main() {
     || !mainActivitySource.includes('"press"')
   ) {
     throw new Error('Volume Up/Down do not scroll continuously or preserve paginated PDF navigation.');
+  }
+
+  const volumeEffectStart = readerSource.indexOf('    let webviewScrollHeld = false;');
+  const volumeEffectEnd = readerSource.indexOf('  }, [displayMode, goToPage, interactionEnabled]);', volumeEffectStart);
+  const volumeEffect = readerSource.slice(volumeEffectStart, volumeEffectEnd);
+  const assert = require('assert');
+  const scaleCallbacks = readerSource.slice(
+    readerSource.indexOf('  const getScale = useCallback('),
+    readerSource.indexOf('  useImperativeHandle(ref, () => ({ getScale, goToPage, setScale })'),
+  );
+  const scaleRequests = [];
+  const scaleControls = vm.runInNewContext(ts.transpileModule(`
+    (function () {
+      ${scaleCallbacks}
+      return { getScale, handleScaleChanged, setScale };
+    })()
+  `, { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText, {
+    useCallback: (callback) => callback,
+    currentScaleRef: { current: 1 },
+    pendingScaleMetricRef: { current: null },
+    documentLoadedRef: { current: true },
+    activeEngineRef: { current: 'webview' },
+    engineRef: { current: { setScale: (scale) => scaleRequests.push(scale) } },
+    clampPdfScale: state.clampPdfScale,
+    PDF_DEFAULTS: types.PDF_DEFAULTS,
+    onScaleChange() {},
+    pdfDevMetric() {},
+  });
+  scaleControls.handleScaleChanged(1.024);
+  assert.strictEqual(scaleControls.getScale(), 1.024);
+  scaleControls.setScale(1);
+  assert.deepStrictEqual(scaleRequests, [1], 'Restore was skipped after a pinch close to 100%.');
+  scaleControls.handleScaleChanged(1);
+  scaleControls.setScale(1);
+  assert.deepStrictEqual(scaleRequests, [1, 1], 'Restore must reapply the fit even at 100%.');
+  assert(!zoomModalSource.includes('disabled={Math.abs(requestedScale - PDF_DEFAULTS.scale)'),
+    'The reset action must remain available to restore the page fit.');
+
+  for (const displayMode of ['scroll', 'paginated']) {
+    const steps = [];
+    const pageRef = { current: 3 };
+    let listener;
+    let stops = 0;
+    let unsubscribed = false;
+    const cleanup = vm.runInNewContext(`(function () { ${volumeEffect} })()`, {
+      displayMode,
+      documentLoadedRef: { current: true },
+      activeEngineRef: { current: 'webview' },
+      currentPageRef: pageRef,
+      PDF_VOLUME_SCROLL_VIEWPORT_RATIO: 0.18,
+      engineRef: { current: {
+        scrollByViewport: (fraction) => steps.push(fraction),
+        stopViewportScroll: () => { stops += 1; },
+        startViewportScroll: () => { throw new Error('Hold must reuse the 18% step.'); },
+      } },
+      subscribeToReaderVolumeKeyEvents: (callback) => {
+        listener = callback;
+        return () => { unsubscribed = true; };
+      },
+      goToPage: (target) => { pageRef.current = target; },
+      requestAnimationFrame: (callback) => callback(),
+      pdfDevLog() {},
+    });
+    listener({ direction: 'next', phase: 'press' });
+    listener({ direction: 'next', phase: 'release' });
+    assert.strictEqual(stops, 0, 'A short click must finish its existing 18% step.');
+    listener({ direction: 'previous', phase: 'press' });
+    for (let repeat = 0; repeat < 5; repeat += 1) listener({ direction: 'previous', phase: 'repeat' });
+    listener({ direction: 'previous', phase: 'release' });
+    if (displayMode === 'scroll') {
+      assert.deepStrictEqual(steps, [0.18, -0.18, -0.18, -0.18, -0.18, -0.18, -0.18]);
+      assert.strictEqual(stops, 1, 'Releasing a held button must stop its animation.');
+      listener({ direction: 'next', phase: 'repeat' });
+      cleanup();
+      assert.strictEqual(stops, 2, 'Reader cleanup must stop a held scroll.');
+    } else {
+      assert.strictEqual(pageRef.current, 3, 'Hold must not repeat paginated page turns.');
+      assert.deepStrictEqual(steps, []);
+      cleanup();
+    }
+    assert(unsubscribed);
   }
 
   console.log('PDF reader controls, responsive 100% fitting, native jumpTo navigation, debounced zoom, bookmarks, notes, scrolling, persistence, and adapter are valid.');
