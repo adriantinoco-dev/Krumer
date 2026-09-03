@@ -301,7 +301,25 @@ export type TranslationKey =
   | 'theme.dark'
   | 'theme.label'
   | 'theme.light'
-  | 'theme.sepia';
+  | 'theme.sepia'
+  | 'update.title'
+  | 'update.available'
+  | 'update.currentVersion'
+  | 'update.changelogTitle'
+  | 'update.downloading'
+  | 'update.downloaded'
+  | 'update.installButton'
+  | 'update.downloadButton'
+  | 'update.laterButton'
+  | 'update.retryButton'
+  | 'update.ignoreButton'
+  | 'update.error'
+  | 'update.checking'
+  | 'update.upToDate'
+  | 'update.checkButton'
+  | 'update.installPermissionTitle'
+  | 'update.installPermissionMessage'
+  | 'update.openSettings';
 
 type Dictionary = Record<TranslationKey, string>;
 
@@ -617,6 +635,24 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'theme.label': 'Theme',
     'theme.light': 'Light',
     'theme.sepia': 'Sepia',
+    'update.title': 'Update Available',
+    'update.available': 'New version {0} available. Download now?',
+    'update.currentVersion': 'You\'re using version {0}',
+    'update.changelogTitle': 'What\'s new',
+    'update.downloading': 'Downloading update... {0}%',
+    'update.downloaded': 'Update ready. Tap to install.',
+    'update.installButton': 'Install',
+    'update.downloadButton': 'Update',
+    'update.laterButton': 'Later',
+    'update.retryButton': 'Try again',
+    'update.ignoreButton': 'Ignore this version',
+    'update.error': 'Update failed: {0}',
+    'update.checking': 'Checking for updates...',
+    'update.upToDate': 'You\'re using the latest version.',
+    'update.checkButton': 'Check for updates',
+    'update.installPermissionTitle': 'Permission required',
+    'update.installPermissionMessage': 'To install the update, you need to allow app installation from Krumer in your device settings.',
+    'update.openSettings': 'Open Settings',
   },
   'pt-br': {
     'about.credits': 'Gerenciador de biblioteca pessoal por adriantinoco-dev.',
@@ -921,6 +957,24 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'theme.label': 'Tema',
     'theme.light': 'Claro',
     'theme.sepia': 'Sépia',
+    'update.title': 'Atualização Disponível',
+    'update.available': 'Nova versão {0} disponível. Baixar agora?',
+    'update.currentVersion': 'Você está usando a versão {0}',
+    'update.changelogTitle': 'Novidades',
+    'update.downloading': 'Baixando atualização... {0}%',
+    'update.downloaded': 'Atualização pronta. Toque para instalar.',
+    'update.installButton': 'Instalar',
+    'update.downloadButton': 'Atualizar',
+    'update.laterButton': 'Depois',
+    'update.retryButton': 'Tentar novamente',
+    'update.ignoreButton': 'Ignorar esta versão',
+    'update.error': 'Falha na atualização: {0}',
+    'update.checking': 'Verificando atualizações...',
+    'update.upToDate': 'Você está usando a versão mais recente.',
+    'update.checkButton': 'Verificar atualizações',
+    'update.installPermissionTitle': 'Permissão necessária',
+    'update.installPermissionMessage': 'Para instalar a atualização, você precisa permitir a instalação de apps pelo Krumer nas configurações do seu dispositivo.',
+    'update.openSettings': 'Abrir Configurações',
   },
   es: {
     'about.credits': 'Gestor de biblioteca personal por adriantinoco-dev.',
@@ -1225,6 +1279,24 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'theme.label': 'Tema',
     'theme.light': 'Claro',
     'theme.sepia': 'Sepia',
+    'update.title': 'Actualización Disponible',
+    'update.available': 'Nueva versión {0} disponible. ¿Descargar ahora?',
+    'update.currentVersion': 'Estás usando la versión {0}',
+    'update.changelogTitle': 'Novedades',
+    'update.downloading': 'Descargando actualización... {0}%',
+    'update.downloaded': 'Actualización lista. Toca para instalar.',
+    'update.installButton': 'Instalar',
+    'update.downloadButton': 'Actualizar',
+    'update.laterButton': 'Después',
+    'update.retryButton': 'Intentar de nuevo',
+    'update.ignoreButton': 'Ignorar esta versión',
+    'update.error': 'Error en la actualización: {0}',
+    'update.checking': 'Buscando actualizaciones...',
+    'update.upToDate': 'Estás usando la versión más reciente.',
+    'update.checkButton': 'Buscar actualizaciones',
+    'update.installPermissionTitle': 'Permiso necesario',
+    'update.installPermissionMessage': 'Para instalar la actualización, necesitas permitir la instalación de apps desde Krumer en la configuración de tu dispositivo.',
+    'update.openSettings': 'Abrir Configuración',
   },
 };
 

@@ -19,11 +19,22 @@ type Props = NativeStackScreenProps<RootStackParamList, 'SettingsGroup'>;
 export function SettingsGroupScreen({ route }: Props) {
   const { group } = route.params;
   const { height } = useWindowDimensions();
-  const { preferences, setBooks, setGeminiApiKey, setLibraryFolder, setThemeName, theme, t } = useApp();
+  const { preferences, setBooks, setGeminiApiKey, setLibraryFolder, setThemeName, checkForUpdate, theme, t } = useApp();
   const [folder, setFolder] = useState(preferences.libraryFolder);
   const [apiKey, setApiKey] = useState('');
   const [status, setStatus] = useState(preferences.hasGeminiApiKey ? t('settings.keySaved') : t('api.noKey'));
   const [scanProgress, setScanProgress] = useState<ScanProgressState | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<string | null>(null);
+
+  async function handleCheckForUpdate() {
+    setUpdateStatus(t('update.checking'));
+    try {
+      await checkForUpdate();
+      setUpdateStatus(t('update.upToDate'));
+    } catch {
+      setUpdateStatus(null);
+    }
+  }
 
   const titles = {
     general: t('settings.general'),
@@ -121,6 +132,12 @@ export function SettingsGroupScreen({ route }: Props) {
             <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md }}>
               <KrumerLogo />
               <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13 }}>Krumer Mobile v0.1.0</Text>
+              <PrimaryButton label={t('update.checkButton')} onPress={handleCheckForUpdate} />
+              {updateStatus && (
+                <Text style={{ color: theme.accent, fontFamily: serifFont, fontSize: 13 }}>
+                  {updateStatus}
+                </Text>
+              )}
               <Pressable onPress={() => Linking.openURL('https://github.com/adriantinoco-dev/Krumer')}>
                 <Text style={{ color: theme.accent, fontFamily: serifFont, fontSize: 15 }}>{t('about.github')}</Text>
               </Pressable>

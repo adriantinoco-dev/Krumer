@@ -15,6 +15,9 @@ import {
 } from '../storage/preferences';
 import { removeGeminiApiKey, setGeminiApiKey as persistGeminiApiKey } from '../storage/secureCredentials';
 import { enqueueBookProgress, enqueueListMembership, enqueueMetadata, enqueueSyncList, enqueueTag } from '../sync/outbox';
+import { getLatestRelease } from '../services/updateService';
+import { isNewerVersion } from '../utils/version';
+import Constants from 'expo-constants';
 import { themes, type ThemeName } from '../theme';
 
 type AppContextValue = {
@@ -49,6 +52,7 @@ type AppContextValue = {
   setLibraryFolder: (libraryFolder: string | null) => Promise<void>;
   setThemeName: (theme: ThemeName) => Promise<void>;
   setBooksPerRow: (count: number) => Promise<void>;
+  checkForUpdate: () => Promise<void>;
   t: (key: TranslationKey) => string;
   theme: (typeof themes)[ThemeName];
 };
@@ -364,6 +368,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const language = preferences.language ?? DEFAULT_LANGUAGE;
   const t = useCallback((key: TranslationKey) => translate(language, key), [language]);
 
+  const checkForUpdate = useCallback(async () => {
+    const currentVersion = Constants.expoConfig?.version ?? '0.0.0';
+    const release = await getLatestRelease();
+    if (!release) return;
+    release.currentVersion = currentVersion;
+    if (!isNewerVersion(release.latestVersion, currentVersion)) return;
+    if (preferences.ignoredVersion === release.latestVersion) return;
+    await persistPreferences({ lastUpdateCheck: Date.now() });
+  }, [preferences.ignoredVersion]);
+
   const value = useMemo<AppContextValue>(() => {
     return {
       books,
@@ -391,6 +405,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setLibraryFolder: (libraryFolder) => persistPreferences({ libraryFolder }),
       setThemeName: (theme) => persistPreferences({ theme }),
       setBooksPerRow: (booksPerRow) => persistPreferences({ booksPerRow, booksPerRowMode: 'manual' }),
+      checkForUpdate,
       t,
       theme: themes[preferences.theme],
     };
@@ -416,6 +431,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updateBookProgress,
     setGeminiApiKey,
     setMetadataIntroSeen,
+    checkForUpdate,
     t,
   ]);
 

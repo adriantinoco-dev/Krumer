@@ -16,6 +16,8 @@ export type MobilePreferences = {
   cardViewMode?: '2d' | '3d';
   booksPerRow?: number;
   booksPerRowMode?: 'auto' | 'manual';
+  lastUpdateCheck?: number;
+  ignoredVersion?: string;
 };
 
 const KEYS = {

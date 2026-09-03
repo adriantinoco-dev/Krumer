@@ -3,6 +3,7 @@
     "name": "Krumer",
     "slug": "krumer",
     "displayName": "Krumer",
+    "version": "0.2.0",
     "scheme": "krumer",
     "orientation": "portrait",
     "android": {
@@ -10,11 +11,13 @@
       "permissions": [
         "READ_EXTERNAL_STORAGE",
         "READ_MEDIA_IMAGES",
-        "READ_MEDIA_VIDEO"
+        "READ_MEDIA_VIDEO",
+        "REQUEST_INSTALL_PACKAGES"
       ]
     },
     "plugins": [
       "./plugins/with-ndk27",
+      "./plugins/withInstallPermission",
       "expo-font",
       "expo-asset"
     ],
