@@ -1,5 +1,9 @@
 # Diagnóstico — seleção de texto reseta a paginação do EPUB
 
+> **Nota de manutenção (03/09/2026):** o PDF passou a usar exclusivamente
+> PDF.js/foliate-js em WebView. As referências abaixo ao leitor PDF nativo são
+> evidências do baseline anterior e não descrevem mais o runtime atual.
+
 **Data:** 2026-08-30  
 **Status:** contenção paginada reforçada e validada automaticamente; novo reteste Android pendente  
 **Escopo:** leitor EPUB mobile (Android, React Native/Expo, `react-native-webview` + epub.js)
@@ -179,7 +183,7 @@ que ambas ocorrem imediatamente após `updateBookProgress()`.
 |---|---|---|
 | Paginado | **Afetado e cenário observado** | A persistência de progresso recriava a WebView em qualquer modo; adicionalmente, resize de seleção pode recalcular colunas/spread. |
 | Scroll | **Afetado pela causa primária; cobertura automática do resize** | A recriação do `EpubReader` é comum aos dois modos. O teste de runtime também garante resize diferido e locator preservado no manager contínuo. |
-| PDF | **Fora do escopo/não afetado por este mecanismo** | Usa `react-native-pdf`, não a WebView/epub.js nem o runtime investigado. |
+| PDF | **Fora do escopo/não afetado por este mecanismo** | Usa PDF.js/foliate-js em uma WebView separada do runtime EPUB. |
 
 Não há ADB/emulador disponível neste ambiente para fechar a matriz manual por modo. Portanto,
 os modos paginado e scroll têm cobertura automatizada; ambos devem permanecer na matriz de

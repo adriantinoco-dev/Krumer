@@ -44,10 +44,15 @@ function findImageSrcInXhtml(htmlText: string): string | null {
   return null;
 }
 
+function isNamedCoverStem(stem: string) {
+  const normalizedStem = stem.trim().toLowerCase();
+  return normalizedStem.startsWith('cover') || normalizedStem.startsWith('capa');
+}
+
 function isNamedCoverPath(path: string) {
   const fileName = decodeURIComponent(path.split('/').pop() ?? '').toLowerCase();
   const stem = fileName.includes('.') ? fileName.slice(0, fileName.lastIndexOf('.')) : fileName;
-  return /^(?:cover|cover[-_ ]?(?:image|page)|capa)$/.test(stem);
+  return isNamedCoverStem(stem);
 }
 
 export async function extractEpubCoverFromBlob(fileBlob: Blob): Promise<string | null> {
@@ -96,7 +101,8 @@ export async function extractEpubCoverFromBlob(fileBlob: Blob): Promise<string |
       return null;
     }
 
-    // 1. Preferir um arquivo chamado "cover" dentro do ZIP. O arquivo pode
+    // 1. Preferir um arquivo cujo nome começa com "cover" ou "capa"
+    // dentro do ZIP. O arquivo pode
     // ser uma imagem ou uma página HTML/XHTML que referencia a imagem real.
     const namedCoverPaths = allPaths
       .filter((path) => !zip.files[path]?.dir && isNamedCoverPath(path))
@@ -156,10 +162,14 @@ export async function extractEpubCoverFromBlob(fileBlob: Blob): Promise<string |
           if (cover) return cover;
         }
 
-        // Strategy D: Manifest item com ID "cover"
-        const coverItemMatch = opfText.match(/<item\b[^>]*id=["'](?:cover|cover-image|coverimage|cover_image)["'][^>]*href=["']([^"']+)["']/i);
-        if (coverItemMatch) {
-          const cover = await resolveCoverCandidate(coverItemMatch[1], opfDir);
+        // Strategy D: Manifest item com ID iniciado por "cover" ou "capa"
+        const coverItemMatch = (opfText.match(/<item\b[^>]*>/gi) ?? []).find((item) => {
+          const idMatch = item.match(/\sid=["']([^"']+)["']/i);
+          return Boolean(idMatch && isNamedCoverStem(idMatch[1]));
+        });
+        const coverItemHref = coverItemMatch?.match(/\shref=["']([^"']+)["']/i)?.[1] ?? null;
+        if (coverItemHref) {
+          const cover = await resolveCoverCandidate(coverItemHref, opfDir);
           if (cover) return cover;
         }
 

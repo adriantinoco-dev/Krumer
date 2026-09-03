@@ -14,12 +14,21 @@ import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import type { MainTabParamList, RootStackParamList } from '../navigation/types';
 import { fuzzyMatch } from '../services/fuzzySearch';
-import { BOOK_GRID_MAX_CARD_WIDTH, CONTENT_MAX_WIDTH, getBookGridLayout, radii, serifFont, spacing } from '../theme';
+import { BOOK_GRID_MAX_CARD_WIDTH, CONTENT_MAX_WIDTH, getBookGridLayout, getDefaultBooksPerRow, radii, serifFont, spacing } from '../theme';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Library'>,
   NativeStackScreenProps<RootStackParamList>
 >;
+
+function getLibraryCardWidth(windowWidth: number, preferredColumns: number) {
+  const { numColumns } = getBookGridLayout(windowWidth, preferredColumns);
+  const gridWidth = Math.min(
+    Math.max(windowWidth - spacing.sm * 2, 1),
+    numColumns * BOOK_GRID_MAX_CARD_WIDTH,
+  );
+  return gridWidth / numColumns;
+}
 
 export function LibraryScreen({ navigation }: Props) {
   const { width } = useWindowDimensions();
@@ -29,7 +38,8 @@ export function LibraryScreen({ navigation }: Props) {
   const [sort, setSort] = useState<SortKey>('recent');
   const [longPressBook, setLongPressBook] = useState<Book | null>(null);
 
-  const { numColumns } = getBookGridLayout(width, preferences.booksPerRow ?? 3);
+  const preferredColumns = preferences.booksPerRowMode === 'manual' ? preferences.booksPerRow : undefined;
+  const { numColumns } = getBookGridLayout(width, preferredColumns);
   const gridWidth = Math.min(Math.max(width - spacing.sm * 2, 1), numColumns * BOOK_GRID_MAX_CARD_WIDTH);
   const cardWidth = gridWidth / numColumns;
 
@@ -174,7 +184,9 @@ function LibraryHeader({
   rescanDisabled: boolean;
   isScanning: boolean;
 }) {
+  const { width } = useWindowDimensions();
   const { theme, t } = useApp();
+  const continueCardWidth = getLibraryCardWidth(width, getDefaultBooksPerRow(width));
 
   const allLeafs = useMemo(
     () => flattenBooks(books).filter((book) => !book.children?.length),
@@ -223,6 +235,7 @@ function LibraryHeader({
                 book={item}
                 onPress={() => onPressBook(item)}
                 onLongPress={() => onLongPressBook?.(item)}
+                width={continueCardWidth}
               />
             )}
             showsHorizontalScrollIndicator={false}

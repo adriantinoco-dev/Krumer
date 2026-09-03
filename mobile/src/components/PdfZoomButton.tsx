@@ -9,7 +9,7 @@ export function PdfZoomButton({ color, onPress }: { color: string; onPress: () =
     <Pressable
       accessibilityLabel={t('reader.zoomSettings')}
       accessibilityRole="button"
-      hitSlop={6}
+      hitSlop={{ bottom: 6, left: 2, right: 2, top: 6 }}
       onPress={onPress}
       style={({ pressed }) => ({
         alignItems: 'center',

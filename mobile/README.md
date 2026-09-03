@@ -2,7 +2,7 @@
 
 Versao Android do Krumer em React Native / Expo.
 
-Este app vive no mesmo repositorio do desktop, mas mantem dependencias e codigo separados em `mobile/`. A UI principal e 100% nativa React Native; WebView e usada dentro dos leitores EPUB e PDF opcional.
+Este app vive no mesmo repositorio do desktop, mas mantem dependencias e codigo separados em `mobile/`. A UI principal e 100% nativa React Native; WebView e usada dentro dos leitores EPUB e PDF.
 
 ## Estado atual
 
@@ -12,27 +12,20 @@ Este app vive no mesmo repositorio do desktop, mas mantem dependencias e codigo 
 - Configuracoes agrupadas com subtelas de Geral, Tema, API Key e Sobre.
 - Scanner local de `.epub` e `.pdf` com progresso visual.
 - Extracao de capa EPUB via ZIP/OPF e thumbnail PDF via modulo nativo.
-- Leitor EPUB com WebView + epub.js e leitor PDF com `react-native-pdf` (padrão)
-  ou PDF.js + foliate-js em WebView, selecionável nas configurações com fallback
-  automático para o motor nativo. O motor WebView mantém pan, scroll e pinch
-  dentro do runtime e confirma a escala apenas ao fim do gesto.
-- A Fase 4 da migração mantém o rollout reversível: o modo scroll do WebView usa
-  placeholders, pré-carrega somente páginas próximas e limita canvases/concurrency;
-  o motor nativo continua como padrão. Métricas locais de abertura, páginas,
-  ranges e escala são registradas somente no log de desenvolvimento (`__DEV__`),
-  sem enviar informação do arquivo à rede.
-- A Fase 5 inclui `npm run benchmark:pdf-engines` para comparar os dois motores no
-  mesmo aparelho. O relatório mede primeira página, latências p50/p95, zoom,
-  PSS/CPU/temperatura e sinais de ANR/crash/OOM; `--compare native.json webview.json`
-  aplica o limite inicial de 1,5× e mantém a decisão de rollout explícita.
-  O roteiro completo está em `../docs/PDF_ENGINE_BENCHMARK.md`.
+- Leitor EPUB com WebView + epub.js e leitor PDF com PDF.js + foliate-js em uma
+  WebView única. O PDF mantém pan, scroll, pinch, ranges binários e cache de
+  runtime no mesmo caminho, sem seleção de engine ou fallback nativo.
+- O modo scroll do PDF usa placeholders, pré-carrega somente páginas próximas e
+  limita canvases/concurrency. Métricas locais de abertura, páginas, ranges e
+  escala são registradas somente no log de desenvolvimento (`__DEV__`), sem
+  enviar informação do arquivo à rede.
 - Busca de metadados via Gemini REST, individual e em lote de até 10 obras,
   com prévia e aplicação explícita.
 - Supabase Auth e sincronizacao offline-first estão preparados no código, mas congelados durante o beta; o acesso à conta exibe um aviso e os dados permanecem locais.
 
 ## Desenvolvimento
 
-Algumas dependencias sao nativas (`react-native-pdf`, `react-native-webview` e `@react-native-google-signin/google-signin`). Por isso, use development build; Expo Go nao suporta esse fluxo:
+Algumas dependencias sao nativas (`react-native-webview`, thumbnails e `@react-native-google-signin/google-signin`). Por isso, use development build; Expo Go nao suporta esse fluxo:
 
 ```bash
 npm install

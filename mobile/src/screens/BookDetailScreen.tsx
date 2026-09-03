@@ -7,6 +7,7 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  StatusBar,
   Text,
   TextInput,
   useWindowDimensions,
@@ -47,7 +48,7 @@ const ORANGE_ACCENT = '#ff6500';
 
 export function BookDetailScreen({ navigation, route }: Props) {
   const { bookId } = route.params;
-  const { width } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const {
     books,
@@ -112,9 +113,19 @@ export function BookDetailScreen({ navigation, route }: Props) {
   const heroSubtextColor = theme.name === 'dark' ? 'rgba(255, 255, 255, 0.85)' : theme.textSecondary;
   const heroMutedColor = theme.name === 'dark' ? 'rgba(255, 255, 255, 0.7)' : theme.textMuted;
   const heroAuthorColor = theme.name === 'dark' ? '#ffffff' : theme.textPrimary;
+  const heroBackdropHeight = Math.max(520, Math.min(height * 0.86, 920));
+  const heroBackdropTint = theme.name === 'dark'
+    ? 'rgba(0, 0, 0, 0.34)'
+    : theme.name === 'sepia'
+      ? 'rgba(96, 61, 24, 0.18)'
+      : 'rgba(255, 255, 255, 0.22)';
 
   // Header circular buttons: background matches theme background without border
-  const navButtonBg = theme.bg;
+  const navButtonBg = theme.name === 'dark'
+    ? 'rgba(17, 17, 17, 0.78)'
+    : theme.name === 'sepia'
+      ? 'rgba(244, 236, 216, 0.86)'
+      : 'rgba(255, 255, 255, 0.86)';
   const navButtonIconColor = theme.textPrimary;
 
   const parentBook = useMemo(
@@ -314,51 +325,63 @@ export function BookDetailScreen({ navigation, route }: Props) {
   };
 
   return (
-    <SafeAreaView edges={['top']} style={{ backgroundColor: theme.bg, flex: 1 }}>
+    <View style={{ backgroundColor: theme.bg, flex: 1 }}>
+      <StatusBar
+        animated
+        backgroundColor="transparent"
+        barStyle={theme.name === 'dark' ? 'light-content' : 'dark-content'}
+        translucent
+      />
       {/* Blurred Cover Backdrop Hero */}
       <View style={{ position: 'relative', flex: 1 }}>
         {showCover && (
-          <View pointerEvents="none" style={{ position: 'absolute', top: -50, left: -50, right: -50, bottom: -50, overflow: 'hidden' }}>
-            {/* Top Blurred Cover Artwork extending deep down */}
+          <View
+            pointerEvents="none"
+            style={{
+              height: heroBackdropHeight,
+              left: 0,
+              overflow: 'hidden',
+              position: 'absolute',
+              right: 0,
+              top: 0,
+            }}
+          >
             <Image
-              blurRadius={20}
+              blurRadius={24}
               onError={() => setCoverFailed(true)}
               resizeMode="cover"
               source={{ uri: book.coverPath ?? undefined }}
               style={{
-                height: 720,
-                width: '100%',
-                opacity: theme.name === 'dark' ? 1.0 : theme.name === 'sepia' ? 1.0 : 1.0,
-                transform: [{ scale: 1.35 }],
+                bottom: -48,
+                left: -48,
+                opacity: theme.name === 'dark' ? 0.9 : 0.72,
+                position: 'absolute',
+                right: -48,
+                top: -48,
               }}
             />
-            {/* Contrast tint overlay */}
             <View
               style={{
-                position: 'absolute',
-                top: 0,
+                backgroundColor: heroBackdropTint,
+                bottom: 0,
                 left: 0,
+                position: 'absolute',
                 right: 0,
-                height: 720,
-                backgroundColor: theme.name === 'dark' ? 'rgba(0, 0, 0, 0.40)' : 'rgba(255, 255, 255, 0.35)',
+                top: 0,
               }}
             />
-            {/* Full-screen SVG Linear Gradient for 100% seamless procedural fade into theme.bg */}
-            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
-              <Svg height="100%" width="100%">
-                <Defs>
-                  <LinearGradient id="smoothHeroFade" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <Stop offset="0%" stopColor={theme.bg} stopOpacity="0" />
-                    <Stop offset="15%" stopColor={theme.bg} stopOpacity="0.1" />
-                    <Stop offset="32%" stopColor={theme.bg} stopOpacity="0.4" />
-                    <Stop offset="55%" stopColor={theme.bg} stopOpacity="0.8" />
-                    <Stop offset="75%" stopColor={theme.bg} stopOpacity="1" />
-                    <Stop offset="100%" stopColor={theme.bg} stopOpacity="1" />
-                  </LinearGradient>
-                </Defs>
-                <Rect width="100%" height="100%" fill="url(#smoothHeroFade)" />
-              </Svg>
-            </View>
+            <Svg height="100%" width="100%" style={{ bottom: 0, left: 0, position: 'absolute', right: 0, top: 0 }}>
+              <Defs>
+                <LinearGradient id="smoothHeroFade" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <Stop offset="0%" stopColor={theme.bg} stopOpacity="0.04" />
+                  <Stop offset="28%" stopColor={theme.bg} stopOpacity="0.12" />
+                  <Stop offset="56%" stopColor={theme.bg} stopOpacity="0.56" />
+                  <Stop offset="78%" stopColor={theme.bg} stopOpacity="0.92" />
+                  <Stop offset="100%" stopColor={theme.bg} stopOpacity="1" />
+                </LinearGradient>
+              </Defs>
+              <Rect width="100%" height="100%" fill="url(#smoothHeroFade)" />
+            </Svg>
           </View>
         )}
 
@@ -369,11 +392,13 @@ export function BookDetailScreen({ navigation, route }: Props) {
             flexDirection: 'row',
             justifyContent: 'space-between',
             paddingHorizontal: spacing.md,
-            paddingVertical: spacing.md,
+            paddingBottom: spacing.md,
+            paddingTop: insets.top + spacing.md,
             zIndex: 10,
           }}
         >
           <Pressable
+            android_ripple={{ borderless: false, color: 'transparent' }}
             hitSlop={12}
             onPress={() => navigation.goBack()}
             style={{
@@ -383,11 +408,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
               height: 40,
               justifyContent: 'center',
               width: 40,
-              elevation: 4,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.18,
-              shadowRadius: 4,
+              overflow: 'hidden',
             }}
           >
             <ArrowLeft color={navButtonIconColor} size={20} />
@@ -395,6 +416,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
             <Pressable
+              android_ripple={{ borderless: false, color: 'transparent' }}
               hitSlop={12}
               onPress={() => { void toggleFavorite(book); }}
               style={{
@@ -404,11 +426,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
                 height: 40,
                 justifyContent: 'center',
                 width: 40,
-                elevation: 4,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.18,
-                shadowRadius: 4,
+                overflow: 'hidden',
               }}
             >
               <AnimatedFavoriteStar
@@ -419,6 +437,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
               />
             </Pressable>
             <Pressable
+              android_ripple={{ borderless: false, color: 'transparent' }}
               hitSlop={12}
               onPress={() => setActionsVisible(true)}
               style={{
@@ -428,11 +447,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
                 height: 40,
                 justifyContent: 'center',
                 width: 40,
-                elevation: 4,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.18,
-                shadowRadius: 4,
+                overflow: 'hidden',
               }}
             >
               <MoreVertical color={navButtonIconColor} size={20} />
@@ -442,7 +457,13 @@ export function BookDetailScreen({ navigation, route }: Props) {
 
         {/* Main Scroll Content */}
         <ScrollView
-          contentContainerStyle={{ alignItems: 'center', paddingHorizontal: spacing.md, paddingBottom: spacing.xl * 2 }}
+          contentContainerStyle={{
+            alignItems: 'center',
+            // Mantém a projeção superior da sombra fora do recorte do ScrollView.
+            paddingTop: spacing.md,
+            paddingHorizontal: spacing.md,
+            paddingBottom: spacing.xl * 2,
+          }}
           showsVerticalScrollIndicator={false}
         >
           <View style={{ maxWidth: CONTENT_MAX_WIDTH, width: '100%' }}>
@@ -450,40 +471,48 @@ export function BookDetailScreen({ navigation, route }: Props) {
           <View style={{ alignItems: 'center', marginTop: spacing.xs, marginBottom: spacing.lg }}>
             <View
               style={{
-                alignItems: 'center',
                 aspectRatio: 193 / 264,
-                backgroundColor: theme.card,
                 borderRadius: 18,
                 boxShadow: coverShadow(theme.name),
                 elevation: 12,
-                justifyContent: 'center',
-                overflow: 'hidden',
                 width: coverCardWidth,
               }}
             >
-              {showCover ? (
-                <Image
-                  onError={() => setCoverFailed(true)}
-                  resizeMode="cover"
-                  source={{ uri: book.coverPath ?? undefined }}
-                  style={{ height: '100%', width: '100%' }}
-                />
-              ) : (
-                <Text
-                  ellipsizeMode="tail"
-                  numberOfLines={4}
-                  style={{
-                    color: theme.textPrimary,
-                    fontFamily: serifFont,
-                    fontSize: 18,
-                    fontWeight: '800',
-                    paddingHorizontal: spacing.md,
-                    textAlign: 'center',
-                  }}
-                >
-                  {book.title}
-                </Text>
-              )}
+              <View
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: theme.card,
+                  borderRadius: 18,
+                  flex: 1,
+                  justifyContent: 'center',
+                  overflow: 'hidden',
+                  width: '100%',
+                }}
+              >
+                {showCover ? (
+                  <Image
+                    onError={() => setCoverFailed(true)}
+                    resizeMode="cover"
+                    source={{ uri: book.coverPath ?? undefined }}
+                    style={{ height: '100%', width: '100%' }}
+                  />
+                ) : (
+                  <Text
+                    ellipsizeMode="tail"
+                    numberOfLines={4}
+                    style={{
+                      color: theme.textPrimary,
+                      fontFamily: serifFont,
+                      fontSize: 18,
+                      fontWeight: '800',
+                      paddingHorizontal: spacing.md,
+                      textAlign: 'center',
+                    }}
+                  >
+                    {book.title}
+                  </Text>
+                )}
+              </View>
             </View>
 
             {/* Title */}
@@ -1201,7 +1230,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
           </ScrollView>
         </SafeAreaView>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 

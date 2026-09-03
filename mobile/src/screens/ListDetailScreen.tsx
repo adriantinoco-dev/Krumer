@@ -199,7 +199,8 @@ export function ListDetailScreen({ navigation, route }: Props) {
     };
   }, [books, collectionKey, initialTitle, listId, lists, t]);
 
-  const { cardWidth, gridWidth, numColumns } = getBookGridLayout(width, preferences.booksPerRow ?? 3);
+  const preferredColumns = preferences.booksPerRowMode === 'manual' ? preferences.booksPerRow : undefined;
+  const { cardWidth, gridWidth, numColumns } = getBookGridLayout(width, preferredColumns);
 
   const handleOpenBookDetail = (book: Book) => {
     navigation.navigate('BookDetail', { bookId: book.id });

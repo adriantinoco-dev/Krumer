@@ -91,7 +91,7 @@ async function main() {
   const androidManifest = fs.readFileSync('android/app/src/main/AndroidManifest.xml', 'utf8');
   const mainActivitySource = fs.readFileSync('android/app/src/main/java/com/adriantinoco/krumer/MainActivity.kt', 'utf8');
   if (appConfig.expo.orientation !== 'portrait' || !androidManifest.includes('android:screenOrientation="unspecified"')) {
-    throw new Error('The app config must default to portrait while native keeps reader orientation choices available.');
+    throw new Error('The app config must default to portrait while reader orientation choices remain available.');
   }
   if (
     !mainActivitySource.includes('ROTATION_ANIMATION_SEAMLESS')

@@ -11,7 +11,7 @@
 **Versão mobile (Android):** 0.1.0 — em desenvolvimento  
 **Branch principal:** `main`  
 **Plataforma primária:** Windows (NSIS). Linux (AppImage + deb) suportado via CI.
-**Mobile:** Android com React Native + Expo, em `mobile/`. PDF via `react-native-pdf` e EPUB via WebView + epub.js.
+**Mobile:** Android com React Native + Expo, em `mobile/`. PDF via PDF.js/foliate-js em WebView e EPUB via WebView + epub.js.
 
 ---
 
@@ -106,7 +106,7 @@ Edição mobile:
 **Status:** `[x]`
 
 Leitores já validados:
-- **PDF** via `react-native-pdf` (biblioteca nativa) — página única com paging, salva página atual.
+- **PDF** via PDF.js + foliate-js em WebView — paginação/scroll, zoom e ranges binários, salva página atual.
 - **EPUB** via WebView + epub.js — paginado, aplica tema do app e salva posição CFI.
 
 Ambos:
@@ -116,7 +116,7 @@ Ambos:
 - respeitam o tema (dark/light/sépia);
 - têm controles próprios para toque (barras que se ocultam automaticamente, menu de configurações do leitor).
 
-Dependências nativas (`react-native-pdf`, `react-native-webview`, thumbnails) exigem development build (`npx expo prebuild` + `npx expo run:android`).
+Dependências nativas (`react-native-webview`, thumbnails) exigem development build (`npx expo prebuild` + `npx expo run:android`).
 
 ### M7 — Gemini no mobile
 **Status:** `[x]`
@@ -194,7 +194,7 @@ Implementação preservada no repositório: migration remota, RPC de merge monot
 - Listas fixas: Séries/Mangás, Lidos, Não Lidos, Favoritos (placeholder) e Para ler.
 - Scanner local de `.pdf` e `.epub` com progresso visual (SAF).
 - Extração de capas (EPUB via ZIP/OPF; PDF via thumbnail nativo).
-- Leitores: PDF via `react-native-pdf` e EPUB via WebView + epub.js, com progresso persistido no AsyncStorage.
+- Leitores: PDF via PDF.js/foliate-js em WebView e EPUB via WebView + epub.js, com progresso persistido no AsyncStorage.
 - Temas dark / light / sépia.
 - i18n parcial: 3 de 10 idiomas (`en`, `pt-br`, `es`).
 - Supabase Auth preparado na aba Configurações, mas congelado durante o beta; o acesso exibe aviso de indisponibilidade da nuvem.

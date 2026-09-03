@@ -1,15 +1,10 @@
 import type { DisplayMode, ReaderOrientation } from '../models/readingPreferences';
 
-/** Contratos estáveis do leitor PDF. A engine nativa fica isolada atrás destes tipos. */
+/** Contratos estáveis do leitor PDF WebView. */
 
 export type PdfDisplayMode = DisplayMode;
 
-/** Engines disponíveis para renderizar PDFs no Android. */
-export type PdfEngineKind = 'native' | 'webview';
-
-export const DEFAULT_PDF_ENGINE: PdfEngineKind = 'native';
-
-/** Contrato comum que as engines nativa e WebView devem implementar. */
+/** Comandos que o runtime PDF.js expõe ao shell React Native. */
 export type PdfEngineHandle = {
   scrollByViewport: (fraction: number, repeat?: boolean) => void;
   stopViewportScroll: () => void;
@@ -43,8 +38,6 @@ export const PDF_PREF_KEYS = {
 
 export type PdfReaderProps = {
   displayMode?: PdfDisplayMode;
-  /** Seleção da engine de renderização; nativo é o padrão compatível. */
-  engine?: PdfEngineKind;
   filePath: string;
   fileSize?: number;
   initialPage?: number;

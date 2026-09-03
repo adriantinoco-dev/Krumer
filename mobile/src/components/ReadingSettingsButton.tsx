@@ -9,7 +9,7 @@ export function ReadingSettingsButton({ color, onPress }: { color: string; onPre
     <Pressable
       accessibilityLabel={t('reader.fontSettings')}
       accessibilityRole="button"
-      hitSlop={6}
+      hitSlop={{ bottom: 6, left: 2, right: 2, top: 6 }}
       onPress={onPress}
       style={({ pressed }) => ({
         alignItems: 'center',

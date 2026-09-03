@@ -147,13 +147,18 @@ function isImagePath(path: string) {
   return IMAGE_EXTENSIONS.some((extension) => lower.endsWith(`.${extension}`));
 }
 
+function isNamedCoverStem(stem: string) {
+  const normalizedStem = stem.trim().toLowerCase();
+  return normalizedStem.startsWith('cover') || normalizedStem.startsWith('capa');
+}
+
 function isNamedCoverPath(path: string) {
   const fileName = decodeURIComponent(path.split('/').pop() ?? '').toLowerCase();
   const stem = fileName.includes('.') ? fileName.slice(0, fileName.lastIndexOf('.')) : fileName;
 
-  // "cover" is the canonical EPUB name. Keep the common variants for older
-  // books, but do not use arbitrary image names as a last-resort guess.
-  return /^(?:cover|cover[-_ ]?(?:image|page)|capa)$/.test(stem);
+  // Accept any EPUB cover resource whose name starts with "cover" or "capa",
+  // including numbered and descriptive variants.
+  return isNamedCoverStem(stem);
 }
 
 function findCoverHref(opfContent: string) {
@@ -181,7 +186,7 @@ function findCoverHref(opfContent: string) {
     .filter((item) => item.mediaType.startsWith('image/') || IMAGE_EXTENSIONS.some((ext) => item.href.toLowerCase().endsWith(`.${ext}`)));
 
   return (
-    imageItems.find((item) => /(^|[-_])(?:cover|capa)([-_.]|$)/i.test(item.id) || /(?:cover|capa)\.(?:jpe?g|png|webp)$/i.test(item.href))?.href ??
+    imageItems.find((item) => isNamedCoverStem(item.id) || isNamedCoverPath(item.href))?.href ??
     imageItems[0]?.href ??
     null
   );
@@ -254,7 +259,8 @@ export async function extractEpubCover(epubPath: string, bookId: string): Promis
       return null;
     }
 
-    // 1. Preferir um arquivo chamado "cover" dentro do ZIP. Alguns EPUBs
+    // 1. Preferir um arquivo cujo nome começa com "cover" ou "capa"
+    // dentro do ZIP. Alguns EPUBs
     // têm OPF inconsistente e apontam para a capa de outro volume; o nome
     // explícito do recurso é mais confiável nesses casos. O arquivo pode ser
     // uma imagem ou uma página HTML/XHTML que referencia a imagem real.
@@ -313,10 +319,14 @@ export async function extractEpubCover(epubPath: string, bookId: string): Promis
           if (result) return result;
         }
 
-        // Strategy D: Manifest item com ID "cover"
-        const coverItemMatch = opfContent.match(/<item\b[^>]*id=["'](?:cover|cover-image|coverimage|cover_image)["'][^>]*href=["']([^"']+)["']/i);
-        if (coverItemMatch) {
-          const result = await resolveCoverCandidate(coverItemMatch[1], opfDir);
+        // Strategy D: Manifest item com ID iniciado por "cover" ou "capa"
+        const coverItemMatch = getXmlTags(opfContent, 'item').find((item) => {
+          const id = getAttribute(item, 'id');
+          return Boolean(id && isNamedCoverStem(id));
+        });
+        const coverItemHref = coverItemMatch ? getAttribute(coverItemMatch, 'href') : null;
+        if (coverItemHref) {
+          const result = await resolveCoverCandidate(coverItemHref, opfDir);
           if (result) return result;
         }
 

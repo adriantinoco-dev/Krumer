@@ -390,7 +390,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setLanguage: (language) => persistPreferences({ language }),
       setLibraryFolder: (libraryFolder) => persistPreferences({ libraryFolder }),
       setThemeName: (theme) => persistPreferences({ theme }),
-      setBooksPerRow: (booksPerRow) => persistPreferences({ booksPerRow }),
+      setBooksPerRow: (booksPerRow) => persistPreferences({ booksPerRow, booksPerRowMode: 'manual' }),
       t,
       theme: themes[preferences.theme],
     };

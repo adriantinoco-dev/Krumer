@@ -1,9 +1,8 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { ActivityIndicator, PixelRatio, Platform, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { radii, serifFont, spacing } from '../theme';
-import { DEFAULT_PDF_ENGINE, PDF_DEFAULTS, type PdfEngineHandle, type PdfEngineKind, type PdfReaderHandle, type PdfReaderProps } from './PdfReader.types';
-import { NativePdfEngine } from './pdf/NativePdfEngine';
+import { PDF_DEFAULTS, type PdfEngineHandle, type PdfReaderHandle, type PdfReaderProps } from './PdfReader.types';
 import { PdfWebEngine } from './pdf/PdfWebEngine';
 import { describePdfSource, pdfDevLog, pdfDevMetric, pdfDevWarn } from './pdf/pdfDebug';
 import { clampPdfPage, clampPdfScale } from './pdf/pdfState';
@@ -30,7 +29,6 @@ const styles = StyleSheet.create({
 export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader(
   {
     displayMode = PDF_DEFAULTS.displayMode,
-    engine = DEFAULT_PDF_ENGINE,
     filePath,
     fileSize,
     initialPage = 1,
@@ -46,9 +44,6 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   const { height: viewportHeight, width: viewportWidth } = useWindowDimensions();
   const { error: sourceError, resolvedUri, resolving } = usePdfSource(filePath, fileSize);
   const engineRef = useRef<PdfEngineHandle>(null);
-  const [activeEngine, setActiveEngine] = useState<PdfEngineKind>(engine);
-  const activeEngineRef = useRef<PdfEngineKind>(engine);
-  const fallbackAttemptedRef = useRef(false);
   const initialPageRef = useRef(initialPage);
   const currentPageRef = useRef(clampPdfPage(initialPage, 0));
   const totalPagesRef = useRef(0);
@@ -78,16 +73,6 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   interactionEnabledRef.current = interactionEnabled;
 
   useEffect(() => {
-    pdfDevLog('reader:engine-selected', { engine });
-  }, [engine]);
-
-  useEffect(() => {
-    activeEngineRef.current = engine;
-    fallbackAttemptedRef.current = false;
-    setActiveEngine(engine);
-  }, [engine, filePath]);
-
-  useEffect(() => {
     // Limpa preferências antigas da implementação anterior para que nenhum
     // zoom persistido volte a ser aplicado em uma nova abertura.
     void savePdfScale(PDF_DEFAULTS.scale);
@@ -108,17 +93,14 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
 
     const targetPage = currentPageRef.current;
     pdfDevLog('reader:display-mode-changed', {
-      engine: activeEngineRef.current,
+      engine: 'webview',
       from: previousDisplayMode,
       page: targetPage,
       to: displayMode,
     });
     // The WebView converts its current page/fraction anchor while changing
-    // flow. A follow-up SET_PAGE would erase that offset; only the native
-    // adapter still needs the historical page nudge.
-    if (activeEngineRef.current === 'webview') return undefined;
-    const frame = requestAnimationFrame(() => engineRef.current?.setPage(targetPage));
-    return () => cancelAnimationFrame(frame);
+    // flow. A follow-up SET_PAGE would erase that offset.
+    return undefined;
   }, [displayMode]);
 
   useEffect(() => {
@@ -131,18 +113,15 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
 
     const targetPage = currentPageRef.current;
     pdfDevLog('reader:viewport-changed', {
-      engine: activeEngineRef.current,
+      engine: 'webview',
       from: previousViewport,
       page: targetPage,
       to: { height: viewportHeight, width: viewportWidth },
     });
     // FixedLayout owns a normalized anchor across its ResizeObserver relayout.
     // Re-sending SET_PAGE here would turn the same page into a page navigation
-    // and reset that preserved offset. The native engine still needs its
-    // historical page nudge after Android has delivered the new viewport.
-    if (activeEngineRef.current === 'webview') return undefined;
-    const frame = requestAnimationFrame(() => engineRef.current?.setPage(targetPage));
-    return () => cancelAnimationFrame(frame);
+    // and reset that preserved offset.
+    return undefined;
   }, [viewportHeight, viewportWidth]);
 
   useEffect(() => {
@@ -222,7 +201,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     const pendingPage = pendingPageMetricRef.current;
     if (pendingPage && pendingPage.page === nextPage) {
       pdfDevMetric('reader:page-ready', {
-        engine: activeEngineRef.current,
+        engine: 'webview',
         latencyMs: Math.max(0, Date.now() - pendingPage.startedAt),
         page: nextPage,
       });
@@ -243,15 +222,15 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     firstPageReadyRef.current = true;
     pdfDevMetric('reader:first-page-ready', {
       elapsedMs: Math.max(0, Date.now() - sessionStartedAtRef.current),
-      engine: activeEngineRef.current,
+      engine: 'webview',
       page,
       totalPages: total,
     });
   }, []);
 
   const handleLoadComplete = useCallback((numberOfPages: number) => {
-    pdfDevLog('native:load-complete', {
-      engine: activeEngineRef.current,
+    pdfDevLog('web:load-complete', {
+      engine: 'webview',
       initialPage: initialPageRef.current,
       numberOfPages,
     });
@@ -262,9 +241,9 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
       return;
     }
     if (documentLoadedRef.current) {
-      pdfDevLog('native:load-complete-after-ready', {
+      pdfDevLog('web:load-complete-after-ready', {
         currentPage: currentPageRef.current,
-        engine: activeEngineRef.current,
+        engine: 'webview',
         numberOfPages,
       });
       publishPage(currentPageRef.current, numberOfPages);
@@ -285,13 +264,13 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   const handlePageChanged = useCallback((page: number, numberOfPages: number) => {
     if (!documentLoadedRef.current) {
       if (!Number.isInteger(numberOfPages) || numberOfPages < 1) {
-        pdfDevWarn('native:page-changed-invalid', { engine: activeEngineRef.current, numberOfPages, page });
+        pdfDevWarn('web:page-changed-invalid', { engine: 'webview', numberOfPages, page });
         return;
       }
       const target = clampPdfPage(initialPageRef.current, numberOfPages);
       documentLoadedRef.current = true;
-      pdfDevLog('native:page-changed-used-as-ready', {
-        engine: activeEngineRef.current,
+      pdfDevLog('web:page-changed-used-as-ready', {
+        engine: 'webview',
         numberOfPages,
         reportedPage: page,
         targetPage: target,
@@ -303,7 +282,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
       }
       return;
     }
-    pdfDevLog('native:page-changed', { engine: activeEngineRef.current, numberOfPages, page });
+    pdfDevLog('web:page-changed', { engine: 'webview', numberOfPages, page });
     publishPage(page, numberOfPages);
   }, [markFirstPageReady, publishPage]);
 
@@ -317,17 +296,17 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     const bucket = Math.max(0, Math.min(4, Math.floor(nextProgress * 4)));
     if (bucket === loadProgressBucketRef.current) return;
     loadProgressBucketRef.current = bucket;
-    pdfDevLog('native:load-progress', {
-      engine: activeEngineRef.current,
+    pdfDevLog('web:load-progress', {
+      engine: 'webview',
       progress: Number(nextProgress.toFixed(2)),
     });
   }, []);
 
-  const handleError = useCallback((caught: unknown) => {
+  const handleWebError = useCallback((caught: unknown) => {
     const detail = describePdfError(caught);
-    pdfDevWarn('native:error', {
+    pdfDevWarn('web:error', {
       detail,
-      engine: activeEngineRef.current,
+      engine: 'webview',
       source: describePdfSource(filePath),
     });
     setLoading(false);
@@ -335,57 +314,13 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     setErrorDetail(detail || null);
   }, [filePath, t]);
 
-  const handleEngineError = useCallback((caught: unknown, failedEngine: PdfEngineKind) => {
-    // A native error can arrive just after its view was replaced by the
-    // fallback WebView. Do not let that stale callback hide the recovery.
-    if (failedEngine !== activeEngineRef.current) return;
-    if (
-      failedEngine === 'webview'
-      && activeEngineRef.current === 'webview'
-      && !fallbackAttemptedRef.current
-    ) {
-      fallbackAttemptedRef.current = true;
-      activeEngineRef.current = DEFAULT_PDF_ENGINE;
-      if (totalPagesRef.current > 0) {
-        initialPageRef.current = clampPdfPage(currentPageRef.current, totalPagesRef.current);
-      }
-      documentLoadedRef.current = false;
-      totalPagesRef.current = 0;
-      currentPageRef.current = clampPdfPage(initialPageRef.current, 0);
-      currentScaleRef.current = PDF_DEFAULTS.scale;
-      pendingScaleMetricRef.current = null;
-      onScaleChange?.(PDF_DEFAULTS.scale);
-      lastReportedSnapshotRef.current = null;
-      loadProgressBucketRef.current = -1;
-      pdfDevWarn('web:fallback-native', {
-        detail: describePdfError(caught),
-        source: describePdfSource(filePath),
-      });
-      setActiveEngine(DEFAULT_PDF_ENGINE);
-      setLoading(true);
-      setLoadProgress(0);
-      setError(null);
-      setErrorDetail(null);
-      return;
-    }
-    handleError(caught);
-  }, [filePath, handleError, onScaleChange]);
-
-  const handleNativeError = useCallback((caught: unknown) => {
-    handleEngineError(caught, 'native');
-  }, [handleEngineError]);
-
-  const handleWebError = useCallback((caught: unknown) => {
-    handleEngineError(caught, 'webview');
-  }, [handleEngineError]);
-
   const goToPage = useCallback((page: number) => {
     if (totalPagesRef.current < 1 || !documentLoadedRef.current) return;
     const target = clampPdfPage(page, totalPagesRef.current);
     if (target === currentPageRef.current) return;
     currentPageRef.current = target;
     pendingPageMetricRef.current = { page: target, startedAt: Date.now() };
-    pdfDevMetric('reader:page-request', { engine: activeEngineRef.current, page: target });
+    pdfDevMetric('reader:page-request', { engine: 'webview', page: target });
     engineRef.current?.setPage(target);
   }, []);
 
@@ -401,7 +336,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
       && Math.abs(currentScaleRef.current - nextScale) < 0.001) return;
     if (documentLoadedRef.current) {
       pendingScaleMetricRef.current = { scale: nextScale, startedAt: Date.now() };
-      pdfDevMetric('reader:scale-request', { engine: activeEngineRef.current, scale: nextScale });
+      pdfDevMetric('reader:scale-request', { engine: 'webview', scale: nextScale });
       engineRef.current?.setScale(nextScale);
     }
   }, []);
@@ -411,7 +346,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     const pendingScale = pendingScaleMetricRef.current;
     if (pendingScale && Math.abs(nextScale - pendingScale.scale) < 0.01) {
       pdfDevMetric('reader:scale-ready', {
-        engine: activeEngineRef.current,
+        engine: 'webview',
         latencyMs: Math.max(0, Date.now() - pendingScale.startedAt),
         scale: nextScale,
       });
@@ -421,7 +356,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     currentScaleRef.current = nextScale;
     onScaleChange?.(nextScale);
     if (changed) {
-      pdfDevMetric('reader:scale-changed', { engine: activeEngineRef.current, scale: nextScale });
+      pdfDevMetric('reader:scale-changed', { engine: 'webview', scale: nextScale });
     }
   }, [onScaleChange]);
 
@@ -452,32 +387,23 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
         const fraction = event.direction === 'next'
           ? PDF_VOLUME_SCROLL_VIEWPORT_RATIO
           : -PDF_VOLUME_SCROLL_VIEWPORT_RATIO;
-        if (activeEngineRef.current === 'webview') {
-          if (event.phase === 'press') {
-            stopWebviewHold();
-            pressedDirection = event.direction;
-            nativeClockOffset = event.eventTime === undefined ? null : Date.now() - event.eventTime;
-            lastHoldEventAt = 0;
-            engineRef.current?.scrollByViewport(fraction);
-          } else if (pressedDirection === event.direction) {
-            // Keep the original 18% step for each native repeat. Discard old
-            // or duplicated events instead of replaying a backlog after a stall.
-            const eventAt = nativeClockOffset !== null && event.eventTime !== undefined
-              ? nativeClockOffset + event.eventTime
-              : Date.now();
-            if (Date.now() - eventAt >= PDF_VOLUME_REPEAT_MAX_AGE_MS || eventAt <= lastHoldEventAt) return;
-            lastHoldEventAt = eventAt;
-            webviewScrollHeld = true;
-            engineRef.current?.scrollByViewport(fraction, true);
-          }
-          return;
+        if (event.phase === 'press') {
+          stopWebviewHold();
+          pressedDirection = event.direction;
+          nativeClockOffset = event.eventTime === undefined ? null : Date.now() - event.eventTime;
+          lastHoldEventAt = 0;
+          engineRef.current?.scrollByViewport(fraction);
+        } else if (pressedDirection === event.direction) {
+          // Keep the original 18% step for each native repeat. Discard old
+          // or duplicated events instead of replaying a backlog after a stall.
+          const eventAt = nativeClockOffset !== null && event.eventTime !== undefined
+            ? nativeClockOffset + event.eventTime
+            : Date.now();
+          if (Date.now() - eventAt >= PDF_VOLUME_REPEAT_MAX_AGE_MS || eventAt <= lastHoldEventAt) return;
+          lastHoldEventAt = eventAt;
+          webviewScrollHeld = true;
+          engineRef.current?.scrollByViewport(fraction, true);
         }
-        engineRef.current?.scrollByViewport(fraction);
-        requestAnimationFrame(() => pdfDevLog('controls:volume-scroll', {
-          direction: event.direction,
-          fraction,
-          phase: event.phase,
-        }));
         return;
       }
       if (event.phase !== 'press') return;
@@ -492,7 +418,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     };
   }, [displayMode, goToPage, interactionEnabled]);
 
-  const handleTapAtX = useCallback((tapX: number, source: 'quick' | 'native' | 'webview') => {
+  const handleTapAtX = useCallback((tapX: number, source: 'webview') => {
     if (!interactionEnabledRef.current) return false;
     if (displayMode !== 'paginated') return false;
     // An enlarged page owns lateral taps for panning; never turn a page while
@@ -519,18 +445,6 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     }
     return false;
   }, [displayMode, goToPage, viewportWidth]);
-
-  const handleQuickTap = useCallback((tapX: number, _tapY: number) => (
-    handleTapAtX(tapX, 'quick')
-  ), [handleTapAtX]);
-
-  const handleNativeSingleTap = useCallback((_page: number, x: number, _y: number) => {
-    if (!interactionEnabledRef.current) return;
-    const tapX = Platform.OS === 'android' ? x / PixelRatio.get() : x;
-    if (handleTapAtX(tapX, 'native')) return;
-    pdfDevLog('controls:toggle-bars-tap');
-    onCenterTapRef.current?.();
-  }, [handleTapAtX]);
 
   const handleWebSingleTap = useCallback((_page: number, x: number, _y: number) => {
     if (!interactionEnabledRef.current) return;
@@ -577,7 +491,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     );
   }
 
-  if (activeEngine !== 'webview' && (resolving || !resolvedUri)) {
+  if (resolving || !resolvedUri) {
     return (
       <View style={{ alignItems: 'center', backgroundColor: theme.bg, flex: 1, justifyContent: 'center' }}>
         <ActivityIndicator color={theme.accent} size="large" />
@@ -590,39 +504,21 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
 
   return (
     <View style={{ backgroundColor: theme.bg, flex: 1 }}>
-      {activeEngine === 'webview' ? (
-        <PdfWebEngine
-          ref={engineRef}
-          displayMode={displayMode}
-          fileSize={fileSize}
-          initialPage={initialPageRef.current}
-          onError={handleWebError}
-          onExternalLink={handleExternalLink}
-          onLoadComplete={handleLoadComplete}
-          onLoadProgress={handleLoadProgress}
-          onPageChanged={handlePageChanged}
-          onScaleChanged={handleScaleChanged}
-          onSingleTap={handleWebSingleTap}
-          resolvedUri={resolvedUri}
-          scale={initialScaleRef.current}
-        />
-      ) : resolvedUri ? (
-        <NativePdfEngine
+      <PdfWebEngine
         ref={engineRef}
         displayMode={displayMode}
+        fileSize={fileSize}
         initialPage={initialPageRef.current}
-        onError={handleNativeError}
+        onError={handleWebError}
         onExternalLink={handleExternalLink}
         onLoadComplete={handleLoadComplete}
         onLoadProgress={handleLoadProgress}
         onPageChanged={handlePageChanged}
-        onQuickTap={handleQuickTap}
         onScaleChanged={handleScaleChanged}
-        onSingleTap={handleNativeSingleTap}
+        onSingleTap={handleWebSingleTap}
         resolvedUri={resolvedUri}
         scale={initialScaleRef.current}
-        />
-      ) : null}
+      />
       {loading ? (
         <View
           pointerEvents="none"

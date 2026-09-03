@@ -8,12 +8,19 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Preparação
-- **Mobile — engines de PDF reversíveis (Fases 0 e 1):** o PDF agora possui um
-  contrato explícito para engines nativa e WebView, com preferência persistida
-  (nativo como padrão), validação de fallback e manifesto fixando PDF.js 5.5.207
-  e o commit revisado do foliate-js para a implementação faseada do runtime.
+- **Mobile — PDF WebView consolidado:** o runtime PDF.js/foliate mantém o
+  contrato de comandos do leitor e o manifesto fixado, agora sem preferência,
+  seleção ou fallback para engine nativa.
 
 ### Adicionado
+- **Mobile — grade responsiva da biblioteca:** celulares iniciam com três livros
+  por linha; tablets e telas maiores ajustam automaticamente para quatro ou
+  cinco colunas conforme a largura disponível, preservando escolhas manuais.
+- **Mobile — PDF com engine WebView única:** o leitor PDF agora usa sempre o
+  runtime PDF.js/foliate em WebView, com a preparação do runtime mantida no
+  aquecimento e sem seleção ou fallback para engine nativa.
+- **Mobile — fundo da tela de detalhes:** a capa do livro agora ocupa o fundo
+  do cabeçalho com desfoque, contraste e degradê progressivo para a cor do tema.
 - **Mobile — feedback de abertura dos leitores:** as telas de carregamento de
   PDF e EPUB agora exibem a porcentagem do progresso para o usuário acompanhar
   a preparação e a abertura do documento.
@@ -59,6 +66,32 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   a piloto; nenhuma remoção do motor nativo é feita nesta etapa.
 
 ### Corrigido
+- **Mobile — capas de EPUB com prefixo:** a extração agora reconhece qualquer
+  arquivo ou ID que comece com `cover` ou `capa`, incluindo variantes numeradas
+  e nomes descritivos, ao indexar a capa do livro.
+- **Mobile — tamanho dos cards em “Continuar lendo”:** as capas agora usam a
+  mesma largura visual dos cards da biblioteca, calculada para a densidade
+  padrão do dispositivo e independente da preferência de livros por linha.
+- **Mobile — sombra superior da capa no detalhe:** o conteúdo rolável agora
+  reserva espaço acima do card para a projeção da sombra não ser recortada pela
+  camada superior da tela.
+- **Mobile — sombra da capa no detalhe do livro:** o recorte da capa foi
+  separado do contêiner da sombra, evitando que a elevação fique cortada nas
+  bordas arredondadas.
+- **Mobile — barra de progresso do “Continuar lendo”:** a barra agora fica
+  alinhada à borda inferior da capa, inclusive com o recorte arredondado em
+  telas Android.
+- **Mobile — Configurações de leitura:** removidos o card e a seção de seleção
+  de motor PDF, pois o WebView passou a ser o caminho único do leitor.
+- **Mobile — espaçamento dos controles do leitor:** os botões de configurações
+  no topo dos leitores EPUB e PDF agora têm separação visual e áreas de toque
+  independentes, reduzindo cliques acidentais no controle vizinho.
+- **Mobile — barra de status no detalhe do livro:** a barra superior do Android
+  agora fica transparente no `BookDetail`, deixando a capa de fundo aparecer
+  por trás dos ícones enquanto o cabeçalho continua respeitando a área segura.
+- **Mobile — botões do cabeçalho de detalhes:** a elevação dos controles
+  superiores foi removida para evitar o halo circular que criava um segundo
+  círculo visual sobre a capa de fundo.
 - **Mobile — abertura de PDF no WebView:** adiciona compatibilidade para
   `Uint8Array.prototype.toHex` no worker do PDF.js e, se a rota binária local
   falhar durante a abertura, reabre o mesmo documento uma vez pelo bridge de

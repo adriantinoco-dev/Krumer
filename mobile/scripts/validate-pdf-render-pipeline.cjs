@@ -118,7 +118,7 @@ async function main() {
   assert(!webEngine.includes('onScaleChanged?.(nextScale);'));
   assert(readerTypes.includes('onScaleChange?: (scale: number) => void;'));
   assert(reader.includes('onScaleChange?.(nextScale);'));
-  assert((reader.match(/if \(activeEngineRef\.current === 'webview'\) return undefined;/g) || []).length === 2);
+  assert(!reader.includes('activeEngineRef') && reader.includes('<PdfWebEngine'));
   assert(readerScreen.includes('onScaleChange={setPdfScale}'));
   assert(readerScreen.includes('displayMode={pdfDisplayMode}'));
   assert(zoomModal.includes("'reader.zoomFitWidthHint' : 'reader.zoomFitPageHint'"));

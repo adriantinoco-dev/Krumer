@@ -288,13 +288,6 @@ export type TranslationKey =
   | 'settings.sectionAppearance'
   | 'settings.sectionIntegrations'
   | 'settings.sectionLibrary'
-  | 'settings.sectionReading'
-  | 'settings.pdfEngine'
-  | 'settings.pdfEngineNative'
-  | 'settings.pdfEngineNativeDescription'
-  | 'settings.pdfEngineWebView'
-  | 'settings.pdfEngineWebViewDescription'
-  | 'settings.pdfEngineWebViewPending'
   | 'settings.syncDesc'
   | 'settings.syncTitle'
   | 'sync.betaAction'
@@ -575,7 +568,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.paginationSettings': 'Pagination',
     'reader.paginatedMode': 'Paginated',
     'reader.pdfWebUnavailableDescription':
-      'PDF reading uses a native module (react-native-pdf) and does not work in the browser. Open on Android to read this file.',
+      'The PDF WebView reader is available on Android. Open this file in the Android app.',
     'reader.pdfWebUnavailableTitle': 'PDF unavailable on web',
     'reader.readingSettings': 'Reading settings',
     'reader.orientation': 'Orientation',
@@ -610,13 +603,6 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'settings.sectionAppearance': 'APPEARANCE',
     'settings.sectionIntegrations': 'INTEGRATIONS',
     'settings.sectionLibrary': 'LIBRARY',
-    'settings.sectionReading': 'READING',
-    'settings.pdfEngine': 'PDF engine',
-    'settings.pdfEngineNative': 'Native',
-    'settings.pdfEngineNativeDescription': 'The current Android PDF reader using PDFium.',
-    'settings.pdfEngineWebView': 'WebView',
-    'settings.pdfEngineWebViewDescription': 'PDF.js inside a stable WebView.',
-    'settings.pdfEngineWebViewPending': 'Available in the next PDF reader phase.',
     'settings.syncDesc': 'Cloud sync will be available after the beta.',
     'settings.syncTitle': 'Sync across devices',
     'sync.betaAction': 'Got it',
@@ -886,7 +872,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.paginationSettings': 'Paginação',
     'reader.paginatedMode': 'Paginado',
     'reader.pdfWebUnavailableDescription':
-      'A leitura de PDF usa um módulo nativo (react-native-pdf) e não funciona no navegador. Abra no Android para ler este arquivo.',
+      'O leitor PDF por WebView está disponível no Android. Abra este arquivo no aplicativo Android.',
     'reader.pdfWebUnavailableTitle': 'PDF indisponível na web',
     'reader.readingSettings': 'Configurações de leitura',
     'reader.orientation': 'Orientação',
@@ -921,13 +907,6 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'settings.sectionAppearance': 'APARÊNCIA',
     'settings.sectionIntegrations': 'INTEGRAÇÕES',
     'settings.sectionLibrary': 'BIBLIOTECA',
-    'settings.sectionReading': 'LEITURA',
-    'settings.pdfEngine': 'Motor de PDF',
-    'settings.pdfEngineNative': 'Nativo',
-    'settings.pdfEngineNativeDescription': 'Leitor Android atual baseado em PDFium.',
-    'settings.pdfEngineWebView': 'WebView',
-    'settings.pdfEngineWebViewDescription': 'PDF.js dentro de uma WebView estável.',
-    'settings.pdfEngineWebViewPending': 'Disponível na próxima fase do leitor PDF.',
     'settings.syncDesc': 'A sincronização com a nuvem estará disponível após o beta.',
     'settings.syncTitle': 'Sincronizar entre dispositivos',
     'sync.betaAction': 'Entendi',
@@ -1197,7 +1176,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.paginationSettings': 'Paginación',
     'reader.paginatedMode': 'Paginado',
     'reader.pdfWebUnavailableDescription':
-      'La lectura de PDF usa un módulo nativo (react-native-pdf) y no funciona en el navegador. Ábrelo en Android para leer este archivo.',
+      'El lector PDF mediante WebView está disponible en Android. Abre este archivo en la aplicación Android.',
     'reader.pdfWebUnavailableTitle': 'PDF no disponible en web',
     'reader.readingSettings': 'Configuración de lectura',
     'reader.orientation': 'Orientación',
@@ -1232,13 +1211,6 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'settings.sectionAppearance': 'APARIENCIA',
     'settings.sectionIntegrations': 'INTEGRACIONES',
     'settings.sectionLibrary': 'BIBLIOTECA',
-    'settings.sectionReading': 'LECTURA',
-    'settings.pdfEngine': 'Motor de PDF',
-    'settings.pdfEngineNative': 'Nativo',
-    'settings.pdfEngineNativeDescription': 'Lector Android actual basado en PDFium.',
-    'settings.pdfEngineWebView': 'WebView',
-    'settings.pdfEngineWebViewDescription': 'PDF.js dentro de una WebView estable.',
-    'settings.pdfEngineWebViewPending': 'Disponible en la próxima fase del lector PDF.',
     'settings.syncDesc': 'La sincronización en la nube estará disponible después de la beta.',
     'settings.syncTitle': 'Sincronizar entre dispositivos',
     'sync.betaAction': 'Entendido',

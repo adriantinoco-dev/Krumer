@@ -17,8 +17,8 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     setScale: () => undefined,
   }), []);
 
-  // filePath/initialPage são mantidos na assinatura para paridade com .native,
-  // mas não são usados na web — leitor nativo não existe no browser.
+  // filePath/initialPage são mantidos na assinatura para paridade com o leitor
+  // Android, mas o runtime PDF.js depende da WebView nativa.
   void filePath;
   void initialPage;
 

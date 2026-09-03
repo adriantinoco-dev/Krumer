@@ -59,7 +59,6 @@ async function main() {
   const generatedVendorSource = read('src/readers/pdf/web/generated/pdfWebVendor.ts');
   const generatedGestureSource = read('src/readers/pdf/web/generated/pdfGestureController.ts');
   const readerScreenSource = read('src/screens/ReaderScreen.tsx');
-  const benchmarkSource = read('scripts/benchmark-pdf-engines.cjs');
 
   assert(runtimeSource.includes('var rangeRequestTimeoutMs = 10000;'));
   assert(runtimeSource.includes('pendingRanges.size >= maxPendingRanges'));
@@ -265,9 +264,6 @@ async function main() {
 
   assert(readerScreenSource.includes('hidden={false}'));
   assert(readerScreenSource.includes("barStyle={theme.name === 'dark' ? 'light-content' : 'dark-content'}"));
-  assert(benchmarkSource.includes('--layer none'));
-  assert(benchmarkSource.includes('--layer hardware'));
-  assert(benchmarkSource.includes('configurationWarnings'));
 
   const bridge = loadTypeScriptModule('src/readers/pdf/pdfWebBridge.ts');
   const range = bridge.parsePdfWebBridgeEvent(JSON.stringify({

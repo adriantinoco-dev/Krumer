@@ -4,8 +4,8 @@ import { ReaderLruCache } from '../readerCache';
 /**
  * D1 — Abertura de documento (equivalente a LibraryAPI.getFileUrl + cMap em openPdf:56).
  * No mobile o arquivo já é local; precisa normalizar para file:// e
- * copiar content:// (SAF Android 13+) para cache, pois react-native-pdf
- * só lê file://.
+ * copiar content:// (SAF Android 13+) para cache, pois o runtime PDF.js
+ * precisa de uma URI file:// estável para abrir o documento na WebView.
  *
  * Extraído de PdfReader para que aquecimento, sessão e prévias compartilhem
  * a mesma URI normalizada e a cópia validada pelo tamanho do arquivo.

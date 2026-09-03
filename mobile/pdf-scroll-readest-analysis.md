@@ -1,5 +1,10 @@
 # Desempenho do PDF em scroll: Readest e Krumer
 
+> **Decisão atual (03/09/2026):** o Krumer usa exclusivamente a engine PDF.js /
+> foliate-js em WebView. As comparações com `react-native-pdf` e o rollout entre
+> engines registram o baseline histórico; não há mais seleção nem fallback nativo
+> no produto.
+
 Análise de código em 02/09/2026. Fases 1, 2 e 3 implementadas em 03/09/2026; o teste
 em aparelho Android continua pendente.
 
@@ -26,13 +31,18 @@ Fontes: [manifesto do Krumer](<C:/Projects/Krumer RN/mobile/src/readers/pdf/pdfW
 
 ### Confirmar qual motor está em uso
 
-O Krumer mantém os motores `native` e `webview`. O padrão declarado continua sendo `native`, e a preferência salva pode escolher outro. A maior parte desta comparação se aplica ao **WebView**, que usa PDF.js e foliate.
+O Krumer mantém somente o motor `webview`, que usa PDF.js e foliate. A seleção
+de engine foi removida; a abertura deve registrar `engine: webview` em todos os
+eventos do leitor.
 
-Antes de atribuir os engasgos a esse código, registrar o evento `reader:engine-selected`, a preferência salva, a versão do APK e a versão da WebView do aparelho. Também confirmar a versão instalada do Readest: o checkout analisado não prova qual versão está no celular.
+Antes de atribuir os engasgos a esse código, registrar a versão do APK e da
+WebView do aparelho. Também confirmar a versão instalada do Readest: o checkout
+analisado não prova qual versão está no celular.
 
-Se o problema ocorrer no motor nativo, investigar seu caminho próprio. O patch atual de `scrollByViewport` executa `stopFling()`, `moveRelativeTo(...)` e `setPositionOffset(...)` a cada chamada. Isso é um ponto específico para comparar com a rolagem manual nesse motor, mas não demonstra, por si só, a causa dos engasgos. O transporte Base64 e os canvases do PDF.js não participam desse caminho.
+O caminho atual de `scrollByViewport` executa o comando diretamente no runtime
+WebView, que também concentra o transporte de ranges e os canvases do PDF.js.
 
-Fontes: [padrão do motor](<C:/Projects/Krumer RN/mobile/src/readers/PdfReader.types.ts:10>), [seleção registrada](<C:/Projects/Krumer RN/mobile/src/readers/PdfReader.tsx:76>), [preferência persistida](<C:/Projects/Krumer RN/mobile/src/readers/pdf/usePdfEnginePreference.ts:8>), [patch do scroll nativo](<C:/Projects/Krumer RN/mobile/scripts/fix-netinfo-gradle9.cjs:983>).
+Fontes: [contrato do leitor](<C:/Projects/Krumer RN/mobile/src/readers/PdfReader.types.ts:1>), [shell do PDF](<C:/Projects/Krumer RN/mobile/src/readers/PdfReader.tsx:1>), [runtime WebView](<C:/Projects/Krumer RN/mobile/src/readers/pdf/PdfWebEngine.tsx:1>).
 
 ## O que o Readest faz e o que já existe no Krumer
 
@@ -154,7 +164,7 @@ o WebView Android, intercepta o host local `rangefile.localhost` com `krumerRang
 compatibilidade. O patch nativo é reaplicado pelo
 `scripts/fix-pdf-webview-range.cjs` em `postinstall`, `prebuild` e `android`.
 
-O Krumer já possui [benchmark de motores](<C:/Projects/Krumer RN/mobile/scripts/benchmark-pdf-engines.cjs:1>) com métricas de abertura/páginas, frames lentos de volume e captura opcional de memória. Reutilizá-lo e complementar apenas o que falta. Seus contadores de animação não substituem uma captura dos frames realmente apresentados: um loop correto pode continuar disputando tempo com rasterização, layout e composição.
+Os validadores e as métricas do runtime continuam cobrindo abertura/páginas, frames lentos de volume e filas de renderização. O benchmark específico de motores foi removido junto com a seleção nativa; novas comparações devem medir apenas o WebView candidato contra o baseline registrado no aparelho. Contadores de animação não substituem uma captura dos frames realmente apresentados: um loop correto pode continuar disputando tempo com rasterização, layout e composição.
 
 ### Protocolo de comparação no aparelho
 

@@ -18,7 +18,6 @@ import type { EpubRelocationSource, EpubTocItem, EpubViewStatus } from '../reade
 import { PdfReader } from '../readers/PdfReader';
 import { PDF_DEFAULTS, type PdfDisplayMode, type PdfReaderHandle } from '../readers/PdfReader.types';
 import { clampPdfScale } from '../readers/pdf/pdfState';
-import { usePdfEnginePreference } from '../readers/pdf/usePdfEnginePreference';
 import { getCachedPdfPrefs, loadPdfPrefs, savePdfDisplayMode, savePdfOrientation } from '../readers/pdf/usePdfPrefs';
 import { useEpubPersistence } from '../readers/useEpubPersistence';
 import { useEpubNotes } from '../readers/useEpubNotes';
@@ -57,7 +56,10 @@ const HIDE_DELAY = 4000;
 const PDF_PROGRESS_SAVE_DELAY_MS = 500;
 const EPUB_CONTENT_VERTICAL_OFFSET = 26;
 const EPUB_CHROME_VERTICAL_SCALE = 0.6;
-const EPUB_TOP_BAR_SIDE_WIDTH = 132;
+const READER_TOP_BAR_BUTTON_GAP = spacing.sm;
+const READER_TOP_BAR_LEFT_WIDTH = 44 * 2 + READER_TOP_BAR_BUTTON_GAP;
+const EPUB_TOP_BAR_SIDE_WIDTH = 44 * 3 + READER_TOP_BAR_BUTTON_GAP * 2;
+const READER_TOP_BAR_HIT_SLOP = { bottom: 6, left: 2, right: 2, top: 6 };
 
 function scaleEpubChrome(value: number) {
   return Math.round(value * EPUB_CHROME_VERTICAL_SCALE);
@@ -71,7 +73,6 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
   const windowDimensions = useWindowDimensions();
   const readingPreferences = useReadingPreferences(isEpub);
   const readerLayout = useReaderLayoutSettings(isEpub);
-  const pdfEnginePreference = usePdfEnginePreference(!isEpub);
   const initialPdfPreferences = useRef(getCachedPdfPrefs() ?? PDF_DEFAULTS).current;
   const [pdfDisplayMode, setPdfDisplayMode] = useState<PdfDisplayMode>(initialPdfPreferences.displayMode);
   const [pdfOrientation, setPdfOrientation] = useState<ReadingPreferences['orientation']>(initialPdfPreferences.orientation);
@@ -787,10 +788,9 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
 
       {/* Reader content */}
       {book.format === 'pdf' ? (
-        pdfPreferencesHydrated && pdfEnginePreference.hydrated ? (
+        pdfPreferencesHydrated ? (
           <PdfReader
             displayMode={pdfDisplayMode}
-            engine={pdfEnginePreference.engine}
             filePath={book.filePath}
             fileSize={book.fileSize}
             initialPage={savedPosition ? Number(savedPosition) : 1}
@@ -937,7 +937,7 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
             zIndex: 101,
           }}
         >
-          <View style={{ flexDirection: 'row', width: 88 }}>
+          <View style={{ flexDirection: 'row', gap: READER_TOP_BAR_BUTTON_GAP, width: READER_TOP_BAR_LEFT_WIDTH }}>
             <Pressable
               accessibilityLabel={t('reader.addBookmark')}
               disabled={!bookmarkReadyToAdd || bookmarkBusy}
@@ -995,7 +995,7 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
             {book.title}
           </Text>
 
-          <View style={{ flexDirection: 'row', marginLeft: 'auto', width: readerTopBarSideWidth }}>
+          <View style={{ flexDirection: 'row', gap: READER_TOP_BAR_BUTTON_GAP, marginLeft: 'auto', width: readerTopBarSideWidth }}>
             {isEpub ? (
               <ReadingSettingsButton
                 color={epubText}
@@ -1015,7 +1015,7 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
             />
             <Pressable
               accessibilityLabel={t('common.cancel')}
-              hitSlop={8}
+              hitSlop={READER_TOP_BAR_HIT_SLOP}
               onPress={handleManagedClose}
               style={({ pressed }) => ({
                 alignItems: 'center',

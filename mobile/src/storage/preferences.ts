@@ -15,6 +15,7 @@ export type MobilePreferences = {
   metadataIntroSeen: boolean;
   cardViewMode?: '2d' | '3d';
   booksPerRow?: number;
+  booksPerRowMode?: 'auto' | 'manual';
 };
 
 const KEYS = {
@@ -31,7 +32,7 @@ export const defaultPreferences: MobilePreferences = {
   hasGeminiApiKey: false,
   metadataIntroSeen: false,
   cardViewMode: '3d',
-  booksPerRow: 3,
+  booksPerRowMode: 'auto',
 };
 
 export async function loadPreferences(): Promise<MobilePreferences> {
@@ -39,11 +40,24 @@ export async function loadPreferences(): Promise<MobilePreferences> {
   const parsed = raw ? JSON.parse(raw) as Record<string, unknown> : {};
   const hasGeminiApiKey = await migrateLegacyGeminiApiKey(parsed);
   if (!raw) return { ...defaultPreferences, hasGeminiApiKey };
+  const storedBooksPerRow = normalizeBooksPerRow(parsed.booksPerRow);
+  const storedBooksPerRowMode = parsed.booksPerRowMode === 'manual' || parsed.booksPerRowMode === 'auto'
+    ? parsed.booksPerRowMode
+    : undefined;
+  // Older versions persisted the default value (3) without recording whether
+  // the user chose it. Treat that legacy default as automatic so tablets can
+  // adopt the responsive density after upgrading. Explicit choices made by
+  // newer versions carry the mode marker and remain manual.
+  const booksPerRowMode = storedBooksPerRowMode
+    ?? (storedBooksPerRow !== undefined && storedBooksPerRow !== 3 ? 'manual' : 'auto');
+  const booksPerRow = booksPerRowMode === 'manual' ? storedBooksPerRow : undefined;
   const hasLegacyKey = Object.prototype.hasOwnProperty.call(parsed, 'geminiApiKey');
   const legacyValue = typeof parsed.geminiApiKey === 'string' ? parsed.geminiApiKey.trim() : '';
   const next = {
     ...defaultPreferences,
     ...parsed,
+    booksPerRow,
+    booksPerRowMode,
     // SecureStore is the source of truth; the AsyncStorage flag is only a
     // non-sensitive UI hint and must not keep a deleted key looking active.
     hasGeminiApiKey,
@@ -133,6 +147,12 @@ function normalizeBook(book: Book): Book {
 
 function safeDecode(value: string) {
   try { return decodeURIComponent(value); } catch { return value; }
+}
+
+function normalizeBooksPerRow(value: unknown): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+  const rounded = Math.round(value);
+  return rounded >= 3 && rounded <= 6 ? rounded : undefined;
 }
 
 export async function loadSyncLists(): Promise<SyncList[]> {

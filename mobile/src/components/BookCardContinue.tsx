@@ -7,22 +7,26 @@ import type { Book } from '../models/item';
 import { coverShadow, serifFont, spacing } from '../theme';
 
 const COVER_RADIUS = 10;
-const CARD_WIDTH = 140;
-const COVER_HEIGHT = Math.round(CARD_WIDTH / (220 / 300)); // 191px
+const COVER_ASPECT_RATIO = 220 / 300;
+const PROGRESS_BAR_HEIGHT = 5;
 
 export function BookCardContinue({
   book,
   onPress,
   onLongPress,
+  width,
 }: {
   book: Book;
   onPress: () => void;
   onLongPress?: () => void;
+  width: number;
 }) {
   const { lists, theme, t } = useApp();
   const [coverFailed, setCoverFailed] = useState(false);
   const showCover = Boolean(book.coverPath && !coverFailed);
   const progressPct = Math.max(0, Math.min(100, book.isRead ? 100 : (book.progressPct ?? 0)));
+  const coverWidth = Math.max(1, width - spacing.sm * 2);
+  const coverHeight = Math.round(coverWidth / COVER_ASPECT_RATIO);
 
   const animatedProgress = useRef(new Animated.Value(0)).current;
   const prevProgressPctRef = useRef<number | null>(null);
@@ -65,7 +69,12 @@ export function BookCardContinue({
       delayLongPress={200}
       onPress={onPress}
       onLongPress={onLongPress}
-      style={({ pressed }) => ({ opacity: pressed ? 0.82 : 1, width: CARD_WIDTH })}
+      style={({ pressed }) => ({
+        opacity: pressed ? 0.82 : 1,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.sm,
+        width,
+      })}
     >
       <View style={{ marginBottom: spacing.sm }}>
         <View
@@ -74,11 +83,11 @@ export function BookCardContinue({
             backgroundColor: placeholderBackground,
             borderRadius: COVER_RADIUS,
             boxShadow: coverShadow(theme.name),
-            height: COVER_HEIGHT,
+            height: coverHeight,
             justifyContent: 'center',
             overflow: 'hidden',
             position: 'relative',
-            width: CARD_WIDTH,
+            width: coverWidth,
           }}
         >
           {showCover ? (
@@ -114,8 +123,10 @@ export function BookCardContinue({
             <View
               style={{
                 borderRadius: 4,
-                bottom: 0,
-                height: 4,
+                // Compensa a borda arredondada para a barra encostar na base
+                // do cover também em telas Android com clipping subpixel.
+                bottom: -1,
+                height: PROGRESS_BAR_HEIGHT,
                 left: 0,
                 overflow: 'hidden',
                 position: 'absolute',

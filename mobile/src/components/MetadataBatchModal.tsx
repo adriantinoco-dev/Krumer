@@ -6,7 +6,7 @@ import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import type { MetadataSearchResult } from '../models/metadata';
 import { isMetadataComplete, MAX_METADATA_BATCH, runMetadataBatch, toBookMetadata } from '../services/metadataService';
-import { radii, serifFont, spacing, TABLET_BREAKPOINT } from '../theme';
+import { getDefaultBooksPerRow, radii, serifFont, spacing, TABLET_BREAKPOINT } from '../theme';
 
 type Stage = 'selection' | 'loading' | 'results' | 'preview';
 
@@ -54,7 +54,8 @@ export function MetadataBatchModal({
     [books, selectedIds],
   );
   const processingBook = selectedBooks.find((book) => book.id === progress.bookId);
-  const columns = Math.max(2, Math.min(6, preferences.booksPerRow ?? 3));
+  const preferredColumns = preferences.booksPerRowMode === 'manual' ? preferences.booksPerRow : undefined;
+  const columns = Math.max(2, Math.min(6, preferredColumns ?? getDefaultBooksPerRow(width)));
   const batchContentMaxWidth = width >= TABLET_BREAKPOINT ? 720 : 560;
   const previewMaxWidth = width >= TABLET_BREAKPOINT ? 560 : 420;
   const previewContentWidth = Math.max(1, Math.min(previewMaxWidth, width - insets.left - insets.right - spacing.lg * 2));

@@ -9,7 +9,7 @@ export function PaginationSettingsButton({ color, onPress }: { color: string; on
     <Pressable
       accessibilityLabel={t('reader.paginationSettings')}
       accessibilityRole="button"
-      hitSlop={6}
+      hitSlop={{ bottom: 6, left: 2, right: 2, top: 6 }}
       onPress={onPress}
       style={({ pressed }) => ({
         alignItems: 'center',

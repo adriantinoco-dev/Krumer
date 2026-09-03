@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Linking, Pressable, ScrollView, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
-import { BookOpen, Folder, Globe, Grid3x3, Info, KeyRound, Moon, Sparkles } from 'lucide-react-native';
+import { Folder, Globe, Grid3x3, Info, KeyRound, Moon, Sparkles } from 'lucide-react-native';
 import { AnimatedLanguageCard } from '../components/AnimatedLanguageCard';
 import { ApiKeyInput } from '../components/ApiKeyInput';
 import { FolderPickerField } from '../components/FolderPickerField';
@@ -16,10 +16,8 @@ import { MetadataIntroModal } from '../components/MetadataIntroModal';
 import { MetadataDialog, type MetadataDialogConfig } from '../components/MetadataDialog';
 import { useApp } from '../context/AppContext';
 import { languages } from '../i18n/translations';
-import { DEFAULT_PDF_ENGINE, type PdfEngineKind } from '../readers/PdfReader.types';
-import { usePdfEnginePreference } from '../readers/pdf/usePdfEnginePreference';
 import { scanLibrary } from '../services/libraryScanner';
-import { radii, serifFont, SETTINGS_MAX_WIDTH, spacing, type ThemeName } from '../theme';
+import { getDefaultBooksPerRow, radii, serifFont, SETTINGS_MAX_WIDTH, spacing, type ThemeName } from '../theme';
 import type { MainTabParamList, RootStackParamList } from '../navigation/types';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -52,6 +50,7 @@ function SectionHeader({ label }: { label: string }) {
 
 export function SettingsScreen({ navigation }: Props) {
   const { books, preferences, setBooks, setBooksPerRow, setGeminiApiKey, setLanguage, setLibraryFolder, setMetadataIntroSeen, setThemeName, theme, t } = useApp();
+  const { width } = useWindowDimensions();
 
   const [cloudSyncVisible, setCloudSyncVisible] = useState(false);
   const [langVisible, setLangVisible] = useState(false);
@@ -59,11 +58,9 @@ export function SettingsScreen({ navigation }: Props) {
   const [themeVisible, setThemeVisible] = useState(false);
   const [apiVisible, setApiVisible] = useState(false);
   const [booksPerRowVisible, setBooksPerRowVisible] = useState(false);
-  const [pdfEngineVisible, setPdfEngineVisible] = useState(false);
   const [metadataIntroVisible, setMetadataIntroVisible] = useState(false);
   const [metadataBatchVisible, setMetadataBatchVisible] = useState(false);
   const [metadataDialog, setMetadataDialog] = useState<MetadataDialogConfig | null>(null);
-  const pdfEnginePreference = usePdfEnginePreference();
 
   const [folder, setFolder] = useState(preferences.libraryFolder);
   const [apiKey, setApiKey] = useState('');
@@ -75,10 +72,9 @@ export function SettingsScreen({ navigation }: Props) {
   const language = languages.find((item) => item.code === preferences.language)?.name ?? 'English';
   const themeLabel =
     preferences.theme === 'dark' ? t('theme.dark') : preferences.theme === 'light' ? t('theme.light') : t('theme.sepia');
-  const pdfEngineLabel = pdfEnginePreference.engine === DEFAULT_PDF_ENGINE
-    ? t('settings.pdfEngineNative')
-    : t('settings.pdfEngineWebView');
-
+  const effectiveBooksPerRow = preferences.booksPerRowMode === 'manual' && preferences.booksPerRow
+    ? preferences.booksPerRow
+    : getDefaultBooksPerRow(width);
   function folderName(path: string | null): string {
     if (!path) return '';
     const decoded = decodeURIComponent(path);
@@ -195,20 +191,11 @@ export function SettingsScreen({ navigation }: Props) {
         />
         <SettingsRow
           title={t('settings.booksPerRow')}
-          subtitle={t('settings.booksPerRowValue').replace('{0}', String(preferences.booksPerRow ?? 3))}
+          subtitle={t('settings.booksPerRowValue').replace('{0}', String(effectiveBooksPerRow))}
           icon={Grid3x3}
           onPress={() => {
             setBooksPerRowVisible(true);
           }}
-        />
-
-        {/* READING */}
-        <SectionHeader label={t('settings.sectionReading')} />
-        <SettingsRow
-          title={t('settings.pdfEngine')}
-          subtitle={pdfEngineLabel}
-          icon={BookOpen}
-          onPress={() => setPdfEngineVisible(true)}
         />
 
         {/* LIBRARY */}
@@ -353,8 +340,8 @@ export function SettingsScreen({ navigation }: Props) {
                 }}
                 style={{
                   alignItems: 'center',
-                  backgroundColor: preferences.booksPerRow === value ? theme.accent : 'transparent',
-                  borderColor: preferences.booksPerRow === value ? theme.accent : theme.border,
+                  backgroundColor: effectiveBooksPerRow === value ? theme.accent : 'transparent',
+                  borderColor: effectiveBooksPerRow === value ? theme.accent : theme.border,
                   borderRadius: radii.sm,
                   borderWidth: 1,
                   flex: 1,
@@ -363,7 +350,7 @@ export function SettingsScreen({ navigation }: Props) {
               >
                 <Text
                   style={{
-                    color: preferences.booksPerRow === value ? '#fff' : theme.textPrimary,
+                    color: effectiveBooksPerRow === value ? '#fff' : theme.textPrimary,
                     fontFamily: serifFont,
                     fontSize: 16,
                     fontWeight: '700',
@@ -374,61 +361,6 @@ export function SettingsScreen({ navigation }: Props) {
               </Pressable>
             ))}
           </View>
-        </View>
-      </SettingsModal>
-
-      {/* PDF engine modal. Both engines share the PdfReader contract; only the
-          selected engine is mounted for a reading session. */}
-      <SettingsModal visible={pdfEngineVisible} onClose={() => setPdfEngineVisible(false)} title={t('settings.pdfEngine')}>
-        <View style={{ gap: spacing.sm }}>
-          {([
-            {
-              description: t('settings.pdfEngineNativeDescription'),
-              enabled: true,
-              kind: 'native' as PdfEngineKind,
-              label: t('settings.pdfEngineNative'),
-            },
-            {
-              description: t('settings.pdfEngineWebViewDescription'),
-              enabled: true,
-              kind: 'webview' as PdfEngineKind,
-              label: t('settings.pdfEngineWebView'),
-            },
-          ]).map((option) => {
-            const selected = pdfEnginePreference.engine === option.kind;
-            return (
-              <Pressable
-                accessibilityLabel={`${option.label}: ${option.description}`}
-                accessibilityRole="button"
-                disabled={!option.enabled}
-                key={option.kind}
-                onPress={() => {
-                  pdfEnginePreference.updateEngine(option.kind);
-                  setPdfEngineVisible(false);
-                }}
-                style={({ pressed }) => ({
-                  backgroundColor: selected ? theme.accentMuted : theme.card,
-                  borderColor: selected ? theme.accent : theme.border,
-                  borderRadius: radii.md,
-                  borderWidth: 1,
-                  opacity: option.enabled ? (pressed ? 0.75 : 1) : 0.5,
-                  padding: spacing.md,
-                })}
-              >
-                <Text style={{ color: selected ? theme.accent : theme.textPrimary, fontFamily: serifFont, fontSize: 15, fontWeight: '600' }}>
-                  {option.label}
-                </Text>
-                <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 12, marginTop: spacing.xs }}>
-                  {option.description}
-                </Text>
-                {!option.enabled ? (
-                  <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 11, marginTop: spacing.xs }}>
-                    {t('settings.pdfEngineWebViewPending')}
-                  </Text>
-                ) : null}
-              </Pressable>
-            );
-          })}
         </View>
       </SettingsModal>
 
