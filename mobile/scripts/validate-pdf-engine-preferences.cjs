@@ -79,7 +79,12 @@ if (!webEngine.includes('READ_RANGE_RESULT') || !webEngine.includes('FileMode.Re
 if (!webEngine.includes('PDF_WEB_BINARY_RANGE_ENABLED')
   || !webEngine.includes('!binaryRangeDisabled')
   || !webEngine.includes('createPdfRangeUrl(resolvedUri)')
+  || !webEngine.includes('https://rangefile.localhost')
+  || !webEngine.includes('http://rangefile.localhost')
+  || !webEngine.includes("url.startsWith('http://rangefile.localhost/')")
+  || !webEngine.includes("url.startsWith('https://rangefile.localhost/')")
   || !webEngine.includes('allowFileAccessFromFileURLs={PDF_WEB_BINARY_RANGE_ENABLED}')
+  || !webEngine.includes('allowUniversalAccessFromFileURLs={PDF_WEB_BINARY_RANGE_ENABLED}')
   || !webEngine.includes("web:binary-range-retry-bridge")
   || !webEngine.includes("message.payload.code === 'OPEN_FAILED'")) {
   throw new Error('The WebView engine must advertise the binary local range route with a bridge fallback.');
@@ -88,11 +93,16 @@ if (!runtime.includes('requestBinaryRange') || !runtime.includes('binaryRangeAva
   || !runtime.includes('requestBridgeRange') || !runtime.includes("cache: 'no-store'")
   || !runtime.includes('Uint8Array.prototype.toHex')
   || !runtime.includes('binaryRangeTimeoutMs')
-  || !runtime.includes('Promise.race([fetchPromise, timeoutPromise])')) {
+  || !runtime.includes('Promise.race([fetchPromise, timeoutPromise])')
+  || !runtime.includes('connect-src https://rangefile.localhost http://rangefile.localhost')) {
   throw new Error('The PDF runtime must prefer binary range fetches and retain the bridge fallback.');
 }
 if (!rangePatch.includes('KRUMER_PDF_RANGE_ROUTE_START')
   || !rangePatch.includes('shouldInterceptRequest')
+  || !rangePatch.includes('rangefile.localhost')
+  || !rangePatch.includes('getQueryParameter("path")')
+  || !rangePatch.includes('FileInputStream')
+  || !rangePatch.includes('remaining = length')
   || !rangePatch.includes('Content-Length')) {
   throw new Error('The Android WebView range interception patch is missing.');
 }
@@ -137,7 +147,9 @@ if (!runtime.includes('__KRUMER_MAKE_PDF__') || !runtime.includes('foliate-fxl')
   || !runtime.includes('createPdfGestureController')
   || !runtime.includes('gestureController.attach')
   || !runtime.includes('postRuntimeMetrics')
-  || !runtime.includes('runtimeRangeBytes')) {
+  || !runtime.includes('runtimeRangeBytes')
+  || !runtime.includes('runtimeRangeBinaryFallbacks')
+  || !runtime.includes('runtimeRangeBinaryLastError')) {
   throw new Error('The WebView runtime must use PDF.js range loading, fixed-layout, links, and compatibility guards.');
 }
 if (!runtime.includes('PDF_WEB_GESTURE_CONTROLLER_SOURCE')
@@ -154,6 +166,7 @@ if (!vendor.includes('pdfjsVersion = 5.5.207')
   || !vendor.includes('#scrollMaxLoaded')
   || !vendor.includes('#scrollMaxConcurrent')
   || !vendor.includes('#scrollObserver')
+  || !vendor.includes('MAX_CONCURRENT_RANGES = 6')
   || !vendor.includes('MAX_CONCURRENT_PAGE_RENDERS = 2')
   || !vendor.includes('MAX_VISIBLE_CANVAS_PIXELS')
   || !vendor.includes('rangeChunkSize: 1024 * 1024')

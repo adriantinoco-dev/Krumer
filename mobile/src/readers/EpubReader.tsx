@@ -107,6 +107,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   const appearanceGenerationRef = useRef(0);
   const [prepared, setPrepared] = useState<PreparedEpub | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadProgress, setLoadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const source = useMemo(() => ({ html: EPUB_RUNTIME_HTML, baseUrl: RUNTIME_ORIGIN }), []);
   const appearance = useMemo<EpubAppearance>(() => {
@@ -259,11 +260,15 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     appearanceGenerationRef.current += 1;
     setPrepared(null);
     setLoading(true);
+    setLoadProgress(0);
     setError(null);
 
     prepareEpubFile(filePath, fileSize, preferences.language)
       .then((result) => {
-        if (!cancelled) setPrepared(result);
+        if (!cancelled) {
+          setPrepared(result);
+          setLoadProgress((current) => Math.max(current, 0.45));
+        }
       })
       .catch((caught: unknown) => {
         if (cancelled) return;
@@ -289,6 +294,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     const initialFontFamily = appearanceRef.current.fontFamily;
     void registerFontFamily(initialFontFamily).then(() => {
       if (openGeneration !== openGenerationRef.current) return;
+      setLoadProgress((current) => Math.max(current, 0.75));
       sendCommand(createEpubBridgeCommand('OPEN_BOOK', {
         bookId,
         byteLength: prepared.byteLength,
@@ -373,6 +379,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       runtimeReadyRef.current = true;
       if (readyTimerRef.current) clearTimeout(readyTimerRef.current);
       flushPendingCommands();
+      setLoadProgress((current) => Math.max(current, 0.25));
       return;
     }
 
@@ -380,6 +387,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       if (message.payload.bookId !== bookId) return;
       bookOpenedRef.current = true;
       setError(null);
+      setLoadProgress(1);
       setLoading(false);
       return;
     }
@@ -507,6 +515,13 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       {loading ? (
         <View style={{ alignItems: 'center', backgroundColor: visualTheme.backgroundColor, bottom: 0, justifyContent: 'center', left: 0, position: 'absolute', right: 0, top: 0, zIndex: 1 }}>
           <ActivityIndicator color="#f97316" size="large" />
+          <Text
+            accessibilityRole="progressbar"
+            accessibilityValue={{ max: 100, min: 0, now: Math.round(loadProgress * 100) }}
+            style={{ color: visualTheme.textColor, fontFamily: serifFont, fontSize: 12, marginTop: spacing.sm }}
+          >
+            Carregando EPUB... {Math.round(loadProgress * 100)}%
+          </Text>
         </View>
       ) : null}
       <WebView

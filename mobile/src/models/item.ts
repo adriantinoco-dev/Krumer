@@ -25,6 +25,8 @@ export type Book = {
   parentId?: string | null;
   children?: Book[];
   addedAt: number;
+  /** Timestamp of the most recent time the book was opened for reading. */
+  lastReadAt?: number;
   publisher?: string | null;
   year?: number | null;
   description?: string | null;

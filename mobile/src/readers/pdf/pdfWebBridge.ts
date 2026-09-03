@@ -44,6 +44,8 @@ export type PdfWebBridgeEvent =
       pagesLoaded: number;
       rangeBytes: number;
       rangeBinaryRequests: number;
+      rangeBinaryFallbacks: number;
+      rangeBinaryLastError: string;
       rangeBridgeRequests: number;
       rangeRejected: number;
       rangeRequests: number;
@@ -168,6 +170,8 @@ export function parsePdfWebBridgeEvent(raw: string): PdfWebBridgeEvent | null {
       && isFiniteInteger(payload.pagesLoaded, 0)
       && isFiniteInteger(payload.rangeBytes, 0)
       && isFiniteInteger(payload.rangeBinaryRequests, 0)
+      && isFiniteInteger(payload.rangeBinaryFallbacks, 0)
+      && typeof payload.rangeBinaryLastError === 'string'
       && isFiniteInteger(payload.rangeBridgeRequests, 0)
       && isFiniteInteger(payload.rangeRejected, 0)
       && isFiniteInteger(payload.rangeRequests, 0)

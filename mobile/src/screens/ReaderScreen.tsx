@@ -219,6 +219,12 @@ export function ReaderScreen({ navigation, route }: Props) {
   }, [book.id, isEpub]);
 
   useEffect(() => {
+    // Record the opening itself so a book becomes the first item even when the
+    // reader is closed before another page change is persisted.
+    void updateBookProgress(book.id, { lastReadAt: Date.now() });
+  }, [book.id, updateBookProgress]);
+
+  useEffect(() => {
     if (isEpub) {
       setPdfPreferencesHydrated(true);
       return undefined;

@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; script-src 'nonce-krumer-pdf-runtime' 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data: blob:; frame-src blob:; child-src blob:; worker-src blob:"><style nonce="krumer-pdf-runtime">html,body,#viewer{height:100%;margin:0;width:100%;overflow:hidden}html,body{background:#000}#viewer{display:block;position:absolute;inset:0;background:#000}</style><script nonce="krumer-pdf-runtime">
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; form-action 'none'; object-src 'none'; connect-src https://rangefile.localhost http://rangefile.localhost; script-src 'nonce-krumer-pdf-runtime' 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data: blob:; frame-src blob:; child-src blob:; worker-src blob:"><style nonce="krumer-pdf-runtime">html,body,#viewer{height:100%;margin:0;width:100%;overflow:hidden}html,body{background:#000}#viewer{display:block;position:absolute;inset:0;background:#000}</style><script nonce="krumer-pdf-runtime">
   
   if (typeof window !== 'undefined' && !window.__KRUMER_PDF_ERROR_HOOK__) {
     window.__KRUMER_PDF_ERROR_HOOK__ = true;
@@ -862,10 +862,10 @@ const MAX_CACHED_PAGES = 16
 // of byte ranges in a single burst. A real HTTP transport is implicitly
 // throttled by the browser's per-host connection limit (~6); the custom file
 // schemes readest serves these reads through (Android's `rangefile` /
-// `shouldInterceptRequest`, iOS' native file bridge) have no such limit, so
-// firing every request at once floods the native handler and exhausts the
-// WebView's heap, crashing on 50 MB+ PDFs (readest #3470). Throttle here.
-const MAX_CONCURRENT_RANGES = 2
+// `shouldInterceptRequest`, iOS' native file bridge) have no such limit. Keep
+// the same browser-like bound explicitly: six 1 MiB reads improve startup for
+// non-linearized PDFs without flooding the native handler or the WebView heap.
+const MAX_CONCURRENT_RANGES = 6
 
 export const makePDF = async (file, options = {}) => {
     await loadPDFJS()
@@ -895,7 +895,7 @@ export const makePDF = async (file, options = {}) => {
         // Non-linearized comic PDFs may need the whole cross-reference and
         // object streams before the first page is available. A 1 MiB chunk
         // keeps that startup bounded to fewer native/WebView range requests;
-        // the transport still limits in-flight reads to two.
+        // the transport still limits in-flight reads to six.
         rangeChunkSize: 1024 * 1024,
         // Rendering into a same-origin iframe gives that document its own
         // FontFaceSet. PDF.js otherwise installs embedded @font-face rules in
@@ -3312,6 +3312,8 @@ customElements.define('foliate-fxl', FixedLayout)
     var runtimeRangeRequests = 0;
     var runtimeRangeBytes = 0;
     var runtimeRangeBinaryRequests = 0;
+    var runtimeRangeBinaryFallbacks = 0;
+    var runtimeRangeBinaryLastError = '';
     var runtimeRangeBridgeRequests = 0;
     var runtimeRangeTimeouts = 0;
     var runtimeRangeRejected = 0;
@@ -3388,6 +3390,8 @@ customElements.define('foliate-fxl', FixedLayout)
         pagesLoaded: runtimePagesLoaded,
         rangeBytes: runtimeRangeBytes,
         rangeBinaryRequests: runtimeRangeBinaryRequests,
+        rangeBinaryFallbacks: runtimeRangeBinaryFallbacks,
+        rangeBinaryLastError: runtimeRangeBinaryLastError,
         rangeBridgeRequests: runtimeRangeBridgeRequests,
         rangeRejected: runtimeRangeRejected,
         rangeRequests: runtimeRangeRequests,
@@ -4009,11 +4013,13 @@ customElements.define('foliate-fxl', FixedLayout)
       runtimeRangeBytes += length;
       if (binaryRangeAvailable) {
         runtimeRangeBinaryRequests += 1;
-        return requestBinaryRange(begin, end).catch(function () {
+        return requestBinaryRange(begin, end).catch(function (error) {
           // A device may lack file-to-file fetch support even though the
           // WebView is otherwise healthy. Fall back once and keep the reader
           // usable; subsequent ranges avoid repeating the failed probe.
           binaryRangeAvailable = false;
+          runtimeRangeBinaryFallbacks += 1;
+          runtimeRangeBinaryLastError = safeMessage(error);
           return requestBridgeRange(begin, end, requestedBookId);
         });
       }
@@ -4188,6 +4194,8 @@ customElements.define('foliate-fxl', FixedLayout)
       runtimeRangeRequests = 0;
       runtimeRangeBytes = 0;
       runtimeRangeBinaryRequests = 0;
+      runtimeRangeBinaryFallbacks = 0;
+      runtimeRangeBinaryLastError = '';
       runtimeRangeBridgeRequests = 0;
       runtimeRangeTimeouts = 0;
       runtimeRangeRejected = 0;

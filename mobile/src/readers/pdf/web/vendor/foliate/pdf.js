@@ -728,10 +728,10 @@ const MAX_CACHED_PAGES = 16
 // of byte ranges in a single burst. A real HTTP transport is implicitly
 // throttled by the browser's per-host connection limit (~6); the custom file
 // schemes readest serves these reads through (Android's `rangefile` /
-// `shouldInterceptRequest`, iOS' native file bridge) have no such limit, so
-// firing every request at once floods the native handler and exhausts the
-// WebView's heap, crashing on 50 MB+ PDFs (readest #3470). Throttle here.
-const MAX_CONCURRENT_RANGES = 2
+// `shouldInterceptRequest`, iOS' native file bridge) have no such limit. Keep
+// the same browser-like bound explicitly: six 1 MiB reads improve startup for
+// non-linearized PDFs without flooding the native handler or the WebView heap.
+const MAX_CONCURRENT_RANGES = 6
 
 export const makePDF = async (file, options = {}) => {
     await loadPDFJS()
@@ -761,7 +761,7 @@ export const makePDF = async (file, options = {}) => {
         // Non-linearized comic PDFs may need the whole cross-reference and
         // object streams before the first page is available. A 1 MiB chunk
         // keeps that startup bounded to fewer native/WebView range requests;
-        // the transport still limits in-flight reads to two.
+        // the transport still limits in-flight reads to six.
         rangeChunkSize: 1024 * 1024,
         // Rendering into a same-origin iframe gives that document its own
         // FontFaceSet. PDF.js otherwise installs embedded @font-face rules in

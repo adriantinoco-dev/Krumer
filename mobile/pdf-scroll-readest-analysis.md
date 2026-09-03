@@ -148,9 +148,10 @@ O `postMessage` atual não é o canal da subfase 2: a implementação Android de
 Não usar um arquivo temporário por faixa como solução final sem medir: ele remove Base64, mas acrescenta escrita em disco, leitura duplicada e limpeza concorrente. Pode ser um protótipo de diagnóstico, com limite de tamanho e remoção garantida, nunca um ganho presumido.
 
 As subfases 1 e 2 já foram aplicadas de forma reversível. A Fase 2 usa `rangeUrl` somente para
-o WebView Android, intercepta `file://` com `krumerRange=1`, `start` e `end`, restringe o
-caminho às pastas privadas do aplicativo e mantém o `READ_RANGE`/Base64 como fallback automático.
-O patch nativo é reaplicado pelo
+o WebView Android, intercepta o host local `rangefile.localhost` com `krumerRange=1`,
+`path`, `start` e `end`, restringe o caminho às pastas privadas do aplicativo e mantém o
+`READ_RANGE`/Base64 como fallback automático. A rota `file://` anterior continua aceita para
+compatibilidade. O patch nativo é reaplicado pelo
 `scripts/fix-pdf-webview-range.cjs` em `postinstall`, `prebuild` e `android`.
 
 O Krumer já possui [benchmark de motores](<C:/Projects/Krumer RN/mobile/scripts/benchmark-pdf-engines.cjs:1>) com métricas de abertura/páginas, frames lentos de volume e captura opcional de memória. Reutilizá-lo e complementar apenas o que falta. Seus contadores de animação não substituem uma captura dos frames realmente apresentados: um loop correto pode continuar disputando tempo com rasterização, layout e composição.
@@ -179,7 +180,10 @@ Para mudanças futuras, usar as validações existentes de PDF (`validate-pdf-re
 
 Preservar as alterações locais já existentes e documentar qual snapshot foi medido antes da implementação. Cada experimento deve ser reversível e avaliado separadamente. Não trocar o motor padrão, o leitor, a stack, o contrato de volume ou a política de zoom apenas para reproduzir a arquitetura do Readest.
 
-Não aumentar de 2 para 6 leituras, ativar camada `hardware`, atualizar PDF.js ou baixar a qualidade como pacote único. `androidLayerType="none"` não basta para concluir que a aceleração está desativada. Esses ajustes precisam de ensaios próprios, se o perfil os justificar.
+As leituras de faixa agora usam seis operações simultâneas limitadas, após a confirmação de que
+o Readest mantém esse limite de transporte. Isso fica separado de ativar a camada `hardware`,
+atualizar PDF.js ou baixar a qualidade; cada ajuste precisa de ensaio próprio. `androidLayerType="none"`
+não basta para concluir que a aceleração está desativada.
 
 O resultado atual é uma redução de trabalho durante o movimento, um caminho binário reversível
 para as faixas do PDF e um orçamento de rasterização temporário alinhado ao Readest. A causa

@@ -231,6 +231,8 @@ async function main() {
   assert(runtimeSource.includes("RUNTIME_SCRIPT_ERROR"));
   assert(runtimeSource.includes('PDF_WEB_GESTURE_CONTROLLER_SOURCE'));
   assert(runtimeSource.includes('runtimeRangeBinaryRequests'));
+  assert(runtimeSource.includes('runtimeRangeBinaryFallbacks'));
+  assert(runtimeSource.includes('runtimeRangeBinaryLastError'));
   assert(runtimeSource.includes('runtimeRangeBridgeRequests'));
   assert(!runtimeSource.includes('createPdfGestureController.toString()'));
   assert(runtimeSource.includes('error && error.stack'));
@@ -297,6 +299,8 @@ async function main() {
       pagesLoaded: 1,
       rangeBytes: 2048,
       rangeBinaryRequests: 1,
+      rangeBinaryFallbacks: 0,
+      rangeBinaryLastError: '',
       rangeBridgeRequests: 0,
       rangeRejected: 0,
       rangeRequests: 1,

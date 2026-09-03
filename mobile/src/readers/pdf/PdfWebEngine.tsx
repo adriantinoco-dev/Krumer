@@ -27,7 +27,7 @@ const RUNTIME_READY_TIMEOUT_MS = 12_000;
 const MAX_CONCURRENT_RANGES = 2;
 const MAX_PENDING_RANGES = 24;
 const MAX_RANGE_BYTES = 1024 * 1024;
-// The Android WebView route carries ranges as a local file URL query. Keep
+// The Android WebView route carries ranges as a local HTTPS URL query. Keep
 // the bridge fallback available for older builds or devices where that route
 // is unavailable; setting the env var to 0 is an emergency opt-out.
 const PDF_WEB_BINARY_RANGE_ENABLED = Platform.OS === 'android'
@@ -76,11 +76,12 @@ function bytesToBase64(bytes: Uint8Array): string {
 }
 
 function createPdfRangeUrl(uri: string): string {
-  const hashIndex = uri.indexOf('#');
-  const fragment = hashIndex >= 0 ? uri.slice(hashIndex) : '';
-  const base = hashIndex >= 0 ? uri.slice(0, hashIndex) : uri;
-  const separator = base.includes('?') ? '&' : '?';
-  return `${base}${separator}krumerRange=1${fragment}`;
+  // Fetching a file:// URL from a file-origin WebView is inconsistent across
+  // Android WebView versions: some builds skip shouldInterceptRequest or
+  // reject the response as an opaque file-origin fetch. Use a local HTTPS
+  // origin instead, carrying the original file URI as data for the native
+  // interceptor. The response never reaches the network.
+  return `https://rangefile.localhost/?krumerRange=1&path=${encodeURIComponent(uri)}`;
 }
 
 async function readPdfRange(handle: ReturnType<File['open']>, begin: number, end: number): Promise<string> {
@@ -265,6 +266,10 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
           engine: 'webview',
           elapsedMs: metrics.openMs,
           pagesLoaded: metrics.pagesLoaded,
+          rangeBinaryRequests: metrics.rangeBinaryRequests,
+          rangeBinaryFallbacks: metrics.rangeBinaryFallbacks,
+          rangeBinaryLastError: metrics.rangeBinaryLastError,
+          rangeBridgeRequests: metrics.rangeBridgeRequests,
           rangeBytes: metrics.rangeBytes,
           rangeRejected: metrics.rangeRejected,
           rangeRequests: metrics.rangeRequests,
@@ -436,6 +441,8 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
         || (runtimeUri !== null && url.startsWith(runtimeUri))
         || url.startsWith('blob:')
         || url.startsWith('data:')
+        || url.startsWith('http://rangefile.localhost/')
+        || url.startsWith('https://rangefile.localhost/')
       ) return true;
       if (/^(https?:|mailto:|tel:)/i.test(url)) onExternalLink?.(url);
       return false;
@@ -450,7 +457,11 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
           androidLayerType={PDF_WEB_ANDROID_LAYER_TYPE}
           allowFileAccess
           allowFileAccessFromFileURLs={PDF_WEB_BINARY_RANGE_ENABLED}
-          allowUniversalAccessFromFileURLs={false}
+          // The runtime itself is loaded from file://, while binary ranges use
+          // the intercepted local HTTPS origin. Android requires universal
+          // file-origin access for that fetch; the native route still scopes
+          // every requested path to the app's private directories.
+          allowUniversalAccessFromFileURLs={PDF_WEB_BINARY_RANGE_ENABLED}
           cacheEnabled
           domStorageEnabled={false}
           javaScriptCanOpenWindowsAutomatically={false}

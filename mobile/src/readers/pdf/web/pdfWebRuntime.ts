@@ -626,6 +626,8 @@ const bridgeRuntime = `
     var runtimeRangeRequests = 0;
     var runtimeRangeBytes = 0;
     var runtimeRangeBinaryRequests = 0;
+    var runtimeRangeBinaryFallbacks = 0;
+    var runtimeRangeBinaryLastError = '';
     var runtimeRangeBridgeRequests = 0;
     var runtimeRangeTimeouts = 0;
     var runtimeRangeRejected = 0;
@@ -702,6 +704,8 @@ const bridgeRuntime = `
         pagesLoaded: runtimePagesLoaded,
         rangeBytes: runtimeRangeBytes,
         rangeBinaryRequests: runtimeRangeBinaryRequests,
+        rangeBinaryFallbacks: runtimeRangeBinaryFallbacks,
+        rangeBinaryLastError: runtimeRangeBinaryLastError,
         rangeBridgeRequests: runtimeRangeBridgeRequests,
         rangeRejected: runtimeRangeRejected,
         rangeRequests: runtimeRangeRequests,
@@ -834,11 +838,13 @@ const bridgeRuntime = `
       runtimeRangeBytes += length;
       if (binaryRangeAvailable) {
         runtimeRangeBinaryRequests += 1;
-        return requestBinaryRange(begin, end).catch(function () {
+        return requestBinaryRange(begin, end).catch(function (error) {
           // A device may lack file-to-file fetch support even though the
           // WebView is otherwise healthy. Fall back once and keep the reader
           // usable; subsequent ranges avoid repeating the failed probe.
           binaryRangeAvailable = false;
+          runtimeRangeBinaryFallbacks += 1;
+          runtimeRangeBinaryLastError = safeMessage(error);
           return requestBridgeRange(begin, end, requestedBookId);
         });
       }
@@ -1013,6 +1019,8 @@ const bridgeRuntime = `
       runtimeRangeRequests = 0;
       runtimeRangeBytes = 0;
       runtimeRangeBinaryRequests = 0;
+      runtimeRangeBinaryFallbacks = 0;
+      runtimeRangeBinaryLastError = '';
       runtimeRangeBridgeRequests = 0;
       runtimeRangeTimeouts = 0;
       runtimeRangeRejected = 0;
@@ -1202,7 +1210,7 @@ const bridgeRuntime = `
 export const PDF_WEB_RUNTIME_HTML = [
   '<!doctype html><html lang="en"><head><meta charset="utf-8">',
   '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">',
-  '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; base-uri \'none\'; form-action \'none\'; object-src \'none\'; script-src \'nonce-krumer-pdf-runtime\' \'unsafe-inline\'; style-src \'unsafe-inline\'; img-src data: blob:; font-src data: blob:; frame-src blob:; child-src blob:; worker-src blob:">',
+  '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; base-uri \'none\'; form-action \'none\'; object-src \'none\'; connect-src https://rangefile.localhost http://rangefile.localhost; script-src \'nonce-krumer-pdf-runtime\' \'unsafe-inline\'; style-src \'unsafe-inline\'; img-src data: blob:; font-src data: blob:; frame-src blob:; child-src blob:; worker-src blob:">',
   '<style nonce="krumer-pdf-runtime">html,body,#viewer{height:100%;margin:0;width:100%;overflow:hidden}html,body{background:#000}#viewer{display:block;position:absolute;inset:0;background:#000}</style>',
   `<script nonce="${RUNTIME_NONCE}">${inlineScript(workerBootstrap)}${inlineScript(styleSheetPolyfill)}</script>`,
   `<script type="module" nonce="${RUNTIME_NONCE}">${inlineScript(PDF_WEB_PDFJS_SOURCE)}</script>`,

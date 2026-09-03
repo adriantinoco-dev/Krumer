@@ -14,6 +14,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   e o commit revisado do foliate-js para a implementação faseada do runtime.
 
 ### Adicionado
+- **Mobile — feedback de abertura dos leitores:** as telas de carregamento de
+  PDF e EPUB agora exibem a porcentagem do progresso para o usuário acompanhar
+  a preparação e a abertura do documento.
+- **Mobile — ordenação de “Continuar lendo”:** o livro aberto mais recentemente
+  agora aparece sempre primeiro na linha, à esquerda, com fallback para a data
+  de inclusão nos livros antigos.
 - **Mobile — desempenho do leitor PDF WebView:** o runtime PDF.js/foliate agora
   é gerado como asset HTML local cacheável e preparado em paralelo ao arquivo.
   A primeira imagem e as trocas de página usam preview progressivo, refinamento
@@ -54,12 +60,21 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 - **Mobile — timeout de abertura do PDF:** o leitor agora tolera carregamentos
   longos enquanto houver progresso de bytes e só exibe erro após 15 segundos
   sem avanço ou 90 segundos no total.
-- **Mobile — ranges binários do PDF WebView:** requisições `file://` que não
-  respondem em 5 segundos abortam e usam o bridge de bytes automaticamente,
-  evitando que uma faixa pendurada bloqueie a abertura do documento.
+- **Mobile — ranges binários do PDF WebView:** requisições que não respondem em
+  5 segundos abortam e usam o bridge de bytes automaticamente, evitando que uma
+  faixa pendurada bloqueie a abertura do documento. A rota principal usa agora
+  o host local HTTPS `rangefile.localhost`, interceptado no Android antes da
+  rede, para evitar as restrições de fetch entre origens `file:`; o acesso
+  universal necessário ao fetch fica ativo apenas junto dessa rota privada. O
+  interceptor entrega cada faixa por stream limitado, evitando copiar o MiB
+  inteiro para um buffer Java antes de o WebView começar a consumi-lo. A rota
+  usa HTTPS local para não ser descartada pelo bloqueio de conteúdo misto, e
+  a CSP libera conexão somente para esse host; as métricas registram o motivo
+  do primeiro fallback para Base64.
 - **Mobile — abertura de PDFs não linearizados:** o PDF.js passou a solicitar
-  faixas de 1 MiB, mantendo duas leituras simultâneas e reduzindo o número de
-  chamadas nativas necessárias antes da primeira página.
+  faixas de 1 MiB, mantendo seis leituras simultâneas limitadas e reduzindo o
+  número de chamadas nativas necessárias antes da primeira página, em linha com
+  o limite de transporte usado pelo Readest.
 - **Mobile — rasterização durante o scroll do PDF WebView (Fase 3 do plano):**
   páginas em movimento usam temporariamente o orçamento de bitmap do Readest,
   reduzindo pressão de CPU/memória durante os frames. Após 150 ms sem movimento,

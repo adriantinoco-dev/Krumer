@@ -30,7 +30,7 @@ type AppContextValue = {
   replaceListsFromSync: (lists: SyncList[]) => Promise<void>;
   updateBookProgress: (
     bookId: string,
-    update: Partial<Pick<Book, 'progress' | 'progressPct' | 'currentPage' | 'totalPages' | 'cfi' | 'isRead'>>,
+    update: Partial<Pick<Book, 'progress' | 'progressPct' | 'currentPage' | 'totalPages' | 'cfi' | 'isRead' | 'lastReadAt'>>,
   ) => Promise<void>;
   updateBookMetadata: (
     bookId: string,
@@ -244,7 +244,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const updateBookProgress = useCallback(async (
     bookId: string,
-    update: Partial<Pick<Book, 'progress' | 'progressPct' | 'currentPage' | 'totalPages' | 'cfi' | 'isRead'>>,
+    update: Partial<Pick<Book, 'progress' | 'progressPct' | 'currentPage' | 'totalPages' | 'cfi' | 'isRead' | 'lastReadAt'>>,
   ) => {
     const { nextBooks, updatedBook } = updateBookTree(booksRef.current, bookId, (book) => ({
       ...book,
@@ -452,6 +452,7 @@ function mergeScannedBooks(books: Book[], previous: Map<string, Book>): Book[] {
       ...book,
       ...(existing ? {
         addedAt: existing.addedAt,
+        lastReadAt: existing.lastReadAt,
         title: existing.title,
         author: existing.author,
         year: existing.year,

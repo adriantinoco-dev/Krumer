@@ -71,6 +71,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   const initialScaleRef = useRef<number>(PDF_DEFAULTS.scale);
   const currentScaleRef = useRef<number>(initialScaleRef.current);
   const [loading, setLoading] = useState(true);
+  const [loadProgress, setLoadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
   onCenterTapRef.current = onCenterTap;
@@ -157,6 +158,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     loadStartedAtRef.current = Date.now();
     loadActivityAtRef.current = loadStartedAtRef.current;
     loadProgressRef.current = 0;
+    setLoadProgress(0);
     firstPageReadyRef.current = false;
     pendingPageMetricRef.current = null;
     pendingScaleMetricRef.current = null;
@@ -165,6 +167,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
       source: describePdfSource(filePath),
     });
     setLoading(true);
+    setLoadProgress(0);
     setError(null);
     setErrorDetail(null);
   }, [filePath, onScaleChange]);
@@ -306,6 +309,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
 
   const handleLoadProgress = useCallback((progress: number) => {
     const nextProgress = Math.max(0, Math.min(1, progress));
+    setLoadProgress((current) => Math.max(current, nextProgress));
     if (nextProgress > loadProgressRef.current + 0.0001) {
       loadProgressRef.current = nextProgress;
       loadActivityAtRef.current = Date.now();
@@ -359,6 +363,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
       });
       setActiveEngine(DEFAULT_PDF_ENGINE);
       setLoading(true);
+      setLoadProgress(0);
       setError(null);
       setErrorDetail(null);
       return;
@@ -577,7 +582,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
       <View style={{ alignItems: 'center', backgroundColor: theme.bg, flex: 1, justifyContent: 'center' }}>
         <ActivityIndicator color={theme.accent} size="large" />
         <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12, marginTop: spacing.sm }}>
-          Preparando PDF...
+          Preparando PDF... 0%
         </Text>
       </View>
     );
@@ -635,8 +640,14 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
           }}
         >
           <ActivityIndicator color={theme.accent} size="large" />
-          <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12 }}>
-            {resolving || !resolvedUri ? 'Preparando PDF...' : 'Carregando documento...'}
+          <Text
+            accessibilityRole="progressbar"
+            accessibilityValue={{ max: 100, min: 0, now: Math.round(loadProgress * 100) }}
+            style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12 }}
+          >
+            {resolving || !resolvedUri
+              ? 'Preparando PDF... 0%'
+              : `Carregando documento... ${Math.round(loadProgress * 100)}%`}
           </Text>
         </View>
       ) : null}

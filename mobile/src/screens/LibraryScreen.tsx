@@ -39,6 +39,12 @@ export function LibraryScreen({ navigation }: Props) {
         const isChildOrStandalone = !book.children?.length;
         const prog = book.progressPct ?? 0;
         return isChildOrStandalone && prog > 0 && prog < 100;
+      }).sort((a, b) => {
+        // Most recently opened books stay at the left. Older library entries
+        // without this timestamp fall back to their original scan order.
+        const aLastRead = a.lastReadAt ?? a.addedAt;
+        const bLastRead = b.lastReadAt ?? b.addedAt;
+        return bLastRead - aLastRead || b.addedAt - a.addedAt;
       }),
     [books],
   );

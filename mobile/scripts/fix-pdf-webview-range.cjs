@@ -45,12 +45,23 @@ if (!source.includes('import android.net.Uri;')) {
     'import android.graphics.Bitmap;\nimport android.net.Uri;\n',
   );
 }
-if (!source.includes('import java.io.ByteArrayInputStream;')) {
-  source = source.replace(
-    'import java.util.concurrent.atomic.AtomicReference;\n',
-    'import java.io.ByteArrayInputStream;\nimport java.io.File;\nimport java.io.IOException;\nimport java.io.RandomAccessFile;\nimport java.util.HashMap;\nimport java.util.Map;\nimport java.util.concurrent.atomic.AtomicReference;\n',
-  );
+for (const importLine of [
+  'import java.io.ByteArrayInputStream;\n',
+  'import java.io.File;\n',
+  'import java.io.FileInputStream;\n',
+  'import java.io.FilterInputStream;\n',
+  'import java.io.IOException;\n',
+  'import java.io.InputStream;\n',
+  'import java.io.RandomAccessFile;\n',
+  'import java.util.HashMap;\n',
+  'import java.util.Map;\n',
+]) {
+  source = source.replaceAll(importLine, '');
 }
+source = source.replace(
+  'import java.util.concurrent.atomic.AtomicReference;\n',
+  'import java.io.File;\nimport java.io.FileInputStream;\nimport java.io.FilterInputStream;\nimport java.io.IOException;\nimport java.io.InputStream;\nimport java.util.HashMap;\nimport java.util.Map;\nimport java.util.concurrent.atomic.AtomicReference;\n',
+);
 
 const routeMethods = `
 ${marker}
@@ -79,11 +90,25 @@ ${marker}
     private static WebResourceResponse interceptKrumerPdfRange(WebView view, String rawUrl) {
         try {
             Uri uri = Uri.parse(rawUrl);
-            if (!"file".equalsIgnoreCase(uri.getScheme())
+            boolean isLocalHttpRoute = ("http".equalsIgnoreCase(uri.getScheme())
+                    || "https".equalsIgnoreCase(uri.getScheme()))
+                    && "rangefile.localhost".equalsIgnoreCase(uri.getHost());
+            boolean isLegacyFileRoute = "file".equalsIgnoreCase(uri.getScheme());
+            if ((!isLocalHttpRoute && !isLegacyFileRoute)
                     || !"1".equals(uri.getQueryParameter("krumerRange"))) {
                 return null;
             }
-            String path = uri.getPath();
+            String path;
+            if (isLocalHttpRoute) {
+                String source = uri.getQueryParameter("path");
+                Uri sourceUri = source == null ? null : Uri.parse(source);
+                if (sourceUri == null || !"file".equalsIgnoreCase(sourceUri.getScheme())) {
+                    return null;
+                }
+                path = sourceUri.getPath();
+            } else {
+                path = uri.getPath();
+            }
             String startValue = uri.getQueryParameter("start");
             String endValue = uri.getQueryParameter("end");
             if (path == null || path.indexOf('\\0') >= 0
@@ -103,12 +128,36 @@ ${marker}
                     || start >= totalSize || end > totalSize) {
                 return null;
             }
-            int length = (int) (end - start);
-            byte[] bytes = new byte[length];
-            try (RandomAccessFile input = new RandomAccessFile(file, "r")) {
-                input.seek(start);
-                input.readFully(bytes);
-            }
+            final long length = end - start;
+            FileInputStream input = new FileInputStream(file);
+            input.getChannel().position(start);
+            InputStream bounded = new FilterInputStream(input) {
+                private long remaining = length;
+
+                @Override
+                public int read() throws IOException {
+                    if (remaining <= 0) return -1;
+                    int value = super.read();
+                    if (value >= 0) remaining--;
+                    return value;
+                }
+
+                @Override
+                public int read(byte[] buffer, int offset, int count) throws IOException {
+                    if (remaining <= 0) return -1;
+                    int limitedCount = (int) Math.min((long) count, remaining);
+                    int read = super.read(buffer, offset, limitedCount);
+                    if (read > 0) remaining -= read;
+                    return read;
+                }
+
+                @Override
+                public long skip(long count) throws IOException {
+                    long skipped = super.skip(Math.min(count, remaining));
+                    if (skipped > 0) remaining -= skipped;
+                    return skipped;
+                }
+            };
 
             Map<String, String> headers = new HashMap<>();
             headers.put("Access-Control-Allow-Origin", "*");
@@ -122,7 +171,7 @@ ${marker}
                     200,
                     "OK",
                     headers,
-                    new ByteArrayInputStream(bytes));
+                    bounded);
         } catch (IOException | NumberFormatException | SecurityException error) {
             Log.w(TAG, "Unable to serve Krumer PDF byte range", error);
             return null;
