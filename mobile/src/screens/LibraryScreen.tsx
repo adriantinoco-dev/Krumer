@@ -35,7 +35,7 @@ export function LibraryScreen({ navigation }: Props) {
   const { books, isScanning, preferences, rescanLibrary, theme, t } = useApp();
 
   const [query, setQuery] = useState('');
-  const [sort, setSort] = useState<SortKey>('recent');
+  const [sort, setSort] = useState<SortKey>('name');
   const [longPressBook, setLongPressBook] = useState<Book | null>(null);
 
   const preferredColumns = preferences.booksPerRowMode === 'manual' ? preferences.booksPerRow : undefined;
@@ -82,10 +82,8 @@ export function LibraryScreen({ navigation }: Props) {
 
     // sort
     switch (sort) {
-      case 'name':
-        result.sort((a, b) =>
-          a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' }),
-        );
+      case 'recent':
+        result.sort((a, b) => b.addedAt - a.addedAt);
         break;
       case 'rating':
         result.sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
@@ -93,9 +91,11 @@ export function LibraryScreen({ navigation }: Props) {
       case 'progress':
         result.sort((a, b) => (b.progressPct ?? 0) - (a.progressPct ?? 0));
         break;
-      case 'recent':
+      case 'name':
       default:
-        result.sort((a, b) => b.addedAt - a.addedAt);
+        result.sort((a, b) =>
+          a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' }),
+        );
         break;
     }
 

@@ -131,10 +131,8 @@ export function MetadataDialog({
   const Icon = variantIcons[content.variant];
   const semanticColor = content.variant === 'warning' ? theme.accent : variantColors[content.variant];
   const iconBackground = content.variant === 'warning' ? theme.accentMuted : `${semanticColor}22`;
-  const dialogActions = (content.variant === 'danger'
-    ? [content.primaryAction, content.secondaryAction]
-    : [content.secondaryAction, content.primaryAction]
-  ).filter((action): action is MetadataDialogAction => Boolean(action));
+  const dialogActions = [content.primaryAction, content.secondaryAction]
+    .filter((action): action is MetadataDialogAction => Boolean(action));
 
   const invokeAction = (action: MetadataDialogAction) => {
     onCloseRef.current();
