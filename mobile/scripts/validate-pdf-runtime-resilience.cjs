@@ -66,12 +66,9 @@ async function main() {
   assert(runtimeSource.includes("pending.reject(new Error('PDF byte range read timed out.'))"));
   assert(runtimeSource.includes('clearTimeout(pending.timeout)'));
   assert(runtimeSource.includes('payload.bookId !== pending.bookId'));
-  assert(runtimeSource.includes('function queueViewportScroll(fraction)'));
-  assert(runtimeSource.includes('start + viewer.clientHeight * fraction'));
-  assert(runtimeSource.includes('function startViewportScroll(direction)'));
+  assert(runtimeSource.includes('function queueViewportScroll(fraction, repeat)'));
+  assert(runtimeSource.includes('viewer.clientHeight * fraction'));
   assert(runtimeSource.includes('function stopViewportScroll()'));
-  assert(runtimeSource.includes('viewer.clientHeight * viewportScrollVelocity * frameMs / 1000'));
-  assert(runtimeSource.includes('1 - Math.pow(0.68, frameMs / 16.667)'));
   assert(runtimeSource.includes("window.addEventListener('message', receiveMessage)"));
   assert(runtimeSource.includes("document.addEventListener('message', receiveMessage)"));
   assert(!runtimeSource.includes("viewer.scrollBy({ top: viewer.clientHeight * fraction, behavior: 'smooth' })"));
@@ -83,32 +80,52 @@ async function main() {
   const frames = new Map();
   let nextFrame = 0;
   let now = 0;
-  const scrollViewer = { scrolled: true, scrollTop: 1000, scrollHeight: 20000, clientHeight: 1000 };
+  let scrollTop = 1000;
+  let totalScrollHeight = 20000;
+  let layoutReads = 0;
+  const visibilityEvents = new Map();
+  const focusEvents = new Map();
+  const scrollDocument = {
+    hidden: false,
+    addEventListener: (name, callback) => visibilityEvents.set(name, callback),
+  };
+  const scrollViewer = {
+    scrolled: true, clientHeight: 1000,
+    get scrollTop() { return scrollTop; },
+    set scrollTop(value) { scrollTop = Math.max(0, Math.min(totalScrollHeight - this.clientHeight, value)); },
+    get scrollHeight() { layoutReads += 1; return totalScrollHeight; },
+    set scrollHeight(value) { totalScrollHeight = value; },
+    pan() { throw new Error('Volume buttons must not enter the gesture pan path.'); },
+  };
   const scroll = vm.runInNewContext(`(function () {
-    var viewportScrollFrame = null, viewportScrollTarget = null, viewportScrollDirection = 0;
+    var viewportScrollFrame = null, viewportScrollRemaining = 0;
     var viewportScrollVelocity = 0, viewportScrollLastAt = 0, volumeScrollStartedAt = 0;
     var volumeScrollFrames = 0, volumeScrollSlowFrames = 0, volumeScrollMaxFrameMs = 0;
     ${scrollFunctions}
     return { queueViewportScroll, stopViewportScroll };
   })()`, {
     viewer: scrollViewer,
+    performance: { now: () => now },
+    Date: { now: () => 1000000 + now },
+    window: { addEventListener: (name, callback) => focusEvents.set(name, callback) },
+    document: scrollDocument,
     post() {},
     requestAnimationFrame: (callback) => { frames.set(++nextFrame, callback); return nextFrame; },
     cancelAnimationFrame: (id) => frames.delete(id),
   });
-  const tick = () => {
+  const tick = (frameMs = 16.667) => {
     const callbacks = [...frames.values()];
     frames.clear();
-    now += 16.667;
+    now += frameMs;
     callbacks.forEach(callback => callback(now));
   };
   scroll.queueViewportScroll(0.18);
   for (let i = 0; i < 60 && frames.size; i += 1) tick();
-  assert.strictEqual(scrollViewer.scrollTop, 1180);
+  assert(Math.abs(scrollViewer.scrollTop - 1180) < 0.01);
   scroll.queueViewportScroll(-0.18);
   scroll.queueViewportScroll(-0.18);
   for (let i = 0; i < 60 && frames.size; i += 1) tick();
-  assert.strictEqual(scrollViewer.scrollTop, 820);
+  assert(Math.abs(scrollViewer.scrollTop - 820) < 0.01);
   scroll.queueViewportScroll(0.18);
   tick();
   scroll.stopViewportScroll();
@@ -116,12 +133,105 @@ async function main() {
   for (let i = 0; i < 10; i += 1) tick();
   assert.strictEqual(frames.size, 0, 'Release left volume scrolling scheduled.');
   assert.strictEqual(scrollViewer.scrollTop, stoppedTop, 'Scroll drifted after release.');
+  const holdResults = [];
+  for (const fps of [60, 120]) {
+    for (const direction of [1, -1]) {
+      scroll.stopViewportScroll();
+      scrollViewer.scrollHeight = 1000000;
+      scrollViewer.scrollTop = 500000;
+      const deltas = [];
+      layoutReads = 0;
+      // Every native repeat adds an 18% step to the same finite animation.
+      // Retargeting must preserve velocity instead of braking on each event.
+      for (let frame = 0; frame < fps * 30; frame += 1) {
+        if (frame % (fps / 20) === 0) {
+          scroll.queueViewportScroll(direction * 0.18, true);
+        }
+        const before = scrollViewer.scrollTop;
+        tick(1000 / fps);
+        assert(frames.size <= 1, 'Hold queued multiple animation loops.');
+        if (frame > fps) deltas.push(Math.abs(scrollViewer.scrollTop - before));
+      }
+      const variation = Math.max(...deltas) / Math.min(...deltas);
+      assert(variation < 1.25,
+        `Held scrolling at ${fps} Hz changed speed ${variation.toFixed(2)}x between frames.`);
+      assert.strictEqual(layoutReads, 0, 'Hold forced whole-document layout reads on every frame.');
+      // Loading a page above the viewport can change scrollTop to preserve the
+      // reading anchor. Buttons must move relative to that new position.
+      scrollViewer.scrollTop += direction * 4000;
+      const reflowTop = scrollViewer.scrollTop;
+      tick(1000 / fps);
+      assert(direction * (scrollViewer.scrollTop - reflowTop) > 0
+        && Math.abs(scrollViewer.scrollTop - reflowTop) < 180,
+      'A page layout change sent scrolling back toward an obsolete destination.');
+      for (let frame = 0; frame < fps && frames.size; frame += 1) tick(1000 / fps);
+      assert.strictEqual(frames.size, 0, 'Scrolling did not finish after input stopped.');
+      assert(Math.abs(scrollViewer.scrollTop - (500000 + direction * (600 * 180 + 4000))) < 0.01,
+        'Normal repeats did not preserve the existing 18% distance.');
+      scroll.queueViewportScroll(direction * 0.18, true);
+      tick(1000 / fps);
+      scroll.stopViewportScroll();
+      const releasedTop = scrollViewer.scrollTop;
+      for (let frame = 0; frame < 10; frame += 1) tick(1000 / fps);
+      assert.strictEqual(scrollViewer.scrollTop, releasedTop, 'A pending step continued after release.');
+      holdResults.push({ fps, direction, speedVariation: Number(variation.toFixed(3)) });
+    }
+  }
+  scrollViewer.scrollTop = 500000;
+  scroll.queueViewportScroll(0.18);
+  tick();
+  scroll.queueViewportScroll(-0.18);
+  const reversingTop = scrollViewer.scrollTop;
+  tick();
+  assert(scrollViewer.scrollTop < reversingTop, 'Direction reversal continued the previous scroll.');
+  scroll.stopViewportScroll();
+  assert.strictEqual(frames.size, 0, 'Releasing after a long hold left an animation pending.');
+  // A burst of delayed repeats has a bounded distance and ends by itself,
+  // including on older native builds without a key-up event.
+  for (const direction of [1, -1]) {
+    scrollViewer.scrollTop = 500000;
+    for (let repeat = 0; repeat < 1000; repeat += 1) scroll.queueViewportScroll(direction * 0.18, true);
+    assert.strictEqual(frames.size, 1, 'A burst queued overlapping scroll animations.');
+    tick(300);
+    assert(Math.abs(scrollViewer.scrollTop - 500000) < 200, 'A delayed frame caused a catch-up jump.');
+    for (let frame = 0; frame < 60 && frames.size; frame += 1) tick();
+    assert.strictEqual(frames.size, 0, 'Missing key-up left an unlimited volume hold running.');
+    assert(Math.abs(scrollViewer.scrollTop - 500000 - direction * 540) < 0.01,
+      'A repeat burst left more than three steps pending.');
+  }
+  // Quick individual clicks keep their exact distance, without repeat coalescing.
+  scrollViewer.scrollTop = 500000;
+  for (let click = 0; click < 5; click += 1) scroll.queueViewportScroll(0.18);
+  for (let frame = 0; frame < 60 && frames.size; frame += 1) tick();
+  assert(Math.abs(scrollViewer.scrollTop - 500900) < 0.01);
+  for (const direction of [1, -1]) {
+    scrollViewer.scrollTop = direction > 0 ? totalScrollHeight - 1000 : 0;
+    scroll.queueViewportScroll(direction * 0.18, true);
+    tick();
+    assert.strictEqual(frames.size, 0, 'A document edge kept an ineffective animation running.');
+  }
+  scrollViewer.scrollTop = 500000;
+  scroll.queueViewportScroll(0.18, true);
+  tick();
+  focusEvents.get('blur')();
+  assert.strictEqual(frames.size, 0, 'Losing focus left the local hold running.');
+  scroll.queueViewportScroll(-0.18, true);
+  tick();
+  scrollDocument.hidden = true;
+  visibilityEvents.get('visibilitychange')();
+  assert.strictEqual(frames.size, 0, 'Backgrounding the reader left the local hold running.');
+  scrollDocument.hidden = false;
+  assert(!scrollFunctions.includes('viewer.pan'), 'Volume scrolling still shares the finger gesture path.');
+  assert(!bridgeSource.includes('START_VIEWPORT_SCROLL'), 'The indefinite hold command must stay removed.');
+  console.log('30-second volume holds:', JSON.stringify(holdResults));
   assert(runtimeSource.includes('var readyAttempts = 0;'));
   assert(runtimeSource.includes('setTimeout(announceReady, 50);'));
   assert(runtimeSource.includes("post('READY', { engine: 'pdf.js', engineVersion: '5.5.207' })"));
   assert(runtimeSource.includes('catch (_) {'));
   assert(runtimeSource.includes("RUNTIME_SCRIPT_ERROR"));
   assert(runtimeSource.includes('PDF_WEB_GESTURE_CONTROLLER_SOURCE'));
+  assert(runtimeSource.includes('runtimeRangeBinaryRequests'));
+  assert(runtimeSource.includes('runtimeRangeBridgeRequests'));
   assert(!runtimeSource.includes('createPdfGestureController.toString()'));
   assert(runtimeSource.includes('error && error.stack'));
   assert(runtimeSource.includes("openStage = 'make-pdf'"));
@@ -178,6 +288,23 @@ async function main() {
     payload: { durationMs: 1000, frames: 60, maxFrameMs: 20, slowFrames: 2 },
   }));
   assert(volumeMetrics && volumeMetrics.payload.slowFrames === 2);
+  const rangeMetrics = bridge.parsePdfWebBridgeEvent(JSON.stringify({
+    version: 1,
+    id: 'range-metrics',
+    type: 'RUNTIME_METRICS',
+    payload: {
+      openMs: 10,
+      pagesLoaded: 1,
+      rangeBytes: 2048,
+      rangeBinaryRequests: 1,
+      rangeBridgeRequests: 0,
+      rangeRejected: 0,
+      rangeRequests: 1,
+      rangeTimeouts: 0,
+      scale: 1,
+    },
+  }));
+  assert(rangeMetrics && rangeMetrics.payload.rangeBinaryRequests === 1);
 
   const runtime = loadRuntimeModule();
   const runtimeMarker = '<script type="module" nonce="krumer-pdf-runtime">';

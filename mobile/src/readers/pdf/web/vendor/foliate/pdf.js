@@ -246,6 +246,10 @@ const MAX_VISIBLE_RENDER_DPR = 2.5
 // larger visible budget from becoming a multiplicative memory spike.
 const MAX_VISIBLE_CANVAS_PIXELS = 4096 * 2048
 const MAX_NEAR_CANVAS_PIXELS = 2048 * 2048
+// While the virtualised scroll window is moving, use the same nominal bitmap
+// budget as Readest. The committed idle render keeps the larger visible budget
+// above, so this is a temporary frame-time guard rather than a quality change.
+const MAX_SCROLL_CANVAS_PIXELS = 2048 * 1536
 const MAX_BACKGROUND_CANVAS_PIXELS = 2048 * 1536
 
 // Only mobile WebViews get that budget. Desktop browsers have no per-process
@@ -263,12 +267,14 @@ const isMobileWebView = () => {
 // The device pixel ratio to rasterise this page at: the real dpr on desktop, or
 // on mobile the dpr clamped by both MAX_RENDER_DPR and the per-canvas pixel
 // budget. Never below 1 (CSS resolution).
-export const getRenderDpr = (page, zoom, priority = 0) => {
+export const getRenderDpr = (page, zoom, priority = 0, scrolling = false) => {
     let dpr = devicePixelRatio || 1
     if (isMobileWebView()) {
         const android = /Android/i.test(navigator.userAgent)
-        const dprLimit = priority === 0 && android ? MAX_VISIBLE_RENDER_DPR : MAX_RENDER_DPR
-        const pixelBudget = priority === 0
+        const dprLimit = priority === 0 && android && !scrolling ? MAX_VISIBLE_RENDER_DPR : MAX_RENDER_DPR
+        const pixelBudget = scrolling
+            ? MAX_SCROLL_CANVAS_PIXELS
+            : priority === 0
             ? android ? MAX_VISIBLE_CANVAS_PIXELS : MAX_NEAR_CANVAS_PIXELS
             : priority === 1 ? MAX_NEAR_CANVAS_PIXELS : MAX_BACKGROUND_CANVAS_PIXELS
         dpr = Math.min(dpr, dprLimit)
@@ -420,7 +426,7 @@ const scheduleInteractionLayers = (page, doc, zoom) => {
     return promise
 }
 
-const render = async (page, doc, zoom, pageColors, priority = 0) => {
+const render = async (page, doc, zoom, pageColors, priority = 0, scrolling = false) => {
     if (!doc || !isDocumentAttached(doc)) return false
     const generation = (renderGenerations.get(doc) || 0) + 1
     renderGenerations.set(doc, generation)
@@ -430,7 +436,7 @@ const render = async (page, doc, zoom, pageColors, priority = 0) => {
         activeRenderTasks.delete(doc)
     }
 
-    const renderDpr = getRenderDpr(page, zoom, priority)
+    const renderDpr = getRenderDpr(page, zoom, priority, scrolling)
     const renderViewport = page.getViewport({ scale: zoom * renderDpr })
     const displayViewport = page.getViewport({ scale: zoom })
     const canvas = doc.createElement('canvas')
@@ -516,6 +522,7 @@ const drainRenderQueue = () => {
             request.zoom,
             request.pageColors,
             request.priority,
+            request.scrolling,
         )).then(rendered => request.resolve(rendered === true))
             .catch(() => request.resolve(false))
             .finally(() => {
@@ -528,14 +535,14 @@ const drainRenderQueue = () => {
     }
 }
 
-const queueRaster = (page, doc, zoom, pageColors, priority) => {
+const queueRaster = (page, doc, zoom, pageColors, priority, scrolling = false) => {
     let resolveRequest
     const promise = new Promise(resolve => { resolveRequest = resolve })
     const request = {
         cancelled: false,
         color: JSON.stringify(pageColors ?? null),
         doc,
-        dpr: getRenderDpr(page, zoom, priority),
+        dpr: getRenderDpr(page, zoom, priority, scrolling),
         id: ++nextRenderRequestId,
         page,
         pageColors,
@@ -543,6 +550,7 @@ const queueRaster = (page, doc, zoom, pageColors, priority) => {
         promise,
         queuePriority: priority,
         resolve: resolveRequest,
+        scrolling,
         started: false,
         zoom,
     }
@@ -568,9 +576,10 @@ const queueFinalUpgrade = (page, doc, zoom, pageColors) => {
     }, 0)
 }
 
-export const scheduleRender = (page, doc, zoom, pageColors, priority = 0) => {
+export const scheduleRender = (page, doc, zoom, pageColors, priority = 0, deferQuality = false) => {
     if (!doc || !isDocumentAttached(doc)) return Promise.resolve(false)
     priority = Math.max(0, Number(priority) || 0)
+    deferQuality = Boolean(deferQuality)
     visualScales.set(doc, zoom)
     const rendered = renderedStates.get(doc)
     const work = renderWorkByDocument.get(doc)
@@ -580,13 +589,13 @@ export const scheduleRender = (page, doc, zoom, pageColors, priority = 0) => {
     zoom = rendered?.scale ?? work?.zoom ?? zoom
     if (rendered) applyVisualScale(doc, rendered.scale)
     const color = JSON.stringify(pageColors ?? null)
-    const desiredDpr = getRenderDpr(page, zoom, priority)
-    const previewDpr = getRenderDpr(page, zoom, 1)
+    const desiredDpr = getRenderDpr(page, zoom, priority, deferQuality)
+    const previewDpr = getRenderDpr(page, zoom, 1, deferQuality)
     const plan = planProgressiveRender({
         color, desiredDpr, previewDpr, priority, rendered, scale: zoom, work,
     })
     if (plan.action === 'reuse') {
-        if (priority === 0) {
+        if (priority === 0 && !deferQuality) {
             scheduleInteractionLayers(page, doc, zoom)
             if (plan.upgrade) queueFinalUpgrade(page, doc, zoom, pageColors)
         }
@@ -599,7 +608,7 @@ export const scheduleRender = (page, doc, zoom, pageColors, priority = 0) => {
             // promise is reused; only the eventual higher-DPR upgrade is new.
             work.queuePriority = 0
             const promoted = work.promise.then(ready => {
-                if (ready) {
+                if (ready && !deferQuality) {
                     scheduleInteractionLayers(page, doc, zoom)
                     if (plan.upgrade) queueFinalUpgrade(page, doc, zoom, pageColors)
                 }
@@ -621,11 +630,11 @@ export const scheduleRender = (page, doc, zoom, pageColors, priority = 0) => {
         }
     }
 
-    if (priority !== 0) return queueRaster(page, doc, zoom, pageColors, priority)
+    if (priority !== 0) return queueRaster(page, doc, zoom, pageColors, priority, deferQuality)
     const previewPriority = plan.action === 'preview' ? 1 : 0
-    const preview = queueRaster(page, doc, zoom, pageColors, previewPriority)
+    const preview = queueRaster(page, doc, zoom, pageColors, previewPriority, deferQuality)
     return preview.then(ready => {
-        if (ready) {
+        if (ready && !deferQuality) {
             scheduleInteractionLayers(page, doc, zoom)
             if (previewPriority !== 0) queueFinalUpgrade(page, doc, zoom, pageColors)
         }
@@ -676,8 +685,8 @@ const renderPage = async (page, getImageBlob) => {
         <div class="annotationLayer"></div>
     `
     const src = URL.createObjectURL(new Blob([data], { type: 'text/html' }))
-    const onZoom = ({ doc, scale, pageColors, priority = 0 }) =>
-        scheduleRender(page, doc, scale, pageColors, priority)
+    const onZoom = ({ doc, scale, pageColors, priority = 0, deferQuality = false }) =>
+        scheduleRender(page, doc, scale, pageColors, priority, deferQuality)
     return { src, data, onZoom }
 }
 
@@ -749,7 +758,11 @@ export const makePDF = async (file, options = {}) => {
         // self-contained and the byte transport supplies the PDF data.
         useWorkerFetch: false,
         useWorkerStream: false,
-        rangeChunkSize: 256 * 1024,
+        // Non-linearized comic PDFs may need the whole cross-reference and
+        // object streams before the first page is available. A 1 MiB chunk
+        // keeps that startup bounded to fewer native/WebView range requests;
+        // the transport still limits in-flight reads to two.
+        rangeChunkSize: 1024 * 1024,
         // Rendering into a same-origin iframe gives that document its own
         // FontFaceSet. PDF.js otherwise installs embedded @font-face rules in
         // the top-level WebView document, leaving glyphs in the iframe as tofu

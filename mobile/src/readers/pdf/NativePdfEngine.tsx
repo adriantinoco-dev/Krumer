@@ -98,7 +98,6 @@ export const NativePdfEngine = memo(forwardRef<NativePdfEngineHandle, NativePdfE
       },
       // Continuous volume-key scrolling is owned by the WebView runtime. The
       // native engine keeps its existing per-repeat scrollByViewport path.
-      startViewportScroll: () => undefined,
       stopViewportScroll: () => undefined,
       setPage: (page) => {
         pdfRef.current?.setPage(page);

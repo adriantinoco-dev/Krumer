@@ -418,6 +418,16 @@ export function createPdfGestureController(options: any) {
   }
 
   function attach(target: any, config: any) {
+    // The virtualized reader removes old iframes while a volume key is held.
+    // Drop their listeners and document references before registering a new
+    // frame; otherwise the canvas cache grows with every page ever visited.
+    surfaces.forEach(function (surface: any) {
+      if (surface.root || surface.frame?.isConnected !== false) return;
+      var ownsPointer = Array.from(pointers.values()).some(function (pointer: any) {
+        return pointer.surface === surface;
+      });
+      if (!ownsPointer) surface.detach();
+    });
     if (!target || target.__krumerPdfGestureSurface) return target?.__krumerPdfGestureSurface?.detach;
     var surface: any = {
       id: ++nextSurfaceId,
@@ -534,6 +544,20 @@ const compatibilityBootstrap = `
       },
     });
   }
+  if (typeof Uint8Array !== 'undefined'
+    && typeof Uint8Array.prototype.toHex !== 'function') {
+    Object.defineProperty(Uint8Array.prototype, 'toHex', {
+      configurable: true,
+      value: function () {
+        var result = '';
+        for (var index = 0; index < this.length; index += 1) {
+          var hex = this[index].toString(16);
+          result += hex.length === 1 ? '0' + hex : hex;
+        }
+        return result;
+      },
+    });
+  }
   if (typeof URL.parse !== 'function') {
     URL.parse = function (input, base) {
       try { return new URL(input, base); } catch (_) { return null; }
@@ -586,6 +610,8 @@ const bridgeRuntime = `
     var viewer = document.getElementById('viewer');
     var book = null;
     var bookId = null;
+    var rangeUrl = null;
+    var binaryRangeAvailable = false;
     var generation = 0;
     var currentPage = 1;
     var totalPages = 0;
@@ -599,16 +625,18 @@ const bridgeRuntime = `
     var runtimeOpenedAt = 0;
     var runtimeRangeRequests = 0;
     var runtimeRangeBytes = 0;
+    var runtimeRangeBinaryRequests = 0;
+    var runtimeRangeBridgeRequests = 0;
     var runtimeRangeTimeouts = 0;
     var runtimeRangeRejected = 0;
     var runtimePagesLoaded = 0;
     var readyAttempts = 0;
     var readyPosts = 0;
     var rangeRequestTimeoutMs = 10000;
+    var binaryRangeTimeoutMs = 5000;
     var maxPendingRanges = 24;
     var viewportScrollFrame = null;
-    var viewportScrollTarget = null;
-    var viewportScrollDirection = 0;
+    var viewportScrollRemaining = 0;
     var viewportScrollVelocity = 0;
     var viewportScrollLastAt = 0;
     var volumeScrollStartedAt = 0;
@@ -673,6 +701,8 @@ const bridgeRuntime = `
         openMs: runtimeOpenedAt ? Math.max(0, Date.now() - runtimeOpenedAt) : 0,
         pagesLoaded: runtimePagesLoaded,
         rangeBytes: runtimeRangeBytes,
+        rangeBinaryRequests: runtimeRangeBinaryRequests,
+        rangeBridgeRequests: runtimeRangeBridgeRequests,
         rangeRejected: runtimeRangeRejected,
         rangeRequests: runtimeRangeRequests,
         rangeTimeouts: runtimeRangeTimeouts,
@@ -727,16 +757,48 @@ const bridgeRuntime = `
       return bytes.buffer;
     }
 
-    function requestRange(begin, end) {
-      if (!bookId) return Promise.reject(new Error('PDF book is not open.'));
-      if (pendingRanges.size >= maxPendingRanges) {
-        runtimeRangeRejected += 1;
-        return Promise.reject(new Error('PDF byte range queue is full.'));
-      }
+    function appendRangeQuery(begin, end) {
+      if (!rangeUrl) return null;
+      var hashIndex = rangeUrl.indexOf('#');
+      var fragment = hashIndex >= 0 ? rangeUrl.slice(hashIndex) : '';
+      var base = hashIndex >= 0 ? rangeUrl.slice(0, hashIndex) : rangeUrl;
+      var separator = base.indexOf('?') >= 0 ? '&' : '?';
+      return base + separator + 'start=' + encodeURIComponent(begin)
+        + '&end=' + encodeURIComponent(end) + fragment;
+    }
+
+    function requestBinaryRange(begin, end) {
+      var url = appendRangeQuery(begin, end);
+      if (!url) return Promise.reject(new Error('PDF binary range URL is unavailable.'));
+      var controller = typeof AbortController === 'function' ? new AbortController() : null;
+      var timeout = null;
+      var fetchOptions = { cache: 'no-store', credentials: 'omit' };
+      if (controller) fetchOptions.signal = controller.signal;
+      var fetchPromise = fetch(url, fetchOptions);
+      var timeoutPromise = new Promise(function (_, reject) {
+        timeout = setTimeout(function () {
+          if (controller) controller.abort();
+          reject(new Error('PDF binary range request timed out.'));
+        }, binaryRangeTimeoutMs);
+      });
+      return Promise.race([fetchPromise, timeoutPromise]).then(function (response) {
+        if (!response.ok && response.status !== 0) {
+          throw new Error('PDF binary range request failed: ' + response.status);
+        }
+        return response.arrayBuffer();
+      }).then(function (buffer) {
+        if (buffer.byteLength !== Math.max(0, end - begin)) {
+          throw new Error('PDF binary range length mismatch.');
+        }
+        return buffer;
+      }).finally(function () {
+        if (timeout) clearTimeout(timeout);
+      });
+    }
+
+    function requestBridgeRange(begin, end, requestedBookId) {
+      runtimeRangeBridgeRequests += 1;
       var requestId = 'range-' + Date.now() + '-' + (++nextRangeId);
-      var requestedBookId = bookId;
-      runtimeRangeRequests += 1;
-      runtimeRangeBytes += Math.max(0, end - begin);
       return new Promise(function (resolve, reject) {
         var timeout = setTimeout(function () {
           var pending = pendingRanges.get(requestId);
@@ -760,6 +822,29 @@ const bridgeRuntime = `
       });
     }
 
+    function requestRange(begin, end) {
+      if (!bookId) return Promise.reject(new Error('PDF book is not open.'));
+      if (pendingRanges.size >= maxPendingRanges) {
+        runtimeRangeRejected += 1;
+        return Promise.reject(new Error('PDF byte range queue is full.'));
+      }
+      var requestedBookId = bookId;
+      var length = Math.max(0, end - begin);
+      runtimeRangeRequests += 1;
+      runtimeRangeBytes += length;
+      if (binaryRangeAvailable) {
+        runtimeRangeBinaryRequests += 1;
+        return requestBinaryRange(begin, end).catch(function () {
+          // A device may lack file-to-file fetch support even though the
+          // WebView is otherwise healthy. Fall back once and keep the reader
+          // usable; subsequent ranges avoid repeating the failed probe.
+          binaryRangeAvailable = false;
+          return requestBridgeRange(begin, end, requestedBookId);
+        });
+      }
+      return requestBridgeRange(begin, end, requestedBookId);
+    }
+
     function postVolumeScrollMetrics() {
       if (!volumeScrollStartedAt) return;
       post('VOLUME_SCROLL_METRICS', {
@@ -777,8 +862,7 @@ const bridgeRuntime = `
     function cancelViewportScroll() {
       if (viewportScrollFrame != null) cancelAnimationFrame(viewportScrollFrame);
       viewportScrollFrame = null;
-      viewportScrollTarget = null;
-      viewportScrollDirection = 0;
+      viewportScrollRemaining = 0;
       viewportScrollVelocity = 0;
       viewportScrollLastAt = 0;
       postVolumeScrollMetrics();
@@ -786,7 +870,7 @@ const bridgeRuntime = `
 
     function ensureViewportScrollFrame() {
       if (viewportScrollFrame != null) return;
-      viewportScrollLastAt = 0;
+      viewportScrollLastAt = performance.now();
       viewportScrollFrame = requestAnimationFrame(animateViewportScroll);
     }
 
@@ -795,7 +879,7 @@ const bridgeRuntime = `
         cancelViewportScroll();
         return;
       }
-      var rawFrameMs = viewportScrollLastAt ? Math.max(0, now - viewportScrollLastAt) : 16.667;
+      var rawFrameMs = Math.max(0, now - viewportScrollLastAt);
       var frameMs = Math.min(48, rawFrameMs);
       viewportScrollLastAt = now;
       if (volumeScrollStartedAt) {
@@ -804,60 +888,44 @@ const bridgeRuntime = `
         volumeScrollMaxFrameMs = Math.max(volumeScrollMaxFrameMs, rawFrameMs);
       }
 
-      var maxTop = Math.max(0, viewer.scrollHeight - viewer.clientHeight);
-      if (viewportScrollTarget != null && viewportScrollDirection === 0) {
-        viewportScrollTarget = Math.max(0, Math.min(maxTop, viewportScrollTarget));
-        var remaining = viewportScrollTarget - viewer.scrollTop;
-        if (Math.abs(remaining) <= 0.75) {
-          viewer.scrollTop = viewportScrollTarget;
-          viewportScrollTarget = null;
-        } else {
-          var progress = 1 - Math.pow(0.68, frameMs / 16.667);
-          viewer.scrollTop += remaining * progress;
-        }
-      } else {
-        viewportScrollTarget = null;
-        var targetVelocity = viewportScrollDirection * 3.2;
-        var smoothingMs = viewportScrollDirection ? 75 : 120;
-        var smoothing = 1 - Math.exp(-frameMs / smoothingMs);
-        viewportScrollVelocity += (targetVelocity - viewportScrollVelocity) * smoothing;
-        if (Math.abs(viewportScrollVelocity) < 0.01 && viewportScrollDirection === 0) {
-          viewportScrollVelocity = 0;
-        } else {
-          viewer.scrollTop += viewer.clientHeight * viewportScrollVelocity * frameMs / 1000;
-          if (viewer.scrollTop <= 0 || viewer.scrollTop >= maxTop) {
-            viewportScrollDirection = 0;
-            viewportScrollVelocity = 0;
-          }
-        }
+      var remaining = viewportScrollRemaining;
+      var nextRemaining = 0;
+      if (Math.abs(remaining) > 0.75) {
+        // Repeated 18% steps share one animation and retain its velocity.
+        var smoothingMs = 40;
+        var decay = Math.exp(-frameMs / smoothingMs);
+        var impulse = (remaining / smoothingMs - viewportScrollVelocity) * frameMs;
+        nextRemaining = (remaining + impulse) * decay;
+        viewportScrollVelocity = (viewportScrollVelocity + impulse / smoothingMs) * decay;
+        if (remaining * nextRemaining <= 0) nextRemaining = 0;
       }
-
-      if (viewportScrollTarget != null || viewportScrollDirection !== 0 || viewportScrollVelocity !== 0) {
+      var delta = remaining - nextRemaining;
+      var previousTop = viewer.scrollTop;
+      viewer.scrollTop = previousTop + delta;
+      viewportScrollRemaining = nextRemaining;
+      // Let the scroller clamp its own bounds. Reading the height of the entire
+      // virtualized document here used to force layout on each animation frame.
+      if (nextRemaining !== 0 && Math.abs(viewer.scrollTop - previousTop) > 0.01) {
         viewportScrollFrame = requestAnimationFrame(animateViewportScroll);
         return;
       }
-      viewportScrollFrame = null;
-      viewportScrollLastAt = 0;
-      postVolumeScrollMetrics();
+      cancelViewportScroll();
     }
 
-    function queueViewportScroll(fraction) {
-      if (!viewer.scrolled || !Number.isFinite(fraction)) return;
-      viewportScrollDirection = 0;
-      viewportScrollVelocity = 0;
-      var maxTop = Math.max(0, viewer.scrollHeight - viewer.clientHeight);
-      var start = viewportScrollTarget == null ? viewer.scrollTop : viewportScrollTarget;
-      viewportScrollTarget = Math.max(0, Math.min(
-        maxTop,
-        start + viewer.clientHeight * fraction,
-      ));
-      ensureViewportScrollFrame();
-    }
-
-    function startViewportScroll(direction) {
-      if (!viewer.scrolled || (direction !== 1 && direction !== -1)) return;
-      viewportScrollTarget = null;
-      viewportScrollDirection = direction;
+    function queueViewportScroll(fraction, repeat) {
+      if (!viewer.scrolled || !Number.isFinite(fraction) || fraction === 0) return;
+      var distance = viewer.clientHeight * fraction;
+      if (viewportScrollRemaining * distance < 0) {
+        viewportScrollRemaining = 0;
+        viewportScrollVelocity = 0;
+      }
+      viewportScrollRemaining += distance;
+      if (repeat) {
+        // A delayed batch of hardware repeats must not build an unlimited queue.
+        // Individual clicks retain their full 18% distance, even when batched.
+        var maxPending = Math.abs(distance) * 3;
+        viewportScrollRemaining = Math.max(-maxPending, Math.min(maxPending, viewportScrollRemaining));
+      }
       if (!volumeScrollStartedAt) volumeScrollStartedAt = Date.now();
       ensureViewportScrollFrame();
     }
@@ -865,6 +933,12 @@ const bridgeRuntime = `
     function stopViewportScroll() {
       cancelViewportScroll();
     }
+
+    // A hidden/unfocused reader may not receive the physical key release.
+    window.addEventListener('blur', stopViewportScroll);
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) stopViewportScroll();
+    });
 
     function bridgeFile(byteLength) {
       return {
@@ -929,6 +1003,8 @@ const bridgeRuntime = `
       if (book && book.destroy) book.destroy();
       book = null;
       bookId = null;
+      rangeUrl = null;
+      binaryRangeAvailable = false;
       pendingPage = null;
       pendingDisplayMode = null;
       currentScale = 1;
@@ -936,6 +1012,8 @@ const bridgeRuntime = `
       runtimeOpenedAt = 0;
       runtimeRangeRequests = 0;
       runtimeRangeBytes = 0;
+      runtimeRangeBinaryRequests = 0;
+      runtimeRangeBridgeRequests = 0;
       runtimeRangeTimeouts = 0;
       runtimeRangeRejected = 0;
       runtimePagesLoaded = 0;
@@ -972,6 +1050,8 @@ const bridgeRuntime = `
       }
       runtimeOpenedAt = Date.now();
       bookId = payload.bookId;
+      rangeUrl = typeof payload.rangeUrl === 'string' ? payload.rangeUrl : null;
+      binaryRangeAvailable = Boolean(rangeUrl);
       try {
         globalThis.__KRUMER_PDF_PROGRESS__ = function (info) {
           if (myGeneration !== generation || !info || !info.total) return;
@@ -1085,11 +1165,7 @@ const bridgeRuntime = `
           return;
         }
         if (command.type === 'SCROLL_BY_VIEWPORT') {
-          queueViewportScroll(Number(payload.fraction));
-          return;
-        }
-        if (command.type === 'START_VIEWPORT_SCROLL') {
-          startViewportScroll(Number(payload.direction));
+          queueViewportScroll(Number(payload.fraction), payload.repeat === true);
           return;
         }
         if (command.type === 'STOP_VIEWPORT_SCROLL') stopViewportScroll();

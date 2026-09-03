@@ -8,7 +8,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { File, FileMode } from 'expo-file-system';
 import { WebView } from 'react-native-webview';
 import type { WebView as WebViewType, WebViewMessageEvent } from 'react-native-webview';
@@ -27,6 +27,11 @@ const RUNTIME_READY_TIMEOUT_MS = 12_000;
 const MAX_CONCURRENT_RANGES = 2;
 const MAX_PENDING_RANGES = 24;
 const MAX_RANGE_BYTES = 1024 * 1024;
+// The Android WebView route carries ranges as a local file URL query. Keep
+// the bridge fallback available for older builds or devices where that route
+// is unavailable; setting the env var to 0 is an emergency opt-out.
+const PDF_WEB_BINARY_RANGE_ENABLED = Platform.OS === 'android'
+  && process.env.EXPO_PUBLIC_PDF_WEBVIEW_BINARY_RANGE !== '0';
 const PDF_WEB_ANDROID_LAYER_TYPE = process.env.EXPO_PUBLIC_PDF_WEBVIEW_LAYER_TYPE === 'hardware'
   ? 'hardware'
   : 'none';
@@ -70,6 +75,14 @@ function bytesToBase64(bytes: Uint8Array): string {
   return result;
 }
 
+function createPdfRangeUrl(uri: string): string {
+  const hashIndex = uri.indexOf('#');
+  const fragment = hashIndex >= 0 ? uri.slice(hashIndex) : '';
+  const base = hashIndex >= 0 ? uri.slice(0, hashIndex) : uri;
+  const separator = base.includes('?') ? '&' : '?';
+  return `${base}${separator}krumerRange=1${fragment}`;
+}
+
 async function readPdfRange(handle: ReturnType<File['open']>, begin: number, end: number): Promise<string> {
   const length = end - begin;
   if (length <= 0 || length > MAX_RANGE_BYTES) throw new Error('Invalid PDF byte range.');
@@ -111,6 +124,8 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
     const currentPageRef = useRef(initialPage);
     const totalPagesRef = useRef(0);
     const runtimeStartedAtRef = useRef(Date.now());
+    const bookOpenedRef = useRef(false);
+    const [binaryRangeDisabled, setBinaryRangeDisabled] = useState(false);
     const [runtimeUri, setRuntimeUri] = useState(getCachedPdfWebRuntimeUri);
     const source = useMemo(() => (runtimeUri ? { uri: runtimeUri } : null), [runtimeUri]);
 
@@ -213,6 +228,7 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
       }
       if (message.type === 'BOOK_OPENED') {
         if (message.payload.bookId !== resolvedUri) return;
+        bookOpenedRef.current = true;
         currentPageRef.current = message.payload.page;
         totalPagesRef.current = message.payload.totalPages;
         onLoadComplete(message.payload.totalPages, message.payload.bookId, {
@@ -292,16 +308,26 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
         const detail = message.payload.code
           ? `${message.payload.code}: ${message.payload.message}`
           : message.payload.message;
+        if (
+          message.payload.code === 'OPEN_FAILED'
+          && !bookOpenedRef.current
+          && PDF_WEB_BINARY_RANGE_ENABLED
+          && !binaryRangeDisabled
+        ) {
+          // A local file route can return a response with the right length but
+          // unusable bytes on some WebView builds. Retry the same document once
+          // through the proven bridge path before surfacing an open failure.
+          pdfDevWarn('web:binary-range-retry-bridge', { detail });
+          setBinaryRangeDisabled(true);
+          return;
+        }
         onError(new Error(detail));
       }
-    }, [drainRangeQueue, flushPendingCommands, onError, onExternalLink, onLoadComplete, onLoadProgress, onPageChanged, onScaleChanged, onSingleTap, postCommand, resolvedUri]);
+    }, [binaryRangeDisabled, drainRangeQueue, flushPendingCommands, onError, onExternalLink, onLoadComplete, onLoadProgress, onPageChanged, onScaleChanged, onSingleTap, postCommand, resolvedUri]);
 
     useImperativeHandle(ref, () => ({
-      scrollByViewport: (fraction) => {
-        sendCommand(createPdfWebBridgeCommand('SCROLL_BY_VIEWPORT', { fraction }));
-      },
-      startViewportScroll: (direction) => {
-        sendCommand(createPdfWebBridgeCommand('START_VIEWPORT_SCROLL', { direction }));
+      scrollByViewport: (fraction, repeat = false) => {
+        sendCommand(createPdfWebBridgeCommand('SCROLL_BY_VIEWPORT', { fraction, repeat }));
       },
       stopViewportScroll: () => {
         sendCommand(createPdfWebBridgeCommand('STOP_VIEWPORT_SCROLL', {}));
@@ -341,6 +367,7 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
       if (!resolvedUri) return undefined;
       const generation = openGenerationRef.current + 1;
       openGenerationRef.current = generation;
+      bookOpenedRef.current = false;
       rangeQueueRef.current = [];
       pendingCommandsRef.current = pendingCommandsRef.current.filter((command) => command.type !== 'OPEN_BOOK');
       if (runtimeReadyRef.current) sendCommand(createPdfWebBridgeCommand('CLOSE_BOOK', {}));
@@ -365,9 +392,13 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
         byteLength,
         displayMode,
         initialPage,
+        rangeUrl: PDF_WEB_BINARY_RANGE_ENABLED && !binaryRangeDisabled
+          ? createPdfRangeUrl(resolvedUri)
+          : undefined,
         scale,
       }));
       pdfDevLog('web:open-request', {
+        binaryRange: PDF_WEB_BINARY_RANGE_ENABLED && !binaryRangeDisabled,
         displayMode,
         page: initialPage,
         scale,
@@ -379,7 +410,7 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
           closeActiveFile();
         }
       };
-    }, [closeActiveFile, fileSize, onError, resolvedUri, sendCommand]);
+    }, [binaryRangeDisabled, closeActiveFile, fileSize, onError, resolvedUri, sendCommand]);
 
     useEffect(() => {
       sendCommand(createPdfWebBridgeCommand('SET_DISPLAY_MODE', { displayMode }));
@@ -418,7 +449,7 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
           ref={webviewRef}
           androidLayerType={PDF_WEB_ANDROID_LAYER_TYPE}
           allowFileAccess
-          allowFileAccessFromFileURLs={false}
+          allowFileAccessFromFileURLs={PDF_WEB_BINARY_RANGE_ENABLED}
           allowUniversalAccessFromFileURLs={false}
           cacheEnabled
           domStorageEnabled={false}

@@ -5,9 +5,9 @@
   "description": "Versao Android do Krumer em React Native",
   "main": "expo/AppEntry.js",
   "scripts": {
-    "android": "node scripts/fix-netinfo-gradle9.cjs && expo run:android",
-    "postinstall": "node scripts/fix-netinfo-gradle9.cjs && node scripts/prepare-pdf-web-runtime.cjs",
-    "prebuild": "expo prebuild && node scripts/fix-netinfo-gradle9.cjs",
+    "android": "node scripts/fix-netinfo-gradle9.cjs && node scripts/fix-pdf-webview-range.cjs && expo run:android",
+    "postinstall": "node scripts/fix-netinfo-gradle9.cjs && node scripts/fix-pdf-webview-range.cjs && node scripts/prepare-pdf-web-runtime.cjs",
+    "prebuild": "expo prebuild && node scripts/fix-netinfo-gradle9.cjs && node scripts/fix-pdf-webview-range.cjs",
     "prepare:pdf-web": "node scripts/prepare-pdf-web-runtime.cjs",
     "start": "expo start",
     "test": "jest",

@@ -129,6 +129,8 @@ function summariseMetrics(metrics) {
   const volumeFrames = metricSamples(metrics, 'web:volume-scroll', 'frames');
   const volumeSlowFrames = metricSamples(metrics, 'web:volume-scroll', 'slowFrames');
   const rangeBytes = metricSamples(metrics, 'web:runtime-open', 'rangeBytes');
+  const rangeBinaryRequests = metricSamples(metrics, 'web:runtime-open', 'rangeBinaryRequests');
+  const rangeBridgeRequests = metricSamples(metrics, 'web:runtime-open', 'rangeBridgeRequests');
   const rangeRequests = metricSamples(metrics, 'web:runtime-open', 'rangeRequests');
   const rangeRejected = metricSamples(metrics, 'web:runtime-open', 'rangeRejected');
   const rangeTimeouts = metricSamples(metrics, 'web:runtime-open', 'rangeTimeouts');
@@ -206,6 +208,8 @@ function summariseMetrics(metrics) {
         p95: percentile(runtimeOpen, 0.95),
       },
       rangeBytes: average(rangeBytes),
+      rangeBinaryRequests: average(rangeBinaryRequests),
+      rangeBridgeRequests: average(rangeBridgeRequests),
       rangeRejected: average(rangeRejected),
       rangeRequests: average(rangeRequests),
       rangeTimeouts: average(rangeTimeouts),

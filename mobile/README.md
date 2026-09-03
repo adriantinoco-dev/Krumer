@@ -54,7 +54,9 @@ falha de Codegen volte quando `node_modules` for recriado.
 - A bridge do PDF WebView usa JSON v1 e valida `READY`, `BOOK_OPENED`,
   `PAGE_CHANGED`, `LOAD_PROGRESS`, `SCALE_CHANGED`, `READ_RANGE`,
   `RUNTIME_METRICS` e `ERROR`; as métricas são diagnósticas e não persistem
-  conteúdo do documento.
+  conteúdo do documento. Em Android, as faixas tentam a resposta binária
+  interceptada no WebView (`file://?...krumerRange=1`) e voltam ao `READ_RANGE`
+  com Base64 quando o caminho local não estiver disponível.
 
 Antes do build, copie `.env.example` para `.env.local` e configure `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` com o OAuth Client ID do tipo **Web application**. O projeto Google tambem precisa de um OAuth Client ID Android para o package `com.adriantinoco.krumer` e os SHA-1 de desenvolvimento/producao. O passo a passo completo fica em `../docs/arquitetura-sync-supabase.md`.
 

@@ -7,13 +7,13 @@ export type PdfWebBridgeCommand =
       byteLength: number;
       displayMode: 'paginated' | 'scroll';
       initialPage: number;
+      rangeUrl?: string;
       scale: number;
     }>
   | BridgeEnvelope<'SET_PAGE', { page: number }>
   | BridgeEnvelope<'SET_SCALE', { scale: number }>
   | BridgeEnvelope<'SET_DISPLAY_MODE', { displayMode: 'paginated' | 'scroll' }>
-  | BridgeEnvelope<'SCROLL_BY_VIEWPORT', { fraction: number }>
-  | BridgeEnvelope<'START_VIEWPORT_SCROLL', { direction: 1 | -1 }>
+  | BridgeEnvelope<'SCROLL_BY_VIEWPORT', { fraction: number; repeat?: boolean }>
   | BridgeEnvelope<'STOP_VIEWPORT_SCROLL', Record<string, never>>
   | BridgeEnvelope<'READ_RANGE_RESULT', {
       bookId: string;
@@ -43,6 +43,8 @@ export type PdfWebBridgeEvent =
       openMs: number;
       pagesLoaded: number;
       rangeBytes: number;
+      rangeBinaryRequests: number;
+      rangeBridgeRequests: number;
       rangeRejected: number;
       rangeRequests: number;
       rangeTimeouts: number;
@@ -165,6 +167,8 @@ export function parsePdfWebBridgeEvent(raw: string): PdfWebBridgeEvent | null {
     return isFiniteInteger(payload.openMs, 0)
       && isFiniteInteger(payload.pagesLoaded, 0)
       && isFiniteInteger(payload.rangeBytes, 0)
+      && isFiniteInteger(payload.rangeBinaryRequests, 0)
+      && isFiniteInteger(payload.rangeBridgeRequests, 0)
       && isFiniteInteger(payload.rangeRejected, 0)
       && isFiniteInteger(payload.rangeRequests, 0)
       && isFiniteInteger(payload.rangeTimeouts, 0)

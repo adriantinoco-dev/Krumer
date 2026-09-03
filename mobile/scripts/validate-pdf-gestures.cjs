@@ -291,6 +291,35 @@ function main() {
   scaledDoc.dispatch('pointerup', pointerEvent(20, 100, 200, plainTarget));
   assert(commits.at(-1).value === 2, 'Pinch release lost the stable visual scale.');
 
+  // Holding volume traverses far more pages than the live frame cache. Frames
+  // evicted from the DOM must stop being retained by the gesture controller.
+  controller.resetFrames();
+  const visitedDocs = [];
+  for (let index = 0; index < 300; index += 1) {
+    if (index >= 12) visitedDocs[index - 12].defaultView.frameElement.isConnected = false;
+    const visitedFrame = { isConnected: true, getBoundingClientRect: () => ({ left: 0, top: 0 }) };
+    const visitedDoc = new FakeTarget({ frame: visitedFrame, nodeType: 9 });
+    visitedDocs.push(visitedDoc);
+    controller.attach(visitedDoc, { doc: visitedDoc, frame: visitedFrame, index });
+  }
+  const retainedDocs = visitedDocs.filter(item => item.__krumerPdfGestureSurface);
+  assert(retainedDocs.length === 12,
+    `Long scroll retained ${retainedDocs.length} gesture documents instead of the 12 live frames.`);
+  for (const retired of visitedDocs.slice(0, -12)) {
+    assert([...retired.listeners.values()].every(listeners => listeners.length === 0),
+      'An evicted PDF frame kept its gesture listeners.');
+  }
+  const activeDoc = retainedDocs[0];
+  activeDoc.dispatch('pointerdown', pointerEvent(30, 100, 200, plainTarget));
+  activeDoc.defaultView.frameElement.isConnected = false;
+  const finalFrame = { isConnected: true, getBoundingClientRect: () => ({ left: 0, top: 0 }) };
+  const finalDoc = new FakeTarget({ frame: finalFrame, nodeType: 9 });
+  controller.attach(finalDoc, { doc: finalDoc, frame: finalFrame, index: 300 });
+  assert(activeDoc.__krumerPdfGestureSurface, 'Frame pruning interrupted an active pointer.');
+  activeDoc.dispatch('pointerup', pointerEvent(30, 100, 200, plainTarget));
+  controller.attach(finalDoc, { doc: finalDoc, frame: finalFrame, index: 300 });
+  assert(!activeDoc.__krumerPdfGestureSurface, 'A released pointer kept its retired frame alive.');
+
   controller.destroy();
   console.log('PDF WebView unified tap, pan, pinch, swipe, selection, and link gestures are valid.');
 }

@@ -9,11 +9,13 @@ import { describePdfSource, pdfDevLog, pdfDevMetric, pdfDevWarn } from './pdf/pd
 import { clampPdfPage, clampPdfScale } from './pdf/pdfState';
 import { savePdfScale } from './pdf/usePdfPrefs';
 import { usePdfSource } from './pdf/usePdfSource';
-import { subscribeToReaderVolumeKeyEvents } from './readerVolumeKeys';
+import { subscribeToReaderVolumeKeyEvents, type ReaderVolumeDirection } from './readerVolumeKeys';
 
-const PDF_LOAD_TIMEOUT_MS = 12_000;
+const PDF_LOAD_STALL_TIMEOUT_MS = 15_000;
+const PDF_LOAD_MAX_WAIT_MS = 90_000;
 const PDF_SIDE_TAP_RATIO = 0.25;
 const PDF_VOLUME_SCROLL_VIEWPORT_RATIO = 0.18;
+const PDF_VOLUME_REPEAT_MAX_AGE_MS = 100;
 const styles = StyleSheet.create({
   interactionBlocker: {
     bottom: 0,
@@ -58,6 +60,9 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   const lastReportedSnapshotRef = useRef<string | null>(null);
   const loadProgressBucketRef = useRef(-1);
   const sessionStartedAtRef = useRef(Date.now());
+  const loadStartedAtRef = useRef(Date.now());
+  const loadActivityAtRef = useRef(Date.now());
+  const loadProgressRef = useRef(0);
   const firstPageReadyRef = useRef(false);
   const pendingPageMetricRef = useRef<{ page: number; startedAt: number } | null>(null);
   const pendingScaleMetricRef = useRef<{ scale: number; startedAt: number } | null>(null);
@@ -149,6 +154,9 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     lastReportedSnapshotRef.current = null;
     loadProgressBucketRef.current = -1;
     sessionStartedAtRef.current = Date.now();
+    loadStartedAtRef.current = Date.now();
+    loadActivityAtRef.current = loadStartedAtRef.current;
+    loadProgressRef.current = 0;
     firstPageReadyRef.current = false;
     pendingPageMetricRef.current = null;
     pendingScaleMetricRef.current = null;
@@ -171,18 +179,36 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
 
   useEffect(() => {
     if (resolving || !resolvedUri || !loading || error) return;
-    const timer = setTimeout(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const checkLoadHealth = () => {
+      if (!loading || error || documentLoadedRef.current) return;
+      const now = Date.now();
+      const elapsedMs = now - loadStartedAtRef.current;
+      const idleMs = now - loadActivityAtRef.current;
+      if (elapsedMs < PDF_LOAD_MAX_WAIT_MS && idleMs < PDF_LOAD_STALL_TIMEOUT_MS) {
+        timer = setTimeout(checkLoadHealth, Math.min(
+          PDF_LOAD_MAX_WAIT_MS - elapsedMs,
+          PDF_LOAD_STALL_TIMEOUT_MS - idleMs,
+        ));
+        return;
+      }
       pdfDevWarn('reader:load-timeout', {
         currentPage: currentPageRef.current,
         documentLoaded: documentLoadedRef.current,
+        elapsedMs,
+        idleMs,
+        progress: loadProgressRef.current,
         resolved: describePdfSource(resolvedUri),
         totalPages: totalPagesRef.current,
       });
       setLoading(false);
       setError(t('reader.pdfOpenFailed'));
-      setErrorDetail(`PDF load timed out after ${PDF_LOAD_TIMEOUT_MS / 1000} seconds.`);
-    }, PDF_LOAD_TIMEOUT_MS);
-    return () => clearTimeout(timer);
+      setErrorDetail(`PDF load timed out after ${Math.round(PDF_LOAD_MAX_WAIT_MS / 1000)} seconds or ${Math.round(PDF_LOAD_STALL_TIMEOUT_MS / 1000)} seconds without progress.`);
+    };
+    timer = setTimeout(checkLoadHealth, PDF_LOAD_STALL_TIMEOUT_MS);
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, [error, loading, resolvedUri, resolving, t]);
 
   const publishPage = useCallback((page: number, total: number) => {
@@ -279,12 +305,17 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   }, [markFirstPageReady, publishPage]);
 
   const handleLoadProgress = useCallback((progress: number) => {
-    const bucket = Math.max(0, Math.min(4, Math.floor(progress * 4)));
+    const nextProgress = Math.max(0, Math.min(1, progress));
+    if (nextProgress > loadProgressRef.current + 0.0001) {
+      loadProgressRef.current = nextProgress;
+      loadActivityAtRef.current = Date.now();
+    }
+    const bucket = Math.max(0, Math.min(4, Math.floor(nextProgress * 4)));
     if (bucket === loadProgressBucketRef.current) return;
     loadProgressBucketRef.current = bucket;
     pdfDevLog('native:load-progress', {
       engine: activeEngineRef.current,
-      progress: Number(progress.toFixed(2)),
+      progress: Number(nextProgress.toFixed(2)),
     });
   }, []);
 
@@ -301,6 +332,9 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   }, [filePath, t]);
 
   const handleEngineError = useCallback((caught: unknown, failedEngine: PdfEngineKind) => {
+    // A native error can arrive just after its view was replaced by the
+    // fallback WebView. Do not let that stale callback hide the recovery.
+    if (failedEngine !== activeEngineRef.current) return;
     if (
       failedEngine === 'webview'
       && activeEngineRef.current === 'webview'
@@ -391,23 +425,48 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
   useEffect(() => {
     if (!interactionEnabled) return undefined;
     let webviewScrollHeld = false;
+    let pressedDirection: ReaderVolumeDirection | null = null;
+    let nativeClockOffset: number | null = null;
+    let lastHoldEventAt = 0;
+    const stopWebviewHold = () => {
+      if (webviewScrollHeld) engineRef.current?.stopViewportScroll();
+      webviewScrollHeld = false;
+    };
     const stop = subscribeToReaderVolumeKeyEvents((event) => {
+      // Release must still stop an active hold while a document is unloading.
+      if (event.phase === 'release') {
+        if (pressedDirection === event.direction) {
+          stopWebviewHold();
+          pressedDirection = null;
+          nativeClockOffset = null;
+        }
+        return;
+      }
       if (!documentLoadedRef.current) return;
       if (displayMode === 'scroll') {
         const fraction = event.direction === 'next'
           ? PDF_VOLUME_SCROLL_VIEWPORT_RATIO
           : -PDF_VOLUME_SCROLL_VIEWPORT_RATIO;
         if (activeEngineRef.current === 'webview') {
-          if (event.phase === 'release') {
-            if (webviewScrollHeld) engineRef.current?.stopViewportScroll();
-            webviewScrollHeld = false;
-            return;
+          if (event.phase === 'press') {
+            stopWebviewHold();
+            pressedDirection = event.direction;
+            nativeClockOffset = event.eventTime === undefined ? null : Date.now() - event.eventTime;
+            lastHoldEventAt = 0;
+            engineRef.current?.scrollByViewport(fraction);
+          } else if (pressedDirection === event.direction) {
+            // Keep the original 18% step for each native repeat. Discard old
+            // or duplicated events instead of replaying a backlog after a stall.
+            const eventAt = nativeClockOffset !== null && event.eventTime !== undefined
+              ? nativeClockOffset + event.eventTime
+              : Date.now();
+            if (Date.now() - eventAt >= PDF_VOLUME_REPEAT_MAX_AGE_MS || eventAt <= lastHoldEventAt) return;
+            lastHoldEventAt = eventAt;
+            webviewScrollHeld = true;
+            engineRef.current?.scrollByViewport(fraction, true);
           }
-          webviewScrollHeld = event.phase === 'repeat';
-          engineRef.current?.scrollByViewport(fraction);
           return;
         }
-        if (event.phase === 'release') return;
         engineRef.current?.scrollByViewport(fraction);
         requestAnimationFrame(() => pdfDevLog('controls:volume-scroll', {
           direction: event.direction,
@@ -423,7 +482,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
       requestAnimationFrame(() => pdfDevLog('controls:volume-key', { direction: event.direction, page }));
     });
     return () => {
-      if (webviewScrollHeld) engineRef.current?.stopViewportScroll();
+      stopWebviewHold();
       stop();
     };
   }, [displayMode, goToPage, interactionEnabled]);

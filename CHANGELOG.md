@@ -47,6 +47,35 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   a piloto; nenhuma remoção do motor nativo é feita nesta etapa.
 
 ### Corrigido
+- **Mobile — abertura de PDF no WebView:** adiciona compatibilidade para
+  `Uint8Array.prototype.toHex` no worker do PDF.js e, se a rota binária local
+  falhar durante a abertura, reabre o mesmo documento uma vez pelo bridge de
+  bytes antes de exibir erro, preservando o caminho binário nos PDFs compatíveis.
+- **Mobile — timeout de abertura do PDF:** o leitor agora tolera carregamentos
+  longos enquanto houver progresso de bytes e só exibe erro após 15 segundos
+  sem avanço ou 90 segundos no total.
+- **Mobile — ranges binários do PDF WebView:** requisições `file://` que não
+  respondem em 5 segundos abortam e usam o bridge de bytes automaticamente,
+  evitando que uma faixa pendurada bloqueie a abertura do documento.
+- **Mobile — abertura de PDFs não linearizados:** o PDF.js passou a solicitar
+  faixas de 1 MiB, mantendo duas leituras simultâneas e reduzindo o número de
+  chamadas nativas necessárias antes da primeira página.
+- **Mobile — rasterização durante o scroll do PDF WebView (Fase 3 do plano):**
+  páginas em movimento usam temporariamente o orçamento de bitmap do Readest,
+  reduzindo pressão de CPU/memória durante os frames. Após 150 ms sem movimento,
+  a qualidade final visível continua usando o orçamento atual do Krumer.
+- **Mobile — transporte de faixas do PDF WebView (Fase 2 do plano de scroll):**
+  o Android agora pode entregar ranges por resposta binária local interceptada,
+  sem conversão Base64 nem `postMessage` para os dados pesados. O caminho antigo
+  continua como fallback automático, com limite de 1 MiB por faixa e patch
+  reaplicável após instalar as dependências; `RUNTIME_METRICS` separa contagens
+  binárias e da ponte para o benchmark.
+- **Mobile — fluidez ao segurar volume no PDF:** mantém o comportamento de passos
+  de +18%/−18% por clique e repetição nativa, com uma única animação que preserva
+  a velocidade entre os passos. A fila de repetições atrasadas é limitada, soltar
+  cancela os movimentos pendentes e a animação deixa de medir a altura total do
+  PDF a cada quadro. Mudanças no layout das páginas preservam a distância ainda
+  pendente, e páginas descartadas deixam de reter seus canvases e listeners.
 - **Mobile — restaurar zoom do PDF:** 100% volta a aplicar o encaixe da página
   inteira centralizada no modo paginado e da largura no modo scroll, preservando
   o ponto de leitura. A escala da pinça deixa de ser arredondada em passos de 5%

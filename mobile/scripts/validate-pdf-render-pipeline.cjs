@@ -35,7 +35,11 @@ async function main() {
   assert(pdf.includes('renderQueue.sort((a, b) => a.queuePriority - b.queuePriority'));
   assert(pdf.includes('activeRenderTasks.get(doc)?.cancel()'));
   assert(pdf.includes('MAX_VISIBLE_CANVAS_PIXELS'));
+  assert(pdf.includes('MAX_SCROLL_CANVAS_PIXELS'));
   assert(pdf.includes('MAX_BACKGROUND_CANVAS_PIXELS'));
+  assert(pdf.includes('scrolling = false'));
+  assert(pdf.includes('request.scrolling'));
+  assert(pdf.includes('getRenderDpr(page, zoom, priority, scrolling)'));
   assert(pdf.includes("const stagedText = doc.createElement('div')"));
   assert(pdf.includes("const stagedAnnotations = doc.createElement('div')"));
   assert(pdf.includes(".filter(annotation => annotation?.subtype !== 'Link')"));
@@ -49,7 +53,9 @@ async function main() {
   assert(pdf.includes("phase: priority === 0 ? 'final' : 'preview'"));
   assert(pdf.includes('A detached/nearby preload becomes the visible preview'));
   assert(pdf.includes('scheduleInteractionLayers(page, doc, zoom)'));
-  assert(pdf.includes('scheduleRender(page, doc, scale, pageColors, priority)'));
+  assert(pdf.includes('scheduleRender(page, doc, scale, pageColors, priority, deferQuality)'));
+  assert(pdf.includes('if (priority === 0 && !deferQuality)'));
+  assert(pdf.includes('export const scheduleRender = (page, doc, zoom, pageColors, priority = 0, deferQuality = false)'));
 
   assert(fixed.includes('distance <= 2'));
   assert(fixed.includes('priority: 2'));
@@ -58,6 +64,10 @@ async function main() {
   assert(fixed.includes('findScrollPageIndex('));
   assert(fixed.includes('#rebuildScrollMetrics()'));
   assert(fixed.includes('this.#scrollEventFrame = requestAnimationFrame'));
+  assert(fixed.includes('this.#finalizeVisibleScrollRenders()'));
+  assert(fixed.includes('#finalizeVisibleScrollRenders()'));
+  assert(fixed.includes('forceFinalize = false'));
+  assert(fixed.includes('deferQuality: pageData.deferredQuality'));
   assert(fixed.includes('renderComplete = Promise.resolve()'));
   assert(fixed.includes("this.dispatchEvent(new CustomEvent('render-complete'"));
   assert(fixed.includes('this.#layoutScrollFrame(page, scale)'));
@@ -181,6 +191,8 @@ async function main() {
   const pdfAdapter = await loadPdfAdapter();
   const page = { getViewport: ({ scale }) => ({ height: 100 * scale, width: 100 * scale }) };
   assert(pdfAdapter.getRenderDpr(page, 1, 0) > pdfAdapter.getRenderDpr(page, 1, 2));
+  assert(pdfAdapter.getRenderDpr(page, 1, 0, true) <= 2,
+    'Scroll previews must use the capped mobile raster budget.');
   const signature = { color: '{}', dpr: 2, scale: 1 };
   assert.deepStrictEqual(pdfAdapter.planProgressiveRender({
     color: '{}', desiredDpr: 2, previewDpr: 1.5, priority: 0, rendered: signature, scale: 1,
@@ -196,6 +208,53 @@ async function main() {
     color: '{}', desiredDpr: 2.5, previewDpr: 2, priority: 0,
     rendered: signature, scale: 1.5,
   }), { action: 'preview', upgrade: true });
+
+  // A visible page discovered while the host is scrolling may render only its
+  // preview. The higher-DPR upgrade must wait for the idle callback instead of
+  // starting on the same turn as the scroll.
+  const deferredStyle = () => ({
+    setProperty(name, value) { this[name] = value; },
+    removeProperty(name) { delete this[name]; },
+  });
+  let deferredRenderCount = 0;
+  let finishDeferredRender;
+  let deferredLiveCanvas = null;
+  const deferredTextLayer = { style: deferredStyle() };
+  const deferredAnnotationLayer = { style: deferredStyle() };
+  const deferredCanvasContainer = {
+    querySelector: () => deferredLiveCanvas,
+    replaceChildren: (canvas) => { deferredLiveCanvas = canvas; },
+  };
+  const deferredDoc = {
+    defaultView: { frameElement: { isConnected: true, dataset: { sectionIndex: '0' } } },
+    body: { style: deferredStyle() },
+    documentElement: { style: deferredStyle() },
+    createElement: () => ({ style: deferredStyle(), getContext: () => ({}) }),
+    querySelector: (selector) => ({
+      '#canvas': deferredCanvasContainer,
+      '.textLayer': deferredTextLayer,
+      '.annotationLayer': deferredAnnotationLayer,
+    })[selector],
+  };
+  const deferredPage = {
+    ...page,
+    render() {
+      deferredRenderCount += 1;
+      return {
+        promise: new Promise(resolve => { finishDeferredRender = resolve; }),
+        cancel() {},
+      };
+    },
+  };
+  const deferredPreview = pdfAdapter.scheduleRender(deferredPage, deferredDoc, 1, null, 0, true);
+  assert.strictEqual(deferredRenderCount, 1);
+  finishDeferredRender();
+  await deferredPreview;
+  await new Promise(resolve => setTimeout(resolve, 5));
+  assert.strictEqual(deferredRenderCount, 1,
+    'A scrolling preview scheduled its final raster before scroll idle.');
+  assert(deferredLiveCanvas && deferredLiveCanvas.width <= 200,
+    'A scrolling preview must use the temporary mobile bitmap budget.');
 
   // Exercise the actual render queue: zoom must retain the canvas and its
   // dimensions, also when a second zoom arrives before the first raster is ready.

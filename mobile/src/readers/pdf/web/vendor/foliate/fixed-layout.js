@@ -1007,7 +1007,7 @@ export class FixedLayout extends HTMLElement {
             return {
                 el, index: i, section, state: 'idle', visible: false, frame: null,
                 vpWidth: vw, vpHeight: vh, renderScale: null, renderGeneration: 0,
-                pendingRenderScale: null, renderPromise: null, retryAttempt: 0,
+                pendingRenderScale: null, renderPromise: null, deferredQuality: false, retryAttempt: 0,
                 retryTimer: null, errorStatus: null,
             }
         })
@@ -1095,10 +1095,29 @@ export class FixedLayout extends HTMLElement {
         if (this.#scrollIdleTimer) clearTimeout(this.#scrollIdleTimer)
         this.#scrollIdleTimer = setTimeout(() => {
             this.#scrolling = false
+            this.#finalizeVisibleScrollRenders()
             // Report location only after scroll settles to avoid
             // expensive React re-renders on every frame
             this.#reportScrollLocation()
         }, 150)
+    }
+    #finalizeVisibleScrollRenders() {
+        if (!this.#scrollMode) return
+        const currentIndex = this.#getScrollIndex()
+        for (const page of this.#scrollPages) {
+            if (!page.visible || !page.frame || page.state !== 'loaded' || !page.deferredQuality) continue
+            const distance = Math.abs(page.index - currentIndex)
+            if (distance > 2) continue
+            if (page.renderPromise) {
+                page.renderPromise.then(() => {
+                    if (this.#scrollMode && !this.#scrolling && page.visible && page.deferredQuality)
+                        this.#renderScrollPage(page, 0, true)
+                }).catch(() => {})
+                continue
+            }
+            this.#renderScrollPage(page, 0, true)
+        }
+        this.#scheduleScrollPages()
     }
     #handleScrollWheel = e => {
         const delta = computeScrollWheelDelta({
@@ -1393,6 +1412,7 @@ export class FixedLayout extends HTMLElement {
         pageData.renderScale = null
         pageData.pendingRenderScale = null
         pageData.renderPromise = null
+        pageData.deferredQuality = false
         pageData.renderGeneration = (pageData.renderGeneration || 0) + 1
     }
     #renderScrollMode() {
@@ -1460,7 +1480,7 @@ export class FixedLayout extends HTMLElement {
         pageData.el.style.width = `${vw * scale}px`
         pageData.el.style.height = `${vh * scale}px`
     }
-    #renderScrollPage(pageData, priority = 0) {
+    #renderScrollPage(pageData, priority = 0, forceFinalize = false) {
         const { width: hostWidth, height: hostHeight } = this.getBoundingClientRect()
         if (!(this.#scrollHorizontal ? hostHeight : hostWidth) || !pageData.frame) return
         const { vpWidth: vw, vpHeight: vh, frame } = pageData
@@ -1472,25 +1492,30 @@ export class FixedLayout extends HTMLElement {
         let renderPromise
         const isRendered = Math.abs((pageData.renderScale ?? -1) - scale) <= 0.001
         const isPending = Math.abs((pageData.pendingRenderScale ?? -1) - scale) <= 0.001
+        const finalizeQuality = forceFinalize || (!this.#scrolling && pageData.deferredQuality && priority === 0)
         if (frame.onZoom && !isRendered && isPending) {
             renderPromise = pageData.renderPromise
-        } else if (frame.onZoom && !isRendered) {
+        } else if (frame.onZoom && (!isRendered || finalizeQuality)) {
             const generation = (pageData.renderGeneration || 0) + 1
             pageData.renderGeneration = generation
             pageData.pendingRenderScale = scale
+            pageData.deferredQuality = this.#scrolling && !forceFinalize
             const p = frame.onZoom({
                 doc: frame.iframe.contentDocument,
                 scale,
                 pageColors: this.#pageColors,
                 priority,
+                deferQuality: pageData.deferredQuality,
             })
             if (p?.then) {
                 renderPromise = p.then(rendered => {
                     if (pageData.renderGeneration !== generation) return
                     if (rendered) {
                         pageData.renderScale = scale
+                        if (forceFinalize) pageData.deferredQuality = false
                         this.#refreshOverlayerForFrame(frame)
                     }
+                    if (!rendered && forceFinalize) pageData.deferredQuality = true
                 }).finally(() => {
                     if (pageData.renderGeneration !== generation) return
                     pageData.pendingRenderScale = null

@@ -393,6 +393,8 @@ async function main() {
     !debugSource.includes("const PDF_DEBUG_TAG = '[Krumer PDF]'")
     || !debugSource.includes('if (!__DEV__) return')
     || !readerSource.includes("pdfDevWarn('reader:load-timeout'")
+    || !readerSource.includes('loadActivityAtRef.current = Date.now()')
+    || !readerSource.includes('PDF_LOAD_MAX_WAIT_MS')
     || !readerSource.includes("pdfDevLog('native:page-changed-used-as-ready'")
     || !readerSource.includes("pdfDevLog('native:load-complete-after-ready'")
     || readerSource.includes("pdfDevWarn('native:page-changed-before-load-complete'")
@@ -573,7 +575,6 @@ async function main() {
     || !readerSource.includes('subscribeToReaderVolumeKeyEvents((event)')
     || !readerSource.includes("if (displayMode === 'scroll')")
     || !readerSource.includes('engineRef.current?.scrollByViewport(fraction)')
-    || readerSource.includes('engineRef.current?.startViewportScroll')
     || !readerSource.includes('engineRef.current?.stopViewportScroll()')
     || !readerSource.includes("pdfDevLog('controls:volume-scroll'")
     || !readerSource.includes("const delta = event.direction === 'next' ? 1 : -1")
@@ -581,6 +582,7 @@ async function main() {
     || !mainActivitySource.includes('"release"')
     || !mainActivitySource.includes('"repeat"')
     || !mainActivitySource.includes('"press"')
+    || readerSource.includes('startViewportScroll')
   ) {
     throw new Error('Volume Up/Down do not scroll continuously or preserve paginated PDF navigation.');
   }
@@ -624,19 +626,24 @@ async function main() {
   for (const displayMode of ['scroll', 'paginated']) {
     const steps = [];
     const pageRef = { current: 3 };
+    const loadedRef = { current: true };
+    let now = 1000000;
     let listener;
     let stops = 0;
     let unsubscribed = false;
-    const cleanup = vm.runInNewContext(`(function () { ${volumeEffect} })()`, {
+    const cleanup = vm.runInNewContext(ts.transpileModule(`(function () { ${volumeEffect} })()`, {
+      compilerOptions: { target: ts.ScriptTarget.ES2020 },
+    }).outputText, {
       displayMode,
-      documentLoadedRef: { current: true },
+      documentLoadedRef: loadedRef,
       activeEngineRef: { current: 'webview' },
       currentPageRef: pageRef,
       PDF_VOLUME_SCROLL_VIEWPORT_RATIO: 0.18,
+      PDF_VOLUME_REPEAT_MAX_AGE_MS: 100,
+      Date: { now: () => now },
       engineRef: { current: {
-        scrollByViewport: (fraction) => steps.push(fraction),
+        scrollByViewport: (fraction, repeat = false) => steps.push({ fraction, repeat }),
         stopViewportScroll: () => { stops += 1; },
-        startViewportScroll: () => { throw new Error('Hold must reuse the 18% step.'); },
       } },
       subscribeToReaderVolumeKeyEvents: (callback) => {
         listener = callback;
@@ -649,15 +656,44 @@ async function main() {
     listener({ direction: 'next', phase: 'press' });
     listener({ direction: 'next', phase: 'release' });
     assert.strictEqual(stops, 0, 'A short click must finish its existing 18% step.');
-    listener({ direction: 'previous', phase: 'press' });
-    for (let repeat = 0; repeat < 5; repeat += 1) listener({ direction: 'previous', phase: 'repeat' });
+    listener({ direction: 'previous', phase: 'press', eventTime: 1000 });
+    for (let repeat = 1; repeat <= 1000; repeat += 1) {
+      now += 50;
+      listener({ direction: 'previous', phase: 'repeat', eventTime: 1000 + repeat * 50 });
+    }
+    loadedRef.current = false;
     listener({ direction: 'previous', phase: 'release' });
+    loadedRef.current = true;
     if (displayMode === 'scroll') {
-      assert.deepStrictEqual(steps, [0.18, -0.18, -0.18, -0.18, -0.18, -0.18, -0.18]);
-      assert.strictEqual(stops, 1, 'Releasing a held button must stop its animation.');
+      assert.strictEqual(steps.length, 1002, 'Hold must repeat the existing viewport step.');
+      assert.deepStrictEqual(steps.slice(0, 2), [
+        { fraction: 0.18, repeat: false }, { fraction: -0.18, repeat: false },
+      ]);
+      assert(steps.slice(2).every(step => step.fraction === -0.18 && step.repeat),
+        'Each native repeat must reuse the existing 18% step.');
+      assert.strictEqual(stops, 1, 'Release must stop a hold even while the document is unloading.');
       listener({ direction: 'next', phase: 'repeat' });
+      listener({ direction: 'previous', phase: 'repeat' });
+      assert.strictEqual(steps.length, 1002, 'A repeat after release restarted volume scrolling.');
+      listener({ direction: 'next', phase: 'press', eventTime: 60000 });
+      now += 500;
+      listener({ direction: 'next', phase: 'repeat', eventTime: 60050 });
+      assert.strictEqual(steps.length, 1003, 'A stale repeat was replayed after a stall.');
+      listener({ direction: 'next', phase: 'repeat', eventTime: 60500 });
+      assert.deepStrictEqual(steps.at(-1), { fraction: 0.18, repeat: true });
+      listener({ direction: 'next', phase: 'repeat', eventTime: 60500 });
+      assert.strictEqual(steps.length, 1004, 'A duplicate repeat crossed the bridge twice.');
+      // A new press changes direction; release of the previous key cannot stop it.
+      listener({ direction: 'previous', phase: 'press' });
+      assert.strictEqual(stops, 2, 'A new press left the previous hold running.');
+      now += 50;
+      listener({ direction: 'previous', phase: 'repeat' });
+      assert.deepStrictEqual(steps.at(-1), { fraction: -0.18, repeat: true },
+        'Legacy repeat events must also use the existing 18% step.');
+      listener({ direction: 'next', phase: 'release' });
+      assert.strictEqual(stops, 2, 'Release of the previous key cancelled the new hold.');
       cleanup();
-      assert.strictEqual(stops, 2, 'Reader cleanup must stop a held scroll.');
+      assert.strictEqual(stops, 3, 'Reader cleanup must stop a held scroll.');
     } else {
       assert.strictEqual(pageRef.current, 3, 'Hold must not repeat paginated page turns.');
       assert.deepStrictEqual(steps, []);
