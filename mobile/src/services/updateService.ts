@@ -111,14 +111,15 @@ export async function installApk(localUri: string): Promise<void> {
     throw new Error('APK installation is only supported on Android');
   }
 
-  const IntentLauncher = require('expo-intent-launcher').default;
+  const rawLauncher = require('expo-intent-launcher');
+  const IntentLauncher = rawLauncher.startActivityAsync ? rawLauncher : (rawLauncher.default ?? rawLauncher);
   const contentUri = await FileSystem.getContentUriAsync(localUri);
 
   try {
     await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
       data: contentUri,
       type: 'application/vnd.android.package-archive',
-      flags: 1,
+      flags: 1 | (1 << 28), // FLAG_GRANT_READ_URI_PERMISSION | FLAG_ACTIVITY_NEW_TASK
     });
   } catch (err: any) {
     // err.code === 'ERR_ACTIVITY_NOT_FOUND' when no handler or permission denied
@@ -132,7 +133,8 @@ export async function installApk(localUri: string): Promise<void> {
 export async function openInstallPermissionSettings(): Promise<void> {
   if (Platform.OS !== 'android') return;
 
-  const IntentLauncher = require('expo-intent-launcher').default;
+  const rawLauncher = require('expo-intent-launcher');
+  const IntentLauncher = rawLauncher.startActivityAsync ? rawLauncher : (rawLauncher.default ?? rawLauncher);
   try {
     await IntentLauncher.startActivityAsync(
       'android.settings.MANAGE_UNKNOWN_APP_SOURCES',

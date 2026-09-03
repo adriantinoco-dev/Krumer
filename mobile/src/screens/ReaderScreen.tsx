@@ -904,7 +904,76 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
             {hasReadyPageCount ? `${currentPage} / ${totalPages}` : '- / -'}
           </Text>
         </View>
-      ) : null}
+      ) : pdfDisplayMode === 'scroll' ? (
+        <View
+          pointerEvents="none"
+          style={{
+            bottom: Math.max(insets.bottom, 0) + 16,
+            elevation: 90,
+            position: 'absolute',
+            right: Math.max(insets.right, 0) + 24,
+            zIndex: 90,
+          }}
+        >
+          <View
+            style={{
+              alignItems: 'center',
+              backgroundColor: theme.name === 'dark' ? 'rgba(32, 32, 32, 0.88)' : 'rgba(0, 0, 0, 0.68)',
+              borderColor: theme.name === 'dark' ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.22)',
+              borderRadius: 14,
+              borderWidth: 1,
+              justifyContent: 'center',
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+              shadowColor: '#000000',
+              shadowOffset: { height: 1, width: 0 },
+              shadowOpacity: 0.25,
+              shadowRadius: 3,
+            }}
+          >
+            <Text
+              numberOfLines={1}
+              style={{
+                color: '#ffffff',
+                fontFamily: serifFont,
+                fontSize: 12,
+                fontWeight: '600',
+                opacity: 0.95,
+              }}
+            >
+              {totalPages > 0 ? `${Math.max(1, currentPage)} / ${totalPages}` : '- / -'}
+            </Text>
+          </View>
+        </View>
+      ) : (
+        <View
+          pointerEvents="none"
+          style={{
+            bottom: 0,
+            elevation: 90,
+            left: 0,
+            position: 'absolute',
+            right: 0,
+            top: 0,
+            zIndex: 90,
+          }}
+        >
+          <Text
+            numberOfLines={1}
+            style={{
+              color: epubMuted,
+              fontFamily: serifFont,
+              fontSize: 14,
+              opacity: 0.68,
+              position: 'absolute',
+              bottom: Math.max(insets.bottom, 0) + 16,
+              right: Math.max(insets.right, 0) + 32,
+            }}
+          >
+            {totalPages > 0 ? `${Math.max(1, currentPage)} / ${totalPages}` : '- / -'}
+          </Text>
+        </View>
+      )}
 
       {/* Top bar */}
       <Animated.View

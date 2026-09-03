@@ -164,9 +164,10 @@ export function BookCard({
           {progressVisible && (
             <Animated.View
               style={{
-                borderRadius: 4,
+                borderBottomLeftRadius: COVER_RADIUS,
+                borderBottomRightRadius: COVER_RADIUS,
                 bottom: 0,
-                height: 6,
+                height: 5,
                 left: 0,
                 overflow: 'hidden',
                 position: 'absolute',
@@ -178,7 +179,6 @@ export function BookCard({
               <Animated.View
                 style={{
                   backgroundColor: 'transparent',
-                  borderRadius: 4,
                   height: '100%',
                   opacity: bgOpacity,
                   position: 'absolute',
