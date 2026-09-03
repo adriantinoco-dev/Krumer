@@ -136,16 +136,12 @@ export function useAppUpdate(): UseAppUpdateReturn {
     dismissUpdate();
   }, [updateInfo, dismissUpdate]);
 
-  // Auto-check on startup (silent, debounced by lastUpdateCheck)
+  // Auto-check on startup (silent, triggers on every launch per F7 spec)
   useEffect(() => {
     if (!ready || !preferences.hasOnboarded || dismissed) return;
 
-    const lastCheck = preferences.lastUpdateCheck ?? 0;
-    const now = Date.now();
-    if (now - lastCheck < CHECK_DEBOUNCE_MS) return;
-
     void checkForUpdate(true);
-  }, [ready, preferences.hasOnboarded, preferences.lastUpdateCheck, dismissed, checkForUpdate]);
+  }, [ready, preferences.hasOnboarded, dismissed, checkForUpdate]);
 
   // Debug: expose force-show on window for testing
   useEffect(() => {

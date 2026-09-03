@@ -13,13 +13,15 @@ import { useApp } from '../context/AppContext';
 import type { RootStackParamList } from '../navigation/types';
 import { scanLibrary } from '../services/libraryScanner';
 import { radii, serifFont, spacing, type ThemeName } from '../theme';
+import { useUpdate } from '../context/UpdateContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SettingsGroup'>;
 
 export function SettingsGroupScreen({ route }: Props) {
   const { group } = route.params;
   const { height } = useWindowDimensions();
-  const { preferences, setBooks, setGeminiApiKey, setLibraryFolder, setThemeName, checkForUpdate, theme, t } = useApp();
+  const { preferences, setBooks, setGeminiApiKey, setLibraryFolder, setThemeName, theme, t } = useApp();
+  const update = useUpdate();
   const [folder, setFolder] = useState(preferences.libraryFolder);
   const [apiKey, setApiKey] = useState('');
   const [status, setStatus] = useState(preferences.hasGeminiApiKey ? t('settings.keySaved') : t('api.noKey'));
@@ -29,7 +31,7 @@ export function SettingsGroupScreen({ route }: Props) {
   async function handleCheckForUpdate() {
     setUpdateStatus(t('update.checking'));
     try {
-      await checkForUpdate();
+      await update.checkForUpdate(false);
       setUpdateStatus(t('update.upToDate'));
     } catch {
       setUpdateStatus(null);

@@ -22,7 +22,7 @@ import { SyncCoordinator } from './src/sync/SyncCoordinator';
 import { usePortraitOrientation } from './src/readers/useOrientation';
 import { StartupLoadingScreen } from './src/components/StartupLoadingScreen';
 import { UpdateModal } from './src/components/UpdateModal';
-import { useAppUpdate } from './src/hooks/useAppUpdate';
+import { UpdateProvider, useUpdate } from './src/context/UpdateContext';
 
 const Tabs = createBottomTabNavigator<MainTabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -109,7 +109,7 @@ function AppShell() {
   const { preferences, preferencesReady, ready, theme } = useApp();
   const [startupVisible, setStartupVisible] = React.useState(true);
   const hideStartup = React.useCallback(() => setStartupVisible(false), []);
-  const update = useAppUpdate();
+  const update = useUpdate();
   usePortraitOrientation();
   const statusBarStyle: 'light-content' | 'dark-content' = theme.name === 'dark' ? 'light-content' : 'dark-content';
   const navigationTheme = {
@@ -172,7 +172,9 @@ export default function App() {
         <AppProvider>
           <ReaderSessionProvider>
             <SyncCoordinator />
-            <AppShell />
+            <UpdateProvider>
+              <AppShell />
+            </UpdateProvider>
           </ReaderSessionProvider>
         </AppProvider>
       </AuthProvider>
