@@ -2,8 +2,6 @@
    Krumer Personal Library - Design Tokens & Main Stylesheet
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
 :root {
   /* Neutral Layout & Design Tokens */
   --accent:       #f97316;  /* Orange */
@@ -17,7 +15,7 @@
   --radius-lg:    14px;
   --radius-xl:    20px;  /* spec v2: bordas extra-arredondadas */
   
-  --font-main:    'Inter', system-ui, -apple-system, sans-serif;
+  --font-main:    'Georgia', serif;
   --shadow-main:  0 10px 30px rgba(0, 0, 0, 0.5);
   --shadow-card:  0 4px 12px rgba(0, 0, 0, 0.4);
   
