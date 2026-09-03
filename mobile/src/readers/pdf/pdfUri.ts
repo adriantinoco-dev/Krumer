@@ -1,4 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import { ReaderLruCache } from '../readerCache';
 
 /**
  * D1 — Abertura de documento (equivalente a LibraryAPI.getFileUrl + cMap em openPdf:56).
@@ -20,7 +21,7 @@ type CachedPdfResolution = {
   resolvedUri: string | null;
 };
 
-let cachedPdfResolution: CachedPdfResolution | null = null;
+const cachedPdfResolutions = new ReaderLruCache<CachedPdfResolution>();
 
 function stablePathHash(value: string) {
   let hash = 2166136261;
@@ -36,9 +37,13 @@ function pdfResolutionKey(filePath: string, knownByteLength?: number) {
 }
 
 function prunePdfCache(cacheDir: string, activeUri: string) {
+  const retainedUris = new Set<string>([activeUri]);
+  cachedPdfResolutions.forEach((entry) => {
+    if (entry.resolvedUri) retainedUris.add(entry.resolvedUri);
+  });
   void FileSystem.readDirectoryAsync(cacheDir)
     .then((names) => Promise.all(names.map((name) => `${cacheDir}${name}`)
-      .filter((uri) => uri !== activeUri)
+      .filter((uri) => !retainedUris.has(uri))
       .map((uri) => FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => undefined))))
     .catch(() => undefined);
 }
@@ -46,20 +51,22 @@ function prunePdfCache(cacheDir: string, activeUri: string) {
 export function getCachedPdfUri(filePath: string, knownByteLength?: number): string | null {
   if (filePath.startsWith('file://') || filePath.startsWith('/')) return withFileScheme(filePath);
   const key = pdfResolutionKey(filePath, knownByteLength);
-  return cachedPdfResolution?.key === key ? cachedPdfResolution.resolvedUri : null;
+  return cachedPdfResolutions.get(key)?.resolvedUri ?? null;
 }
 
 export function resolvePdfUri(filePath: string, knownByteLength?: number): Promise<string> {
   const key = pdfResolutionKey(filePath, knownByteLength);
-  if (cachedPdfResolution?.key === key) return cachedPdfResolution.promise;
+  const cached = cachedPdfResolutions.get(key);
+  if (cached) return cached.promise;
 
   const promise = resolvePdfUriUncached(filePath, knownByteLength);
-  cachedPdfResolution = { key, promise, resolvedUri: null };
+  const entry: CachedPdfResolution = { key, promise, resolvedUri: null };
+  cachedPdfResolutions.set(key, entry);
   void promise.then((resolvedUri) => {
-    if (cachedPdfResolution?.promise === promise) cachedPdfResolution.resolvedUri = resolvedUri;
+    if (cachedPdfResolutions.get(key)?.promise === promise) entry.resolvedUri = resolvedUri;
   }, () => undefined);
   void promise.catch(() => {
-    if (cachedPdfResolution?.promise === promise) cachedPdfResolution = null;
+    if (cachedPdfResolutions.get(key)?.promise === promise) cachedPdfResolutions.delete(key);
   });
   return promise;
 }

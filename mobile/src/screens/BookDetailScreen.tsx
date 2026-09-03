@@ -39,6 +39,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { CONTENT_MAX_WIDTH, coverShadow, radii, serifFont, spacing, TABLET_BREAKPOINT } from '../theme';
 import { extractYear, searchMetadataForBook } from '../services/metadataService';
 import { preloadReaderBook } from '../readers/readerStartup';
+import { useReaderSessions } from '../readers/ReaderSessionHost';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BookDetail'>;
 
@@ -58,6 +59,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
     updateBookMetadata,
     updateBookProgress,
   } = useApp();
+  const { openReader } = useReaderSessions();
 
   const book = useMemo(() => findBookById(books, bookId), [books, bookId]);
 
@@ -184,7 +186,7 @@ export function BookDetailScreen({ navigation, route }: Props) {
   const handleOpenReader = (targetBook: Book = book) => {
     const readerBook = getReaderBook(targetBook);
     void preloadReaderBook(readerBook, preferences.language);
-    navigation.navigate('Reader', { book: readerBook });
+    openReader(readerBook);
   };
 
   const handleOpenEditModal = () => {

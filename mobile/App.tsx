@@ -12,6 +12,7 @@ import { LibraryScreen } from './src/screens/LibraryScreen';
 import { ListDetailScreen } from './src/screens/ListDetailScreen';
 import { ListsScreen } from './src/screens/ListsScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
+import { ReaderSessionHost, ReaderSessionProvider } from './src/readers/ReaderSessionHost';
 import { ReaderScreen } from './src/screens/ReaderScreen';
 import { SettingsGroupScreen } from './src/screens/SettingsGroupScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
@@ -144,6 +145,7 @@ function AppShell() {
           </Stack.Navigator>
         </NavigationContainer>
       ))}
+      <ReaderSessionHost />
       {startupVisible && <StartupLoadingScreen ready={ready} onFinished={hideStartup} />}
     </View>
   );
@@ -154,8 +156,10 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <AppProvider>
-          <SyncCoordinator />
-          <AppShell />
+          <ReaderSessionProvider>
+            <SyncCoordinator />
+            <AppShell />
+          </ReaderSessionProvider>
         </AppProvider>
       </AuthProvider>
     </SafeAreaProvider>

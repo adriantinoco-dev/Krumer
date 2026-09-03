@@ -1,5 +1,6 @@
 import { Directory, File, Paths } from 'expo-file-system';
 import { DEFAULT_LANGUAGE, translate, type LanguageCode } from '../i18n/translations';
+import { ReaderLruCache } from './readerCache';
 
 export const MAX_IN_MEMORY_EPUB_BYTES = 16 * 1024 * 1024;
 
@@ -15,7 +16,7 @@ type PreparedEpubCacheEntry = {
   promise: Promise<PreparedEpub>;
 };
 
-let preparedEpubCache: PreparedEpubCacheEntry | null = null;
+const preparedEpubCache = new ReaderLruCache<PreparedEpubCacheEntry>();
 
 export class EpubFileError extends Error {
   constructor(
@@ -59,12 +60,14 @@ export function prepareEpubFile(
   language: LanguageCode = DEFAULT_LANGUAGE,
 ): Promise<PreparedEpub> {
   const key = `${filePath}\u0000${knownByteLength ?? 0}\u0000${language}`;
-  if (preparedEpubCache?.key === key) return preparedEpubCache.promise;
+  const cached = preparedEpubCache.get(key);
+  if (cached) return cached.promise;
 
   const promise = prepareEpubFileUncached(filePath, knownByteLength, language);
-  preparedEpubCache = { key, promise };
+  const entry = { key, promise };
+  preparedEpubCache.set(key, entry);
   void promise.catch(() => {
-    if (preparedEpubCache?.promise === promise) preparedEpubCache = null;
+    if (preparedEpubCache.get(key)?.promise === promise) preparedEpubCache.delete(key);
   });
   return promise;
 }

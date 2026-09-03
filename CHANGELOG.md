@@ -20,6 +20,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 - **Mobile — ordenação de “Continuar lendo”:** o livro aberto mais recentemente
   agora aparece sempre primeiro na linha, à esquerda, com fallback para a data
   de inclusão nos livros antigos.
+- **Mobile — cache de leitura em memória:** os recursos dos oito livros mais
+  recentes ficam disponíveis para reabertura rápida durante a sessão do app;
+  o cache é LRU e não é persistido após o encerramento do processo.
+- **Mobile — sessões de leitura instantâneas:** os oito leitores PDF/EPUB mais
+  recentes permanecem montados e alternam por sobreposição, preservando o
+  documento já aberto no WebView entre fechamentos e reaberturas.
 - **Mobile — desempenho do leitor PDF WebView:** o runtime PDF.js/foliate agora
   é gerado como asset HTML local cacheável e preparado em paralelo ao arquivo.
   A primeira imagem e as trocas de página usam preview progressivo, refinamento

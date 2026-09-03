@@ -26,8 +26,8 @@ async function main() {
   const readerStartupSource = fs.readFileSync('src/readers/readerStartup.ts', 'utf8');
   const bookDetailSource = fs.readFileSync('src/screens/BookDetailScreen.tsx', 'utf8');
   if (
-    !epubFileSource.includes('let preparedEpubCache: PreparedEpubCacheEntry | null = null')
-    || !epubFileSource.includes('if (preparedEpubCache?.key === key) return preparedEpubCache.promise')
+    !epubFileSource.includes('const preparedEpubCache = new ReaderLruCache<PreparedEpubCacheEntry>()')
+    || !epubFileSource.includes('const cached = preparedEpubCache.get(key)')
     || !epubFileSource.includes('const durableCopyIsCurrent = durableFile.exists')
     || epubReaderSource.includes('if (preparing || !readerFonts.loaded)')
     || !epubReaderSource.includes('void registerFontFamily(appearance.fontFamily).catch(() => undefined)')

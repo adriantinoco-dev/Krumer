@@ -11,6 +11,7 @@ import { loadPdfEnginePreference } from './pdf/usePdfEnginePreference';
 import { loadPdfPrefs } from './pdf/usePdfPrefs';
 import { loadStoredReadingPreferences } from './useReadingPreferences';
 import { loadStoredReaderLayoutSettings } from './useReaderLayoutSettings';
+import { ReaderLruCache } from './readerCache';
 
 const PDF_PROGRESS_KEY_PREFIX = 'progress_';
 
@@ -19,7 +20,7 @@ type ReaderWarmup = {
   promise: Promise<void>;
 };
 
-let activeWarmup: ReaderWarmup | null = null;
+const activeWarmups = new ReaderLruCache<ReaderWarmup>();
 const pdfProgressCache = new Map<string, string | null>();
 const pendingPdfProgress = new Map<string, Promise<string | null>>();
 
@@ -51,7 +52,8 @@ export async function savePdfProgress(bookId: string, progress: string): Promise
 
 export function preloadReaderBook(book: Book, language: LanguageCode): Promise<void> {
   const key = `${book.id}\u0000${book.filePath}\u0000${book.fileSize ?? 0}\u0000${language}`;
-  if (activeWarmup?.key === key) return activeWarmup.promise;
+  const cachedWarmup = activeWarmups.get(key);
+  if (cachedWarmup) return cachedWarmup.promise;
 
   const startedAt = Date.now();
   const tasks: Promise<unknown>[] = [warmReaderDatabase()];
@@ -88,6 +90,6 @@ export function preloadReaderBook(book: Book, language: LanguageCode): Promise<v
       });
     }
   });
-  activeWarmup = { key, promise };
+  activeWarmups.set(key, { key, promise });
   return promise;
 }

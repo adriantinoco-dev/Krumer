@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, StatusBar, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Animated, BackHandler, Easing, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, StatusBar, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Anchor, Bookmark, BookmarkPlus, Feather, ListTree, StickyNote, Sun, Trash2, X } from 'lucide-react-native';
@@ -40,7 +40,12 @@ import type { ReadingPreferences } from '../models/readingPreferences';
 import type { RootStackParamList } from '../navigation/types';
 import { radii, serifFont, spacing } from '../theme';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Reader'>;
+type Props = NativeStackScreenProps<RootStackParamList, 'Reader'> & {
+  // Managed sessions stay mounted in ReaderSessionHost so their WebView keeps
+  // the parsed document alive between openings.
+  active?: boolean;
+  onRequestClose?: () => void;
+};
 
 const FONT_SIZE_MIN = 12;
 const FONT_SIZE_MAX = 32;
@@ -58,7 +63,7 @@ function scaleEpubChrome(value: number) {
   return Math.round(value * EPUB_CHROME_VERTICAL_SCALE);
 }
 
-export function ReaderScreen({ navigation, route }: Props) {
+export function ReaderScreen({ active = true, navigation, onRequestClose, route }: Props) {
   const { book } = route.params;
   const isEpub = book.format === 'epub';
   const { theme, t, updateBookProgress } = useApp();
@@ -71,7 +76,7 @@ export function ReaderScreen({ navigation, route }: Props) {
   const [pdfDisplayMode, setPdfDisplayMode] = useState<PdfDisplayMode>(initialPdfPreferences.displayMode);
   const [pdfOrientation, setPdfOrientation] = useState<ReadingPreferences['orientation']>(initialPdfPreferences.orientation);
   const [pdfScale, setPdfScale] = useState<number>(PDF_DEFAULTS.scale);
-  const { isLandscape } = useOrientation(isEpub ? readingPreferences.preferences.orientation : pdfOrientation);
+  const { isLandscape } = useOrientation(isEpub ? readingPreferences.preferences.orientation : pdfOrientation, active);
   const [progress, setProgress] = useState((book.progressPct ?? 0) / 100);
   const [savedPosition, setSavedPosition] = useState<string | null>(() => {
     const cachedPdfProgress = isEpub ? undefined : getCachedPdfProgress(book.id);
@@ -176,6 +181,30 @@ export function ReaderScreen({ navigation, route }: Props) {
     onDurableProgress: syncDurableEpubProgress,
   });
 
+  const handleManagedClose = useCallback(() => {
+    if (!onRequestClose) {
+      navigation.goBack();
+      return;
+    }
+    if (!isEpub) {
+      onRequestClose();
+      return;
+    }
+    if (controlledCloseInFlightRef.current) return;
+    controlledCloseInFlightRef.current = true;
+    const locatorRequest = epubReaderRef.current?.getCurrentLocator() ?? Promise.resolve(null);
+    void locatorRequest
+      .catch(() => null)
+      .then((locator) => epubPersistence.flush(locator))
+      .catch((error) => {
+        console.warn('[Krumer ReaderScreen] falha no flush ao fechar EPUB', error);
+      })
+      .finally(() => {
+        controlledCloseInFlightRef.current = false;
+        onRequestClose();
+      });
+  }, [epubPersistence.flush, isEpub, navigation, onRequestClose]);
+
   const pdfBookmarks = usePdfBookmarks({
     bookId: book.id,
     enabled: !isEpub,
@@ -219,10 +248,11 @@ export function ReaderScreen({ navigation, route }: Props) {
   }, [book.id, isEpub]);
 
   useEffect(() => {
+    if (!active) return;
     // Record the opening itself so a book becomes the first item even when the
     // reader is closed before another page change is persisted.
     void updateBookProgress(book.id, { lastReadAt: Date.now() });
-  }, [book.id, updateBookProgress]);
+  }, [active, book.id, updateBookProgress]);
 
   useEffect(() => {
     if (isEpub) {
@@ -277,6 +307,38 @@ export function ReaderScreen({ navigation, route }: Props) {
         });
     });
   }, [epubPersistence.flush, isEpub, navigation]);
+
+  useEffect(() => {
+    if (!onRequestClose || !active) return undefined;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleManagedClose();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [active, handleManagedClose, onRequestClose]);
+
+  useEffect(() => {
+    if (active) return;
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+    setBarsVisible(false);
+    setBookmarksVisible(false);
+    setSettingsVisible(false);
+    setPaginationSettingsVisible(false);
+    setPdfZoomVisible(false);
+    setLayoutSettingsVisible(false);
+    setTocVisible(false);
+    setBrightnessVisible(false);
+    setNotesVisible(false);
+    setDetailVisible(false);
+    setEditorVisible(false);
+    setNoteToDelete(null);
+    setPreviewNote(null);
+    opacity.stopAnimation();
+    opacity.setValue(0);
+  }, [active, opacity]);
 
   useEffect(() => {
     if (!isEpub) {
@@ -540,6 +602,7 @@ export function ReaderScreen({ navigation, route }: Props) {
 
   // Brightness initialization (isAvailable + getBrightness)
   useEffect(() => {
+    if (!active) return undefined;
     let mounted = true;
     (async () => {
       try {
@@ -572,20 +635,25 @@ export function ReaderScreen({ navigation, route }: Props) {
       }
     })();
     return () => { mounted = false; };
-  }, [brightnessAnim]);
+  }, [active, brightnessAnim]);
 
   // Restore original brightness when leaving reader
   useEffect(() => {
-    return () => {
+    if (!active) return undefined;
+    const restoreBrightness = () => {
       const original = originalBrightnessRef.current;
-      if (original !== null && Number.isFinite(original)) {
-        const restoreBrightness = Platform.OS === 'android' && originalBrightnessUsesSystemRef.current === true
-          ? Brightness.restoreSystemBrightnessAsync()
-          : Brightness.setBrightnessAsync(original);
-        restoreBrightness.catch(() => {});
-      }
+      if (original === null || !Number.isFinite(original)) return;
+      const restore = Platform.OS === 'android' && originalBrightnessUsesSystemRef.current === true
+        ? Brightness.restoreSystemBrightnessAsync()
+        : Brightness.setBrightnessAsync(original);
+      restore.catch(() => {});
+      originalBrightnessRef.current = null;
+      originalBrightnessUsesSystemRef.current = null;
     };
-  }, []);
+    return () => {
+      restoreBrightness();
+    };
+  }, [active]);
 
   const applyDeviceBrightness = useCallback((value: number) => {
     if (!brightnessSupportedRef.current) return;
@@ -709,11 +777,13 @@ export function ReaderScreen({ navigation, route }: Props) {
 
   return (
     <View style={{ backgroundColor: theme.bg, flex: 1 }}>
-      <StatusBar
-        animated={false}
-        barStyle={theme.name === 'dark' ? 'light-content' : 'dark-content'}
-        hidden={false}
-      />
+      {active ? (
+        <StatusBar
+          animated={false}
+          barStyle={theme.name === 'dark' ? 'light-content' : 'dark-content'}
+          hidden={false}
+        />
+      ) : null}
 
       {/* Reader content */}
       {book.format === 'pdf' ? (
@@ -724,11 +794,11 @@ export function ReaderScreen({ navigation, route }: Props) {
             filePath={book.filePath}
             fileSize={book.fileSize}
             initialPage={savedPosition ? Number(savedPosition) : 1}
-            interactionEnabled={!pdfModalVisible}
             onExternalLink={handleExternalLink}
             onPageChange={handlePdfPageChange}
             onScaleChange={setPdfScale}
             onCenterTap={toggleBars}
+            interactionEnabled={active && !pdfModalVisible}
             ref={pdfReaderRef}
           />
         ) : (
@@ -762,6 +832,7 @@ export function ReaderScreen({ navigation, route }: Props) {
               onViewStatus={handleEpubViewStatus}
               readingPreferences={readingPreferences.preferences}
               useBookMargins={readerLayout.settings.useBookMargins}
+              readOnly={!active}
               onExternalLink={handleExternalLink}
             />
           ) : (
@@ -945,7 +1016,7 @@ export function ReaderScreen({ navigation, route }: Props) {
             <Pressable
               accessibilityLabel={t('common.cancel')}
               hitSlop={8}
-              onPress={() => navigation.goBack()}
+              onPress={handleManagedClose}
               style={({ pressed }) => ({
                 alignItems: 'center',
                 height: 36,

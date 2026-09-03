@@ -18,13 +18,14 @@ function lockForPreference(preference: ReaderOrientation) {
   return ScreenOrientation.OrientationLock.ALL;
 }
 
-export function useOrientation(preference: ReaderOrientation = 'portrait') {
+export function useOrientation(preference: ReaderOrientation = 'portrait', enabled = true) {
   const { height, width } = useWindowDimensions();
   const preferenceRef = useRef(preference);
   const initializedRef = useRef(false);
   preferenceRef.current = preference;
 
   useEffect(() => {
+    if (!enabled) return undefined;
     let cancelled = false;
     let didApplyReaderLock = false;
     let previousLock: ScreenOrientation.OrientationLock = ScreenOrientation.OrientationLock.PORTRAIT_UP;
@@ -57,14 +58,14 @@ export function useOrientation(preference: ReaderOrientation = 'portrait') {
         });
       });
     };
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
-    if (!initializedRef.current) return;
+    if (!enabled || !initializedRef.current) return;
     void ScreenOrientation.lockAsync(lockForPreference(preference)).catch((error) => {
       console.warn('[Krumer Reader] nao foi possivel alterar a orientacao', error);
     });
-  }, [preference]);
+  }, [enabled, preference]);
 
   return {
     height,

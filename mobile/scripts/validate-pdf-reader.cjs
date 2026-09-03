@@ -195,7 +195,8 @@ async function main() {
     throw new Error('PdfReader is not using the stable Phase 2 adapter contract.');
   }
   if (
-    !pdfUriSource.includes('let cachedPdfResolution: CachedPdfResolution | null = null')
+    !pdfUriSource.includes('const cachedPdfResolutions = new ReaderLruCache<CachedPdfResolution>()')
+    || !pdfUriSource.includes('const cached = cachedPdfResolutions.get(key)')
     || !pdfUriSource.includes('export function getCachedPdfUri')
     || !pdfUriSource.includes('stablePathHash(filePath)')
     || !pdfUriSource.includes('existing.size === expectedSize')
@@ -415,7 +416,8 @@ async function main() {
     || !readerScreenSource.includes('const [pdfDisplayMode, setPdfDisplayMode]')
     || !readerScreenSource.includes('const [pdfOrientation, setPdfOrientation]')
     || !readerScreenSource.includes('displayMode={pdfDisplayMode}')
-    || !readerScreenSource.includes('useOrientation(isEpub ? readingPreferences.preferences.orientation : pdfOrientation)')
+    || (!readerScreenSource.includes('useOrientation(isEpub ? readingPreferences.preferences.orientation : pdfOrientation)')
+      && !readerScreenSource.includes('useOrientation(isEpub ? readingPreferences.preferences.orientation : pdfOrientation, active)'))
     || !readerScreenSource.includes('setPdfOrientation(preferences.orientation)')
     || !readerScreenSource.includes('void savePdfOrientation(patch.orientation)')
     || !readerScreenSource.includes('orientation: pdfOrientation')
@@ -479,7 +481,8 @@ async function main() {
     || !readerNotesSource.includes('tombstoneReaderNote(id)')
     || !readerScreenSource.includes('createPdfLocator(currentPage)')
     || !readerScreenSource.includes('const pageNumber = isEpub ? epubViewStatus?.currentPage ?? 1 : currentPage')
-    || !readerScreenSource.includes('interactionEnabled={!pdfModalVisible}')
+    || (!readerScreenSource.includes('interactionEnabled={!pdfModalVisible}')
+      && !readerScreenSource.includes('interactionEnabled={active && !pdfModalVisible}'))
     || !readerScreenSource.includes('visible={!!previewNote}')
     || !readerScreenSource.includes('displayMode="paginated"')
     || !readerScreenSource.includes('initialPage={previewNote.locator.page}')
