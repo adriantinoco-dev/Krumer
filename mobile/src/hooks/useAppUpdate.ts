@@ -9,15 +9,20 @@ import { patchPreferences } from '../storage/preferences';
 const CHECK_DEBOUNCE_MS = 4 * 60 * 60 * 1000; // 4 hours
 
 function getCurrentVersion(): string {
-  return Constants.expoConfig?.version ?? '0.0.0';
+  return Constants.expoConfig?.version ?? '0.2.0';
 }
+
+export type CheckUpdateResult =
+  | { status: 'available'; update: AppUpdate }
+  | { status: 'upToDate' }
+  | { status: 'error'; error?: string };
 
 export type UseAppUpdateReturn = {
   status: UpdateStatus;
   updateInfo: AppUpdate | null;
   downloadProgress: number;
   error: string | null;
-  checkForUpdate: (silent?: boolean) => Promise<void>;
+  checkForUpdate: (silent?: boolean) => Promise<CheckUpdateResult>;
   startDownload: () => Promise<void>;
   installUpdate: () => Promise<void>;
   openSettings: () => Promise<void>;
@@ -40,8 +45,8 @@ export function useAppUpdate(): UseAppUpdateReturn {
 
   const currentVersion = getCurrentVersion();
 
-  const checkForUpdate = useCallback(async (silent = true) => {
-    if (checkingRef.current) return;
+  const checkForUpdate = useCallback(async (silent = true): Promise<CheckUpdateResult> => {
+    if (checkingRef.current) return { status: 'upToDate' };
     checkingRef.current = true;
 
     try {
@@ -50,27 +55,29 @@ export function useAppUpdate(): UseAppUpdateReturn {
       const release = await getLatestRelease();
       if (!release) {
         if (!silent) setStatus('idle');
-        return;
+        return { status: 'upToDate' };
       }
 
       release.currentVersion = currentVersion;
 
       if (!isNewerVersion(release.latestVersion, currentVersion)) {
         if (!silent) setStatus('idle');
-        return;
+        return { status: 'upToDate' };
       }
 
       if (preferences.ignoredVersion === release.latestVersion) {
         if (!silent) setStatus('idle');
-        return;
+        return { status: 'upToDate' };
       }
 
       setUpdateInfo(release);
       setStatus('available');
 
       await patchPreferences({ lastUpdateCheck: Date.now() });
-    } catch {
+      return { status: 'available', update: release };
+    } catch (err) {
       if (!silent) setStatus('idle');
+      return { status: 'error', error: err instanceof Error ? err.message : undefined };
     } finally {
       checkingRef.current = false;
     }

@@ -115,10 +115,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const persistPreferences = useCallback(async (next: Partial<MobilePreferences>) => {
-    const merged = { ...preferences, ...next };
-    setPreferenceState(merged);
-    await savePreferences(merged);
-  }, [preferences]);
+    setPreferenceState((prev) => {
+      const merged = { ...prev, ...next };
+      void savePreferences(merged);
+      return merged;
+    });
+  }, []);
 
   const setGeminiApiKey = useCallback(async (geminiApiKey: string | null) => {
     if (geminiApiKey?.trim()) {
@@ -369,14 +371,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const t = useCallback((key: TranslationKey) => translate(language, key), [language]);
 
   const checkForUpdate = useCallback(async () => {
-    const currentVersion = Constants.expoConfig?.version ?? '0.0.0';
+    const currentVersion = Constants.expoConfig?.version ?? '0.2.0';
     const release = await getLatestRelease();
     if (!release) return;
     release.currentVersion = currentVersion;
     if (!isNewerVersion(release.latestVersion, currentVersion)) return;
     if (preferences.ignoredVersion === release.latestVersion) return;
     await persistPreferences({ lastUpdateCheck: Date.now() });
-  }, [preferences.ignoredVersion]);
+  }, [persistPreferences, preferences.ignoredVersion]);
 
   const value = useMemo<AppContextValue>(() => {
     return {

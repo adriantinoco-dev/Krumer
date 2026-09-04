@@ -83,6 +83,7 @@ def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
 android {
     ndkVersion "27.1.12297006"
+    ndkVersion rootProject.ext.ndkVersion
 
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
@@ -92,16 +93,10 @@ android {
         applicationId 'com.adriantinoco.krumer'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
+        versionCode 1
         versionName "0.2.0"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
-
-        externalNativeBuild {
-            cmake {
-                cppFlags "-std=c++20"
-            }
-        }
     }
     signingConfigs {
         debug {

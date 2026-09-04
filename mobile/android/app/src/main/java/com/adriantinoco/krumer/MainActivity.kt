@@ -2,15 +2,11 @@ package com.adriantinoco.krumer
 
 import android.os.Build
 import android.os.Bundle
-import android.view.KeyEvent
-import android.view.WindowManager
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
-import com.facebook.react.bridge.Arguments
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
 import com.facebook.react.defaults.DefaultReactActivityDelegate
-import com.adriantinoco.krumer.volume.KrumerVolumeKeysModule
 
 import expo.modules.ReactActivityDelegateWrapper
 
@@ -21,14 +17,6 @@ class MainActivity : ReactActivity() {
     // This is required for expo-splash-screen.
     setTheme(R.style.AppTheme);
     super.onCreate(null)
-
-    window.attributes = window.attributes.apply {
-      rotationAnimation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        WindowManager.LayoutParams.ROTATION_ANIMATION_SEAMLESS
-      } else {
-        WindowManager.LayoutParams.ROTATION_ANIMATION_JUMPCUT
-      }
-    }
   }
 
   /**
@@ -50,35 +38,6 @@ class MainActivity : ReactActivity() {
               mainComponentName,
               fabricEnabled
           ){})
-  }
-
-  override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-    val isVolumeKey = event.keyCode == KeyEvent.KEYCODE_VOLUME_UP ||
-      event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN
-
-    if (KrumerVolumeKeysModule.enabled && isVolumeKey) {
-      if (event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP) {
-        val direction = if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) "next" else "previous"
-        val phase = when {
-          event.action == KeyEvent.ACTION_UP -> "release"
-          event.repeatCount > 0 -> "repeat"
-          else -> "press"
-        }
-        val eventValue = Arguments.createMap().apply {
-          putString("direction", direction)
-          putString("phase", phase)
-          putInt("repeatCount", event.repeatCount)
-          putDouble("eventTime", event.eventTime.toDouble())
-        }
-        (application as? MainApplication)
-          ?.reactHost
-          ?.currentReactContext
-          ?.emitDeviceEvent(KrumerVolumeKeysModule.EVENT_NAME, eventValue)
-      }
-      return true
-    }
-
-    return super.dispatchKeyEvent(event)
   }
 
   /**

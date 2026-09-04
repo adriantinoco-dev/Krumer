@@ -37,6 +37,20 @@ for (const gradleFilePath of androidBuildGradlePaths) {
   }
 }
 
+// --- Splash screen background color fix (ensure dark background #111111) ---
+const colorsXmlPath = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'res', 'values', 'colors.xml');
+if (fs.existsSync(colorsXmlPath)) {
+  let colorsContent = fs.readFileSync(colorsXmlPath, 'utf8');
+  if (colorsContent.includes('#FFFFFF')) {
+    colorsContent = colorsContent.replace(
+      /<color name="splashscreen_background">#FFFFFF<\/color>/,
+      '<color name="splashscreen_background">#111111</color>',
+    );
+    fs.writeFileSync(colorsXmlPath, colorsContent, 'utf8');
+    console.log('[splash-fix] Patched splashscreen_background -> #111111');
+  }
+}
+
 const netInfoRoot = path.join(
   __dirname,
   '..',

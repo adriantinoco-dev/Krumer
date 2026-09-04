@@ -15,12 +15,12 @@ function withInstallPermission(config) {
     }
 
     const alreadyHas = manifest['uses-permission'].some(
-      (perm) => perm.$?.[`$${ns}name`] === 'android.permission.REQUEST_INSTALL_PACKAGES',
+      (perm) => perm.$?.['android:name'] === 'android.permission.REQUEST_INSTALL_PACKAGES',
     );
 
     if (!alreadyHas) {
       manifest['uses-permission'].push({
-        $: { [`$${ns}name`]: 'android.permission.REQUEST_INSTALL_PACKAGES' },
+        $: { 'android:name': 'android.permission.REQUEST_INSTALL_PACKAGES' },
       });
     }
 

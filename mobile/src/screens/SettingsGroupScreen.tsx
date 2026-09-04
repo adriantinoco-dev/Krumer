@@ -9,11 +9,13 @@ import { LangPickerButton } from '../components/LangPicker';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ScanProgress, type ScanProgressState } from '../components/ScanProgress';
 import { ThemeCard } from '../components/ThemeCard';
+import { MetadataDialog, type MetadataDialogConfig } from '../components/MetadataDialog';
 import { useApp } from '../context/AppContext';
 import type { RootStackParamList } from '../navigation/types';
 import { scanLibrary } from '../services/libraryScanner';
 import { radii, serifFont, spacing, type ThemeName } from '../theme';
 import { useUpdate } from '../context/UpdateContext';
+import Constants from 'expo-constants';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SettingsGroup'>;
 
@@ -27,14 +29,40 @@ export function SettingsGroupScreen({ route }: Props) {
   const [status, setStatus] = useState(preferences.hasGeminiApiKey ? t('settings.keySaved') : t('api.noKey'));
   const [scanProgress, setScanProgress] = useState<ScanProgressState | null>(null);
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [infoDialog, setInfoDialog] = useState<MetadataDialogConfig | null>(null);
 
   async function handleCheckForUpdate() {
+    setCheckingUpdate(true);
     setUpdateStatus(t('update.checking'));
     try {
-      await update.checkForUpdate(false);
-      setUpdateStatus(t('update.upToDate'));
+      const result = await update.checkForUpdate(false);
+      setUpdateStatus(null);
+      if (result.status === 'upToDate') {
+        setInfoDialog({
+          title: 'Krumer',
+          message: t('update.upToDate'),
+          variant: 'success',
+          primaryAction: {
+            label: t('common.done') || 'OK',
+            onPress: () => setInfoDialog(null),
+          },
+        });
+      } else if (result.status === 'error') {
+        setInfoDialog({
+          title: 'Krumer',
+          message: result.error ? t('update.error').replace('{0}', result.error) : t('metadata.networkUnavailable'),
+          variant: 'error',
+          primaryAction: {
+            label: t('metadata.close'),
+            onPress: () => setInfoDialog(null),
+          },
+        });
+      }
     } catch {
       setUpdateStatus(null);
+    } finally {
+      setCheckingUpdate(false);
     }
   }
 
@@ -133,8 +161,14 @@ export function SettingsGroupScreen({ route }: Props) {
           {group === 'about' ? (
             <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md }}>
               <KrumerLogo />
-              <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13 }}>Krumer Mobile v0.1.0</Text>
-              <PrimaryButton label={t('update.checkButton')} onPress={handleCheckForUpdate} />
+              <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13 }}>
+                Krumer Mobile v{Constants.expoConfig?.version ?? '0.2.0'}
+              </Text>
+              <PrimaryButton
+                disabled={checkingUpdate}
+                label={checkingUpdate ? t('update.checking') : t('update.checkButton')}
+                onPress={handleCheckForUpdate}
+              />
               {updateStatus && (
                 <Text style={{ color: theme.accent, fontFamily: serifFont, fontSize: 13 }}>
                   {updateStatus}
@@ -159,6 +193,15 @@ export function SettingsGroupScreen({ route }: Props) {
           ) : null}
         </View>
       </ScrollView>
+      <MetadataDialog
+        visible={Boolean(infoDialog)}
+        title={infoDialog?.title ?? ''}
+        message={infoDialog?.message ?? ''}
+        variant={infoDialog?.variant ?? 'success'}
+        primaryAction={infoDialog?.primaryAction}
+        secondaryAction={infoDialog?.secondaryAction}
+        onClose={() => setInfoDialog(null)}
+      />
     </SafeAreaView>
   );
 }

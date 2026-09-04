@@ -6,8 +6,21 @@
     "version": "0.2.0",
     "scheme": "krumer",
     "orientation": "portrait",
+    "icon": "./assets/Krumer-splash-icon.png",
+    "splash": {
+      "image": "./assets/adaptive-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#111111"
+    },
     "android": {
       "package": "com.adriantinoco.krumer",
+      "splash": {
+        "backgroundColor": "#111111"
+      },
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#111111"
+      },
       "permissions": [
         "READ_EXTERNAL_STORAGE",
         "READ_MEDIA_IMAGES",

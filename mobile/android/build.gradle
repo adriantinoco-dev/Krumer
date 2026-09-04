@@ -3,7 +3,6 @@
 buildscript {
   repositories {
     google()
-    maven { url 'https://maven-central.storage-download.googleapis.com/maven2/' }
     mavenCentral()
   }
   dependencies {
@@ -16,28 +15,12 @@ buildscript {
 allprojects {
   repositories {
     google()
-    maven { url 'https://maven-central.storage-download.googleapis.com/maven2/' }
     mavenCentral()
     maven { url 'https://www.jitpack.io' }
-  }
-
-  afterEvaluate { project ->
-    if (project.name != 'app') {
-      def codegenTask = project.tasks.findByName('generateCodegenArtifactsFromSchema')
-      if (codegenTask) {
-        rootProject.project(':app').tasks.matching { it.name.startsWith('generateJsonModel') || it.name == 'preBuild' }.configureEach {
-          dependsOn(codegenTask)
-        }
-      }
-    }
   }
 }
 
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
 
-
 rootProject.ext.ndkVersion = "27.1.12297006"
-
-
-
