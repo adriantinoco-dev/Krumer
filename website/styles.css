@@ -58,7 +58,7 @@ h1 { font-size: clamp(3.2rem, 5.5vw, 5rem); line-height: 1.05; letter-spacing: -
 .text-link:hover { color: var(--orange); border-color: var(--orange); }
 .hero-copy > .text-link { margin-top: 16px; }
 .product-figure { min-width: 0; }
-.product-stage { position: relative; min-height: 465px; }
+.product-stage { position: relative; min-height: 560px; }
 .desktop-monitor { position: absolute; width: 95%; top: 4px; left: 0; }
 .monitor-bezel { padding: 12px 12px 15px; background: #2c2d2b; border: 1px solid #55544d; border-radius: 12px 12px 6px 6px; box-shadow: 0 32px 65px #0007; }
 .desktop-screen { overflow: hidden; background: #1c1c1b; border: 1px solid #111; border-radius: 4px; }
@@ -142,7 +142,7 @@ h1 { font-size: clamp(3.2rem, 5.5vw, 5rem); line-height: 1.05; letter-spacing: -
 .platform-card .button-primary { border-color: var(--orange); }
 .platform-card .button:hover { background: #e6dbc5; }
 .platform-card .button-primary:hover { background: #f49448; }
-.secondary-download { display: flex; justify-content: space-between; padding-block: 13px 2px; font-size: .875rem; text-decoration: underline; text-underline-offset: 4px; }
+.secondary-download { display: none; justify-content: space-between; padding-block: 13px 2px; font-size: .875rem; text-decoration: underline; text-underline-offset: 4px; }
 .secondary-download:hover { color: #91450e; }
 .asset-note { font-size: .75rem; color: #6c6353; line-height: 1.5; margin-top: 12px; overflow-wrap: anywhere; }
 .asset-note:empty { display: none; }
@@ -181,7 +181,7 @@ h1 { font-size: clamp(3.2rem, 5.5vw, 5rem); line-height: 1.05; letter-spacing: -
   h1 { font-size: 3.6rem; }
   .hero-downloads { gap: 8px; }
   .hero-downloads .button { padding: 11px 12px; }
-  .product-stage { min-height: 445px; }
+  .product-stage { min-height: 550px; }
   .desktop-monitor { top: 21px; width: 98%; }
   .preview-library { padding: 16px 14px 18px; }
   .book-cover { min-height: 112px; padding: 8px 5px; }
@@ -199,7 +199,7 @@ h1 { font-size: clamp(3.2rem, 5.5vw, 5rem); line-height: 1.05; letter-spacing: -
   h1 { font-size: clamp(3.2rem, 8.5vw, 4.8rem); }
   .hero-description { max-width: 530px; }
   .product-figure { width: min(580px, 100%); margin-inline: auto; }
-  .product-stage { min-height: 470px; }
+  .product-stage { min-height: 570px; }
   .desktop-monitor { top: 4px; width: 92%; }
   .preview-library { padding: 20px; }
   .book-cover { min-height: 132px; }
@@ -230,7 +230,7 @@ h1 { font-size: clamp(3.2rem, 5.5vw, 5rem); line-height: 1.05; letter-spacing: -
   .hero-downloads .button { flex: 1 1 auto; }
   .hero-downloads .button-primary { flex-basis: 100%; }
   .hero-note { max-width: 310px; }
-  .product-stage { min-height: 405px; }
+  .product-stage { min-height: 475px; }
   .desktop-monitor { top: 4px; width: 97%; }
   .preview-sidebar { width: 30px; gap: 20px; }
   .preview-sidebar .icon { width: 13px; height: 13px; }
