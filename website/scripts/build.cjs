@@ -4,7 +4,7 @@ const path = require('node:path');
 
 async function build() {
   const root = path.resolve(__dirname, '..');
-  const files = ['index.html', 'styles.css', 'downloads.js', 'assets/krumer-logo.png', 'assets/krumer-icon.png'];
+  const files = ['index.html', 'styles.css', 'downloads.js', 'assets/krumer-logo.png', 'assets/krumer-icon.png', 'assets/krumer-pc-screenshot.png', 'assets/krumer-mobile-screenshot.png'];
   for (const file of files) {
     const source = path.join(root, file);
     const destination = path.join(root, 'dist', file);

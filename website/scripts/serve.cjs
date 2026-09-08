@@ -11,6 +11,8 @@ const contentTypes = {
   '/downloads.js': ['downloads.js', 'text/javascript; charset=utf-8'],
   '/assets/krumer-logo.png': ['assets/krumer-logo.png', 'image/png'],
   '/assets/krumer-icon.png': ['assets/krumer-icon.png', 'image/png'],
+  '/assets/krumer-pc-screenshot.png': ['assets/krumer-pc-screenshot.png', 'image/png'],
+  '/assets/krumer-mobile-screenshot.png': ['assets/krumer-mobile-screenshot.png', 'image/png'],
 };
 
 function createServer() {
