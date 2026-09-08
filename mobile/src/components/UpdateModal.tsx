@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Linking, Modal, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, Linking, Modal, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
 import { useApp } from '../context/AppContext';
@@ -669,24 +669,8 @@ export function UpdateModal({
                 <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 14, textAlign: 'center' }}>
                   {t('update.downloading').replace('{0}', String(progressPercent))}
                 </Text>
-                <View
-                  style={{
-                    alignSelf: 'stretch',
-                    backgroundColor: theme.border,
-                    borderRadius: radii.sm,
-                    height: 8,
-                    overflow: 'hidden',
-                    width: '100%',
-                  }}
-                >
-                  <View
-                    style={{
-                      backgroundColor: theme.accent,
-                      borderRadius: radii.sm,
-                      height: '100%',
-                      width: `${progressPercent}%`,
-                    }}
-                  />
+                <View style={{ alignItems: 'center', justifyContent: 'center', minHeight: 48 }}>
+                  <ActivityIndicator animating color={theme.accent} size="large" />
                 </View>
               </View>
             ) : status === 'error' ? (
@@ -772,7 +756,9 @@ export function UpdateModal({
           </ScrollView>
 
           {/* Footer */}
-          {status !== 'downloading' && (
+          {status === 'downloading' ? (
+            <View style={{ height: 68 }} />
+          ) : (
             <View
               style={{
                 flexDirection: 'row',
