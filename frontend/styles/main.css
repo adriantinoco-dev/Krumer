@@ -15,7 +15,7 @@
   --radius-lg:    14px;
   --radius-xl:    20px;  /* spec v2: bordas extra-arredondadas */
   
-  --font-main:    'Georgia', serif;
+  --font-main:    'Inter', sans-serif;
   --shadow-main:  0 10px 30px rgba(0, 0, 0, 0.5);
   --shadow-card:  0 4px 12px rgba(0, 0, 0, 0.4);
   
@@ -519,6 +519,13 @@ body {
   border-color: var(--accent);
   color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+#btn-sort-popup,
+#btn-settings,
+#btn-sort-popup:hover,
+#btn-settings:hover {
+  color: #000;
 }
 
 .btn-rescan:disabled {

@@ -220,9 +220,33 @@ class LibraryManager {
     this.updateItemCount();
 
     if (this.items.length === 0) {
-      // Empty state customizado para listas
+      // Empty state customizado para categorias e listas
+      const categoryEmptyState = {
+        series: {
+          title: 'empty.series_title',
+          description: 'empty.series_desc'
+        },
+        read: {
+          title: 'empty.read_title',
+          description: 'empty.read_desc'
+        },
+        unread: {
+          title: 'empty.unread_title',
+          description: 'empty.unread_desc'
+        }
+      }[this.currentCategory];
       const favList = this.currentListId && this.lists.find(l => l.id === this.currentListId && l.is_default);
-      if (favList) {
+      if (categoryEmptyState) {
+        this.gridElement.innerHTML = `
+        <div class="empty-state">
+          <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18.477 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+          </svg>
+          <div class="empty-title">${I18N.t(categoryEmptyState.title)}</div>
+          <div class="empty-desc">${I18N.t(categoryEmptyState.description)}</div>
+        </div>
+        `;
+      } else if (favList) {
         this.gridElement.innerHTML = `
         <div class="empty-state">
           <svg class="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="48" height="48">
