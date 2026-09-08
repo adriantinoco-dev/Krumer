@@ -583,6 +583,9 @@ export function UpdateModal({
   const title = status === 'error'
     ? t('update.error').replace('{0}', '')
     : t('update.title');
+  const progressPercent = Number.isFinite(downloadProgress)
+    ? Math.min(100, Math.max(0, Math.round(downloadProgress)))
+    : 0;
 
   return (
     <Modal animationType="none" transparent visible={mounted} onRequestClose={onDismiss}>
@@ -664,15 +667,24 @@ export function UpdateModal({
             {status === 'downloading' ? (
               <View style={{ gap: spacing.md, paddingVertical: spacing.lg }}>
                 <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 14, textAlign: 'center' }}>
-                  {t('update.downloading').replace('{0}', String(downloadProgress))}
+                  {t('update.downloading').replace('{0}', String(progressPercent))}
                 </Text>
-                <View style={{ backgroundColor: theme.bg, borderRadius: radii.sm, height: 8, overflow: 'hidden' }}>
+                <View
+                  style={{
+                    alignSelf: 'stretch',
+                    backgroundColor: theme.border,
+                    borderRadius: radii.sm,
+                    height: 8,
+                    overflow: 'hidden',
+                    width: '100%',
+                  }}
+                >
                   <View
                     style={{
                       backgroundColor: theme.accent,
                       borderRadius: radii.sm,
                       height: '100%',
-                      width: `${downloadProgress}%`,
+                      width: `${progressPercent}%`,
                     }}
                   />
                 </View>
@@ -760,120 +772,36 @@ export function UpdateModal({
           </ScrollView>
 
           {/* Footer */}
-          <View
-            style={{
-              flexDirection: 'row',
-              flexWrap: 'wrap',
-              gap: spacing.sm,
-              justifyContent: 'flex-end',
-              paddingHorizontal: cardPadding,
-              paddingVertical: spacing.md,
-            }}
-          >
-            {status === 'available' && (
-              <>
-                <Pressable
-                  onPress={onDismiss}
-                  style={({ pressed }) => ({
-                    alignItems: 'center',
-                    backgroundColor: theme.bg,
-                    borderColor: theme.border,
-                    borderRadius: radii.md,
-                    borderWidth: 1,
-                    opacity: pressed ? 0.7 : 1,
-                    paddingHorizontal: spacing.md,
-                    paddingVertical: spacing.sm + 2,
-                  })}
-                >
-                  <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 14, fontWeight: '500' }}>
-                    {t('update.laterButton')}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={onDownload}
-                  style={({ pressed }) => ({
-                    alignItems: 'center',
-                    backgroundColor: theme.accent,
-                    borderRadius: radii.md,
-                    opacity: pressed ? 0.85 : 1,
-                    paddingHorizontal: spacing.lg,
-                    paddingVertical: spacing.sm + 2,
-                  })}
-                >
-                  <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 14, fontWeight: '700' }}>
-                    {t('update.downloadButton')}
-                  </Text>
-                </Pressable>
-              </>
-            )}
-            {status === 'downloading' && (
-              <View
-                style={{
-                  alignItems: 'center',
-                  backgroundColor: theme.accentMuted,
-                  borderRadius: radii.md,
-                  paddingHorizontal: spacing.lg,
-                  paddingVertical: spacing.sm + 2,
-                }}
-              >
-                <Text style={{ color: theme.accent, fontFamily: serifFont, fontSize: 14, fontWeight: '600' }}>
-                  {downloadProgress}%
-                </Text>
-              </View>
-            )}
-            {status === 'downloaded' && (
-              <Pressable
-                onPress={onInstall}
-                style={({ pressed }) => ({
-                  alignItems: 'center',
-                  backgroundColor: theme.accent,
-                  borderRadius: radii.md,
-                  opacity: pressed ? 0.85 : 1,
-                  paddingHorizontal: spacing.lg,
-                  paddingVertical: spacing.sm + 2,
-                })}
-              >
-                <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 14, fontWeight: '700' }}>
-                  {t('update.installButton')}
-                </Text>
-              </Pressable>
-            )}
-            {status === 'error' && (
-              <>
-                <Pressable
-                  onPress={onDismiss}
-                  style={({ pressed }) => ({
-                    alignItems: 'center',
-                    backgroundColor: theme.bg,
-                    borderColor: theme.border,
-                    borderRadius: radii.md,
-                    borderWidth: 1,
-                    opacity: pressed ? 0.7 : 1,
-                    paddingHorizontal: spacing.md,
-                    paddingVertical: spacing.sm + 2,
-                  })}
-                >
-                  <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 14, fontWeight: '500' }}>
-                    {t('update.laterButton')}
-                  </Text>
-                </Pressable>
-                {error === 'INSTALL_PERMISSION_MISSING' ? (
+          {status !== 'downloading' && (
+            <View
+              style={{
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: spacing.sm,
+                justifyContent: 'flex-end',
+                paddingHorizontal: cardPadding,
+                paddingVertical: spacing.md,
+              }}
+            >
+              {status === 'available' && (
+                <>
                   <Pressable
-                    onPress={onOpenSettings}
+                    onPress={onDismiss}
                     style={({ pressed }) => ({
                       alignItems: 'center',
-                      backgroundColor: theme.accent,
+                      backgroundColor: theme.bg,
+                      borderColor: theme.border,
                       borderRadius: radii.md,
-                      opacity: pressed ? 0.85 : 1,
-                      paddingHorizontal: spacing.lg,
+                      borderWidth: 1,
+                      opacity: pressed ? 0.7 : 1,
+                      paddingHorizontal: spacing.md,
                       paddingVertical: spacing.sm + 2,
                     })}
                   >
-                    <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 14, fontWeight: '700' }}>
-                      {t('update.openSettings')}
+                    <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 14, fontWeight: '500' }}>
+                      {t('update.laterButton')}
                     </Text>
                   </Pressable>
-                ) : (
                   <Pressable
                     onPress={onDownload}
                     style={({ pressed }) => ({
@@ -886,13 +814,84 @@ export function UpdateModal({
                     })}
                   >
                     <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 14, fontWeight: '700' }}>
-                      {t('update.retryButton')}
+                      {t('update.downloadButton')}
                     </Text>
                   </Pressable>
-                )}
-              </>
-            )}
-          </View>
+                </>
+              )}
+              {status === 'downloaded' && (
+                <Pressable
+                  onPress={onInstall}
+                  style={({ pressed }) => ({
+                    alignItems: 'center',
+                    backgroundColor: theme.accent,
+                    borderRadius: radii.md,
+                    opacity: pressed ? 0.85 : 1,
+                    paddingHorizontal: spacing.lg,
+                    paddingVertical: spacing.sm + 2,
+                  })}
+                >
+                  <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 14, fontWeight: '700' }}>
+                    {t('update.installButton')}
+                  </Text>
+                </Pressable>
+              )}
+              {status === 'error' && (
+                <>
+                  <Pressable
+                    onPress={onDismiss}
+                    style={({ pressed }) => ({
+                      alignItems: 'center',
+                      backgroundColor: theme.bg,
+                      borderColor: theme.border,
+                      borderRadius: radii.md,
+                      borderWidth: 1,
+                      opacity: pressed ? 0.7 : 1,
+                      paddingHorizontal: spacing.md,
+                      paddingVertical: spacing.sm + 2,
+                    })}
+                  >
+                    <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 14, fontWeight: '500' }}>
+                      {t('update.laterButton')}
+                    </Text>
+                  </Pressable>
+                  {error === 'INSTALL_PERMISSION_MISSING' ? (
+                    <Pressable
+                      onPress={onOpenSettings}
+                      style={({ pressed }) => ({
+                        alignItems: 'center',
+                        backgroundColor: theme.accent,
+                        borderRadius: radii.md,
+                        opacity: pressed ? 0.85 : 1,
+                        paddingHorizontal: spacing.lg,
+                        paddingVertical: spacing.sm + 2,
+                      })}
+                    >
+                      <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 14, fontWeight: '700' }}>
+                        {t('update.openSettings')}
+                      </Text>
+                    </Pressable>
+                  ) : (
+                    <Pressable
+                      onPress={onDownload}
+                      style={({ pressed }) => ({
+                        alignItems: 'center',
+                        backgroundColor: theme.accent,
+                        borderRadius: radii.md,
+                        opacity: pressed ? 0.85 : 1,
+                        paddingHorizontal: spacing.lg,
+                        paddingVertical: spacing.sm + 2,
+                      })}
+                    >
+                      <Text style={{ color: '#fff', fontFamily: serifFont, fontSize: 14, fontWeight: '700' }}>
+                        {t('update.retryButton')}
+                      </Text>
+                    </Pressable>
+                  )}
+                </>
+              )}
+            </View>
+          )}
         </Animated.View>
       </View>
     </Modal>
