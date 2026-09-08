@@ -1,0 +1,66 @@
+name: Android Build (EAS local)
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "Profile do eas.json a usar"
+        type: choice
+        default: preview
+        options:
+          - development
+          - preview
+          - production
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Instalar EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Autenticar na Expo
+        run: eas whoami
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build Android local
+        run: |
+          eas build \
+            --platform android \
+            --profile ${{ github.event.inputs.profile }} \
+            --local \
+            --non-interactive \
+            --output ${{ github.workspace }}/krumer-mobile.apk
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Upload do APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: krumer-mobile-${{ github.event.inputs.profile }}
+          path: krumer-mobile.apk
+          retention-days: 14
