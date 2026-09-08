@@ -9,7 +9,7 @@ import { patchPreferences } from '../storage/preferences';
 const CHECK_DEBOUNCE_MS = 4 * 60 * 60 * 1000; // 4 hours
 
 function getCurrentVersion(): string {
-  return Constants.expoConfig?.version ?? '0.2.0';
+  return Constants.expoConfig?.version ?? '1.3.5';
 }
 
 export type CheckUpdateResult =

@@ -1,6 +1,6 @@
 {
   "name": "krumer-mobile",
-  "version": "0.2.0",
+  "version": "1.3.5",
   "private": true,
   "description": "Versao Android do Krumer em React Native",
   "main": "expo/AppEntry.js",

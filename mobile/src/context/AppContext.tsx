@@ -392,7 +392,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const t = useCallback((key: TranslationKey) => translate(language, key), [language]);
 
   const checkForUpdate = useCallback(async () => {
-    const currentVersion = Constants.expoConfig?.version ?? '0.2.0';
+    const currentVersion = Constants.expoConfig?.version ?? '1.3.5';
     const release = await getLatestRelease();
     if (!release) return;
     release.currentVersion = currentVersion;

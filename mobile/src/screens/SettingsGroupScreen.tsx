@@ -162,7 +162,7 @@ export function SettingsGroupScreen({ route }: Props) {
             <View style={{ alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md }}>
               <KrumerLogo />
               <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 13 }}>
-                Krumer Mobile v{Constants.expoConfig?.version ?? '0.2.0'}
+                Krumer Mobile v{Constants.expoConfig?.version ?? '1.3.5'}
               </Text>
               <PrimaryButton
                 disabled={checkingUpdate}
