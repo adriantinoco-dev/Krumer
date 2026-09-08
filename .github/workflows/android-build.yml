@@ -16,6 +16,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mobile
 
     steps:
       - name: Checkout repo
@@ -26,6 +29,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: mobile/package-lock.json
 
       - name: Setup JDK 17
         uses: actions/setup-java@v4
@@ -54,7 +58,7 @@ jobs:
             --profile ${{ github.event.inputs.profile }} \
             --local \
             --non-interactive \
-            --output ${{ github.workspace }}/krumer-mobile.apk
+            --output ${{ github.workspace }}/mobile/krumer-mobile.apk
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
@@ -62,5 +66,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: krumer-mobile-${{ github.event.inputs.profile }}
-          path: krumer-mobile.apk
+          path: mobile/krumer-mobile.apk
           retention-days: 14
