@@ -13,6 +13,12 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   seleção ou fallback para engine nativa.
 
 ### Adicionado
+- **Site — landing page de downloads:** página local em `website/`, em português,
+  com identidade preto/bege/laranja, mockups desktop e Android, recursos,
+  instalação e FAQ. Downloads Windows, Linux (AppImage e .deb) e Android beta
+  resolvidos pela última release pública do GitHub, com fallback para Releases
+  quando a API ou um arquivo não estiver disponível. Inclui pacote estático e
+  testes de downloads, responsividade e acessibilidade; publicação fica pendente.
 - **Mobile — grade responsiva da biblioteca:** celulares iniciam com três livros
   por linha; tablets e telas maiores ajustam automaticamente para quatro ou
   cinco colunas conforme a largura disponível, preservando escolhas manuais.

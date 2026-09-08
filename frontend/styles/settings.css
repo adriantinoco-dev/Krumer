@@ -317,10 +317,19 @@
   padding-bottom: 16px;
 }
 
+.settings-modal-card {
+  height: 600px;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .settings-layout {
   display: flex;
+  flex: 1;
   gap: 20px;
-  min-height: 380px;
+  min-height: 0;
   margin-top: 8px;
 }
 
@@ -361,6 +370,8 @@
 .settings-content {
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .settings-panel {
@@ -369,6 +380,10 @@
 
 .settings-panel.active {
   display: block;
+  height: 100%;
+  overflow-y: auto;
+  padding-right: 8px;
+  scrollbar-gutter: stable;
 }
 
 .settings-panel-title {
