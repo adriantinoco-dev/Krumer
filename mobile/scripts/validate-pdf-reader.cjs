@@ -81,6 +81,10 @@ async function main() {
   assert(!readerStartupSource.includes('loadPdfEnginePreference'), 'PDF warmup must not load an engine preference.');
 
   assert(!readerScreenSource.includes('usePdfEnginePreference') && !readerScreenSource.includes('engine={'), 'ReaderScreen must not select a PDF engine.');
+  const paginatedCounterStart = readerScreenSource.indexOf("      ) : (\n        <View", readerScreenSource.indexOf("pdfDisplayMode === 'scroll'"));
+  const paginatedCounterEnd = readerScreenSource.indexOf('      )}', paginatedCounterStart);
+  const paginatedCounterSource = readerScreenSource.slice(paginatedCounterStart, paginatedCounterEnd);
+  assert(paginatedCounterStart >= 0 && paginatedCounterSource.includes("color: '#ffffff'"), 'The paginated PDF page counter must remain white.');
   assert(!settingsSource.includes('pdfEngine') && !settingsSource.includes('sectionReading'), 'Settings must not expose the PDF engine section or card.');
   assert(!metroSource.includes('react-native-pdf'), 'Metro must not keep the native PDF stub.');
   assert(!patchSource.includes('react-native-pdf') && !patchSource.includes('RNPDF'), 'The Android patch script must not patch the removed native PDF package.');

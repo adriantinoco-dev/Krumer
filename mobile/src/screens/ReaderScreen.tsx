@@ -961,7 +961,7 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
           <Text
             numberOfLines={1}
             style={{
-              color: epubMuted,
+              color: '#ffffff',
               fontFamily: serifFont,
               fontSize: 14,
               opacity: 0.68,

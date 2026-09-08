@@ -8,8 +8,6 @@
     "orientation": "portrait",
     "icon": "./assets/Krumer-splash-icon.png",
     "splash": {
-      "image": "./assets/adaptive-icon.png",
-      "resizeMode": "contain",
       "backgroundColor": "#111111"
     },
     "android": {

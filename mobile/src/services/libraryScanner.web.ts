@@ -303,7 +303,8 @@ export async function scanLibrary(
 
 export async function extractCoversInBackground(
   _books: Book[],
-  _onCoverReady: (bookId: string, coverPath: string) => void
+  _onCoverReady: (bookId: string, coverPath: string) => void,
+  _shouldContinue: () => boolean = () => true,
 ): Promise<void> {
   // Capas SVG/Blob geradas automaticamente no scanner web
 }

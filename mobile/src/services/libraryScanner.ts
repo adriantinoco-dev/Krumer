@@ -196,13 +196,14 @@ export async function scanLibrary(
 
 export async function extractCoversInBackground(
   books: Book[],
-  onCoverReady: (bookId: string, coverPath: string) => void
+  onCoverReady: (bookId: string, coverPath: string) => void,
+  shouldContinue: () => boolean = () => true,
 ): Promise<void> {
   const queue = books.filter((book) => !book.coverPath);
   let cursor = 0;
 
   async function worker() {
-    while (cursor < queue.length) {
+    while (cursor < queue.length && shouldContinue()) {
       const book = queue[cursor];
       cursor += 1;
 

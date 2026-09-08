@@ -18,6 +18,7 @@
     "test:pdf-gestures": "node scripts/validate-pdf-gestures.cjs",
     "test:pdf-render-pipeline": "node scripts/validate-pdf-render-pipeline.cjs",
     "test:pdf-runtime-resilience": "node scripts/validate-pdf-runtime-resilience.cjs",
+    "test:cover-retry": "node scripts/validate-cover-retry.cjs",
     "test:metadata": "node scripts/validate-metadata-service.cjs"
   },
   "dependencies": {

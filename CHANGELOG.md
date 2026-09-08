@@ -13,6 +13,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   seleção ou fallback para engine nativa.
 
 ### Adicionado
+- **Mobile — busca contínua de capas:** livros sem capa agora são tentados
+  novamente em segundo plano com espera progressiva até cinco minutos, sem
+  rescan. A busca pausa fora do foreground, retoma ao voltar ao app e preserva
+  capas escolhidas manualmente.
 - **Site — landing page de downloads:** página local em `website/`, em português,
   com identidade preto/bege/laranja, mockups desktop e Android, recursos,
   instalação e FAQ. Downloads Windows, Linux (AppImage e .deb) e Android beta
@@ -72,6 +76,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   a piloto; nenhuma remoção do motor nativo é feita nesta etapa.
 
 ### Corrigido
+- **Mobile — splash screen:** a abertura do app agora usa somente o fundo
+  preto `#111111`, sem exibir o ícone do launcher.
+- **Mobile — contador do PDF paginado:** o indicador de página atual e total
+  agora permanece branco para manter contraste sobre o conteúdo do leitor.
 - **Mobile — capas de EPUB com prefixo:** a extração agora reconhece qualquer
   arquivo ou ID que comece com `cover` ou `capa`, incluindo variantes numeradas
   e nomes descritivos, ao indexar a capa do livro.

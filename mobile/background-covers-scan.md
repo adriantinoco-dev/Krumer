@@ -9,9 +9,10 @@ Tornar o scan da biblioteca no mobile praticamente instantaneo do ponto de vista
 - registrar o livro na biblioteca imediatamente, sem capa (`coverPath: null`);
 - disparar a extracao de capas **em segundo plano**, com limite de concorrencia;
 - conforme cada capa fica pronta, ela aparece no livro correspondente na pagina principal (Biblioteca), sem precisar reescanear nem recarregar a tela;
+- repetir a busca dos livros ainda sem capa enquanto o app estiver ativo, sem depender de um novo scan;
 - reduzir o tempo do onboarding e do rescan a quase zero.
 
-## Comportamento atual (problema)
+## Problema original
 
 O fluxo atual em `mobile/src/services/libraryScanner.ts` (`scanLibrary`) e **sequencial e sincrono**:
 
@@ -52,6 +53,7 @@ A barra de progresso reflete apenas a **varredura e o cadastro dos arquivos** (l
    - atualiza o `Book.coverPath` no estado global (AppContext);
    - persiste a biblioteca atualizada no AsyncStorage;
    - o componente `BookCard` reage ao novo `coverPath` e troca o placeholder pela capa **automaticamente** (sem recarregar a tela).
+5. Se ainda existirem livros sem capa, novas rodadas sao agendadas em 5s, 15s, 30s, 1min, 2min e depois a cada 5min.
 
 ## Arquivos envolvidos
 
@@ -63,11 +65,14 @@ A barra de progresso reflete apenas a **varredura e o cadastro dos arquivos** (l
   - Nenhuma mudanca obrigatoria aqui; a logica de capa permanece identica.
 - `mobile/src/context/AppContext.tsx`
   - Dono da extracao em background: dispara e retoma automaticamente.
-  - `runCoversLoop` — garante que a extracao roda uma vez por vez (guard `coversRunningRef`) e retoma para livros sem capa sempre que ha novos pendentes (`coversRestartRef`).
+  - Cria o `CoverRetryCoordinator`, acompanha o `AppState` e solicita rodadas imediatas apos hidratacao ou scan.
   - `updateBookCover(id, coverPath)`:
     - atualiza o estado React (`setBookState`);
     - persiste via `saveBooks` com throttle (ver nota de persistencia abaixo).
   - `setBooks` dispara `runCoversLoop` apos salvar a biblioteca (cobre onboarding e rescan).
+- `mobile/src/services/coverRetry.ts`
+  - Centraliza backoff, pausa/retomada, timer e protecao contra rodadas simultaneas.
+  - Antes de aplicar o resultado, confirma que o livro continua sem capa para preservar edicoes manuais.
 - `mobile/src/screens/OnboardingScreen.tsx`
   - `runScan` chama `scanLibrary` + `setBooks` e segue o onboarding normalmente; a extracao e responsabilidade do `AppContext`.
 - `mobile/src/screens/SettingsGroupScreen.tsx`
@@ -194,41 +199,16 @@ async function runScan() {
 
 `setBooks` (no `AppContext`) dispara `runCoversLoop` em segundo plano, sem bloquear a UI.
 
-## Pausa e retomada ao fechar/reabrir o app
+## Pausa, retentativa e retomada
 
-Se o app for encerrado enquanto as capas estao sendo extraidas:
+1. **Retentativa**: uma rodada imediata ocorre apos hidratacao, onboarding ou rescan. Enquanto houver arquivos sem capa, o intervalo cresce de 5 segundos ate o teto de 5 minutos.
+2. **Pausa**: ao receber `AppState` diferente de `active`, o timer e cancelado. Extracoes ja iniciadas podem terminar, mas os workers nao pegam novos livros.
+3. **Retomada**: ao voltar para `active` ou reabrir o app, o backoff e zerado e uma rodada comeca imediatamente.
+4. **Estado salvo**: as capas extraidas ficam em `documentDirectory/covers/`; os livros atualizados ficam no AsyncStorage com throttle de 400ms.
+5. **Sem retrabalho**: antes de extrair, a rodada consulta `getExistingCoverPath(bookId)` e reaplica capas presentes em disco.
+6. **Sem duplicidade**: o coordenador mantem somente uma rodada ativa. Pedidos durante uma rodada solicitam uma nova passagem, sem sobreposicao.
 
-1. **Pausa**: ao fechar, o runtime JS morre e a extracao para naturalmente — nao ha thread em background persistente.
-2. **Estado salvo**: as capas ja extraidas ficam em `documentDirectory/covers/`; os livros atualizados ficam no AsyncStorage (persistencia com throttle de 400ms).
-3. **Retomada**: ao reabrir o app, `AppContext` hidrata as preferencias e a biblioteca do AsyncStorage e, se houver livros com `coverPath: null`, chama `runCoversLoop` automaticamente.
-4. **Sem retrabalho**: antes de extrair, o background consulta `getExistingCoverPath(bookId)` — capas que ja estao em disco sao reaplicadas instantaneamente, sem reextrair.
-5. **Sem duplicidade**: `coversRunningRef` impede duas extracoes simultaneas; `coversRestartRef` marca uma nova rodada quando `setBooks` acontece durante uma extracao em andamento (ex.: rescan no meio do background).
-
-Fluxo no `AppContext`:
-
-```ts
-const runCoversLoop = useCallback(async () => {
-  if (coversRunningRef.current) {
-    coversRestartRef.current = true;
-    return;
-  }
-  coversRunningRef.current = true;
-  try {
-    do {
-      coversRestartRef.current = false;
-      const pending = booksRef.current.filter((book) => !book.coverPath);
-      if (!pending.length) break;
-      await extractCoversInBackground(pending, (bookId, coverPath) => {
-        updateBookCover(bookId, coverPath);
-      });
-    } while (coversRestartRef.current);
-  } finally {
-    coversRunningRef.current = false;
-  }
-}, [updateBookCover]);
-```
-
-Observacao: livros cuja capa falhou permanentemente (extracao retorna `null`) continuam sem capa e sao retentados a cada abertura do app. Isso e aceitavel (comportamento de "resume"); a extracao nunca trava por causa deles.
+Somente livros concretos entram na fila. Series e colecoes recebem a capa pelo primeiro filho, evitando processar duas vezes o mesmo arquivo. Livros cuja extracao continua retornando `null` permanecem com placeholder e sao retentados indefinidamente, sem disparar `scanLibrary`.
 
 ## Persistencia
 
@@ -237,7 +217,7 @@ Duas opcoes:
 1. **Salvar por capa** — chamar `saveBooks` a cada `updateBookCover`. Simples, porem escreve no AsyncStorage varias vezes em sequencia quando ha muitos livros.
 2. **Salvar em lote (recomendado)** — acumular atualizacoes e persistir com throttle (ex.: 300ms a 500ms) ou ao concluir o background. Menos escrita, mesma experiencia visual (a capa aparece assim que o estado muda; a persistencia pode ser um pouco atrasada).
 
-Na opcao 2, garantir que, se o app for encerrado no meio do background, nao ha perda critica: as capas ja salvas em disco (`documentDirectory/covers/`) continuam la, e o proximo rescan as reaproveita sem reextrair (veja abaixo).
+Na opcao 2, se o app for encerrado no meio do background, nao ha perda critica: as capas ja salvas em disco (`documentDirectory/covers/`) continuam la, e a proxima rodada as reaproveita sem reextrair (veja abaixo).
 
 ## Reaproveitamento de capas ja extraidas
 
@@ -262,6 +242,8 @@ Durante o scan nao buscar metadados no Gemini, nao preencher autor/ano/sinopse/t
 - Escanear uma pasta grande termina quase instantaneamente; a biblioteca aparece com todos os livros e placeholders.
 - As capas aparecem progressivamente na Biblioteca conforme terminam de ser extraidas, sem reescan nem reload.
 - O onboarding pode ser concluido sem esperar as capas; o background continua rodando.
+- Livros ainda sem capa sao retentados continuamente, com backoff limitado a cinco minutos, sem rescan.
+- A busca pausa fora do foreground e retoma imediatamente quando o app volta a ficar ativo.
 - Se o app for fechado durante a extracao, ao reabrir a extracao retoma automaticamente do ponto onde parou, sem reextrair capas ja salvas em disco.
 - Reescane a pasta nao reextrai capas que ja existem em disco.
 - Livros cuja capa falhou continuam visiveis com placeholder (titulo), como hoje.
@@ -273,8 +255,9 @@ Durante o scan nao buscar metadados no Gemini, nao preencher autor/ano/sinopse/t
 - **Concorrencia**: `extractPdfCover` chama o modulo nativo. Manter `CONCURRENCY` baixa (2-3) evita pressao de memoria no `PdfRenderer` com PDFs grandes.
 - **Memoria (EPUB)**: `extractEpubCover` le o arquivo em base64. Com concorrencia baixa e capas pequenas, o impacto e aceitavel; nao mudar a implementacao do extrator neste escopo.
 - **Estado global**: `updateBookCover` precisa usar o setter funcional do `useState` para nao depender de closures desatualizados.
-- **App fechado no meio do background**: sem prejuizo; capas ja salvas em disco sao reaproveitadas no proximo scan.
-- **Reescaneamentos simultaneos**: evitar disparar dois backgrounds ao mesmo tempo (guard em `AppContext` ou no chamador).
+- **App fechado no meio do background**: sem prejuizo; capas ja salvas em disco sao reaproveitadas na proxima rodada ao abrir o app.
+- **Retentativas permanentes**: o teto de cinco minutos evita um ciclo agressivo para arquivos corrompidos ou realmente sem capa.
+- **Reescaneamentos simultaneos**: o `CoverRetryCoordinator` reinicia a fila sem sobrepor rodadas.
 - **Titulo com placeholder**: manter `BookCard` sem `onError` destrutivo quando a capa chega depois; o `useEffect` em `book.coverPath` ja reseta o estado de falha.
 
 ## Fora de escopo

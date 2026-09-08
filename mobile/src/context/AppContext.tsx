@@ -1,6 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, Platform } from 'react-native';
 import type { Book } from '../models/item';
 import type { SyncList } from '../models/list';
+import { CoverRetryCoordinator } from '../services/coverRetry';
 import { extractCoversInBackground, scanLibrary } from '../services/libraryScanner';
 import { DEFAULT_LANGUAGE, translate, type LanguageCode, type TranslationKey } from '../i18n/translations';
 import {
@@ -68,8 +70,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isScanning, setIsScanning] = useState(false);
   const booksRef = useRef<Book[]>([]);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const coversRunningRef = useRef(false);
-  const coversRestartRef = useRef(false);
+  const coverRetryRef = useRef<CoverRetryCoordinator | null>(null);
   const scanRunningRef = useRef(false);
   const startupScanStartedRef = useRef(false);
 
@@ -80,37 +81,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function hydrate() {
-      const preferencesPromise = loadPreferences();
-      const booksPromise = loadBooks();
-      const listsPromise = loadSyncLists();
-
-      const storedPreferences = await preferencesPromise;
-      if (!mounted) return;
-      setPreferenceState(storedPreferences);
-      setPreferencesReady(true);
-
-      const [storedBooks, storedLists] = await Promise.all([booksPromise, listsPromise]);
-      if (!mounted) return;
-      setBookState(storedBooks);
-      setLists(storedLists);
-      booksRef.current = storedBooks;
-      setReady(true);
-      if (storedBooks.some((book) => !book.coverPath)) {
-        runCoversLoop();
-      }
-    }
-
-    hydrate();
-
-    return () => {
-      mounted = false;
     };
   }, []);
 
@@ -181,26 +151,77 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const runCoversLoop = useCallback(async () => {
-    if (coversRunningRef.current) {
-      coversRestartRef.current = true;
+  const runCoversLoop = useCallback(() => {
+    if (Platform.OS === 'android') {
+      coverRetryRef.current?.requestImmediate(true);
       return;
     }
-    coversRunningRef.current = true;
-    try {
-      do {
-        coversRestartRef.current = false;
-        const all = flattenBooks(booksRef.current);
-        const pending = all.filter((book) => !book.coverPath && Boolean(book.filePath));
-        if (!pending.length) break;
-        await extractCoversInBackground(pending, (bookId, coverPath) => {
-          updateBookCover(bookId, coverPath);
-        });
-      } while (coversRestartRef.current);
-    } finally {
-      coversRunningRef.current = false;
-    }
+
+    // Preserve the previous single-pass behavior on non-Android platforms.
+    const pending = getPendingCoverBooks(booksRef.current);
+    if (!pending.length) return;
+    void extractCoversInBackground(pending, (bookId, coverPath) => {
+      const target = findBookById(booksRef.current, bookId);
+      if (!target?.coverPath) updateBookCover(bookId, coverPath);
+    });
   }, [updateBookCover]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return undefined;
+
+    const initiallyActive = AppState.currentState == null || AppState.currentState === 'active';
+    const coordinator = new CoverRetryCoordinator({
+      canApplyCover: (bookId) => {
+        const target = findBookById(booksRef.current, bookId);
+        return Boolean(target && !target.coverPath);
+      },
+      extractCovers: extractCoversInBackground,
+      getPendingBooks: () => getPendingCoverBooks(booksRef.current),
+      onCoverReady: updateBookCover,
+    }, initiallyActive);
+    coverRetryRef.current = coordinator;
+
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      coordinator.setActive(nextState === 'active');
+    });
+
+    return () => {
+      appStateSubscription.remove();
+      coordinator.dispose();
+      if (coverRetryRef.current === coordinator) coverRetryRef.current = null;
+    };
+  }, [updateBookCover]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function hydrate() {
+      const preferencesPromise = loadPreferences();
+      const booksPromise = loadBooks();
+      const listsPromise = loadSyncLists();
+
+      const storedPreferences = await preferencesPromise;
+      if (!mounted) return;
+      setPreferenceState(storedPreferences);
+      setPreferencesReady(true);
+
+      const [storedBooks, storedLists] = await Promise.all([booksPromise, listsPromise]);
+      if (!mounted) return;
+      setBookState(storedBooks);
+      setLists(storedLists);
+      booksRef.current = storedBooks;
+      setReady(true);
+      if (getPendingCoverBooks(storedBooks).length) {
+        runCoversLoop();
+      }
+    }
+
+    hydrate();
+
+    return () => {
+      mounted = false;
+    };
+  }, [runCoversLoop]);
 
   const setBooks = useCallback(async (nextBooks: Book[]) => {
     const previous = new Map(flattenBooks(booksRef.current).map((book) => [book.fingerprint, book]));
@@ -442,6 +463,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
 function flattenBooks(books: Book[]): Book[] {
   return books.flatMap((book) => [book, ...flattenBooks(book.children ?? [])]);
+}
+
+function findBookById(books: Book[], bookId: string): Book | null {
+  for (const book of books) {
+    if (book.id === bookId) return book;
+    const child = findBookById(book.children ?? [], bookId);
+    if (child) return child;
+  }
+  return null;
+}
+
+function getPendingCoverBooks(books: Book[]): Book[] {
+  return flattenBooks(books).filter((book) => (
+    !book.children?.length
+    && !book.coverPath
+    && Boolean(book.filePath)
+  ));
 }
 
 function mergeScannedBooks(books: Book[], previous: Map<string, Book>): Book[] {
