@@ -64,6 +64,10 @@ async function main() {
   const settingsSource = readText('src/screens/SettingsScreen.tsx');
   const metroSource = readText('metro.config.js');
   const patchSource = readText('scripts/fix-netinfo-gradle9.cjs');
+  const appConfigSource = readText('app.json');
+  const volumePluginSource = readText('plugins/withVolumeKeys.js');
+  const volumeModuleSource = readText('plugins/volume-keys/KrumerVolumeKeysModule.kt');
+  const volumeActivitySource = readText('android/app/src/main/java/com/adriantinoco/krumer/MainActivity.kt');
 
   assert(readerTypesSource.includes('export type PdfEngineHandle'), 'The WebView command contract is missing.');
   assert(!readerTypesSource.includes('PdfEngineKind') && !readerTypesSource.includes('DEFAULT_PDF_ENGINE'), 'Engine selection must not remain in the PDF contract.');
@@ -88,6 +92,12 @@ async function main() {
   assert(!settingsSource.includes('pdfEngine') && !settingsSource.includes('sectionReading'), 'Settings must not expose the PDF engine section or card.');
   assert(!metroSource.includes('react-native-pdf'), 'Metro must not keep the native PDF stub.');
   assert(!patchSource.includes('react-native-pdf') && !patchSource.includes('RNPDF'), 'The Android patch script must not patch the removed native PDF package.');
+
+  assert(appConfigSource.includes('./plugins/withVolumeKeys'), 'Volume-key config plugin must remain enabled.');
+  assert(volumePluginSource.includes('KrumerVolumeKeysPackage'), 'Volume-key plugin must register the native package.');
+  assert(volumePluginSource.includes('dispatchKeyEvent'), 'Volume-key plugin must restore MainActivity key dispatch.');
+  assert(volumeModuleSource.includes('setEnabled'), 'Volume-key native module must expose its enabled state.');
+  assert(volumeActivitySource.includes('override fun dispatchKeyEvent'), 'Generated Android project must handle volume keys.');
 
   console.log('PDF reader uses the WebView engine exclusively; native engine selection, fallback, dependency, and settings card are removed.');
 }

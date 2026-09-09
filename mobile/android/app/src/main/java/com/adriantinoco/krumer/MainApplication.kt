@@ -22,6 +22,7 @@ class MainApplication : Application(), ReactApplication {
       packageList =
         PackageList(this).packages.apply {
           add(com.adriantinoco.krumer.pdf.KrumerPdfThumbnailPackage())
+          add(com.adriantinoco.krumer.volume.KrumerVolumeKeysPackage())
           // Packages that cannot be autolinked yet can be added manually here, for example:
           // add(MyReactNativePackage())
         }

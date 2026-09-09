@@ -8,6 +8,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Corrigido
+- **Mobile — controles por volume:** restaurado o módulo Android e o plugin de
+  configuração que permitem trocar páginas e rolar o PDF/EPUB com VOL+/VOL−,
+  inclusive após novos prebuilds.
 - **Mobile — ícone do launcher:** os ícones nativos são regenerados a partir de
   `adaptive-icon.png` na instalação de dependências e antes de `npm run android`,
   evitando que builds locais/EAS empacotem recursos antigos. O ícone padrão
