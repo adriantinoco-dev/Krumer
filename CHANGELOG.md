@@ -8,6 +8,10 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Corrigido
+- **Mobile — ícone do launcher:** os ícones nativos são regenerados a partir de
+  `adaptive-icon.png` na instalação de dependências e antes de `npm run android`,
+  evitando que builds locais/EAS empacotem recursos antigos. O ícone padrão
+  também usa esse arquivo.
 - **Mobile — versão no card Sobre:** usa a versão configurada no Expo, em vez
   do texto fixo `v0.1.0`.
 - **Mobile — extração de capas PDF:** restaurado o módulo Android de miniaturas

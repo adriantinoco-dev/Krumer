@@ -99,25 +99,7 @@ export function LangPickerModal({ visible, onClose }: { visible: boolean; onClos
                   paddingVertical: spacing.sm,
                 })}
               >
-                <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.sm }}>
-                  <View
-                    style={{
-                      alignItems: 'center',
-                      borderColor: selected ? theme.accent : theme.border,
-                      borderRadius: radii.sm,
-                      borderWidth: 1,
-                      minWidth: 34,
-                      paddingHorizontal: spacing.xs,
-                      paddingVertical: 2,
-                    }}
-                  >
-                    <Text style={{ color: selected ? theme.accent : theme.textSecondary, fontFamily: serifFont, fontSize: 11, fontWeight: '700' }}>
-                      {language.label}
-                    </Text>
-                  </View>
-                  <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 15 }}>{language.name}</Text>
-                </View>
-                {selected ? <View style={{ backgroundColor: theme.accent, borderRadius: 4, height: 18, width: 18 }} /> : <View style={{ width: 18 }} />}
+                <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 15 }}>{language.name}</Text>
               </Pressable>
             );
           })}

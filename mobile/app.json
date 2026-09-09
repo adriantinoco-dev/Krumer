@@ -6,7 +6,7 @@
     "version": "1.3.5",
     "scheme": "krumer",
     "orientation": "portrait",
-    "icon": "./assets/Krumer-splash-icon.png",
+    "icon": "./assets/adaptive-icon.png",
     "splash": {
       "backgroundColor": "#111111"
     },

@@ -37,6 +37,12 @@ O script `npm run android` reaplica automaticamente a compatibilidade do NetInfo
 12.0.1 com Gradle 9. O mesmo ajuste roda apos cada `npm install`, evitando que a
 falha de Codegen volte quando `node_modules` for recriado.
 
+O ícone do launcher usa `assets/adaptive-icon.png`. Os recursos nativos são
+sincronizados por `npm install`/`npm ci` (incluindo builds EAS) e antes de
+`npm run android`. Para builds diretos pelo Gradle ou Android Studio, execute
+`npm run icons:android` em `mobile/` após trocar a imagem. A sincronização aplica
+somente o plugin de ícones do Expo, preservando as demais customizações nativas.
+
 ## Leitor EPUB F1
 
 - Runtime web local com JSZip 3.10.1 e epub.js 0.3.93 vendorizados.
