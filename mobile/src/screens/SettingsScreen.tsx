@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Constants from 'expo-constants';
 import { Linking, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -232,7 +233,7 @@ export function SettingsScreen({ navigation }: Props) {
         <SectionHeader label={t('settings.sectionAbout')} />
         <SettingsRow
           title="Krumer Mobile"
-          subtitle="v0.1.0"
+          subtitle={`v${Constants.expoConfig?.version ?? '1.3.5'}`}
           icon={Info}
           onPress={() => navigation.navigate('SettingsGroup', { group: 'about' })}
         />

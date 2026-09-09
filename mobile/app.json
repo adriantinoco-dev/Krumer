@@ -30,6 +30,7 @@
     "plugins": [
       "./plugins/with-ndk27",
       "./plugins/withInstallPermission",
+      "./plugins/withPdfThumbnail",
       "expo-font",
       "expo-asset"
     ],

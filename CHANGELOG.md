@@ -7,6 +7,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ## [Unreleased]
 
+### Corrigido
+- **Mobile — versão no card Sobre:** usa a versão configurada no Expo, em vez
+  do texto fixo `v0.1.0`.
+- **Mobile — extração de capas PDF:** restaurado o módulo Android de miniaturas
+  removido anteriormente; um config plugin preserva os arquivos e seu registro
+  em novos prebuilds. A fila existente continua tentando livros sem capa.
+
 ### Preparação
 - **Mobile — PDF WebView consolidado:** o runtime PDF.js/foliate mantém o
   contrato de comandos do leitor e o manifesto fixado, agora sem preferência,
