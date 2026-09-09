@@ -67,7 +67,10 @@ async function main() {
   const appConfigSource = readText('app.json');
   const volumePluginSource = readText('plugins/withVolumeKeys.js');
   const volumeModuleSource = readText('plugins/volume-keys/KrumerVolumeKeysModule.kt');
+  const volumePackageSource = readText('plugins/volume-keys/KrumerVolumeKeysPackage.kt');
   const volumeActivitySource = readText('android/app/src/main/java/com/adriantinoco/krumer/MainActivity.kt');
+  const nativeVolumeModuleSource = readText('android/app/src/main/java/com/adriantinoco/krumer/volume/KrumerVolumeKeysModule.kt');
+  const nativeVolumePackageSource = readText('android/app/src/main/java/com/adriantinoco/krumer/volume/KrumerVolumeKeysPackage.kt');
 
   assert(readerTypesSource.includes('export type PdfEngineHandle'), 'The WebView command contract is missing.');
   assert(!readerTypesSource.includes('PdfEngineKind') && !readerTypesSource.includes('DEFAULT_PDF_ENGINE'), 'Engine selection must not remain in the PDF contract.');
@@ -98,6 +101,8 @@ async function main() {
   assert(volumePluginSource.includes('dispatchKeyEvent'), 'Volume-key plugin must restore MainActivity key dispatch.');
   assert(volumeModuleSource.includes('setEnabled'), 'Volume-key native module must expose its enabled state.');
   assert(volumeActivitySource.includes('override fun dispatchKeyEvent'), 'Generated Android project must handle volume keys.');
+  assert(nativeVolumeModuleSource === volumeModuleSource, 'The generic Android project must include the volume-key module.');
+  assert(nativeVolumePackageSource === volumePackageSource, 'The generic Android project must include the volume-key package.');
 
   console.log('PDF reader uses the WebView engine exclusively; native engine selection, fallback, dependency, and settings card are removed.');
 }
