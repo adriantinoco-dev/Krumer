@@ -67,6 +67,7 @@ async function main() {
   assert(runtimeSource.includes('payload.bookId !== pending.bookId'));
   assert(runtimeSource.includes('function queueViewportScroll(fraction, repeat)'));
   assert(runtimeSource.includes('viewer.clientHeight * fraction'));
+  assert(runtimeSource.includes('function startViewportScroll(direction)'));
   assert(runtimeSource.includes('function stopViewportScroll()'));
   assert(runtimeSource.includes("window.addEventListener('message', receiveMessage)"));
   assert(runtimeSource.includes("document.addEventListener('message', receiveMessage)"));
@@ -98,10 +99,11 @@ async function main() {
   };
   const scroll = vm.runInNewContext(`(function () {
     var viewportScrollFrame = null, viewportScrollRemaining = 0;
-    var viewportScrollVelocity = 0, viewportScrollLastAt = 0, volumeScrollStartedAt = 0;
+    var viewportScrollDirection = 0, viewportScrollVelocity = 0;
+    var viewportScrollLastAt = 0, volumeScrollStartedAt = 0;
     var volumeScrollFrames = 0, volumeScrollSlowFrames = 0, volumeScrollMaxFrameMs = 0;
     ${scrollFunctions}
-    return { queueViewportScroll, stopViewportScroll };
+    return { queueViewportScroll, startViewportScroll, stopViewportScroll };
   })()`, {
     viewer: scrollViewer,
     performance: { now: () => now },
@@ -132,6 +134,29 @@ async function main() {
   for (let i = 0; i < 10; i += 1) tick();
   assert.strictEqual(frames.size, 0, 'Release left volume scrolling scheduled.');
   assert.strictEqual(scrollViewer.scrollTop, stoppedTop, 'Scroll drifted after release.');
+  const continuousHoldResults = [];
+  for (const fps of [60, 120]) {
+    for (const direction of [1, -1]) {
+      scrollViewer.scrollHeight = 1000000;
+      scrollViewer.scrollTop = 500000;
+      const continuousStart = scrollViewer.scrollTop;
+      layoutReads = 0;
+      scroll.startViewportScroll(direction);
+      for (let frame = 0; frame < fps * 30; frame += 1) {
+        tick(1000 / fps);
+        assert(frames.size <= 1, 'Continuous hold queued multiple animation loops.');
+      }
+      const continuousDistance = direction * (scrollViewer.scrollTop - continuousStart);
+      assert(continuousDistance > 60000, 'Holding a volume key did not scroll continuously.');
+      assert.strictEqual(layoutReads, 0, 'Continuous hold forced whole-document layout reads.');
+      scroll.stopViewportScroll();
+      const releasedTop = scrollViewer.scrollTop;
+      for (let frame = 0; frame < 10; frame += 1) tick(1000 / fps);
+      assert.strictEqual(frames.size, 0, 'Continuous scrolling survived key release.');
+      assert.strictEqual(scrollViewer.scrollTop, releasedTop, 'Continuous scrolling drifted after release.');
+      continuousHoldResults.push({ fps, direction, distance: Math.round(continuousDistance) });
+    }
+  }
   const holdResults = [];
   for (const fps of [60, 120]) {
     for (const direction of [1, -1]) {
@@ -221,8 +246,11 @@ async function main() {
   assert.strictEqual(frames.size, 0, 'Backgrounding the reader left the local hold running.');
   scrollDocument.hidden = false;
   assert(!scrollFunctions.includes('viewer.pan'), 'Volume scrolling still shares the finger gesture path.');
-  assert(!bridgeSource.includes('START_VIEWPORT_SCROLL'), 'The indefinite hold command must stay removed.');
-  console.log('30-second volume holds:', JSON.stringify(holdResults));
+  assert(bridgeSource.includes('START_VIEWPORT_SCROLL'), 'The continuous hold bridge command is missing.');
+  assert(engineSource.includes("createPdfWebBridgeCommand('START_VIEWPORT_SCROLL'"),
+    'The WebView engine cannot start continuous volume scrolling.');
+  console.log('30-second continuous volume holds:', JSON.stringify(continuousHoldResults));
+  console.log('30-second repeated-step queues:', JSON.stringify(holdResults));
   assert(runtimeSource.includes('var readyAttempts = 0;'));
   assert(runtimeSource.includes('setTimeout(announceReady, 50);'));
   assert(runtimeSource.includes("post('READY', { engine: 'pdf.js', engineVersion: '5.5.207' })"));

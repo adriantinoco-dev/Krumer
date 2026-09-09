@@ -58,6 +58,7 @@ async function main() {
 
   const readerSource = readText('src/readers/PdfReader.tsx');
   const readerTypesSource = readText('src/readers/PdfReader.types.ts');
+  const webBridgeSource = readText('src/readers/pdf/pdfWebBridge.ts');
   const webEngineSource = readText('src/readers/pdf/PdfWebEngine.tsx');
   const readerStartupSource = readText('src/readers/readerStartup.ts');
   const readerScreenSource = readText('src/screens/ReaderScreen.tsx');
@@ -73,6 +74,7 @@ async function main() {
   const nativeVolumePackageSource = readText('android/app/src/main/java/com/adriantinoco/krumer/volume/KrumerVolumeKeysPackage.kt');
 
   assert(readerTypesSource.includes('export type PdfEngineHandle'), 'The WebView command contract is missing.');
+  assert(readerTypesSource.includes('startViewportScroll: (direction: 1 | -1) => void'), 'The continuous-scroll engine contract is missing.');
   assert(!readerTypesSource.includes('PdfEngineKind') && !readerTypesSource.includes('DEFAULT_PDF_ENGINE'), 'Engine selection must not remain in the PDF contract.');
   assert(readerSource.includes('<PdfWebEngine'), 'PdfReader must mount PdfWebEngine.');
   assert(!readerSource.includes('NativePdfEngine') && !readerSource.includes('activeEngine'), 'PdfReader must not retain the native engine path.');
@@ -83,6 +85,9 @@ async function main() {
   assert(webEngineSource.includes('export const PdfWebEngine'), 'The PDF WebView engine is missing.');
   assert(webEngineSource.includes('rangeUrl:'), 'The binary range transport must remain enabled for WebView PDFs.');
   assert(webEngineSource.includes('scrollByViewport'), 'WebView volume scrolling must remain available.');
+  assert(webBridgeSource.includes("BridgeEnvelope<'START_VIEWPORT_SCROLL'"), 'Continuous volume scrolling is missing from the bridge.');
+  assert(webEngineSource.includes("createPdfWebBridgeCommand('START_VIEWPORT_SCROLL'"), 'The WebView engine cannot start continuous volume scrolling.');
+  assert(readerSource.includes("event.phase === 'repeat'") && readerSource.includes('startViewportScroll'), 'Holding a volume key must start continuous scrolling.');
   assert(webEngineSource.includes('cacheEnabled'), 'The PDF WebView cache must remain enabled.');
   assert(readerStartupSource.includes('preparePdfWebRuntime()'), 'PDF warmup must prepare the WebView runtime.');
   assert(!readerStartupSource.includes('loadPdfEnginePreference'), 'PDF warmup must not load an engine preference.');
@@ -99,8 +104,12 @@ async function main() {
   assert(appConfigSource.includes('./plugins/withVolumeKeys'), 'Volume-key config plugin must remain enabled.');
   assert(volumePluginSource.includes('KrumerVolumeKeysPackage'), 'Volume-key plugin must register the native package.');
   assert(volumePluginSource.includes('dispatchKeyEvent'), 'Volume-key plugin must restore MainActivity key dispatch.');
+  assert(volumePluginSource.includes('KeyEvent.ACTION_UP') && volumePluginSource.includes('event.repeatCount > 0'), 'Volume-key plugin must emit repeat and release phases.');
+  assert(volumePluginSource.includes('Arguments.createMap()'), 'Volume-key plugin must emit structured key events.');
   assert(volumeModuleSource.includes('setEnabled'), 'Volume-key native module must expose its enabled state.');
   assert(volumeActivitySource.includes('override fun dispatchKeyEvent'), 'Generated Android project must handle volume keys.');
+  assert(volumeActivitySource.includes('KeyEvent.ACTION_UP') && volumeActivitySource.includes('event.repeatCount > 0'), 'Generated Android project must emit repeat and release phases.');
+  assert(volumeActivitySource.includes('Arguments.createMap()'), 'Generated Android project must emit structured key events.');
   assert(nativeVolumeModuleSource === volumeModuleSource, 'The generic Android project must include the volume-key module.');
   assert(nativeVolumePackageSource === volumePackageSource, 'The generic Android project must include the volume-key package.');
 

@@ -261,6 +261,33 @@ Paridade F1–F7 (Android):
 
 ---
 
+## Proteção obrigatória contra mudanças não solicitadas
+
+- O escopo de cada tarefa é estritamente limitado ao que o usuário solicitou. Corrigir build,
+  dependência, configuração, UI ou um leitor não autoriza alterar outros comportamentos.
+- **Nunca remover, desativar, substituir, simplificar ou tornar inacessível uma funcionalidade
+  existente sem solicitação ou autorização explícita do usuário.** Isso inclui recursos visíveis,
+  gestos, atalhos, modos de leitura, fallbacks, preferências, integrações nativas, dependências,
+  configurações de build, compatibilidade, testes, scripts de validação e documentação.
+- Se a solução proposta exigir perda de funcionalidade, mudança de comportamento, troca de engine,
+  remoção de fallback ou exclusão de código, interromper a implementação antes dessa mudança,
+  explicar exatamente o impacto e pedir autorização explícita.
+- Não tratar código aparentemente sem uso, testes falhando, dificuldades de build, geração por
+  `expo prebuild` ou uma implementação alternativa como permissão para apagar algo. Primeiro
+  investigar por que existe e preservar o comportamento.
+- Não reescrever testes ou validadores para aceitar a ausência de uma funcionalidade existente.
+  Testes devem proteger o comportamento anterior e comprovar somente a alteração solicitada.
+- Em alterações Expo/Android, preservar customizações nativas existentes. Plugins de configuração
+  e arquivos versionados em `mobile/android` que representem o mesmo recurso devem permanecer
+  sincronizados; não aceitar silenciosamente que o prebuild sobrescreva módulos ou configurações.
+- Antes de concluir qualquer tarefa, revisar `git diff --stat` e `git diff` completos. Toda alteração
+  fora do escopo solicitado deve ser revertida; se houver dúvida sobre sua necessidade, parar e
+  consultar o usuário.
+- Refatorações, limpezas e melhorias oportunistas não fazem parte de uma correção, salvo quando o
+  usuário as pedir explicitamente.
+
+---
+
 ## O que NÃO fazer
 
 - Não sugerir React, Vue, Angular ou qualquer framework JS.

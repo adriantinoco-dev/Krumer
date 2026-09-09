@@ -331,8 +331,11 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
     }, [binaryRangeDisabled, drainRangeQueue, flushPendingCommands, onError, onExternalLink, onLoadComplete, onLoadProgress, onPageChanged, onScaleChanged, onSingleTap, postCommand, resolvedUri]);
 
     useImperativeHandle(ref, () => ({
-      scrollByViewport: (fraction, repeat = false) => {
-        sendCommand(createPdfWebBridgeCommand('SCROLL_BY_VIEWPORT', { fraction, repeat }));
+      scrollByViewport: (fraction) => {
+        sendCommand(createPdfWebBridgeCommand('SCROLL_BY_VIEWPORT', { fraction }));
+      },
+      startViewportScroll: (direction) => {
+        sendCommand(createPdfWebBridgeCommand('START_VIEWPORT_SCROLL', { direction }));
       },
       stopViewportScroll: () => {
         sendCommand(createPdfWebBridgeCommand('STOP_VIEWPORT_SCROLL', {}));

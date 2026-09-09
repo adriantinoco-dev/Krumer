@@ -6,7 +6,8 @@ export type PdfDisplayMode = DisplayMode;
 
 /** Comandos que o runtime PDF.js expõe ao shell React Native. */
 export type PdfEngineHandle = {
-  scrollByViewport: (fraction: number, repeat?: boolean) => void;
+  scrollByViewport: (fraction: number) => void;
+  startViewportScroll: (direction: 1 | -1) => void;
   stopViewportScroll: () => void;
   setPage: (page: number) => void;
   setScale: (scale: number) => void;

@@ -19,8 +19,16 @@ module.exports = function withVolumeKeys(config) {
   config = withMainActivity(config, (mod) => {
     let contents = mod.modResults.contents.replace(/\r\n/g, '\n');
     const importLine = 'import com.adriantinoco.krumer.volume.KrumerVolumeKeysModule';
-    if (!contents.includes(importLine)) {
+    if (!contents.includes('import android.view.KeyEvent')) {
       contents = contents.replace('import android.os.Bundle', 'import android.os.Bundle\nimport android.view.KeyEvent');
+    }
+    if (!contents.includes('import com.facebook.react.bridge.Arguments')) {
+      contents = contents.replace(
+        'import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled',
+        'import com.facebook.react.bridge.Arguments\nimport com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled',
+      );
+    }
+    if (!contents.includes(importLine)) {
       contents = contents.replace(
         'import com.facebook.react.defaults.DefaultReactActivityDelegate',
         'import com.facebook.react.defaults.DefaultReactActivityDelegate\nimport com.adriantinoco.krumer.volume.KrumerVolumeKeysModule',
@@ -36,12 +44,23 @@ module.exports = function withVolumeKeys(config) {
       event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN
 
     if (KrumerVolumeKeysModule.enabled && isVolumeKey) {
-      if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+      if (event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP) {
         val direction = if (event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) "next" else "previous"
+        val phase = when {
+          event.action == KeyEvent.ACTION_UP -> "release"
+          event.repeatCount > 0 -> "repeat"
+          else -> "press"
+        }
+        val eventValue = Arguments.createMap().apply {
+          putString("direction", direction)
+          putString("phase", phase)
+          putInt("repeatCount", event.repeatCount)
+          putDouble("eventTime", event.eventTime.toDouble())
+        }
         (application as? MainApplication)
           ?.reactHost
           ?.currentReactContext
-          ?.emitDeviceEvent(KrumerVolumeKeysModule.EVENT_NAME, direction)
+          ?.emitDeviceEvent(KrumerVolumeKeysModule.EVENT_NAME, eventValue)
       }
       return true
     }

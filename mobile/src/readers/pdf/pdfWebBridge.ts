@@ -13,7 +13,8 @@ export type PdfWebBridgeCommand =
   | BridgeEnvelope<'SET_PAGE', { page: number }>
   | BridgeEnvelope<'SET_SCALE', { scale: number }>
   | BridgeEnvelope<'SET_DISPLAY_MODE', { displayMode: 'paginated' | 'scroll' }>
-  | BridgeEnvelope<'SCROLL_BY_VIEWPORT', { fraction: number; repeat?: boolean }>
+  | BridgeEnvelope<'SCROLL_BY_VIEWPORT', { fraction: number }>
+  | BridgeEnvelope<'START_VIEWPORT_SCROLL', { direction: 1 | -1 }>
   | BridgeEnvelope<'STOP_VIEWPORT_SCROLL', Record<string, never>>
   | BridgeEnvelope<'READ_RANGE_RESULT', {
       bookId: string;

@@ -14,7 +14,6 @@ const PDF_LOAD_STALL_TIMEOUT_MS = 15_000;
 const PDF_LOAD_MAX_WAIT_MS = 90_000;
 const PDF_SIDE_TAP_RATIO = 0.25;
 const PDF_VOLUME_SCROLL_VIEWPORT_RATIO = 0.18;
-const PDF_VOLUME_REPEAT_MAX_AGE_MS = 100;
 const styles = StyleSheet.create({
   interactionBlocker: {
     bottom: 0,
@@ -366,8 +365,6 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     if (!interactionEnabled) return undefined;
     let webviewScrollHeld = false;
     let pressedDirection: ReaderVolumeDirection | null = null;
-    let nativeClockOffset: number | null = null;
-    let lastHoldEventAt = 0;
     const stopWebviewHold = () => {
       if (webviewScrollHeld) engineRef.current?.stopViewportScroll();
       webviewScrollHeld = false;
@@ -378,7 +375,6 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
         if (pressedDirection === event.direction) {
           stopWebviewHold();
           pressedDirection = null;
-          nativeClockOffset = null;
         }
         return;
       }
@@ -390,19 +386,14 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
         if (event.phase === 'press') {
           stopWebviewHold();
           pressedDirection = event.direction;
-          nativeClockOffset = event.eventTime === undefined ? null : Date.now() - event.eventTime;
-          lastHoldEventAt = 0;
           engineRef.current?.scrollByViewport(fraction);
-        } else if (pressedDirection === event.direction) {
-          // Keep the original 18% step for each native repeat. Discard old
-          // or duplicated events instead of replaying a backlog after a stall.
-          const eventAt = nativeClockOffset !== null && event.eventTime !== undefined
-            ? nativeClockOffset + event.eventTime
-            : Date.now();
-          if (Date.now() - eventAt >= PDF_VOLUME_REPEAT_MAX_AGE_MS || eventAt <= lastHoldEventAt) return;
-          lastHoldEventAt = eventAt;
+        } else if (
+          event.phase === 'repeat'
+          && pressedDirection === event.direction
+          && !webviewScrollHeld
+        ) {
           webviewScrollHeld = true;
-          engineRef.current?.scrollByViewport(fraction, true);
+          engineRef.current?.startViewportScroll(event.direction === 'next' ? 1 : -1);
         }
         return;
       }

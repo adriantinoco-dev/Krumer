@@ -639,6 +639,7 @@ const bridgeRuntime = `
     var maxPendingRanges = 24;
     var viewportScrollFrame = null;
     var viewportScrollRemaining = 0;
+    var viewportScrollDirection = 0;
     var viewportScrollVelocity = 0;
     var viewportScrollLastAt = 0;
     var volumeScrollStartedAt = 0;
@@ -869,6 +870,7 @@ const bridgeRuntime = `
       if (viewportScrollFrame != null) cancelAnimationFrame(viewportScrollFrame);
       viewportScrollFrame = null;
       viewportScrollRemaining = 0;
+      viewportScrollDirection = 0;
       viewportScrollVelocity = 0;
       viewportScrollLastAt = 0;
       postVolumeScrollMetrics();
@@ -892,6 +894,21 @@ const bridgeRuntime = `
         volumeScrollFrames += 1;
         if (rawFrameMs > 24) volumeScrollSlowFrames += 1;
         volumeScrollMaxFrameMs = Math.max(volumeScrollMaxFrameMs, rawFrameMs);
+      }
+
+      if (viewportScrollDirection !== 0) {
+        var targetVelocity = viewportScrollDirection * 3.2;
+        var smoothing = 1 - Math.exp(-frameMs / 75);
+        viewportScrollVelocity += (targetVelocity - viewportScrollVelocity) * smoothing;
+        var previousContinuousTop = viewer.scrollTop;
+        viewer.scrollTop = previousContinuousTop
+          + viewer.clientHeight * viewportScrollVelocity * frameMs / 1000;
+        if (Math.abs(viewer.scrollTop - previousContinuousTop) > 0.01) {
+          viewportScrollFrame = requestAnimationFrame(animateViewportScroll);
+          return;
+        }
+        cancelViewportScroll();
+        return;
       }
 
       var remaining = viewportScrollRemaining;
@@ -920,6 +937,7 @@ const bridgeRuntime = `
 
     function queueViewportScroll(fraction, repeat) {
       if (!viewer.scrolled || !Number.isFinite(fraction) || fraction === 0) return;
+      viewportScrollDirection = 0;
       var distance = viewer.clientHeight * fraction;
       if (viewportScrollRemaining * distance < 0) {
         viewportScrollRemaining = 0;
@@ -932,6 +950,15 @@ const bridgeRuntime = `
         var maxPending = Math.abs(distance) * 3;
         viewportScrollRemaining = Math.max(-maxPending, Math.min(maxPending, viewportScrollRemaining));
       }
+      if (!volumeScrollStartedAt) volumeScrollStartedAt = Date.now();
+      ensureViewportScrollFrame();
+    }
+
+    function startViewportScroll(direction) {
+      if (!viewer.scrolled || (direction !== 1 && direction !== -1)) return;
+      viewportScrollRemaining = 0;
+      viewportScrollDirection = direction;
+      viewportScrollVelocity = 0;
       if (!volumeScrollStartedAt) volumeScrollStartedAt = Date.now();
       ensureViewportScrollFrame();
     }
@@ -1174,6 +1201,10 @@ const bridgeRuntime = `
         }
         if (command.type === 'SCROLL_BY_VIEWPORT') {
           queueViewportScroll(Number(payload.fraction), payload.repeat === true);
+          return;
+        }
+        if (command.type === 'START_VIEWPORT_SCROLL') {
+          startViewportScroll(Number(payload.direction));
           return;
         }
         if (command.type === 'STOP_VIEWPORT_SCROLL') stopViewportScroll();
