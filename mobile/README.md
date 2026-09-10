@@ -37,6 +37,28 @@ O script `npm run android` reaplica automaticamente a compatibilidade do NetInfo
 12.0.1 com Gradle 9. O mesmo ajuste roda apos cada `npm install`, evitando que a
 falha de Codegen volte quando `node_modules` for recriado.
 
+`npm run android` gera um build de desenvolvimento apenas para a arquitetura do
+aparelho conectado. Esse APK não deve ser publicado. Para gerar um APK release
+universal, independente do Metro e compatível com ARM 32/64 bits e emuladores,
+use:
+
+```bash
+npm run android:universal
+```
+
+O comando executa o prebuild, força `armeabi-v7a`, `arm64-v8a`, `x86` e
+`x86_64`, valida as bibliotecas nativas e grava o resultado em
+`android/app/build/outputs/apk/release/app-release.apk`. Para releases públicas,
+prefira o workflow **Android Build (EAS local)** com o perfil `preview`: ele
+produz um APK instalável e executa a mesma validação antes do upload. O perfil
+`production` gera um AAB destinado à loja, não um APK para instalação direta.
+
+Um artefato também pode ser verificado manualmente:
+
+```bash
+npm run test:android-abis -- caminho/para/krumer-mobile.apk
+```
+
 O ícone do launcher usa `assets/adaptive-icon.png`. Os recursos nativos são
 sincronizados por `npm install`/`npm ci` (incluindo builds EAS) e antes de
 `npm run android`. Para builds diretos pelo Gradle ou Android Studio, execute

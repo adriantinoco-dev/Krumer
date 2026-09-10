@@ -51,6 +51,19 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
+      - name: Definir formato do artefato
+        id: artifact
+        shell: bash
+        run: |
+          if [ "${{ github.event.inputs.profile }}" = "production" ]; then
+            extension="aab"
+          else
+            extension="apk"
+          fi
+          echo "extension=${extension}" >> "$GITHUB_OUTPUT"
+          echo "path=${GITHUB_WORKSPACE}/mobile/krumer-mobile.${extension}" >> "$GITHUB_OUTPUT"
+          echo "relative_path=mobile/krumer-mobile.${extension}" >> "$GITHUB_OUTPUT"
+
       - name: Build Android local
         run: |
           eas build \
@@ -58,13 +71,16 @@ jobs:
             --profile ${{ github.event.inputs.profile }} \
             --local \
             --non-interactive \
-            --output ${{ github.workspace }}/mobile/krumer-mobile.apk
+            --output "${{ steps.artifact.outputs.path }}"
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Upload do APK
+      - name: Validar arquiteturas Android
+        run: npm run test:android-abis -- "${{ steps.artifact.outputs.path }}"
+
+      - name: Upload do artefato Android
         uses: actions/upload-artifact@v4
         with:
-          name: krumer-mobile-${{ github.event.inputs.profile }}
-          path: mobile/krumer-mobile.apk
+          name: krumer-mobile-${{ github.event.inputs.profile }}-${{ steps.artifact.outputs.extension }}
+          path: ${{ steps.artifact.outputs.relative_path }}
           retention-days: 14

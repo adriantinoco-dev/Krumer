@@ -28,6 +28,7 @@
       ]
     },
     "plugins": [
+      "./plugins/withAndroidArchitectures",
       "./plugins/with-ndk27",
       "./plugins/withInstallPermission",
       "./plugins/withPdfThumbnail",

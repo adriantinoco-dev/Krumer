@@ -8,6 +8,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 ## [Unreleased]
 
 ### Corrigido
+- **Mobile — compatibilidade Android 32/64 bits:** builds distribuíveis agora
+  incluem e validam `armeabi-v7a`, `arm64-v8a`, `x86` e `x86_64`; o fluxo local
+  ganhou um APK universal e o Actions diferencia corretamente APK de AAB.
 - **Mobile — controles por volume:** restaurado o módulo Android e o plugin de
   configuração que permitem trocar páginas e rolar o PDF/EPUB com VOL+/VOL−,
   inclusive após novos prebuilds.
