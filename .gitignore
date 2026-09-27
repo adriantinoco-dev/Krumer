@@ -2,6 +2,8 @@
 backend/.env
 .env
 client_secret_*.json
+*.pfx
+*.p12
 
 # Cache do Python
 __pycache__/

@@ -7,7 +7,21 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ## [Unreleased]
 
+### Segurança
+- **Desktop Windows — assinatura e reputação:** releases agora exigem Authenticode
+  com SHA-256 e timestamp, assinam também o backend PyInstaller e validam as
+  assinaturas do instalador, do app e do backend no CI. O backend passou ao modo
+  `onedir`, evitando a autoextração executável em diretório temporário, e a versão
+  do PyInstaller foi fixada para tornar seu bootloader reproduzível.
+
 ### Corrigido
+- **Desktop — ciclo de vida do backend:** o processo Python agora é aguardado e,
+  no Windows, sua árvore de processos é encerrada como fallback antes do Electron
+  sair. O backend também monitora o PID pai para se encerrar caso o Krumer seja
+  finalizado abruptamente, evitando órfãos e novas instâncias acumuladas.
+- **Desktop — instância única:** uma segunda execução que não obtém o lock não
+  inicializa mais uma janela/backend; na inicialização, órfãos de versões antigas
+  são removidos somente quando pertencem ao mesmo executável instalado.
 - **Mobile — compatibilidade Android 32/64 bits:** builds distribuíveis agora
   incluem e validam `armeabi-v7a`, `arm64-v8a`, `x86` e `x86_64`; o fluxo local
   ganhou um APK universal e o Actions diferencia corretamente APK de AAB.

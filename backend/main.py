@@ -6,6 +6,8 @@ import mimetypes
 import datetime
 import hmac
 import platform
+import threading
+import time
 from pathlib import Path
 from typing import List, Optional
 from contextlib import asynccontextmanager
@@ -2159,6 +2161,28 @@ def get_cached_metadata_keys():
 if __name__ == "__main__":
     import sys
     import uvicorn
+
+    parent_pid_value = os.getenv("KRUMER_PARENT_PID")
+    if parent_pid_value:
+        try:
+            parent_pid = int(parent_pid_value)
+        except ValueError:
+            parent_pid = None
+
+        if parent_pid and parent_pid > 0:
+            def monitor_parent_process():
+                while True:
+                    try:
+                        os.kill(parent_pid, 0)
+                    except OSError as error:
+                        # Permission denied means the PID still exists. Other
+                        # failures indicate that Electron has gone away.
+                        if getattr(error, "winerror", None) != 5:
+                            os._exit(0)
+                    time.sleep(1)
+
+            threading.Thread(target=monitor_parent_process, daemon=True).start()
+
     api_host = os.getenv("KRUMER_API_HOST", "127.0.0.1")
     api_port = int(os.getenv("KRUMER_API_PORT", "8765"))
     reload_enabled = os.getenv("KRUMER_BACKEND_RELOAD", "0") == "1"

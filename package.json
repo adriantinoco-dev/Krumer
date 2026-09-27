@@ -8,7 +8,7 @@
     "build": "electron-builder --win",
     "build:linux": "electron-builder --linux",
     "build:mac": "electron-builder --mac",
-    "pack": "electron-builder --dir",
+    "pack": "electron-builder --dir --config.win.forceCodeSigning=false",
     "mobile:prepare": "node mobile/sync-vendor.mjs",
     "mobile:add:android": "npm run mobile:prepare && cap add android",
     "mobile:sync": "npm run mobile:prepare && cap sync android",
@@ -74,7 +74,18 @@
       "target": [
         "nsis"
       ],
-      "icon": "frontend/assets/Krumer-icon.ico"
+      "icon": "frontend/assets/Krumer-icon.ico",
+      "forceCodeSigning": true,
+      "verifyUpdateCodeSignature": true,
+      "signExts": [
+        ".exe"
+      ],
+      "signtoolOptions": {
+        "signingHashAlgorithms": [
+          "sha256"
+        ],
+        "rfc3161TimeStampServer": "http://timestamp.digicert.com"
+      }
     },
     "linux": {
       "target": [

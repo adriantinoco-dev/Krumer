@@ -148,6 +148,12 @@ uvicorn main:app --reload
 
 Abra `frontend/index.html` em um servidor local ou via Electron.
 
+### Releases Windows
+
+Builds distribuíveis para Windows exigem assinatura Authenticode. Consulte
+[`docs/WINDOWS_CODE_SIGNING.md`](docs/WINDOWS_CODE_SIGNING.md) para configurar o
+certificado no GitHub Actions e verificar os artefatos gerados.
+
 ### Mobile Android
 
 A versao React Native fica em `mobile/` e consome a mesma API FastAPI do backend. O esqueleto inicial ja separa cliente de API, modelos, telas, componentes, leitores, tema, i18n e preferencias locais.

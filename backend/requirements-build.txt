@@ -1,0 +1,4 @@
+-r requirements.txt
+
+# Fixar o bootloader evita mudanças silenciosas na estrutura do executável entre releases.
+pyinstaller==6.21.0

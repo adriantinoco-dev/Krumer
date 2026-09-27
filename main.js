@@ -16,6 +16,9 @@ let authService = null;
 let backendPort = 8765;
 let backendReady = false;
 let backendReadyPromise = Promise.resolve(false);
+let backendStopPromise = null;
+let isQuitting = false;
+let backendShutdownComplete = false;
 const syncBridgeToken = crypto.randomBytes(32).toString('hex');
 let pendingAuthUrl = process.argv.find((arg) => arg.startsWith('krumer://')) || null;
 
@@ -98,6 +101,46 @@ function getBackendExecutablePath() {
 }
 
 /**
+ * Remove backends left by an older/crashed Krumer process before choosing a port.
+ * The executable path is matched so unrelated Python services are never touched.
+ */
+function cleanupStaleWindowsBackends() {
+  if (process.platform !== 'win32' || !app.isPackaged) return Promise.resolve();
+
+  const executablePath = getBackendExecutablePath();
+  if (!executablePath) return Promise.resolve();
+
+  const escapedPath = executablePath.replace(/'/g, "''");
+  const command = [
+    `$target = '${escapedPath}'`,
+    "$processes = Get-CimInstance Win32_Process -Filter \"Name='krumer-backend.exe'\"",
+    '$processes | Where-Object { $_.ExecutablePath -eq $target } | ForEach-Object {',
+    '  Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue',
+    '}'
+  ].join('; ');
+
+  return new Promise((resolve) => {
+    const cleanup = spawn('powershell.exe', [
+      '-NoProfile',
+      '-NonInteractive',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-Command',
+      command
+    ], {
+      windowsHide: true,
+      stdio: 'ignore'
+    });
+
+    cleanup.once('error', (error) => {
+      console.warn('[Backend] Não foi possível limpar backends antigos:', error.message);
+      resolve();
+    });
+    cleanup.once('close', () => resolve());
+  });
+}
+
+/**
  * Procura o executável Python adequado (virtualenv do projeto ou do sistema).
  */
 function getPythonExecutable() {
@@ -115,7 +158,16 @@ function getPythonExecutable() {
 /**
  * Inicia o servidor backend FastAPI em Python como processo filho.
  */
-function startPythonBackend() {
+async function startPythonBackend() {
+  if (backendStopPromise) {
+    await backendStopPromise;
+  }
+
+  if (pyProcess && pyProcess.exitCode === null) {
+    console.warn('[Backend] O backend já está em execução; nova instância não será criada.');
+    return pyProcess;
+  }
+
   backendReady = false;
   const exePath = getBackendExecutablePath();
 
@@ -128,6 +180,7 @@ function startPythonBackend() {
         PYTHONUNBUFFERED: '1',
         KRUMER_BACKEND_RELOAD: '0',
         KRUMER_API_PORT: String(backendPort),
+        KRUMER_PARENT_PID: String(process.pid),
         KRUMER_SYNC_BRIDGE_TOKEN: syncBridgeToken,
         KRUMER_CLOUD_SYNC_ENABLED: CLOUD_SYNC_ENABLED ? '1' : '0'
       }
@@ -146,6 +199,7 @@ function startPythonBackend() {
         PYTHONUNBUFFERED: '1',
         KRUMER_BACKEND_RELOAD: '0',
         KRUMER_API_PORT: String(backendPort),
+        KRUMER_PARENT_PID: String(process.pid),
         KRUMER_SYNC_BRIDGE_TOKEN: syncBridgeToken,
         KRUMER_CLOUD_SYNC_ENABLED: CLOUD_SYNC_ENABLED ? '1' : '0'
       }
@@ -173,6 +227,8 @@ function startPythonBackend() {
       pyProcess = null;
     }
   });
+
+  return startedProcess;
 }
 
 /**
@@ -180,19 +236,63 @@ function startPythonBackend() {
  */
 function stopPythonBackend() {
   backendReady = false;
+  if (backendStopPromise) return backendStopPromise;
+
   const processToStop = pyProcess;
   pyProcess = null;
-  if (!processToStop) return;
+  if (!processToStop) return Promise.resolve();
 
   console.log('Encerrando servidor backend Python...');
-  try {
-    const signalSent = processToStop.kill('SIGTERM');
-    if (!signalSent) {
-      console.warn('[Backend] O processo Python já estava encerrado.');
+  const shutdownPromise = new Promise((resolve) => {
+    let finished = false;
+    let forceTimer = null;
+
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      if (forceTimer) clearTimeout(forceTimer);
+      resolve();
+    };
+
+    processToStop.once('close', finish);
+
+    try {
+      const signalSent = processToStop.kill('SIGTERM');
+      if (!signalSent) {
+        console.warn('[Backend] O processo Python já estava encerrado.');
+      }
+    } catch (err) {
+      console.error('[Backend] Falha ao encerrar o processo Python:', err);
     }
-  } catch (err) {
-    console.error('[Backend] Falha ao encerrar o processo Python:', err);
-  }
+
+    forceTimer = setTimeout(() => {
+      if (finished) return;
+
+      try {
+        if (process.platform === 'win32' && processToStop.pid) {
+          console.warn('[Backend] SIGTERM não encerrou o backend; encerrando a árvore de processos.');
+          const killer = spawn('taskkill', ['/PID', String(processToStop.pid), '/T', '/F'], {
+            windowsHide: true,
+            stdio: 'ignore'
+          });
+          killer.once('error', (error) => {
+            console.error('[Backend] Falha ao executar taskkill:', error);
+          });
+        } else {
+          processToStop.kill('SIGKILL');
+        }
+      } catch (err) {
+        console.error('[Backend] Falha ao forçar o encerramento do processo Python:', err);
+      }
+
+      setTimeout(finish, 1000);
+    }, 1500);
+  });
+
+  backendStopPromise = shutdownPromise.finally(() => {
+    backendStopPromise = null;
+  });
+  return backendStopPromise;
 }
 
 /**
@@ -341,7 +441,7 @@ async function createWindow() {
   mainWindow.setMenuBarVisibility(false);
 
   // Inicia o backend em paralelo para que a tela de abertura já fique visível.
-  startPythonBackend();
+  await startPythonBackend();
   backendReadyPromise = waitForBackend()
     .then(async () => {
       backendReady = true;
@@ -480,6 +580,8 @@ autoUpdater.on('error', (err) => {
 
 // Ciclo de vida da aplicação Electron
 app.whenReady().then(async () => {
+  if (!hasSingleInstanceLock) return;
+
   if (process.defaultApp && process.argv.length >= 2) {
     app.setAsDefaultProtocolClient('krumer', process.execPath, [path.resolve(process.argv[1])]);
   } else {
@@ -501,18 +603,31 @@ app.whenReady().then(async () => {
     await handleAuthUrl(url);
   }
 
+  await cleanupStaleWindowsBackends();
   await createWindow();
 });
 
 app.on('window-all-closed', () => {
-  stopPythonBackend();
+  void stopPythonBackend();
   if (process.platform !== 'darwin') {
     app.quit();
   }
 });
 
+app.on('before-quit', (event) => {
+  if (backendShutdownComplete) return;
+
+  event.preventDefault();
+  if (isQuitting) return;
+  isQuitting = true;
+  void stopPythonBackend().finally(() => {
+    backendShutdownComplete = true;
+    app.quit();
+  });
+});
+
 app.on('will-quit', () => {
-  stopPythonBackend();
+  void stopPythonBackend();
 });
 
 app.on('activate', () => {
