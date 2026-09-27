@@ -61,6 +61,7 @@ async function main() {
   const renditionConfigs = [];
   const generatedLocationChunks = [];
   const columnAlignmentCalls = [];
+  const selectionScrollCalls = [];
   const inPlaceMoveCalls = [];
   const resizeCalls = [];
   const spreadCalls = [];
@@ -73,7 +74,23 @@ async function main() {
   let currentRenditionLocation = null;
   let inPlaceMoveAvailable = true;
   let shiftOnNextResize = false;
-  const managerContainer = { scrollLeft: 600, scrollTop: 0 };
+  let managerScrollLeft = 600;
+  let managerScrollWrites = 0;
+  const managerScrollListeners = new Set();
+  const managerContainer = {
+    addEventListener(type, handler) {
+      if (type === 'scroll') managerScrollListeners.add(handler);
+    },
+    removeEventListener(type, handler) {
+      if (type === 'scroll') managerScrollListeners.delete(handler);
+    },
+    dispatchScroll() {
+      for (const handler of managerScrollListeners) handler();
+    },
+    get scrollLeft() { return managerScrollLeft; },
+    set scrollLeft(value) { managerScrollWrites += 1; managerScrollLeft = value; },
+    scrollTop: 0,
+  };
   const viewer = {
     className: '',
     replaceChildren() {
@@ -164,6 +181,11 @@ async function main() {
       scrollBy: (left, top, silent) => {
         columnAlignmentCalls.push({ left, silent, top });
       },
+      scrollTo: (left, top, silent) => {
+        selectionScrollCalls.push({ left, silent, top });
+        managerContainer.scrollLeft = left;
+        managerContainer.scrollTop = top;
+      },
       settings: { direction: 'ltr' },
       views: {
         find: () => inPlaceMoveAvailable
@@ -236,6 +258,7 @@ async function main() {
     },
     spine: {
       get: (href) => {
+        if (typeof href === 'number') return [progressionSection, excerptSection][href];
         if (href === progressionSection.href) return progressionSection;
         if (href === excerptSection.href) return excerptSection;
         return null;
@@ -244,7 +267,9 @@ async function main() {
       spineItems: [progressionSection, excerptSection],
     },
   };
+  const outerDocumentListeners = {};
   const outerDocument = {
+    addEventListener: (type, handler) => { outerDocumentListeners[type] = handler; },
     body: { style: {} },
     documentElement: { style: {} },
     fonts: { add: (fontFace) => registeredDocumentFonts.push(fontFace) },
@@ -594,7 +619,7 @@ async function main() {
     };
   }
 
-  function createBoundedSelectionDocument(contentWidth) {
+  function createBoundedSelectionDocument(contentWidth, sectionIndex = 0) {
     const readerDocument = createReaderDocument(contentWidth);
     const { document, listeners } = readerDocument;
     document.scrollingElement = { scrollLeft: 0, scrollTop: 0 };
@@ -628,6 +653,7 @@ async function main() {
       get isCollapsed() { return !selectedRange || selectedRange.startOffset === selectedRange.endOffset; },
       get rangeCount() { return selectedRange ? 1 : 0; },
       getRangeAt: () => selectedRange,
+      removeAllRanges() { selectedRange = null; },
       setBaseAndExtent(nextAnchorNode, nextAnchorOffset, nextFocusNode, nextFocusOffset) {
         anchorNode = nextAnchorNode;
         anchorOffset = nextAnchorOffset;
@@ -644,11 +670,15 @@ async function main() {
     document.defaultView.getSelection = () => selection;
     document.__mockContents = {
       document,
-      range: (cfi) => createRange(
-        String(cfi).includes('visible-start') ? 20 : 80,
-        String(cfi).includes('visible-start') ? 20 : 80,
-      ),
-      section: { href: progressionSection.href },
+      range: (cfi) => {
+        const value = String(cfi);
+        const offset = value.includes('next-visible-start') ? 40
+          : value.includes('next-visible-end') ? 90
+            : value.includes('visible-start') ? 20
+              : 80;
+        return createRange(offset, offset);
+      },
+      sectionIndex,
     };
 
     return {
@@ -674,9 +704,9 @@ async function main() {
 
   const target = { nodeType: 1, parentElement: null, tagName: 'P' };
   const touch = (x) => ({ clientX: x, clientY: 400, screenX: x, screenY: 400 });
-  const touchEvent = (x, phase) => ({
+  const touchEvent = (x, phase, state) => ({
     changedTouches: phase === 'end' ? [touch(x)] : undefined,
-    preventDefault() {},
+    preventDefault() { if (state) state.defaultPrevented = true; },
     stopImmediatePropagation() {},
     target,
     touches: phase === 'start' ? [touch(x)] : undefined,
@@ -724,11 +754,15 @@ async function main() {
   let simulatedTouchNow = realDateNow();
   Date.now = () => simulatedTouchNow;
   try {
+    const selectionTouchEnd = { defaultPrevented: false };
     chapter.listeners.touchstart(touchEvent(900, 'start'));
     simulatedTouchNow += 600;
     chapter.setSelectedText('selected phrase');
     chapter.listeners.selectionchange();
-    chapter.listeners.touchend(touchEvent(100, 'end'));
+    chapter.listeners.touchend(touchEvent(100, 'end', selectionTouchEnd));
+    if (selectionTouchEnd.defaultPrevented) {
+      throw new Error('The long-press selection gesture canceled the WebView native selection UI.');
+    }
   } finally {
     Date.now = realDateNow;
   }
@@ -739,7 +773,61 @@ async function main() {
   chapter.listeners.click({ clientX: 100, screenX: 100, preventDefault() {}, stopImmediatePropagation() {}, target });
   if (chapter.selectionClearCount !== 2) throw new Error('The synthetic click after text selection cleared the native selection.');
 
+  await wait(120);
+  const realDateNowAfterCollapsedSelection = Date.now;
+  let simulatedTouchNowAfterCollapsedSelection = realDateNowAfterCollapsedSelection();
+  Date.now = () => simulatedTouchNowAfterCollapsedSelection;
+  try {
+    chapter.listeners.touchstart(touchEvent(900, 'start'));
+    simulatedTouchNowAfterCollapsedSelection += 180;
+    chapter.setSelectedText('selected phrase');
+    chapter.listeners.selectionchange();
+    chapter.setSelectedText('');
+    chapter.listeners.selectionchange();
+    simulatedTouchNowAfterCollapsedSelection += 100;
+    chapter.listeners.touchend(touchEvent(100, 'end'));
+  } finally {
+    Date.now = realDateNowAfterCollapsedSelection;
+  }
+  if (turns.next !== 2 || turns.previous !== 1) {
+    throw new Error('A horizontal gesture turned the page after its text selection collapsed before touchend.');
+  }
+
+  activeReaderDocuments.push(presentation.document);
+  chapter.setSelectedText('selection in a different spine document');
+  chapter.listeners.selectionchange();
+  const clearCountBeforeCrossDocumentTap = chapter.selectionClearCount;
+  const dismissalTouch = { defaultPrevented: false };
+  presentation.listeners.touchstart(touchEvent(900, 'start'));
+  presentation.listeners.touchend(touchEvent(900, 'end', dismissalTouch));
+  if (chapter.selectionClearCount !== clearCountBeforeCrossDocumentTap + 1
+    || dismissalTouch.defaultPrevented || turns.next !== 2 || turns.previous !== 1) {
+    throw new Error('A tap in another spine document did not dismiss native selection without navigating or canceling the native tap.');
+  }
+
+  chapter.setSelectedText('selection collapsed by Android before touchend');
+  chapter.listeners.selectionchange();
+  chapter.listeners.touchstart(touchEvent(900, 'start'));
+  chapter.setSelectedText('');
+  chapter.listeners.selectionchange();
+  chapter.listeners.touchend(touchEvent(900, 'end', dismissalTouch));
+  if (dismissalTouch.defaultPrevented || turns.next !== 2 || turns.previous !== 1) {
+    throw new Error('A native selection dismissal turned the page after Android collapsed the range.');
+  }
+
+  chapter.setSelectedText('selection dismissed from the reader margin');
+  chapter.listeners.selectionchange();
+  const clearCountBeforeMarginTap = chapter.selectionClearCount;
+  outerDocumentListeners.touchstart(touchEvent(10, 'start'));
+  outerDocumentListeners.touchend(touchEvent(10, 'end', dismissalTouch));
+  if (chapter.selectionClearCount !== clearCountBeforeMarginTap + 1
+    || dismissalTouch.defaultPrevented || turns.next !== 2 || turns.previous !== 1) {
+    throw new Error('A tap on the reader margin did not dismiss selection without navigating.');
+  }
+  activeReaderDocuments.splice(0, activeReaderDocuments.length, chapter.document);
+
   const locationBeforeSelectionBoundsTest = currentRenditionLocation;
+  await wait(2050);
   const boundedSelection = createBoundedSelectionDocument(12000);
   activeReaderDocuments.splice(0, activeReaderDocuments.length, boundedSelection.document);
   renderedHandler(null, { document: boundedSelection.document });
@@ -757,7 +845,24 @@ async function main() {
       index: 0,
     },
   };
+  relocatedHandler(currentRenditionLocation);
   boundedSelection.listeners.touchstart(touchEvent(500, 'start'));
+  const adjacentSelectionLocation = {
+    end: {
+      cfi: 'epubcfi(/next-visible-end)',
+      displayed: { page: 3, total: 4 },
+      href: progressionSection.href,
+      index: 0,
+    },
+    start: {
+      cfi: 'epubcfi(/next-visible-start)',
+      displayed: { page: 3, total: 4 },
+      href: progressionSection.href,
+      index: 0,
+    },
+  };
+  currentRenditionLocation = adjacentSelectionLocation;
+  relocatedHandler(adjacentSelectionLocation);
   managerContainer.scrollLeft = 645;
   boundedSelection.document.scrollingElement.scrollLeft = 24;
   boundedSelection.document.defaultView.scrollTo(18, 0);
@@ -774,6 +879,11 @@ async function main() {
     || runtimeWindow.scrollX !== 0
   ) {
     throw new Error('Native selection auto-scroll was not restored to the paginated viewport anchor.');
+  }
+  managerContainer.scrollLeft = 648;
+  managerContainer.dispatchScroll();
+  if (managerContainer.scrollLeft !== 600) {
+    throw new Error('A scroll event during selection exposed a partial EPUB column before the next selectionchange.');
   }
   boundedSelection.setSelectionRange(5, 95);
   boundedSelection.listeners.selectionchange();
@@ -841,8 +951,75 @@ async function main() {
   }
   boundedSelection.clearSelection();
   boundedSelection.listeners.selectionchange();
+
+  // Continuous layout can expose a short front-matter section beside the next section.
+  // Contents has sectionIndex, not section; a CFI from its neighbour can resolve to
+  // unrelated nodes if it is passed to Contents.range without checking its spine.
+  const frontMatter = createBoundedSelectionDocument(12000, 0);
+  activeReaderDocuments.splice(0, activeReaderDocuments.length, frontMatter.document);
+  renderedHandler(null, { document: frontMatter.document });
+  currentRenditionLocation = {
+    start: { cfi: 'epubcfi(/visible-start)', index: 0, href: progressionSection.href },
+    end: { cfi: 'epubcfi(/next-visible-end)', index: 1, href: excerptSection.href },
+  };
+  managerContainer.scrollLeft = 1200;
+  frontMatter.listeners.touchstart(touchEvent(500, 'start'));
+  frontMatter.setSelectionRange(30, 95);
+  const scrollWritesBeforeStableSelection = managerScrollWrites;
+  const movesBeforeStableSelection = inPlaceMoveCalls.length;
+  for (let index = 0; index < 12; index += 1) {
+    frontMatter.listeners.selectionchange();
+    selectedHandler('epubcfi(/front-matter-selection)', frontMatter.document.__mockContents);
+  }
+  await wait(400);
+  if (frontMatter.appliedSelections.length !== 0) {
+    throw new Error('The adjacent chapter CFI changed a visible selection in front matter.');
+  }
+  if (managerContainer.scrollLeft !== 1200 || managerScrollWrites !== scrollWritesBeforeStableSelection
+    || inPlaceMoveCalls.length !== movesBeforeStableSelection) {
+    throw new Error('Repeated selection events moved a stable page between its viewport snapshot and a different reading anchor.');
+  }
+  managerContainer.scrollLeft = 1260;
+  frontMatter.listeners.selectionchange();
+  if (managerContainer.scrollLeft !== 1200 || selectionScrollCalls.at(-1)?.silent !== true) {
+    throw new Error('A long front-matter selection did not restore the original viewport after native auto-scroll.');
+  }
+  frontMatter.setSelectionRange(5, 95);
+  frontMatter.listeners.selectionchange();
+  if (frontMatter.appliedSelections.at(-1)?.anchorOffset !== 20
+    || frontMatter.appliedSelections.at(-1)?.focusOffset !== 95) {
+    throw new Error('Select-all in front matter was truncated using a boundary from another spine document.');
+  }
+  frontMatter.clearSelection();
+  frontMatter.listeners.selectionchange();
+  const adjacentChapter = createBoundedSelectionDocument(12000, 1);
+  activeReaderDocuments.splice(0, activeReaderDocuments.length, adjacentChapter.document);
+  renderedHandler(null, { document: adjacentChapter.document });
+  currentRenditionLocation = {
+    start: { cfi: 'epubcfi(/next-visible-start)', index: 0, href: progressionSection.href },
+    end: { cfi: 'epubcfi(/visible-end)', index: 1, href: excerptSection.href },
+  };
+  adjacentChapter.listeners.touchstart(touchEvent(500, 'start'));
+  adjacentChapter.setSelectionRange(5, 95, true);
+  adjacentChapter.listeners.selectionchange();
+  if (adjacentChapter.appliedSelections.at(-1)?.anchorOffset !== 80
+    || adjacentChapter.appliedSelections.at(-1)?.focusOffset !== 5) {
+    throw new Error('A backward selection used a start boundary from a different spine document.');
+  }
+  managerContainer.scrollLeft = 1260;
+  adjacentChapter.listeners.selectionchange();
+  adjacentChapter.listeners.touchstart(touchEvent(500, 'start'));
+  adjacentChapter.listeners.touchend(touchEvent(500, 'end'));
+  managerContainer.scrollLeft = 1800;
+  managerContainer.dispatchScroll();
+  await wait(400);
+  if (managerContainer.scrollLeft !== 1800) {
+    throw new Error('A pending selection restoration moved the viewport after selection was dismissed.');
+  }
+  managerContainer.scrollLeft = 600;
   activeReaderDocuments.splice(0, activeReaderDocuments.length, chapter.document);
   currentRenditionLocation = locationBeforeSelectionBoundsTest;
+  relocatedHandler(locationBeforeSelectionBoundsTest);
 
   await wait(720);
   const resizeCallsBeforeSelection = resizeCalls.length;
@@ -1148,6 +1325,39 @@ async function main() {
   }));
   if (!unavailableStatus) {
     throw new Error('VIEW_STATUS did not accept the non-fatal pagination fallback state.');
+  }
+
+  await wait(120);
+  chapter.setSelectedText('selection from the previous page');
+  chapter.listeners.selectionchange();
+  const selectionClearCountBeforeNavigation = chapter.selectionClearCount;
+  const nextTurnsBeforeSelectionNavigation = turns.next;
+  runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
+    version: bridge.EPUB_BRIDGE_VERSION,
+    id: 'test-navigation-clears-selection',
+    type: 'NEXT',
+    payload: {},
+  }));
+  currentRenditionLocation = {
+    start: {
+      cfi: 'epubcfi(/after-selection-navigation)',
+      displayed: { page: 58, total: 182 },
+      href: progressionSection.href,
+      index: 0,
+    },
+    end: {
+      cfi: 'epubcfi(/after-selection-navigation-end)',
+      displayed: { page: 58, total: 182 },
+      href: progressionSection.href,
+      index: 0,
+    },
+  };
+  relocatedHandler(currentRenditionLocation);
+  if (
+    turns.next !== nextTurnsBeforeSelectionNavigation + 1
+    || chapter.selectionClearCount !== selectionClearCountBeforeNavigation + 1
+  ) {
+    throw new Error('A paginated navigation left the previous page text selected.');
   }
 
   console.log('EPUB runtime selection, stable pagination, in-place rotation, first-frame spreads, typography, and navigation are valid.');

@@ -72,6 +72,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
         var lastAppliedDoubleColumn = false;
         var lastAppliedViewportWidth = Number(window.innerWidth) || 0;
         var readerSelectionActive = false;
+        var readerSelectionSessionActive = false;
         var viewportUpdateFrame = null;
         var viewportResizePending = false;
         var viewportResizeAnchor = null;
@@ -883,7 +884,16 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
 
         function visibleBoundaryRange(content, point, doc) {
           if (!content || !point || !point.cfi || typeof content.range !== 'function') return null;
-          var contentHref = normalizedHref(content.section && content.section.href);
+          // Contents.range resolves the DOM part of a CFI even when its spine differs.
+          // A spread can contain front matter and the beginning of the next section.
+          if (typeof content.sectionIndex === 'number' && typeof point.index === 'number'
+            && content.sectionIndex !== point.index) return null;
+          var section = content.section;
+          if (!section && typeof content.sectionIndex === 'number'
+            && book && book.spine && typeof book.spine.get === 'function') {
+            section = book.spine.get(content.sectionIndex);
+          }
+          var contentHref = normalizedHref(section && section.href);
           var pointHref = normalizedHref(point.href);
           if (contentHref && pointHref && contentHref !== pointHref) return null;
           try {
@@ -897,18 +907,48 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           }
         }
 
-        function visibleSelectionLocation() {
+        function currentVisibleSelectionLocation() {
+          var current = null;
+          try {
+            if (rendition && typeof rendition.currentLocation === 'function') {
+              current = rendition.currentLocation();
+            }
+          } catch (_) {}
+          if (current && current.start && current.end) return current;
           if (lastViewLocation && lastViewLocation.start && lastViewLocation.end) {
             return lastViewLocation;
           }
-          return rendition && typeof rendition.currentLocation === 'function'
-            ? rendition.currentLocation()
-            : null;
+          return null;
         }
 
-        function reportSelectionBoundsStatus(phase, result, viewportRestored) {
+        function selectionLocationSnapshot(location) {
+          if (!location || !location.start || !location.end) return null;
+          function snapshotPoint(point) {
+            if (!point || !point.cfi) return null;
+            return {
+              cfi: point.cfi,
+              index: point.index,
+              displayed: point.displayed
+                ? { page: point.displayed.page, total: point.displayed.total }
+                : null,
+              href: point.href
+            };
+          }
+          var start = snapshotPoint(location.start);
+          var end = snapshotPoint(location.end);
+          return start && end ? { start: start, end: end } : null;
+        }
+
+        function visibleSelectionLocation(doc) {
+          if (readerLayout.displayMode === 'paginated'
+            && doc
+            && doc.__krumerSelectionLocation) return doc.__krumerSelectionLocation;
+          return currentVisibleSelectionLocation();
+        }
+
+        function reportSelectionBoundsStatus(phase, result, viewportRestored, doc) {
           if (readerLayout.displayMode !== 'paginated' || selectionBoundsStatusCount >= 12) return;
-          var location = visibleSelectionLocation();
+          var location = visibleSelectionLocation(doc);
           var startPage = location && location.start && location.start.displayed
             ? Number(location.start.displayed.page) || null
             : null;
@@ -936,7 +976,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             || !rendition
             || typeof rendition.currentLocation !== 'function') return 'unavailable';
 
-          var location = visibleSelectionLocation();
+          var location = visibleSelectionLocation(doc);
           if (!location || !location.start || !location.end) return 'unavailable';
           var content = readerContentForDocument(doc);
           if (!content) return 'unavailable';
@@ -1029,8 +1069,12 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           return targets;
         }
 
-        function capturePaginatedSelectionViewport(doc) {
+        function capturePaginatedSelectionViewport(doc, preserveLocation) {
           if (!doc || readerLayout.displayMode !== 'paginated') return;
+          removePaginatedSelectionScrollGuard(doc);
+          if (!preserveLocation || !doc.__krumerSelectionLocation) {
+            doc.__krumerSelectionLocation = selectionLocationSnapshot(currentVisibleSelectionLocation());
+          }
           if (doc.__krumerSelectionViewportReleaseTimer) {
             clearTimeout(doc.__krumerSelectionViewportReleaseTimer);
             doc.__krumerSelectionViewportReleaseTimer = null;
@@ -1048,6 +1092,45 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
                 : Number(target.scrollTop) || 0
             };
           });
+          bindPaginatedSelectionScrollGuard(doc);
+        }
+
+        function removePaginatedSelectionScrollGuard(doc) {
+          var guard = doc && doc.__krumerSelectionScrollGuard;
+          if (!guard) return;
+          for (var index = 0; index < guard.targets.length; index += 1) {
+            guard.targets[index].removeEventListener('scroll', guard.onScroll, true);
+          }
+          doc.__krumerSelectionScrollGuard = null;
+        }
+
+        function bindPaginatedSelectionScrollGuard(doc) {
+          var snapshot = doc && doc.__krumerSelectionViewport;
+          if (!snapshot || !snapshot.length) return;
+          var guard = {
+            targets: snapshot.map(function (entry) { return entry.target; }).filter(function (target) {
+              return target && typeof target.addEventListener === 'function'
+                && typeof target.removeEventListener === 'function';
+            }),
+            restoring: false,
+            onScroll: function () {
+              if (guard.restoring
+                || doc.__krumerSelectionViewport !== snapshot
+                || !hasActiveTextSelection(doc)) return;
+              guard.restoring = true;
+              try {
+                restorePaginatedSelectionViewport(doc);
+              } finally {
+                guard.restoring = false;
+              }
+            }
+          };
+          doc.__krumerSelectionScrollGuard = guard;
+          // Handle native selection scrolling before normal scroll listeners
+          // can treat a partial column offset as a new location.
+          for (var index = 0; index < guard.targets.length; index += 1) {
+            guard.targets[index].addEventListener('scroll', guard.onScroll, { capture: true, passive: true });
+          }
         }
 
         function restorePaginatedSelectionViewport(doc) {
@@ -1067,6 +1150,13 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
                 }
                 continue;
               }
+              var manager = rendition && rendition.manager;
+              if (manager && entry.target === manager.container && typeof manager.scrollTo === 'function'
+                && (Number(entry.target.scrollLeft) !== entry.left || Number(entry.target.scrollTop) !== entry.top)) {
+                manager.scrollTo(entry.left, entry.top, true);
+                changed = true;
+                continue;
+              }
               if (Number(entry.target.scrollLeft) !== entry.left) {
                 entry.target.scrollLeft = entry.left;
                 changed = true;
@@ -1079,10 +1169,12 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             return changed;
           }
           var restored = apply();
+          if (!restored) return false;
           if (doc.__krumerSelectionRestoreTimer) clearTimeout(doc.__krumerSelectionRestoreTimer);
           doc.__krumerSelectionRestoreTimer = setTimeout(function () {
             doc.__krumerSelectionRestoreTimer = null;
-            apply();
+            if (readerLayout.displayMode === 'paginated'
+              && doc.__krumerSelectionViewport === snapshot && hasActiveTextSelection(doc)) apply();
           }, 0);
           return restored;
         }
@@ -1094,16 +1186,23 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           }
           doc.__krumerSelectionViewportReleaseTimer = setTimeout(function () {
             doc.__krumerSelectionViewportReleaseTimer = null;
-            if (!hasActiveTextSelection(doc)) doc.__krumerSelectionViewport = null;
+            if (!hasActiveTextSelection(doc)) {
+              removePaginatedSelectionScrollGuard(doc);
+              doc.__krumerSelectionViewport = null;
+              doc.__krumerSelectionLocation = null;
+            }
           }, 900);
         }
 
         function stabilizePaginatedSelectionViewport(doc) {
-          if (readerLayout.displayMode !== 'paginated') return false;
-          var restored = restorePaginatedSelectionViewport(doc);
+          if (readerLayout.displayMode !== 'paginated' || !hasActiveTextSelection(doc)) return false;
+          if (doc.__krumerSelectionViewport && doc.__krumerSelectionViewport.length) {
+            return restorePaginatedSelectionViewport(doc);
+          }
           var anchor = readingAnchorLocator || currentLocator;
           var reanchored = anchor ? moveToLocatorInPlace(rendition, anchor) : false;
-          return restored || reanchored;
+          if (reanchored) capturePaginatedSelectionViewport(doc, true);
+          return reanchored;
         }
 
         function cancelPaginatedSelectionViewportHold(doc) {
@@ -1125,14 +1224,43 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           });
         }
 
-        function clearActiveTextSelection(doc) {
-          var selection = activeTextSelection(doc);
-          if (!selection) return false;
-          if (typeof selection.removeAllRanges === 'function') selection.removeAllRanges();
-          else if (typeof selection.empty === 'function') selection.empty();
+        function clearReaderTextSelection() {
+          var hadSelection = readerSelectionSessionActive || hasReaderTextSelection();
+          var contents = rendition && typeof rendition.getContents === 'function' ? rendition.getContents() || [] : [];
+          var documents = [document].concat(contents.map(function (content) { return content && content.document; }));
+          for (var index = 0; index < documents.length; index += 1) {
+            var doc = documents[index];
+            if (!doc) continue;
+            // Also clear a collapsed range: Android can collapse it before touchend
+            // while its native selection menu is still waiting for the dismissal tap.
+            var selection = doc.defaultView && typeof doc.defaultView.getSelection === 'function'
+              ? doc.defaultView.getSelection() : null;
+            if (selection && selection.rangeCount > 0) {
+              if (typeof selection.removeAllRanges === 'function') selection.removeAllRanges();
+              else if (typeof selection.empty === 'function') selection.empty();
+            }
+            cancelPaginatedSelectionViewportHold(doc);
+            removePaginatedSelectionScrollGuard(doc);
+            if (doc.__krumerSelectionRestoreTimer) {
+              clearTimeout(doc.__krumerSelectionRestoreTimer);
+              doc.__krumerSelectionRestoreTimer = null;
+            }
+            if (doc.__krumerSelectionViewportReleaseTimer) {
+              clearTimeout(doc.__krumerSelectionViewportReleaseTimer);
+              doc.__krumerSelectionViewportReleaseTimer = null;
+            }
+            doc.__krumerSelectionViewport = null;
+            doc.__krumerSelectionLocation = null;
+          }
+          readerSelectionSessionActive = false;
           readerSelectionActive = hasReaderTextSelection();
           flushDeferredViewportLayout();
-          return true;
+          return hadSelection;
+        }
+
+        function clearPaginatedTextSelectionsAfterNavigation(locator) {
+          if (viewportResizePending) viewportResizeAnchor = locator || readingAnchorLocator || currentLocator;
+          clearReaderTextSelection();
         }
 
         function scheduleViewportLayout(anchor) {
@@ -1230,7 +1358,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
 
         function bindReaderDocument(doc) {
           if (!doc) return;
-          styleReaderDocument(doc);
+          if (doc !== document) styleReaderDocument(doc);
           if (doc.__krumerF1Bound) return;
           doc.__krumerF1Bound = true;
 
@@ -1238,16 +1366,23 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           var touchStartY = 0;
           var touchStartAt = 0;
           var selectionActiveAtTouchStart = false;
+          var selectionChangedDuringTouch = false;
+          var touchInProgress = false;
           var selectionGestureUntil = 0;
 
           doc.addEventListener('selectionchange', function () {
             var selection = activeTextSelection(doc);
+            if (selection) {
+              if (!readerSelectionSessionActive) clearUserRelocationExpectation();
+              readerSelectionSessionActive = true;
+              if (touchInProgress) selectionChangedDuringTouch = true;
+            }
             var constraintResult = constrainSelectionToVisiblePage(doc, selection);
-            var viewportRestored = stabilizePaginatedSelectionViewport(doc);
-            if (selection) reportSelectionBoundsStatus('selectionchange', constraintResult, viewportRestored);
+            var viewportRestored = selection ? stabilizePaginatedSelectionViewport(doc) : false;
+            if (selection) reportSelectionBoundsStatus('selectionchange', constraintResult, viewportRestored, doc);
             var activeSelection = hasReaderTextSelection();
             readerSelectionActive = activeSelection;
-            if (activeSelection) {
+            if (hasActiveTextSelection(doc)) {
               if (doc.__krumerSelectionViewportReleaseTimer) {
                 clearTimeout(doc.__krumerSelectionViewportReleaseTimer);
                 doc.__krumerSelectionViewportReleaseTimer = null;
@@ -1263,8 +1398,12 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
 
           doc.addEventListener('touchstart', function (event) {
             if (!event.touches || !event.touches[0]) return;
-            selectionActiveAtTouchStart = hasActiveTextSelection(doc);
-            if (!selectionActiveAtTouchStart) capturePaginatedSelectionViewport(doc);
+            touchInProgress = true;
+            selectionChangedDuringTouch = false;
+            // A fresh touch is distinct from the synthetic click after long-press.
+            selectionGestureUntil = 0;
+            selectionActiveAtTouchStart = readerSelectionSessionActive || hasReaderTextSelection();
+            if (doc !== document && !hasActiveTextSelection(doc)) capturePaginatedSelectionViewport(doc);
             touchStartX = pointX(event.touches[0]);
             touchStartY = pointY(event.touches[0]);
             touchStartAt = Date.now();
@@ -1282,21 +1421,34 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             var moved = Math.abs(deltaX) > 12 || Math.abs(deltaY) > 12;
             var longTouch = elapsed > 500;
             var activeSelection = hasActiveTextSelection(doc);
+            var selectionChanged = selectionChangedDuringTouch;
+            touchInProgress = false;
+            selectionChangedDuringTouch = false;
             if (activeSelection) readerSelectionActive = true;
-            var selectionGesture = activeSelection
-              && (!selectionActiveAtTouchStart || moved || longTouch);
+            var selectionGesture = longTouch
+              || (moved && (selectionActiveAtTouchStart || selectionChanged || activeSelection))
+              || (activeSelection && !selectionActiveAtTouchStart);
+            if (!activeSelection) doc.__krumerSelectionLocation = null;
 
-            if (selectionGesture || longTouch) {
+            if (selectionActiveAtTouchStart && !moved && !longTouch) {
+              clearReaderTextSelection();
               selectionGestureUntil = now + 700;
-              event.preventDefault();
+              // Keep the native tap so Android can close its ActionMode as well.
               event.stopImmediatePropagation();
               return;
             }
 
+            if (selectionGesture || longTouch) {
+              selectionGestureUntil = now + 700;
+              event.stopImmediatePropagation();
+              return;
+            }
+
+            if (doc === document) return;
+
             if (readerLayout.displayMode === 'scroll') {
               if (anchor || Math.abs(deltaX) > 12 || Math.abs(deltaY) > 12 || elapsed > 500) return;
-              if (clearActiveTextSelection(doc)) {
-                event.preventDefault();
+              if (clearReaderTextSelection()) {
                 event.stopImmediatePropagation();
                 return;
               }
@@ -1317,8 +1469,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             }
 
             if (anchor || Math.abs(deltaX) > 12 || Math.abs(deltaY) > 12 || elapsed > 500) return;
-            if (clearActiveTextSelection(doc)) {
-              event.preventDefault();
+            if (clearReaderTextSelection()) {
               event.stopImmediatePropagation();
               return;
             }
@@ -1338,17 +1489,25 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             }
           }, { capture: true, passive: false });
 
+          doc.addEventListener('touchcancel', function () {
+            touchInProgress = false;
+            selectionActiveAtTouchStart = false;
+            selectionChangedDuringTouch = false;
+            if (!hasActiveTextSelection(doc)) doc.__krumerSelectionLocation = null;
+          }, { capture: true, passive: true });
+
           doc.addEventListener('click', function (event) {
             if (selectionGestureUntil > Date.now()) {
               event.preventDefault();
               event.stopImmediatePropagation();
               return;
             }
-            if (clearActiveTextSelection(doc)) {
-              event.preventDefault();
+            if (clearReaderTextSelection()) {
+              if (findAnchor(event.target)) event.preventDefault();
               event.stopImmediatePropagation();
               return;
             }
+            if (doc === document) return;
             var anchor = findAnchor(event.target);
             var url = externalUrl(anchor);
             if (url) {
@@ -1557,6 +1716,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           paginationState = 'loading';
           activeRelocationSource = 'user';
           readerSelectionActive = false;
+          readerSelectionSessionActive = false;
           selectionBoundsStatusCount = 0;
           lastSelectionBoundsStatus = '';
           if (viewportUpdateFrame !== null) {
@@ -1588,6 +1748,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           var oldRendition = rendition;
           rendition = null;
           readerSelectionActive = false;
+          readerSelectionSessionActive = false;
           viewportResizePending = false;
           viewportResizeAnchor = null;
           try {
@@ -1627,7 +1788,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             var constraintResult = constrainSelectionToVisiblePage(doc, selection);
             var viewportRestored = stabilizePaginatedSelectionViewport(doc);
             holdPaginatedSelectionViewport(doc);
-            reportSelectionBoundsStatus('selected', constraintResult, viewportRestored);
+            reportSelectionBoundsStatus('selected', constraintResult, viewportRestored, doc);
           });
           nextRendition.on('relocated', function (location) {
             if (activeBook !== book || nextRendition !== rendition) return;
@@ -1644,9 +1805,13 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
               if (acceptsUserRelocation) {
                 readingAnchorLocator = nextLocator;
                 clearUserRelocationExpectation();
+                if (viewportResizePending) viewportResizeAnchor = nextLocator;
               }
               post('RELOCATE', { locator: emittedLocator, source: relocationSource });
               postViewStatus(location, emittedLocator);
+              if (acceptsUserRelocation && readerLayout.displayMode === 'paginated') {
+                clearPaginatedTextSelectionsAfterNavigation(nextLocator);
+              }
             }
           });
 
@@ -1819,6 +1984,8 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
         }
 
         window.KrumerEpubBridge = { receive: receive };
+        // Taps in the margins belong to the outer document, outside every XHTML iframe.
+        bindReaderDocument(document);
         window.addEventListener('resize', function () {
           var anchor = readingAnchorLocator || currentLocator;
           var currentWidth = Number(window.innerWidth) || 0;

@@ -28,8 +28,10 @@ seleção estabilizada após 250 ms, a contenção é reaplicada em `rendition.o
 não ser sobrescrita pelo `ActionMode` nativo. A posição dos contêineres roláveis é capturada no
 primeiro toque da seleção e preservada enquanto as alças estiverem ativas. A restauração cobre
 o container do manager, os scrollers do XHTML e as janelas interna/externa. Como fallback
-independente do snapshot, `moveToLocatorInPlace()` realinha o manager ao locator de leitura em
-cada atualização e ao limpar a seleção. Isso impede o viewport intermediário entre colunas.
+independente do snapshot, `moveToLocatorInPlace()` realinha o manager ao locator de leitura
+somente quando o snapshot não existe, capturando em seguida a posição recuperada. Com snapshot,
+a restauração só escreve no scroll quando há deslocamento real. Isso impede que a posição
+capturada e o locator disputem o viewport a cada atualização da seleção.
 A direção das alças e o menu nativo são preservados. Em modo scroll, tanto a contenção quanto
 a restauração horizontal permanecem desativadas.
 
@@ -49,6 +51,31 @@ A implementação não altera `AppContext`, persistência, source da WebView nem
 `EpubReader` apenas registra a telemetria limitada do clamp em desenvolvimento.
 
 ## Resumo executivo
+
+### Revisão de 27/09/2026 — apresentação, menu nativo e seleção longa
+
+O relato em Android distingue duas situações: destaque/alças e menu inconsistentes na
+apresentação; oscilações da página ao ampliar a seleção. A inspeção do runtime e do epub.js
+vendorizado identificou os seguintes caminhos, agora cobertos pelo validador:
+
+| Sintoma | Mecanismo encontrado | Correção |
+|---|---|---|
+| Seleção alterada na apresentação ou na transição de seção | `Contents` possui `sectionIndex`, mas a guarda consultava `contents.section.href`. `Contents.range(cfi)` resolve o trecho DOM mesmo se o CFI pertence a outra seção. | Preservar o índice nos limites capturados e verificar índice/href antes de resolver cada limite. Um spread com duas seções aplica a cada documento apenas seus próprios limites. |
+| Página oscilando durante seleção longa | Cada `selectionchange`, evento `selected` e timer restaurava o snapshot e em seguida movia novamente o manager pelo locator, que pode indicar outro offset. | Usar o snapshot como única posição durante o gesto; fazer scroll silencioso somente se houver desvio. O fallback por locator continua disponível sem snapshot. |
+| Menu não dispensado por um toque | A limpeza consultava apenas o documento tocado, ignorava ranges já colapsados e cancelava a ação padrão do toque. As margens pertencem ao documento externo. | Manter a sessão de seleção até a dispensa, limpar ranges de todos os documentos e tratar o toque nas margens. Permitir a ação nativa de fim do toque, sem executar a navegação do leitor. |
+| Salto tardio após dispensar | Um timer de restauração podia executar depois da limpeza. | Cancelar os timers na dispensa e verificar se o snapshot ainda é o mesmo antes de qualquer restauração pendente. |
+
+Os testes simulam limites de seções diferentes, eventos de seleção repetidos com snapshot e
+locator divergentes, auto-scroll, dispensa em outro iframe/nas margens e colapso nativo antes
+de `touchend`. Também verificam ausência de escritas de scroll quando a página já está parada.
+O teste `node scripts/validate-epub-selection-browser.cjs` (executado em `mobile/`, com o
+Playwright já declarado na raiz e Chromium instalado) usa o epub.js vendorizado e um EPUB
+sintético com texto em vários nós. Foram verificadas onze páginas consecutivas, incluindo
+apresentação e capítulo, sem reposicionamento/resize durante a seleção, além da seleção livre
+e da dispensa no modo scroll. O teste salva uma captura da apresentação no diretório temporário.
+O ADB foi localizado no SDK local, mas não havia aparelho/emulador conectado para confirmar
+visualmente o ActionMode Android. O reteste manual deve incluir apresentação e capítulos,
+seleção de palavra/trecho longo, copiar/selecionar tudo, toque para dispensar e ambos os modos.
 
 O primeiro diagnóstico encontrou um risco real no runtime: seleção nativa podia produzir um
 `window.resize`, executar `rendition.resize()` e deslocar a location do epub.js. A proteção de
@@ -185,7 +212,7 @@ que ambas ocorrem imediatamente após `updateBookProgress()`.
 | Scroll | **Afetado pela causa primária; cobertura automática do resize** | A recriação do `EpubReader` é comum aos dois modos. O teste de runtime também garante resize diferido e locator preservado no manager contínuo. |
 | PDF | **Fora do escopo/não afetado por este mecanismo** | Usa PDF.js/foliate-js em uma WebView separada do runtime EPUB. |
 
-Não há ADB/emulador disponível neste ambiente para fechar a matriz manual por modo. Portanto,
+Não há aparelho/emulador conectado via ADB neste ambiente para fechar a matriz manual por modo. Portanto,
 os modos paginado e scroll têm cobertura automatizada; ambos devem permanecer na matriz de
 validação Android antes de considerar a correção concluída em dispositivo real.
 
@@ -336,3 +363,19 @@ dependente apenas do idioma. A validação de preferências passou a falhar caso
 a ser criada inline. `node scripts/validate-reading-preferences.cjs` e
 `node node_modules/typescript/bin/tsc --noEmit` passaram após essa alteração. Falta repetir a
 matriz manual Android para confirmar que há um único carregamento do runtime por sessão.
+
+## Evidência do vídeo de 27/09/2026
+
+Na gravação Android `XRecorder_20260927_01.mp4`, a seleção longa da página 5/110
+desloca o viewport lateralmente por um quadro em torno de 00:04, expondo parte da
+página anterior, e depois volta ao lugar. O mesmo ocorre na página 7/110 por volta
+de 00:29. O número da página permanece 5/110 ou 7/110 durante o deslocamento.
+O destaque azul e o menu nativo de copiar/selecionar tudo aparecem tanto na
+apresentação quanto no capítulo; o vídeo não demonstra que o menu fica preso após
+um toque isolado.
+
+O runtime agora observa a rolagem dos contêineres paginados enquanto há seleção
+ativa e restaura o offset capturado antes que epub.js interprete um deslocamento
+parcial de coluna como nova posição. O listener é removido ao limpar a seleção.
+O validador de navegador simula esse deslocamento e exige restauração imediata;
+a confirmação de ausência de oscilação visual ainda depende de novo teste Android.
