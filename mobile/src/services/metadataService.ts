@@ -87,7 +87,7 @@ export function isMetadataComplete(book: Pick<Book, 'author' | 'year' | 'descrip
 }
 
 export function isCandidateComplete(candidate: MetadataCandidate | null): boolean {
-  return Boolean(candidate && candidate.nome_da_obra?.trim() && candidate.autor?.trim() && extractYear(candidate.data_de_lancamento) && candidate.sinopse?.trim());
+  return Boolean(candidate?.autor?.trim() && candidate.sinopse?.trim());
 }
 
 export function getMetadataQuery(book: MetadataBookInput): string {
@@ -352,23 +352,44 @@ async function readCacheEntry(key: string): Promise<MetadataCacheEntry | null> {
     const raw = await AsyncStorage.getItem(CACHE_KEY);
     if (!raw) return null;
     const cache = JSON.parse(raw) as Record<string, MetadataCacheEntry>;
+    if (removeIncompleteCacheEntries(cache)) {
+      try {
+        await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+      } catch (error) {
+        console.warn('[Krumer] Metadata cache cleanup failed:', error);
+      }
+    }
     const entry = cache[key];
-    return entry?.candidate ? entry : null;
+    return entry && isCandidateComplete(entry.candidate) ? entry : null;
   } catch {
     return null;
   }
 }
 
 async function writeCacheEntry(key: string, entry: MetadataCacheEntry): Promise<void> {
+  if (!isCandidateComplete(entry.candidate)) return;
+
   try {
     const raw = await AsyncStorage.getItem(CACHE_KEY);
     const cache = raw ? JSON.parse(raw) as Record<string, MetadataCacheEntry> : {};
+    removeIncompleteCacheEntries(cache);
     cache[key] = entry;
     await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(cache));
   } catch (error) {
     // Cache failure must never prevent the user from applying a valid result.
     console.warn('[Krumer] Metadata cache write failed:', error);
   }
+}
+
+function removeIncompleteCacheEntries(cache: Record<string, MetadataCacheEntry>): boolean {
+  let removed = false;
+  for (const [key, entry] of Object.entries(cache)) {
+    if (!isCandidateComplete(entry?.candidate ?? null)) {
+      delete cache[key];
+      removed = true;
+    }
+  }
+  return removed;
 }
 
 function asMetadataError(error: unknown, language?: string): MetadataServiceError {
