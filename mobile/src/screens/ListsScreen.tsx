@@ -18,6 +18,7 @@ import { useApp } from '../context/AppContext';
 import type { Book } from '../models/item';
 import type { MainTabParamList, RootStackParamList } from '../navigation/types';
 import { CONTENT_MAX_WIDTH, getListGridColumns, serifFont, spacing } from '../theme';
+import { getReadBooksToDisplay } from '../utils/readBooks';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Lists'>,
@@ -75,7 +76,7 @@ export function ListsScreen({ navigation }: Props) {
       {
         key: 'read',
         title: t('lists.read'),
-        books: books.filter((book) => (book.progressPct ?? 0) >= 100 || book.isRead),
+        books: getReadBooksToDisplay(books),
         isFixed: true,
       },
       {

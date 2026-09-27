@@ -29,6 +29,7 @@ import type { Book } from '../models/item';
 import type { RootStackParamList } from '../navigation/types';
 import { fuzzyMatch } from '../services/fuzzySearch';
 import { CONTENT_MAX_WIDTH, getBookGridLayout, radii, serifFont, spacing } from '../theme';
+import { getReadBooksToDisplay } from '../utils/readBooks';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ListDetail'>;
 
@@ -537,33 +538,3 @@ export function ListDetailScreen({ navigation, route }: Props) {
   );
 }
 
-export function getReadBooksToDisplay(books: Book[]): Book[] {
-  const result: Book[] = [];
-
-  for (const book of books) {
-    if (!book.children?.length) {
-      if (isBookRead(book)) result.push(book);
-      continue;
-    }
-
-    const readChildren = book.children.filter(isBookRead);
-
-    if (readChildren.length === book.children.length) {
-      result.push(book);
-      continue;
-    }
-
-    result.push(
-      ...readChildren.map((child) => {
-        if (child.coverPath || !book.coverPath) return child;
-        return { ...child, coverPath: book.coverPath };
-      }),
-    );
-  }
-
-  return result;
-}
-
-function isBookRead(book: Book): boolean {
-  return Boolean(book.isRead || (book.progressPct ?? 0) >= 100);
-}

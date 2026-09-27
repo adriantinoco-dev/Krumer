@@ -637,7 +637,6 @@ export function BookDetailScreen({ navigation, route }: Props) {
                     gap: spacing.xs,
                   }}
                 >
-                  <Check color={accentColor} size={20} strokeWidth={2.5} />
                   <Text style={{ color: accentColor, fontFamily: serifFont, fontSize: 15, fontWeight: 'bold' }}>
                     {t('details.markAsRead')}
                   </Text>
@@ -661,7 +660,6 @@ export function BookDetailScreen({ navigation, route }: Props) {
                     gap: spacing.xs,
                   }}
                 >
-                  <Check color={theme.textPrimary} size={20} strokeWidth={2.5} />
                   <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 15, fontWeight: 'bold' }}>
                     {t('details.markAsUnread')}
                   </Text>

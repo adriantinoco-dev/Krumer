@@ -1551,17 +1551,9 @@ class LibraryManager {
       </div>
       <div class="ctx-menu-divider"></div>
       <button class="ctx-menu-item" id="ctx-mark-read">
-        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
         <span class="ctx-label">${I18N.t('details.mark_read')}</span>
       </button>
       <button class="ctx-menu-item ctx-menu-item--muted" id="ctx-mark-unread">
-        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
         <span class="ctx-label">${I18N.t('details.mark_unread')}</span>
       </button>
       <button class="ctx-menu-item ctx-menu-item--fav" id="ctx-fav">
@@ -1737,15 +1729,9 @@ class LibraryManager {
       </div>
       <div class="ctx-menu-divider"></div>
       <button class="ctx-menu-item" id="chapter-ctx-mark-read">
-        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
         <span class="ctx-label">${I18N.t('details.mark_read')}</span>
       </button>
       <button class="ctx-menu-item ctx-menu-item--muted" id="chapter-ctx-mark-unread">
-        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
         <span class="ctx-label">${I18N.t('details.mark_unread')}</span>
       </button>
     `;
