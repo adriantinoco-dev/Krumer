@@ -7,7 +7,8 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { WebView } from 'react-native-webview';
 import type { WebView as WebViewType } from 'react-native-webview';
 import { useApp } from '../context/AppContext';
@@ -28,6 +29,7 @@ import { EpubFileError, prepareEpubFile, type PreparedEpub } from './epubFile';
 import { loadEpubFontFaces } from './readerFonts';
 import { EPUB_RUNTIME_HANDSHAKE_SCRIPT, EPUB_RUNTIME_HTML } from './epubRuntime';
 import { subscribeToEpubVolumeKeys } from './epubVolumeKeys';
+import { listReaderEpubHighlights, saveReaderEpubHighlight } from '../storage/readerDatabase';
 
 const RUNTIME_ORIGIN = 'https://krumer.local/';
 const RUNTIME_READY_TIMEOUT_MS = 12_000;
@@ -45,6 +47,7 @@ export type EpubReaderHandle = {
 };
 
 type EpubReaderProps = {
+  barsVisible?: boolean;
   bookId: string;
   filePath: string;
   fileSize?: number;
@@ -64,6 +67,7 @@ type EpubReaderProps = {
 
 export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function EpubReader(
   {
+    barsVisible = false,
     bookId,
     filePath,
     fileSize,
@@ -83,6 +87,8 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   forwardedRef,
 ) {
   const { preferences, theme, t } = useApp();
+  const currentBookIdRef = useRef(bookId);
+  currentBookIdRef.current = bookId;
   const webviewRef = useRef<WebViewType>(null);
   const runtimeReadyRef = useRef(false);
   const bookOpenedRef = useRef(false);
@@ -109,11 +115,21 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   const [loading, setLoading] = useState(true);
   const [loadProgress, setLoadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [selection, setSelection] = useState<{ text: string; cfiRange: string | null; gestureId: number } | null>(null);
+  const lastAutomaticGestureRef = useRef(-1);
+  const highlightQueueRef = useRef<Promise<void>>(Promise.resolve());
   const source = useMemo(() => ({ html: EPUB_RUNTIME_HTML, baseUrl: RUNTIME_ORIGIN }), []);
   const appearance = useMemo<EpubAppearance>(() => {
+    const appearancePreferences = {
+      displayMode: readingPreferences.displayMode,
+      doubleColumn: readingPreferences.doubleColumn,
+      orientation: readingPreferences.orientation,
+      fontFamily: readingPreferences.fontFamily,
+      fontWeight: readingPreferences.fontWeight,
+    };
     if (theme.name === 'dark') {
       return {
-        ...readingPreferences,
+        ...appearancePreferences,
         fontSize,
         lineHeight,
         marginHorizontal,
@@ -123,7 +139,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     }
     if (theme.name === 'sepia') {
       return {
-        ...readingPreferences,
+        ...appearancePreferences,
         fontSize,
         lineHeight,
         marginHorizontal,
@@ -132,14 +148,16 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       };
     }
     return {
-      ...readingPreferences,
+      ...appearancePreferences,
       fontSize,
       lineHeight,
       marginHorizontal,
       useBookMargins,
       visualTheme: { backgroundColor: '#ffffff', linkColor: '#c2570a', textColor: '#222222' },
     };
-  }, [fontSize, lineHeight, marginHorizontal, readingPreferences, theme.name, useBookMargins]);
+  }, [fontSize, lineHeight, marginHorizontal, readingPreferences.displayMode,
+    readingPreferences.doubleColumn, readingPreferences.orientation,
+    readingPreferences.fontFamily, readingPreferences.fontWeight, theme.name, useBookMargins]);
   const appearanceRef = useRef(appearance);
   appearanceRef.current = appearance;
   const visualTheme = appearance.visualTheme;
@@ -165,6 +183,37 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     }
     pendingCommandsRef.current.push(command);
   }, [injectCommand, t]);
+
+  const refreshHighlights = useCallback(async () => {
+    const highlights = await listReaderEpubHighlights(bookId);
+    if (!bookOpenedRef.current || currentBookIdRef.current !== bookId) return;
+    sendCommand(createEpubBridgeCommand('SET_HIGHLIGHTS', {
+      highlights: highlights.map(({ cfiRange, color }) => ({ cfiRange, color })),
+    }));
+  }, [bookId, sendCommand]);
+
+  const performSelectionAction = useCallback(async (
+    action: 'copy' | 'highlight',
+    value: { text: string; cfiRange: string | null },
+  ) => {
+    try {
+      if (action === 'copy') {
+        await Clipboard.setStringAsync(value.text);
+      } else if (value.cfiRange) {
+        const cfiRange = value.cfiRange;
+        const queued = highlightQueueRef.current.then(async () => {
+          await saveReaderEpubHighlight(bookId, cfiRange, value.text, 'yellow');
+          if (bookOpenedRef.current && currentBookIdRef.current === bookId) {
+            sendCommand(createEpubBridgeCommand('UPSERT_HIGHLIGHT', { cfiRange, color: 'yellow' }));
+          }
+        });
+        highlightQueueRef.current = queued.catch(() => undefined);
+        await queued;
+      }
+    } catch (caught) {
+      console.warn('[Krumer EpubReader] selection action failed', caught);
+    }
+  }, [bookId, sendCommand]);
 
   const registerFontFamily = useCallback((family: ReadingPreferences['fontFamily']) => {
     if (registeredFontFamiliesRef.current.has(family)) return Promise.resolve();
@@ -262,6 +311,8 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     setLoading(true);
     setLoadProgress(0);
     setError(null);
+    setSelection(null);
+    lastAutomaticGestureRef.current = -1;
 
     prepareEpubFile(filePath, fileSize, preferences.language)
       .then((result) => {
@@ -389,6 +440,27 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       setError(null);
       setLoadProgress(1);
       setLoading(false);
+      if (!readOnly) void refreshHighlights().catch((caught) => {
+        console.warn('[Krumer EpubReader] failed to load highlights', caught);
+      });
+      return;
+    }
+
+    if (message.type === 'SELECTION_CLEARED') {
+      setSelection(null);
+      return;
+    }
+
+    if (message.type === 'SELECTION_READY') {
+      if (readOnly) return;
+      setSelection(message.payload);
+      const action = readingPreferences.selectionQuickAction;
+      if (action !== 'off'
+        && (action === 'copy' || message.payload.cfiRange)
+        && lastAutomaticGestureRef.current !== message.payload.gestureId) {
+        lastAutomaticGestureRef.current = message.payload.gestureId;
+        void performSelectionAction(action, message.payload);
+      }
       return;
     }
 
@@ -475,7 +547,9 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     if (message.payload.code === 'LOCATOR_NOT_FOUND' || message.payload.code === 'INVALID_LOCATOR') return;
     setLoading(false);
     setError(message.payload.message || t('reader.epubOpenFailed'));
-  }, [bookId, flushPendingCommands, onCenterTap, onExternalLink, onPositionStabilized, onRelocate, onViewStatus, t]);
+  }, [bookId, flushPendingCommands, onCenterTap, onExternalLink, onPositionStabilized,
+    onRelocate, onViewStatus, performSelectionAction, readOnly, readingPreferences.selectionQuickAction,
+    refreshHighlights, t]);
 
   const handleNavigationRequest = useCallback((request: { url: string }) => {
     const { url } = request;
@@ -553,6 +627,28 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
           setError(t('reader.epubWebViewUnavailable'));
         }}
       />
+      {!readOnly && !loading && selection ? (
+        <View pointerEvents="box-none" style={{ alignItems: 'center', bottom: barsVisible ? 88 : spacing.md, elevation: 2, left: 0, position: 'absolute', right: 0, zIndex: 2 }}>
+          <View style={{ backgroundColor: theme.card, borderColor: theme.border, borderRadius: radii.md, borderWidth: 1, flexDirection: 'row', overflow: 'hidden' }}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => { void performSelectionAction('copy', selection); }}
+              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm })}
+            >
+              <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 14 }}>{t('reader.selectionCopy')}</Text>
+            </Pressable>
+            <View style={{ backgroundColor: theme.border, width: 1 }} />
+            <Pressable
+              accessibilityRole="button"
+              disabled={!selection.cfiRange}
+              onPress={() => { void performSelectionAction('highlight', selection); }}
+              style={({ pressed }) => ({ opacity: !selection.cfiRange ? 0.4 : pressed ? 0.6 : 1, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm })}
+            >
+              <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 14 }}>{t('reader.selectionHighlight')}</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 });

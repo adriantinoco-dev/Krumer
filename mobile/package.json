@@ -42,6 +42,7 @@
     "expo": "57.0.15",
     "expo-asset": "~57.0.14",
     "expo-brightness": "^57.0.1",
+    "expo-clipboard": "~57.0.2",
     "expo-constants": "~57.0.17",
     "expo-dev-client": "~57.0.14",
     "expo-document-picker": "~57.0.1",

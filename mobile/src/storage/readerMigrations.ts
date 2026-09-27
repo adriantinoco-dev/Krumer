@@ -1,4 +1,4 @@
-export const READER_DATABASE_VERSION = 2;
+export const READER_DATABASE_VERSION = 3;
 
 export const READER_DATABASE_MIGRATION_V1 = `
   CREATE TABLE IF NOT EXISTS reader_progress (
@@ -93,4 +93,20 @@ export const READER_DATABASE_MIGRATION_V2 = `
     ON reader_notes (deleted_at) WHERE deleted_at IS NOT NULL;
 
   PRAGMA user_version = 2;
+`;
+
+export const READER_DATABASE_MIGRATION_V3 = `
+  CREATE TABLE IF NOT EXISTS reader_epub_highlights (
+    id TEXT PRIMARY KEY,
+    book_id TEXT NOT NULL,
+    cfi_range TEXT NOT NULL,
+    text_excerpt TEXT NOT NULL,
+    color TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE (book_id, cfi_range)
+  );
+  CREATE INDEX IF NOT EXISTS reader_epub_highlights_book
+    ON reader_epub_highlights (book_id, created_at);
+  PRAGMA user_version = 3;
 `;

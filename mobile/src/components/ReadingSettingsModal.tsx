@@ -143,6 +143,35 @@ export function ReadingSettingsModal({
               </View>
             </View>
 
+            <View style={{ gap: spacing.sm }}>
+              <SectionTitle>{t('reader.selectionQuickAction')}</SectionTitle>
+              <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+                {(['off', 'copy', 'highlight'] as const).map((selectionQuickAction) => {
+                  const key = selectionQuickAction === 'off'
+                    ? 'reader.selectionQuickActionOff'
+                    : selectionQuickAction === 'copy' ? 'reader.selectionCopy' : 'reader.selectionHighlight';
+                  const selected = readingPreferences.selectionQuickAction === selectionQuickAction;
+                  return (
+                    <Pressable
+                      key={selectionQuickAction}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      onPress={() => onUpdatePreferences({ selectionQuickAction })}
+                      style={({ pressed }) => ({
+                        alignItems: 'center', backgroundColor: selected ? theme.accent : theme.surface,
+                        borderColor: selected ? theme.accent : theme.border, borderRadius: radii.sm,
+                        borderWidth: 1, flex: 1, opacity: pressed ? 0.6 : 1, paddingVertical: spacing.sm,
+                      })}
+                    >
+                      <Text style={{ color: selected ? theme.bg : theme.textPrimary, fontFamily: serifFont, fontSize: 12 }}>
+                        {t(key)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
             <Pressable
               onPress={onReset}
               style={({ pressed }) => ({

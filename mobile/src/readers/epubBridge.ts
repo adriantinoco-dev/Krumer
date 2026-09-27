@@ -23,7 +23,7 @@ export type EpubVisualTheme = {
   textColor: string;
 };
 
-export type EpubAppearance = ReadingPreferences & {
+export type EpubAppearance = Omit<ReadingPreferences, 'selectionQuickAction'> & {
   fontSize: number;
   lineHeight: number;
   marginHorizontal: number;
@@ -74,6 +74,8 @@ export type EpubBridgeCommand =
       faces: EpubFontFace[];
     }>
   | BridgeEnvelope<'SET_APPEARANCE', { appearance: EpubAppearance }>
+  | BridgeEnvelope<'SET_HIGHLIGHTS', { highlights: { cfiRange: string; color: string }[] }>
+  | BridgeEnvelope<'UPSERT_HIGHLIGHT', { cfiRange: string; color: string }>
   | BridgeEnvelope<'GO_TO_LOCATOR', { locator: EpubLocator }>
   | BridgeEnvelope<'GET_CURRENT_LOCATOR', Record<string, never>>
   | BridgeEnvelope<'GET_TOC', Record<string, never>>
@@ -95,6 +97,8 @@ export type EpubBridgeEvent =
   | BridgeEnvelope<'TOC', { toc: EpubTocItem[]; requestId: string }>
   | BridgeEnvelope<'VIEW_STATUS', EpubViewStatus>
   | BridgeEnvelope<'SELECTION_BOUNDS_STATUS', EpubSelectionBoundsStatus>
+  | BridgeEnvelope<'SELECTION_READY', { text: string; cfiRange: string | null; gestureId: number }>
+  | BridgeEnvelope<'SELECTION_CLEARED', Record<string, never>>
   | BridgeEnvelope<'LINK_PRESSED', { url: string }>
   | BridgeEnvelope<'ERROR', { code: string; message: string; requestId?: string }>;
 
@@ -118,7 +122,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function parseEpubBridgeEvent(raw: string): EpubBridgeEvent | null {
-  if (raw.length > 4096) return null;
+  if (raw.length > 131072) return null;
 
   let value: unknown;
   try {
@@ -156,6 +160,17 @@ export function parseEpubBridgeEvent(raw: string): EpubBridgeEvent | null {
   }
 
   if (value.type === 'CENTER_TAP') return value as EpubBridgeEvent;
+  if (value.type === 'SELECTION_CLEARED') return value as EpubBridgeEvent;
+  if (value.type === 'SELECTION_READY') {
+    return typeof value.payload.text === 'string'
+      && value.payload.text.length > 0
+      && value.payload.text.length <= 100000
+      && (value.payload.cfiRange === null
+        || (typeof value.payload.cfiRange === 'string' && value.payload.cfiRange.length <= 4096))
+      && Number.isSafeInteger(value.payload.gestureId)
+      && (value.payload.gestureId as number) >= 0
+      ? value as EpubBridgeEvent : null;
+  }
 
   if (value.type === 'RELOCATE') {
     const locator = parseReaderLocator(value.payload.locator);

@@ -2,6 +2,7 @@ export type DisplayMode = 'scroll' | 'paginated';
 export type ReaderOrientation = 'free' | 'landscape' | 'portrait';
 export type ReadingFontFamily = 'serif' | 'sans' | 'mono';
 export type ReadingFontWeight = 'light' | 'regular' | 'medium' | 'bold';
+export type SelectionQuickAction = 'off' | 'copy' | 'highlight';
 
 export type ReadingPreferences = {
   displayMode: DisplayMode;
@@ -9,6 +10,7 @@ export type ReadingPreferences = {
   orientation: ReaderOrientation;
   fontFamily: ReadingFontFamily;
   fontWeight: ReadingFontWeight;
+  selectionQuickAction: SelectionQuickAction;
 };
 
 export const DEFAULT_READING_PREFERENCES: ReadingPreferences = {
@@ -17,6 +19,7 @@ export const DEFAULT_READING_PREFERENCES: ReadingPreferences = {
   orientation: 'portrait',
   fontFamily: 'serif',
   fontWeight: 'regular',
+  selectionQuickAction: 'off',
 };
 
 export function parseReadingPreferences(value: unknown): ReadingPreferences | null {
@@ -37,11 +40,16 @@ export function parseReadingPreferences(value: unknown): ReadingPreferences | nu
     && candidate.fontWeight !== 'medium'
     && candidate.fontWeight !== 'bold'
   ) return null;
+  if (candidate.selectionQuickAction !== undefined
+    && candidate.selectionQuickAction !== 'off'
+    && candidate.selectionQuickAction !== 'copy'
+    && candidate.selectionQuickAction !== 'highlight') return null;
   return {
     displayMode: candidate.displayMode,
     doubleColumn: candidate.doubleColumn,
     orientation: candidate.orientation ?? DEFAULT_READING_PREFERENCES.orientation,
     fontFamily: candidate.fontFamily,
     fontWeight: candidate.fontWeight,
+    selectionQuickAction: candidate.selectionQuickAction ?? 'off',
   };
 }

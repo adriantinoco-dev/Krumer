@@ -73,6 +73,10 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
         var lastAppliedViewportWidth = Number(window.innerWidth) || 0;
         var readerSelectionActive = false;
         var readerSelectionSessionActive = false;
+        var selectionGestureId = 0;
+        var selectionReadyTimer = null;
+        var selectionClearTimer = null;
+        var readerHighlights = [];
         var viewportUpdateFrame = null;
         var viewportResizePending = false;
         var viewportResizeAnchor = null;
@@ -855,6 +859,97 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           return selection;
         }
 
+        function cancelSelectionTimers() {
+          if (selectionReadyTimer) clearTimeout(selectionReadyTimer);
+          if (selectionClearTimer) clearTimeout(selectionClearTimer);
+          selectionReadyTimer = null;
+          selectionClearTimer = null;
+        }
+
+        function publishSelection(doc) {
+          selectionReadyTimer = null;
+          if (doc.__krumerSelectionTouchInProgress) return;
+          var selection = activeTextSelection(doc);
+          var content = readerContentForDocument(doc);
+          if (!selection || !content) return;
+          constrainSelectionToVisiblePage(doc, selection);
+          var text = String(selection.toString()).slice(0, 100000);
+          if (!text.trim()) return;
+          var cfiRange = null;
+          try {
+            var range = selection.getRangeAt(0);
+            if (typeof content.cfiFromRange === 'function') cfiRange = content.cfiFromRange(range);
+          } catch (_) {}
+          post('SELECTION_READY', {
+            text: text,
+            cfiRange: typeof cfiRange === 'string' && cfiRange.length <= 4096 ? cfiRange : null,
+            gestureId: selectionGestureId
+          });
+        }
+
+        function scheduleSelectionReady(doc) {
+          if (selectionReadyTimer) clearTimeout(selectionReadyTimer);
+          selectionReadyTimer = setTimeout(function () { publishSelection(doc); }, 220);
+        }
+
+        function scheduleSelectionCleared() {
+          if (selectionClearTimer) clearTimeout(selectionClearTimer);
+          selectionClearTimer = setTimeout(function () {
+            selectionClearTimer = null;
+            if (!hasReaderTextSelection() && !hasReaderSelectionTouchInProgress()) post('SELECTION_CLEARED', {});
+          }, 250);
+        }
+
+        function hasReaderSelectionTouchInProgress() {
+          if (!rendition || typeof rendition.getContents !== 'function') return false;
+          return (rendition.getContents() || []).some(function (content) {
+            return !!(content && content.document && content.document.__krumerSelectionTouchInProgress);
+          });
+        }
+
+        function renderReaderHighlight(item) {
+          if (!rendition || !rendition.annotations) return;
+          try {
+            rendition.annotations.highlight(item.cfiRange, {}, null, 'krumer-mobile-highlight', {
+              fill: item.color === 'yellow' ? '#f8d95e' : item.color,
+              'fill-opacity': '0.42'
+            });
+          } catch (_) {}
+        }
+
+        function applyReaderHighlights() {
+          readerHighlights.forEach(renderReaderHighlight);
+        }
+
+        function upsertReaderHighlight(message) {
+          var item = message.payload;
+          if (!item || typeof item.cfiRange !== 'string' || item.cfiRange.length > 4096
+            || typeof item.color !== 'string' || item.color.length > 32) return;
+          var index = readerHighlights.findIndex(function (current) {
+            return current.cfiRange === item.cfiRange;
+          });
+          if (index >= 0) {
+            try { rendition.annotations.remove(item.cfiRange, 'highlight'); } catch (_) {}
+            readerHighlights[index] = item;
+          } else readerHighlights.push(item);
+          renderReaderHighlight(item);
+        }
+
+        function setReaderHighlights(message) {
+          var incoming = message.payload && message.payload.highlights;
+          if (!Array.isArray(incoming) || incoming.length > 5000) return;
+          if (rendition && rendition.annotations) {
+            readerHighlights.forEach(function (item) {
+              try { rendition.annotations.remove(item.cfiRange, 'highlight'); } catch (_) {}
+            });
+          }
+          readerHighlights = incoming.filter(function (item) {
+            return item && typeof item.cfiRange === 'string' && item.cfiRange.length <= 4096
+              && typeof item.color === 'string' && item.color.length <= 32;
+          });
+          applyReaderHighlights();
+        }
+
         function hasActiveTextSelection(doc) {
           return !!activeTextSelection(doc);
         }
@@ -1254,6 +1349,8 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           }
           readerSelectionSessionActive = false;
           readerSelectionActive = hasReaderTextSelection();
+          cancelSelectionTimers();
+          if (hadSelection) post('SELECTION_CLEARED', {});
           flushDeferredViewportLayout();
           return hadSelection;
         }
@@ -1373,6 +1470,8 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           doc.addEventListener('selectionchange', function () {
             var selection = activeTextSelection(doc);
             if (selection) {
+              if (selectionClearTimer) clearTimeout(selectionClearTimer);
+              selectionClearTimer = null;
               if (!readerSelectionSessionActive) clearUserRelocationExpectation();
               readerSelectionSessionActive = true;
               if (touchInProgress) selectionChangedDuringTouch = true;
@@ -1392,6 +1491,9 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
               return;
             }
             cancelPaginatedSelectionViewportHold(doc);
+            if (selectionReadyTimer) clearTimeout(selectionReadyTimer);
+            selectionReadyTimer = null;
+            scheduleSelectionCleared();
             schedulePaginatedSelectionViewportRelease(doc);
             flushDeferredViewportLayout();
           });
@@ -1399,6 +1501,10 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           doc.addEventListener('touchstart', function (event) {
             if (!event.touches || !event.touches[0]) return;
             touchInProgress = true;
+            doc.__krumerSelectionTouchInProgress = true;
+            selectionGestureId += 1;
+            if (selectionReadyTimer) clearTimeout(selectionReadyTimer);
+            selectionReadyTimer = null;
             selectionChangedDuringTouch = false;
             // A fresh touch is distinct from the synthetic click after long-press.
             selectionGestureUntil = 0;
@@ -1423,8 +1529,11 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             var activeSelection = hasActiveTextSelection(doc);
             var selectionChanged = selectionChangedDuringTouch;
             touchInProgress = false;
+            doc.__krumerSelectionTouchInProgress = false;
             selectionChangedDuringTouch = false;
             if (activeSelection) readerSelectionActive = true;
+            if (activeSelection) scheduleSelectionReady(doc);
+            else scheduleSelectionCleared();
             var selectionGesture = longTouch
               || (moved && (selectionActiveAtTouchStart || selectionChanged || activeSelection))
               || (activeSelection && !selectionActiveAtTouchStart);
@@ -1491,8 +1600,11 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
 
           doc.addEventListener('touchcancel', function () {
             touchInProgress = false;
+            doc.__krumerSelectionTouchInProgress = false;
             selectionActiveAtTouchStart = false;
             selectionChangedDuringTouch = false;
+            if (selectionReadyTimer) clearTimeout(selectionReadyTimer);
+            selectionReadyTimer = null;
             if (!hasActiveTextSelection(doc)) doc.__krumerSelectionLocation = null;
           }, { capture: true, passive: true });
 
@@ -1717,6 +1829,9 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           activeRelocationSource = 'user';
           readerSelectionActive = false;
           readerSelectionSessionActive = false;
+          cancelSelectionTimers();
+          post('SELECTION_CLEARED', {});
+          readerHighlights = [];
           selectionBoundsStatusCount = 0;
           lastSelectionBoundsStatus = '';
           if (viewportUpdateFrame !== null) {
@@ -1769,6 +1884,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             height: '100%'
           });
           rendition = nextRendition;
+          applyReaderHighlights();
           if (nextRendition.hooks && nextRendition.hooks.content && typeof nextRendition.hooks.content.register === 'function') {
             nextRendition.hooks.content.register(function (contents) {
               var doc = contents && contents.document;
@@ -1789,6 +1905,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             var viewportRestored = stabilizePaginatedSelectionViewport(doc);
             holdPaginatedSelectionViewport(doc);
             reportSelectionBoundsStatus('selected', constraintResult, viewportRestored, doc);
+            scheduleSelectionReady(doc);
           });
           nextRendition.on('relocated', function (location) {
             if (activeBook !== book || nextRendition !== rendition) return;
@@ -1975,6 +2092,8 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
               .catch(function () {})
               .then(function () { return updateAppearance(message); });
           }
+          else if (message.type === 'SET_HIGHLIGHTS') setReaderHighlights(message);
+          else if (message.type === 'UPSERT_HIGHLIGHT') upsertReaderHighlight(message);
           else if (message.type === 'GO_TO_LOCATOR') goToLocator(message);
           else if (message.type === 'GET_CURRENT_LOCATOR') sendCurrentLocator(message);
           else if (message.type === 'GET_TOC') getToc(message);

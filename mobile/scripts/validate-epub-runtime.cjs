@@ -65,6 +65,7 @@ async function main() {
   const inPlaceMoveCalls = [];
   const resizeCalls = [];
   const spreadCalls = [];
+  const highlightCalls = [];
   let renditionDestroyCount = 0;
   let viewerReplaceCount = 0;
   let renderedHandler = null;
@@ -140,6 +141,10 @@ async function main() {
     unload() {},
   };
   const rendition = {
+    annotations: {
+      highlight: (cfiRange) => { highlightCalls.push({ type: 'add', cfiRange }); },
+      remove: (cfiRange) => { highlightCalls.push({ type: 'remove', cfiRange }); },
+    },
     currentLocation: () => currentRenditionLocation,
     destroy() {
       renditionDestroyCount += 1;
@@ -426,6 +431,27 @@ async function main() {
   if (generatedLocationChunks.length !== 1 || generatedLocationChunks[0] !== 1600) {
     throw new Error('Stable EPUB locations were not generated with fixed 1,600-character blocks.');
   }
+  runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
+    version: bridge.EPUB_BRIDGE_VERSION,
+    id: 'test-highlights',
+    type: 'SET_HIGHLIGHTS',
+    payload: { highlights: [{ cfiRange: 'epubcfi(/stored-selection)', color: 'yellow' }] },
+  }));
+  if (!highlightCalls.some((call) => call.type === 'add' && call.cfiRange === 'epubcfi(/stored-selection)')) {
+    throw new Error('A stored EPUB highlight was not applied to the rendition.');
+  }
+  runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
+    version: bridge.EPUB_BRIDGE_VERSION,
+    id: 'test-instant-highlight',
+    type: 'UPSERT_HIGHLIGHT',
+    payload: { cfiRange: 'epubcfi(/instant-selection)', color: 'yellow' },
+  }));
+  if (
+    !highlightCalls.some((call) => call.type === 'add' && call.cfiRange === 'epubcfi(/instant-selection)')
+    || highlightCalls.some((call) => call.type === 'remove' && call.cfiRange === 'epubcfi(/stored-selection)')
+  ) {
+    throw new Error('Instant highlighting changed an existing EPUB annotation.');
+  }
 
   currentRenditionLocation = {
     start: {
@@ -669,6 +695,7 @@ async function main() {
     };
     document.defaultView.getSelection = () => selection;
     document.__mockContents = {
+      cfiFromRange: (range) => `epubcfi(/selected:${range.startOffset}-${range.endOffset})`,
       document,
       range: (cfi) => {
         const value = String(cfi);
@@ -916,6 +943,17 @@ async function main() {
     runtimeWindow.scrollTo(21, 0);
   }, 10);
   await wait(360);
+  boundedSelection.listeners.touchend(touchEvent(530, 'end'));
+  await wait(260);
+  const selectionReady = postedEvents.filter((event) => event.type === 'SELECTION_READY').at(-1);
+  if (
+    !selectionReady
+    || selectionReady.payload.text !== 'bounded selection'
+    || selectionReady.payload.cfiRange !== 'epubcfi(/selected:20-80)'
+    || !bridge.parseEpubBridgeEvent(JSON.stringify(selectionReady))
+  ) {
+    throw new Error('The stable visible selection did not publish its text and CFI range.');
+  }
   if (
     managerContainer.scrollLeft !== 600
     || boundedSelection.document.defaultView.scrollX !== 0

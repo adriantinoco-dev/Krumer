@@ -9,6 +9,7 @@ import {
 import {
   READER_DATABASE_MIGRATION_V1,
   READER_DATABASE_MIGRATION_V2,
+  READER_DATABASE_MIGRATION_V3,
   READER_DATABASE_VERSION,
 } from './readerMigrations';
 
@@ -67,6 +68,7 @@ async function migrate(database: SQLiteDatabase) {
     const version = insideTransaction?.user_version ?? 0;
     if (version < 1) await transaction.execAsync(READER_DATABASE_MIGRATION_V1);
     if (version < 2) await transaction.execAsync(READER_DATABASE_MIGRATION_V2);
+    if (version < 3) await transaction.execAsync(READER_DATABASE_MIGRATION_V3);
   });
 }
 
@@ -85,6 +87,64 @@ async function getDatabase() {
 
 export async function warmReaderDatabase(): Promise<void> {
   await getDatabase();
+}
+
+export type ReaderEpubHighlight = {
+  id: string;
+  bookId: string;
+  cfiRange: string;
+  textExcerpt: string;
+  color: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+type HighlightRow = {
+  id: string;
+  book_id: string;
+  cfi_range: string;
+  text_excerpt: string;
+  color: string;
+  created_at: number;
+  updated_at: number;
+};
+
+export async function listReaderEpubHighlights(bookId: string): Promise<ReaderEpubHighlight[]> {
+  const database = await getDatabase();
+  const rows = await database.getAllAsync<HighlightRow>(
+    'SELECT * FROM reader_epub_highlights WHERE book_id = ? ORDER BY created_at', bookId,
+  );
+  return rows.map((row) => ({
+    id: row.id, bookId: row.book_id, cfiRange: row.cfi_range,
+    textExcerpt: row.text_excerpt, color: row.color,
+    createdAt: row.created_at, updatedAt: row.updated_at,
+  }));
+}
+
+export async function saveReaderEpubHighlight(
+  bookId: string, cfiRange: string, textExcerpt: string, color = 'yellow',
+): Promise<ReaderEpubHighlight> {
+  const database = await getDatabase();
+  const now = Date.now();
+  const id = `highlight-${now}-${Math.random().toString(36).slice(2, 12)}`;
+  await database.runAsync(
+    `INSERT INTO reader_epub_highlights
+      (id, book_id, cfi_range, text_excerpt, color, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(book_id, cfi_range) DO UPDATE SET
+        text_excerpt = excluded.text_excerpt, color = excluded.color,
+        updated_at = excluded.updated_at`,
+    id, bookId, cfiRange, textExcerpt, color, now, now,
+  );
+  const row = await database.getFirstAsync<HighlightRow>(
+    'SELECT * FROM reader_epub_highlights WHERE book_id = ? AND cfi_range = ?', bookId, cfiRange,
+  );
+  if (!row) throw new Error('Highlight could not be saved');
+  return {
+    id: row.id, bookId: row.book_id, cfiRange: row.cfi_range,
+    textExcerpt: row.text_excerpt, color: row.color,
+    createdAt: row.created_at, updatedAt: row.updated_at,
+  };
 }
 
 function rowToLocator(row: LocatorRow): ReaderLocator | null {

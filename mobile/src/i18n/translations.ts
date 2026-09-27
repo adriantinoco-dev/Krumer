@@ -207,6 +207,10 @@ export type TranslationKey =
   | 'reader.fontSerif'
   | 'reader.fontSize'
   | 'reader.fontSettings'
+  | 'reader.selectionQuickAction'
+  | 'reader.selectionQuickActionOff'
+  | 'reader.selectionCopy'
+  | 'reader.selectionHighlight'
   | 'reader.fontWeight'
   | 'reader.layoutSettings'
   | 'reader.margins'
@@ -539,6 +543,10 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.fontSerif': 'Serif',
     'reader.fontSize': 'Font size',
     'reader.fontSettings': 'Font & theme',
+    'reader.selectionQuickAction': 'Instant selection action',
+    'reader.selectionQuickActionOff': 'Off',
+    'reader.selectionCopy': 'Copy',
+    'reader.selectionHighlight': 'Highlight',
     'reader.fontWeight': 'Font weight',
     'reader.layoutSettings': 'Spacing & margins',
     'reader.margins': 'Margins',
@@ -861,6 +869,10 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.fontSerif': 'Serifa',
     'reader.fontSize': 'Tamanho da fonte',
     'reader.fontSettings': 'Fonte e tema',
+    'reader.selectionQuickAction': 'Ação instantânea ao selecionar',
+    'reader.selectionQuickActionOff': 'Desativada',
+    'reader.selectionCopy': 'Copiar',
+    'reader.selectionHighlight': 'Destacar',
     'reader.fontWeight': 'Peso da fonte',
     'reader.layoutSettings': 'Espaçamento e margens',
     'reader.margins': 'Margens',
@@ -1183,6 +1195,10 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.fontSerif': 'Serifa',
     'reader.fontSize': 'Tamaño de fuente',
     'reader.fontSettings': 'Fuente y tema',
+    'reader.selectionQuickAction': 'Acción instantánea al seleccionar',
+    'reader.selectionQuickActionOff': 'Desactivada',
+    'reader.selectionCopy': 'Copiar',
+    'reader.selectionHighlight': 'Resaltar',
     'reader.fontWeight': 'Peso de fuente',
     'reader.layoutSettings': 'Espaciado y márgenes',
     'reader.margins': 'Márgenes',

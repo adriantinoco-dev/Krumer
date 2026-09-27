@@ -819,6 +819,7 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
           {epubPersistence.hydrated && readingPreferences.hydrated && readerLayout.hydrated ? (
             <EpubReader
               ref={epubReaderRef}
+              barsVisible={barsVisible}
               bookId={book.id}
               filePath={book.filePath}
               fileSize={book.fileSize}
@@ -1490,6 +1491,7 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
           readingPreferences.updatePreferences({
             fontFamily: 'serif',
             fontWeight: 'regular',
+            selectionQuickAction: 'off',
           });
         }}
         onUpdatePreferences={readingPreferences.updatePreferences}

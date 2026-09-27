@@ -34,11 +34,29 @@ function main() {
   database.exec('BEGIN EXCLUSIVE');
   database.exec(migrations.READER_DATABASE_MIGRATION_V1);
   database.exec(migrations.READER_DATABASE_MIGRATION_V2);
+  database.exec(migrations.READER_DATABASE_MIGRATION_V3);
   database.exec('COMMIT');
 
   const version = database.prepare('PRAGMA user_version').get().user_version;
   if (version !== migrations.READER_DATABASE_VERSION) {
     throw new Error(`Expected reader database version ${migrations.READER_DATABASE_VERSION}, got ${version}.`);
+  }
+
+  const cfiRange = 'epubcfi(/6/4!/4/2:0,/4/2:0,/4/2:8)';
+  const upsertHighlight = database.prepare(`INSERT INTO reader_epub_highlights
+    (id, book_id, cfi_range, text_excerpt, color, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(book_id, cfi_range) DO UPDATE SET
+      text_excerpt = excluded.text_excerpt, color = excluded.color,
+      updated_at = excluded.updated_at`);
+  upsertHighlight.run('highlight-1', 'book-1', cfiRange, 'Selected', 'yellow', 1, 1);
+  upsertHighlight.run('highlight-2', 'book-1', cfiRange, 'Selected text', 'yellow', 2, 2);
+  upsertHighlight.run('highlight-3', 'book-2', cfiRange, 'Other book', 'yellow', 3, 3);
+  const bookHighlights = database.prepare(
+    'SELECT * FROM reader_epub_highlights WHERE book_id = ? ORDER BY created_at',
+  ).all('book-1');
+  if (bookHighlights.length !== 1 || bookHighlights[0].text_excerpt !== 'Selected text') {
+    throw new Error('EPUB highlights are not unique by book and CFI range.');
   }
 
   const epubLocator = {

@@ -37,6 +37,7 @@ async function main() {
     orientation: 'landscape',
     fontFamily: 'mono',
     fontWeight: 'bold',
+    selectionQuickAction: 'highlight',
   };
   await hooks.saveStoredReadingPreferences(expected, storage);
   const restored = await hooks.loadStoredReadingPreferences(storage);
@@ -52,10 +53,14 @@ async function main() {
 
   const legacy = { ...expected };
   delete legacy.orientation;
+  delete legacy.selectionQuickAction;
   memory.set('krumer.reading.preferences.v1', JSON.stringify(legacy));
   const migrated = await hooks.loadStoredReadingPreferences(storage);
   if (migrated.orientation !== 'portrait') {
     throw new Error('Legacy reading preferences did not migrate to portrait orientation.');
+  }
+  if (migrated.selectionQuickAction !== 'off') {
+    throw new Error('Legacy reading preferences did not keep instant selection disabled.');
   }
 
   const fontPackages = [
