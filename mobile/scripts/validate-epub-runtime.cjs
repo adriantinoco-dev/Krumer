@@ -27,6 +27,7 @@ async function main() {
   const bookDetailSource = fs.readFileSync('src/screens/BookDetailScreen.tsx', 'utf8');
   const readerScreenSource = fs.readFileSync('src/screens/ReaderScreen.tsx', 'utf8');
   const runtimeSource = fs.readFileSync('src/readers/epubRuntime.ts', 'utf8');
+  const readerDatabaseSource = fs.readFileSync('src/storage/readerDatabase.ts', 'utf8');
   if (
     !epubFileSource.includes('const preparedEpubCache = new ReaderLruCache<PreparedEpubCacheEntry>()')
     || !epubFileSource.includes('const cached = preparedEpubCache.get(key)')
@@ -46,9 +47,13 @@ async function main() {
     || !epubReaderSource.includes('READER_HIGHLIGHT_PALETTE.map')
     || !epubReaderSource.includes("createEpubBridgeCommand('SELECT_VISIBLE_PAGE_TEXT', {})")
     || !epubReaderSource.includes("performSelectionAction('highlight', selection, color)")
+    || !epubReaderSource.includes("t('reader.selectionRemoveHighlight')")
+    || !epubReaderSource.includes("createEpubBridgeCommand('REMOVE_SELECTION_HIGHLIGHT'")
     || epubReaderSource.includes("t('reader.selectionHighlight')")
     || !epubReaderSource.includes("t('reader.selectionSelectAll')")
     || !runtimeSource.includes('function selectVisiblePageText()')
+    || !runtimeSource.includes('function mutateSelectionHighlights(message, removeSelection)')
+    || !readerDatabaseSource.includes('applyReaderEpubHighlightPatch')
     || !runtimeSource.includes("message.type === 'SELECT_VISIBLE_PAGE_TEXT'")
     || !readerScreenSource.includes('reader.selectionCopyInstant')
     || !readerScreenSource.includes('reader.selectionHighlightInstant')
@@ -149,6 +154,7 @@ async function main() {
     cfiFromRange: () => 'epubcfi(/spine-progression)',
     find: () => [],
     href: 'chapter-progression.xhtml',
+    index: 0,
     load: () => Promise.resolve(createSectionDocument('A sufficiently long chapter used for progression fallback testing.')),
     unload() {},
   };
@@ -156,6 +162,7 @@ async function main() {
     cfiFromRange: () => null,
     find: () => [{ cfi: 'epubcfi(/excerpt-match)' }],
     href: 'chapter-excerpt.xhtml',
+    index: 1,
     load: () => Promise.resolve(createSectionDocument('')),
     unload() {},
   };
@@ -285,6 +292,11 @@ async function main() {
         if (typeof href === 'number') return [progressionSection, excerptSection][href];
         if (href === progressionSection.href) return progressionSection;
         if (href === excerptSection.href) return excerptSection;
+        if (typeof href === 'string' && href.startsWith('epubcfi(')) {
+          const sectionStep = Number(href.match(/^epubcfi\(\/6\/(\d+)/)?.[1]);
+          const sectionIndex = Number.isInteger(sectionStep) && sectionStep >= 2 ? sectionStep / 2 - 1 : -1;
+          return [progressionSection, excerptSection][sectionIndex] ?? null;
+        }
         return null;
       },
       length: 2,
@@ -459,19 +471,26 @@ async function main() {
   if (!highlightCalls.some((call) => call.type === 'add' && call.cfiRange === 'epubcfi(/stored-selection)')) {
     throw new Error('A stored EPUB highlight was not applied to the rendition.');
   }
+  const instantHighlightDocument = createBoundedSelectionDocument(1000);
+  activeReaderDocuments.push(instantHighlightDocument.document);
   runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
     version: bridge.EPUB_BRIDGE_VERSION,
     id: 'test-instant-highlight',
     type: 'UPSERT_HIGHLIGHT',
-    payload: { cfiRange: 'epubcfi(/instant-selection)', color: 'blue' },
+    payload: {
+      cfiRange: 'epubcfi(/6/2!/4/2:50-60)',
+      color: 'blue',
+      textExcerpt: 'instant selection',
+    },
   }));
   if (
-    !highlightCalls.some((call) => call.type === 'add' && call.cfiRange === 'epubcfi(/instant-selection)')
-    || !highlightCalls.some((call) => call.type === 'add' && call.cfiRange === 'epubcfi(/instant-selection)' && call.styles.fill === '#60a5fa')
+    !highlightCalls.some((call) => call.type === 'add' && call.cfiRange === 'epubcfi(/6/2!/4/2:50-60)')
+    || !highlightCalls.some((call) => call.type === 'add' && call.cfiRange === 'epubcfi(/6/2!/4/2:50-60)' && call.styles.fill === '#60a5fa')
     || highlightCalls.some((call) => call.type === 'remove' && call.cfiRange === 'epubcfi(/stored-selection)')
   ) {
     throw new Error('Instant highlighting changed an existing EPUB annotation.');
   }
+  activeReaderDocuments.length = 0;
 
   currentRenditionLocation = {
     start: {
@@ -672,7 +691,8 @@ async function main() {
     const readerDocument = createReaderDocument(contentWidth);
     const { document, listeners } = readerDocument;
     document.scrollingElement = { scrollLeft: 0, scrollTop: 0 };
-    const textNode = { nodeType: 3, ownerDocument: document };
+    const textValue = 'abcdefghijklmnopqrstuvwxyz'.repeat(8);
+    const textNode = { nodeType: 3, ownerDocument: document, textContent: textValue };
     const appliedSelections = [];
     let selectedRange = null;
     let anchorNode = textNode;
@@ -685,7 +705,9 @@ async function main() {
         get collapsed() { return startOffset === endOffset; },
         compareBoundaryPoints(how, sourceRange) {
           if (how === 0) return Math.sign(startOffset - sourceRange.startOffset);
+          if (how === 1) return Math.sign(endOffset - sourceRange.startOffset);
           if (how === 2) return Math.sign(endOffset - sourceRange.endOffset);
+          if (how === 3) return Math.sign(startOffset - sourceRange.endOffset);
           throw new Error(`Unsupported boundary comparison: ${how}`);
         },
         endContainer: textNode,
@@ -704,6 +726,7 @@ async function main() {
         }),
         startContainer: textNode,
         startOffset,
+        toString: () => textValue.slice(startOffset, endOffset),
       };
     }
 
@@ -715,8 +738,10 @@ async function main() {
         get endOffset() { return range.endOffset; },
         get startContainer() { return range.startContainer; },
         get startOffset() { return range.startOffset; },
+        compareBoundaryPoints(how, sourceRange) { return range.compareBoundaryPoints(how, sourceRange); },
         setEnd(_node, offset) { range = createRange(range.startOffset, offset); },
         setStart(_node, offset) { range = createRange(offset, range.endOffset); },
+        toString() { return range.toString(); },
       };
     };
 
@@ -744,10 +769,12 @@ async function main() {
     };
     document.defaultView.getSelection = () => selection;
     document.__mockContents = {
-      cfiFromRange: (range) => `epubcfi(/selected:${range.startOffset}-${range.endOffset})`,
+      cfiFromRange: (range) => `epubcfi(/6/${(sectionIndex + 1) * 2}!/4/2:${range.startOffset}-${range.endOffset})`,
       document,
       range: (cfi) => {
         const value = String(cfi);
+        const rangeOffsets = value.match(/!\/4\/2:(\d+)-(\d+)\)?$/);
+        if (rangeOffsets) return createRange(Number(rangeOffsets[1]), Number(rangeOffsets[2]));
         const offset = value.includes('next-visible-start') ? 40
           : value.includes('next-visible-end') ? 90
             : value.includes('visible-start') ? 20
@@ -998,7 +1025,7 @@ async function main() {
   if (
     !selectionReady
     || selectionReady.payload.text !== 'bounded selection'
-    || selectionReady.payload.cfiRange !== 'epubcfi(/selected:20-80)'
+    || selectionReady.payload.cfiRange !== 'epubcfi(/6/2!/4/2:20-80)'
     || selectionReady.payload.geometry.viewportWidth !== 1000
     || selectionReady.payload.geometry.viewportHeight !== 600
     || selectionReady.payload.geometry.left < 0
@@ -1007,6 +1034,80 @@ async function main() {
   ) {
     throw new Error('The stable visible selection did not publish its text and CFI range.');
   }
+
+  boundedSelection.setSelectionRange(22, 32);
+  boundedSelection.listeners.selectionchange();
+  await wait(250);
+  const handleAdjustedSelection = postedEvents.filter((event) => event.type === 'SELECTION_READY').at(-1);
+  if (handleAdjustedSelection?.payload.cfiRange !== 'epubcfi(/6/2!/4/2:22-32)'
+    || handleAdjustedSelection.payload.text !== 'bounded selection') {
+    throw new Error('A selectionchange from native handle adjustment did not refresh the selected CFI range.');
+  }
+
+  const oldHighlightCfi = 'epubcfi(/6/2!/4/2:30-70)';
+  runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
+    version: bridge.EPUB_BRIDGE_VERSION,
+    id: 'test-overlap-highlight',
+    type: 'SET_HIGHLIGHTS',
+    payload: { highlights: [{ cfiRange: oldHighlightCfi, color: 'yellow' }] },
+  }));
+  boundedSelection.setSelectionRange(40, 60);
+  boundedSelection.listeners.selectionchange();
+  selectedHandler('epubcfi(/6/2!/4/2:40-60)', boundedSelection.document.__mockContents);
+  await wait(250);
+  const overlappingSelection = postedEvents.filter((event) => event.type === 'SELECTION_READY').at(-1);
+  if (!overlappingSelection?.payload.hasHighlight
+    || overlappingSelection.payload.cfiRange !== 'epubcfi(/6/2!/4/2:40-60)') {
+    throw new Error(`A selection crossing a stored highlight was not reported as highlighted: ${JSON.stringify(overlappingSelection)}`);
+  }
+
+  runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
+    version: bridge.EPUB_BRIDGE_VERSION,
+    id: 'test-recolor-overlap',
+    type: 'UPSERT_HIGHLIGHT',
+    payload: {
+      cfiRange: overlappingSelection.payload.cfiRange,
+      color: 'purple',
+      textExcerpt: overlappingSelection.payload.text,
+    },
+  }));
+  const recolorPatch = postedEvents.filter((event) => event.type === 'HIGHLIGHTS_CHANGED').at(-1);
+  if (
+    recolorPatch?.payload.removedCfiRanges.length !== 1
+    || recolorPatch.payload.removedCfiRanges[0] !== oldHighlightCfi
+    || recolorPatch.payload.highlights.length !== 3
+    || !recolorPatch.payload.highlights.some((item) => item.cfiRange === 'epubcfi(/6/2!/4/2:30-40)' && item.color === 'yellow')
+    || !recolorPatch.payload.highlights.some((item) => item.cfiRange === 'epubcfi(/6/2!/4/2:40-60)' && item.color === 'purple')
+    || !recolorPatch.payload.highlights.some((item) => item.cfiRange === 'epubcfi(/6/2!/4/2:60-70)' && item.color === 'yellow')
+    || !bridge.parseEpubBridgeEvent(JSON.stringify(recolorPatch))
+  ) {
+    throw new Error('Recoloring an overlap did not preserve only the old highlight fragments outside the selection.');
+  }
+
+  runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
+    version: bridge.EPUB_BRIDGE_VERSION,
+    id: 'test-remove-partial-highlight',
+    type: 'REMOVE_SELECTION_HIGHLIGHT',
+    payload: { cfiRange: 'epubcfi(/6/2!/4/2:45-55)' },
+  }));
+  const removalPatch = postedEvents.filter((event) => event.type === 'HIGHLIGHTS_CHANGED').at(-1);
+  if (
+    removalPatch?.payload.removedCfiRanges.length !== 1
+    || removalPatch.payload.removedCfiRanges[0] !== 'epubcfi(/6/2!/4/2:40-60)'
+    || removalPatch.payload.highlights.length !== 2
+    || !removalPatch.payload.highlights.some((item) => item.cfiRange === 'epubcfi(/6/2!/4/2:40-45)' && item.color === 'purple')
+    || !removalPatch.payload.highlights.some((item) => item.cfiRange === 'epubcfi(/6/2!/4/2:55-60)' && item.color === 'purple')
+    || removalPatch.payload.hasHighlight
+  ) {
+    throw new Error('Removing a partial highlight did not preserve only the two unselected fragments.');
+  }
+  if (bridge.parseEpubBridgeEvent(JSON.stringify({
+    ...removalPatch,
+    payload: { ...removalPatch.payload, selectionCfiRange: '' },
+  }))) {
+    throw new Error('The EPUB bridge accepted a highlight patch without its selected CFI range.');
+  }
+
   const invalidSelectionGeometry = {
     ...selectionReady,
     payload: { ...selectionReady.payload, geometry: { ...selectionReady.payload.geometry, left: -1 } },
@@ -1053,7 +1154,7 @@ async function main() {
     || boundedSelection.appliedSelections.at(-1).focusOffset !== 80
     || postedEvents.filter((event) => event.type === 'SELECTION_READY').length <= selectionReadyCountBeforeSelectAll
     || !selectedPageText
-    || selectedPageText.payload.cfiRange !== 'epubcfi(/selected:20-80)'
+    || selectedPageText.payload.cfiRange !== 'epubcfi(/6/2!/4/2:20-80)'
   ) {
     throw new Error('Select all did not expand only to the CFIs of the visible EPUB page.');
   }

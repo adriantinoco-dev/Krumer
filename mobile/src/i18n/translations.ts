@@ -210,6 +210,7 @@ export type TranslationKey =
   | 'reader.selectionQuickAction'
   | 'reader.selectionQuickActionOff'
   | 'reader.selectionCopy'
+  | 'reader.selectionRemoveHighlight'
   | 'reader.selectionHighlight'
   | 'reader.selectionSelectAll'
   | 'reader.selectionCopyInstant'
@@ -555,6 +556,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.selectionQuickAction': 'Instant selection action',
     'reader.selectionQuickActionOff': 'Off',
     'reader.selectionCopy': 'Copy',
+    'reader.selectionRemoveHighlight': 'Remove highlight',
     'reader.selectionHighlight': 'Highlight',
     'reader.selectionSelectAll': 'Select all',
     'reader.selectionCopyInstant': 'Copy instantly',
@@ -890,6 +892,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.selectionQuickAction': 'Ação instantânea ao selecionar',
     'reader.selectionQuickActionOff': 'Desativada',
     'reader.selectionCopy': 'Copiar',
+    'reader.selectionRemoveHighlight': 'Remover marcação',
     'reader.selectionHighlight': 'Destacar',
     'reader.selectionSelectAll': 'Selecionar tudo',
     'reader.selectionCopyInstant': 'Copiar instantâneo',
@@ -1225,6 +1228,7 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.selectionQuickAction': 'Acción instantánea al seleccionar',
     'reader.selectionQuickActionOff': 'Desactivada',
     'reader.selectionCopy': 'Copiar',
+    'reader.selectionRemoveHighlight': 'Quitar resaltado',
     'reader.selectionHighlight': 'Resaltar',
     'reader.selectionSelectAll': 'Seleccionar todo',
     'reader.selectionCopyInstant': 'Copiar al instante',

@@ -342,6 +342,15 @@ Executar em pelo menos um device/emulador com WebView atual:
 
 ## Estado da implementação
 
+### Seleção e atualização de highlights
+
+A barra contextual do EPUB pode oferecer **Remover marcação** quando a seleção cruza um
+highlight salvo. Remover ou recolorir opera somente na interseção entre a seleção e cada
+CFI existente: o runtime remove a anotação antiga, recria os fragmentos externos com a cor
+original e, ao recolorir, grava uma nova anotação para a seleção. Assim não ficam anotações
+sobrepostas nem cores mescladas. A mudança usa os `Range` do XHTML visível e não altera a
+seleção, o locator, a paginação, o ciclo de vida ou o tamanho da WebView.
+
 Na data do diagnóstico já existia um patch local não commitado em `epubRuntime.ts` e
 `validate-epub-runtime.cjs`. Após aprovação, esse patch foi revisado e consolidado. Além das
 guardas de seleção e resize, a implementação final:

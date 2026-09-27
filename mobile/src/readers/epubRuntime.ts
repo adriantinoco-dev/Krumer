@@ -54,6 +54,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
         var MAX_EPUB_BYTES = 16 * 1024 * 1024;
         var STABLE_LOCATION_CHARS = 1600;
         var book = null;
+        var readerBookId = null;
         var rendition = null;
         var generation = 0;
         var nextEventId = 0;
@@ -938,7 +939,8 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
             text: text,
             cfiRange: typeof cfiRange === 'string' && cfiRange.length <= 4096 ? cfiRange : null,
             gestureId: selectionGestureId,
-            geometry: geometry
+            geometry: geometry,
+            hasHighlight: !!(cfiRange && selectionHasHighlight(content, range))
           });
         }
 
@@ -983,18 +985,187 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           readerHighlights.forEach(renderReaderHighlight);
         }
 
-        function upsertReaderHighlight(message) {
-          var item = message.payload;
-          if (!item || typeof item.cfiRange !== 'string' || item.cfiRange.length > 4096
-            || typeof item.color !== 'string' || item.color.length > 32) return;
-          var index = readerHighlights.findIndex(function (current) {
-            return current.cfiRange === item.cfiRange;
+        function cfiSectionIndex(cfiRange) {
+          if (!book || !book.spine || typeof book.spine.get !== 'function') return null;
+          try {
+            var section = book.spine.get(cfiRange);
+            var sectionIndex = section && Number(section.index);
+            return Number.isInteger(sectionIndex) && sectionIndex >= 0 ? sectionIndex : null;
+          } catch (_) {
+            return null;
+          }
+        }
+
+        function rangeForHighlight(content, cfiRange) {
+          if (!content || typeof content.range !== 'function') return null;
+          var sectionIndex = cfiSectionIndex(cfiRange);
+          if (sectionIndex === null || content.sectionIndex !== sectionIndex) return null;
+          try {
+            var range = content.range(cfiRange);
+            var doc = content.document;
+            return range
+              && nodeDocument(range.startContainer) === doc
+              && nodeDocument(range.endContainer) === doc
+              ? range
+              : null;
+          } catch (_) {
+            return null;
+          }
+        }
+
+        function rangesOverlap(first, second) {
+          if (!first || !second) return false;
+          try {
+            if (nodeDocument(first.startContainer) !== nodeDocument(second.startContainer)
+              || nodeDocument(first.endContainer) !== nodeDocument(second.endContainer)) return false;
+            return first.compareBoundaryPoints(3, second) < 0
+              && first.compareBoundaryPoints(1, second) > 0;
+          } catch (_) {
+            return false;
+          }
+        }
+
+        function selectionHasHighlight(content, selectionRange) {
+          return readerHighlights.some(function (item) {
+            return rangesOverlap(selectionRange, rangeForHighlight(content, item.cfiRange));
           });
-          if (index >= 0) {
-            try { rendition.annotations.remove(item.cfiRange, 'highlight'); } catch (_) {}
-            readerHighlights[index] = item;
-          } else readerHighlights.push(item);
-          renderReaderHighlight(item);
+        }
+
+        function fragmentForRange(content, range, color) {
+          if (!range || range.collapsed || !content || typeof content.cfiFromRange !== 'function') return null;
+          try {
+            var cfiRange = content.cfiFromRange(range);
+            if (typeof cfiRange !== 'string' || cfiRange.length > 4096) return null;
+            return { cfiRange: cfiRange, textExcerpt: String(range.toString()).slice(0, 100000), color: color };
+          } catch (_) {
+            return null;
+          }
+        }
+
+        function rangeFragment(content, startNode, startOffset, endNode, endOffset, color) {
+          try {
+            var fragment = content.document.createRange();
+            fragment.setStart(startNode, startOffset);
+            fragment.setEnd(endNode, endOffset);
+            if (fragment.collapsed) return { collapsed: true };
+            var item = fragmentForRange(content, fragment, color);
+            return item ? { item: item } : null;
+          } catch (_) {
+            return null;
+          }
+        }
+
+        function mutateSelectionHighlights(message, removeSelection) {
+          var item = message.payload;
+          if (!item || typeof item.cfiRange !== 'string' || item.cfiRange.length > 4096) return;
+          var content = null;
+          var contents = rendition && typeof rendition.getContents === 'function' ? rendition.getContents() || [] : [];
+          var selectionSectionIndex = cfiSectionIndex(item.cfiRange);
+          if (selectionSectionIndex === null) return;
+          for (var contentIndex = 0; contentIndex < contents.length; contentIndex += 1) {
+            if (contents[contentIndex] && contents[contentIndex].sectionIndex === selectionSectionIndex) {
+              content = contents[contentIndex];
+              break;
+            }
+          }
+          var selectedRange = rangeForHighlight(content, item.cfiRange);
+          if (!selectedRange) return;
+
+          var removedCfiRanges = [];
+          var addedHighlights = [];
+          for (var highlightIndex = 0; highlightIndex < readerHighlights.length; highlightIndex += 1) {
+            var current = readerHighlights[highlightIndex];
+            var existingRange = rangeForHighlight(content, current.cfiRange);
+            if (!rangesOverlap(selectedRange, existingRange)) continue;
+
+            var left = null;
+            var right = null;
+            try {
+              if (existingRange.compareBoundaryPoints(0, selectedRange) < 0) {
+                left = rangeFragment(
+                  content,
+                  existingRange.startContainer,
+                  existingRange.startOffset,
+                  selectedRange.startContainer,
+                  selectedRange.startOffset,
+                  current.color,
+                );
+                if (!left || !left.item) return;
+              }
+              if (existingRange.compareBoundaryPoints(2, selectedRange) > 0) {
+                right = rangeFragment(
+                  content,
+                  selectedRange.endContainer,
+                  selectedRange.endOffset,
+                  existingRange.endContainer,
+                  existingRange.endOffset,
+                  current.color,
+                );
+                if (!right || !right.item) return;
+              }
+            } catch (_) {
+              return;
+            }
+            if (left && left.item) addedHighlights.push(left.item);
+            if (right && right.item) addedHighlights.push(right.item);
+            removedCfiRanges.push(current.cfiRange);
+          }
+
+          if (!removedCfiRanges.length && removeSelection) return;
+          if (!removeSelection) {
+            var selectedExcerpt = typeof item.textExcerpt === 'string' && item.textExcerpt.length > 0
+              ? item.textExcerpt
+              : String(selectedRange.toString());
+            addedHighlights.push({
+              cfiRange: item.cfiRange,
+              textExcerpt: selectedExcerpt.slice(0, 100000),
+              color: item.color,
+            });
+          }
+
+          var addedIndexByCfi = Object.create(null);
+          var uniqueAddedHighlights = [];
+          addedHighlights.forEach(function (highlight) {
+            var existingIndex = addedIndexByCfi[highlight.cfiRange];
+            if (existingIndex === undefined) {
+              addedIndexByCfi[highlight.cfiRange] = uniqueAddedHighlights.length;
+              uniqueAddedHighlights.push(highlight);
+            } else {
+              uniqueAddedHighlights[existingIndex] = highlight;
+            }
+          });
+          addedHighlights = uniqueAddedHighlights;
+
+          var removedSet = Object.create(null);
+          removedCfiRanges.forEach(function (cfiRange) { removedSet[cfiRange] = true; });
+          readerHighlights = readerHighlights.filter(function (current) {
+            return !removedSet[current.cfiRange];
+          }).concat(addedHighlights.map(function (highlight) {
+            return { cfiRange: highlight.cfiRange, color: highlight.color };
+          }));
+          removedCfiRanges.forEach(function (cfiRange) {
+            try { rendition.annotations.remove(cfiRange, 'highlight'); } catch (_) {}
+          });
+          addedHighlights.forEach(renderReaderHighlight);
+          if (!readerBookId) return;
+          post('HIGHLIGHTS_CHANGED', {
+            bookId: readerBookId,
+            selectionCfiRange: item.cfiRange,
+            hasHighlight: !removeSelection,
+            removedCfiRanges: removedCfiRanges,
+            highlights: addedHighlights
+          }, message.id);
+        }
+
+        function applyReaderHighlight(message) {
+          var item = message.payload;
+          if (!item || typeof item.color !== 'string' || item.color.length > 32
+            || typeof item.textExcerpt !== 'string' || item.textExcerpt.length > 100000) return;
+          mutateSelectionHighlights(message, false);
+        }
+
+        function removeSelectionHighlight(message) {
+          mutateSelectionHighlights(message, true);
         }
 
         function setReaderHighlights(message) {
@@ -1010,6 +1181,14 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
               && typeof item.color === 'string' && item.color.length <= 32;
           });
           applyReaderHighlights();
+          var contents = rendition && typeof rendition.getContents === 'function' ? rendition.getContents() || [] : [];
+          for (var index = 0; index < contents.length; index += 1) {
+            var doc = contents[index] && contents[index].document;
+            if (hasActiveTextSelection(doc)) {
+              scheduleSelectionReady(doc);
+              break;
+            }
+          }
         }
 
         function hasActiveTextSelection(doc) {
@@ -1592,6 +1771,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
               }
               holdPaginatedSelectionViewport(doc);
               selectionGestureUntil = Date.now() + 700;
+              scheduleSelectionReady(doc);
               return;
             }
             cancelPaginatedSelectionViewportHold(doc);
@@ -1921,6 +2101,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           var oldBook = book;
           rendition = null;
           book = null;
+          readerBookId = null;
           turnInFlight = false;
           if (turnUnlockTimer) clearTimeout(turnUnlockTimer);
           turnUnlockTimer = null;
@@ -2104,6 +2285,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
 
           await closeBook();
           var openGeneration = generation;
+          readerBookId = payload.bookId;
 
           try {
             if (!applyAppearance(payload.appearance)) {
@@ -2197,7 +2379,8 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
               .then(function () { return updateAppearance(message); });
           }
           else if (message.type === 'SET_HIGHLIGHTS') setReaderHighlights(message);
-          else if (message.type === 'UPSERT_HIGHLIGHT') upsertReaderHighlight(message);
+          else if (message.type === 'UPSERT_HIGHLIGHT') applyReaderHighlight(message);
+          else if (message.type === 'REMOVE_SELECTION_HIGHLIGHT') removeSelectionHighlight(message);
           else if (message.type === 'SELECT_VISIBLE_PAGE_TEXT') selectVisiblePageText();
           else if (message.type === 'GO_TO_LOCATOR') goToLocator(message);
           else if (message.type === 'GET_CURRENT_LOCATOR') sendCurrentLocator(message);

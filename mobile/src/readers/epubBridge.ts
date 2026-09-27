@@ -1,7 +1,7 @@
 import { parseReaderLocator, type EpubLocator } from '../models/reader';
 import type { ReadingPreferences } from '../models/readingPreferences';
 
-export const EPUB_BRIDGE_VERSION = 6 as const;
+export const EPUB_BRIDGE_VERSION = 7 as const;
 export const EPUB_BRIDGE_QUEUE_LIMIT = 8;
 
 export type EpubFontWeight = 300 | 400 | 500 | 700;
@@ -84,7 +84,8 @@ export type EpubBridgeCommand =
     }>
   | BridgeEnvelope<'SET_APPEARANCE', { appearance: EpubAppearance }>
   | BridgeEnvelope<'SET_HIGHLIGHTS', { highlights: { cfiRange: string; color: string }[] }>
-  | BridgeEnvelope<'UPSERT_HIGHLIGHT', { cfiRange: string; color: string }>
+  | BridgeEnvelope<'UPSERT_HIGHLIGHT', { cfiRange: string; color: string; textExcerpt: string }>
+  | BridgeEnvelope<'REMOVE_SELECTION_HIGHLIGHT', { cfiRange: string }>
   | BridgeEnvelope<'SELECT_VISIBLE_PAGE_TEXT', Record<string, never>>
   | BridgeEnvelope<'GO_TO_LOCATOR', { locator: EpubLocator }>
   | BridgeEnvelope<'GET_CURRENT_LOCATOR', Record<string, never>>
@@ -112,8 +113,16 @@ export type EpubBridgeEvent =
       cfiRange: string | null;
       gestureId: number;
       geometry: EpubSelectionGeometry;
+      hasHighlight: boolean;
     }>
   | BridgeEnvelope<'SELECTION_CLEARED', Record<string, never>>
+  | BridgeEnvelope<'HIGHLIGHTS_CHANGED', {
+      bookId: string;
+      selectionCfiRange: string;
+      hasHighlight: boolean;
+      removedCfiRanges: string[];
+      highlights: { cfiRange: string; textExcerpt: string; color: string }[];
+    }>
   | BridgeEnvelope<'LINK_PRESSED', { url: string }>
   | BridgeEnvelope<'ERROR', { code: string; message: string; requestId?: string }>;
 
@@ -160,7 +169,7 @@ function isEpubSelectionGeometry(value: unknown): value is EpubSelectionGeometry
 }
 
 export function parseEpubBridgeEvent(raw: string): EpubBridgeEvent | null {
-  if (raw.length > 131072) return null;
+  if (raw.length > 2_097_152) return null;
 
   let value: unknown;
   try {
@@ -168,6 +177,8 @@ export function parseEpubBridgeEvent(raw: string): EpubBridgeEvent | null {
   } catch {
     return null;
   }
+
+  if (isRecord(value) && value.type !== 'HIGHLIGHTS_CHANGED' && raw.length > 131072) return null;
 
   if (
     !isRecord(value)
@@ -203,12 +214,41 @@ export function parseEpubBridgeEvent(raw: string): EpubBridgeEvent | null {
     return typeof value.payload.text === 'string'
       && value.payload.text.length > 0
       && value.payload.text.length <= 100000
+      && typeof value.payload.hasHighlight === 'boolean'
       && isEpubSelectionGeometry(value.payload.geometry)
       && (value.payload.cfiRange === null
         || (typeof value.payload.cfiRange === 'string' && value.payload.cfiRange.length <= 4096))
       && Number.isSafeInteger(value.payload.gestureId)
       && (value.payload.gestureId as number) >= 0
       ? value as EpubBridgeEvent : null;
+  }
+
+  if (value.type === 'HIGHLIGHTS_CHANGED') {
+    const removedCfiRanges = value.payload.removedCfiRanges;
+    const highlights = value.payload.highlights;
+    const validCfiList = Array.isArray(removedCfiRanges)
+      && removedCfiRanges.length <= 5000
+      && removedCfiRanges.every((cfiRange) => typeof cfiRange === 'string' && cfiRange.length > 0 && cfiRange.length <= 4096);
+    const validHighlights = Array.isArray(highlights)
+      && highlights.length <= 5000
+      && highlights.every((highlight) => isRecord(highlight)
+        && typeof highlight.cfiRange === 'string'
+        && highlight.cfiRange.length > 0
+        && highlight.cfiRange.length <= 4096
+        && typeof highlight.textExcerpt === 'string'
+        && highlight.textExcerpt.length <= 100000
+        && typeof highlight.color === 'string'
+        && highlight.color.length <= 32);
+    return typeof value.payload.bookId === 'string'
+      && value.payload.bookId.length <= 256
+      && typeof value.payload.selectionCfiRange === 'string'
+      && value.payload.selectionCfiRange.length > 0
+      && value.payload.selectionCfiRange.length <= 4096
+      && typeof value.payload.hasHighlight === 'boolean'
+      && validCfiList
+      && validHighlights
+      ? value as EpubBridgeEvent
+      : null;
   }
 
   if (value.type === 'RELOCATE') {

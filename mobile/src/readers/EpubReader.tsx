@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 import { ActivityIndicator, Platform, Pressable, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { Check, Copy, TextSelect } from 'lucide-react-native';
+import { Check, Copy, Eraser, TextSelect } from 'lucide-react-native';
 import { WebView } from 'react-native-webview';
 import type { WebView as WebViewType } from 'react-native-webview';
 import { useApp } from '../context/AppContext';
@@ -36,7 +36,7 @@ import { EpubFileError, prepareEpubFile, type PreparedEpub } from './epubFile';
 import { loadEpubFontFaces } from './readerFonts';
 import { EPUB_RUNTIME_HANDSHAKE_SCRIPT, EPUB_RUNTIME_HTML } from './epubRuntime';
 import { subscribeToEpubVolumeKeys } from './epubVolumeKeys';
-import { listReaderEpubHighlights, saveReaderEpubHighlight } from '../storage/readerDatabase';
+import { applyReaderEpubHighlightPatch, listReaderEpubHighlights } from '../storage/readerDatabase';
 
 const RUNTIME_ORIGIN = 'https://krumer.local/';
 const RUNTIME_READY_TIMEOUT_MS = 12_000;
@@ -129,6 +129,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     cfiRange: string | null;
     gestureId: number;
     geometry: EpubSelectionGeometry;
+    hasHighlight: boolean;
   } | null>(null);
   const selectionRef = useRef<typeof selection>(null);
   const [readerBounds, setReaderBounds] = useState({ width: 0, height: 0 });
@@ -187,7 +188,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     const anchorBottom = geometry.bottom * scaleY;
     const margin = barsVisible ? spacing.md : spacing.sm;
     const width = Math.max(0, Math.min(296, readerBounds.width - margin * 2));
-    const height = 104;
+    const height = selection.hasHighlight ? 148 : 104;
     const left = Math.max(margin, Math.min(readerBounds.width - width - margin, anchorX - width / 2));
     const above = anchorTop - height - spacing.sm;
     const preferredTop = above >= margin ? above : anchorBottom + spacing.sm;
@@ -234,20 +235,16 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       if (action === 'copy') {
         await Clipboard.setStringAsync(value.text);
       } else if (value.cfiRange) {
-        const cfiRange = value.cfiRange;
-        const queued = highlightQueueRef.current.then(async () => {
-          await saveReaderEpubHighlight(bookId, cfiRange, value.text, highlightColor);
-          if (bookOpenedRef.current && currentBookIdRef.current === bookId) {
-            sendCommand(createEpubBridgeCommand('UPSERT_HIGHLIGHT', { cfiRange, color: highlightColor }));
-          }
-        });
-        highlightQueueRef.current = queued.catch(() => undefined);
-        await queued;
+        sendCommand(createEpubBridgeCommand('UPSERT_HIGHLIGHT', {
+          cfiRange: value.cfiRange,
+          color: highlightColor,
+          textExcerpt: value.text,
+        }));
       }
     } catch (caught) {
       console.warn('[Krumer EpubReader] selection action failed', caught);
     }
-  }, [bookId, readingPreferences.highlightColor, sendCommand]);
+  }, [readingPreferences.highlightColor, sendCommand]);
 
   const registerFontFamily = useCallback((family: ReadingPreferences['fontFamily']) => {
     if (registeredFontFamiliesRef.current.has(family)) return Promise.resolve();
@@ -480,6 +477,31 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       return;
     }
 
+    if (message.type === 'HIGHLIGHTS_CHANGED') {
+      if (message.payload.bookId !== bookId || currentBookIdRef.current !== bookId) return;
+      const currentSelection = selectionRef.current;
+      if (currentSelection?.cfiRange === message.payload.selectionCfiRange) {
+        const updatedSelection = { ...currentSelection, hasHighlight: message.payload.hasHighlight };
+        selectionRef.current = updatedSelection;
+        setSelection(updatedSelection);
+      }
+      const queued = highlightQueueRef.current.then(() => applyReaderEpubHighlightPatch(
+        bookId,
+        message.payload.removedCfiRanges,
+        message.payload.highlights,
+      ));
+      highlightQueueRef.current = queued.catch(() => undefined);
+      void queued.catch((caught) => {
+        console.warn('[Krumer EpubReader] failed to persist highlight changes', caught);
+        if (currentBookIdRef.current === bookId) {
+          void refreshHighlights().catch((refreshError) => {
+            console.warn('[Krumer EpubReader] failed to reload highlights after persistence error', refreshError);
+          });
+        }
+      });
+      return;
+    }
+
     if (message.type === 'SELECTION_CLEARED') {
       selectionRef.current = null;
       setSelection(null);
@@ -493,6 +515,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       const sameSelection = previousSelection
         && previousSelection.text === nextSelection.text
         && previousSelection.cfiRange === nextSelection.cfiRange
+        && previousSelection.hasHighlight === nextSelection.hasHighlight
         && previousSelection.gestureId === nextSelection.gestureId
         && previousSelection.geometry.left === nextSelection.geometry.left
         && previousSelection.geometry.top === nextSelection.geometry.top
@@ -752,6 +775,31 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
                 <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 13 }}>{t('reader.selectionCopy')}</Text>
               </Pressable>
             </View>
+            {selection.hasHighlight && selection.cfiRange ? (
+              <Pressable
+                accessibilityLabel={t('reader.selectionRemoveHighlight')}
+                accessibilityRole="button"
+                onPress={() => sendCommand(createEpubBridgeCommand('REMOVE_SELECTION_HIGHLIGHT', {
+                  cfiRange: selection.cfiRange!,
+                }))}
+                style={({ pressed }) => ({
+                  alignItems: 'center',
+                  borderTopColor: theme.border,
+                  borderTopWidth: 1,
+                  flexDirection: 'row',
+                  gap: spacing.sm,
+                  justifyContent: 'center',
+                  marginTop: spacing.xs,
+                  minHeight: 40,
+                  opacity: pressed ? 0.65 : 1,
+                })}
+              >
+                <Eraser color={theme.textPrimary} size={19} strokeWidth={1.8} />
+                <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 13 }}>
+                  {t('reader.selectionRemoveHighlight')}
+                </Text>
+              </Pressable>
+            ) : null}
             <View style={{ alignItems: 'center', borderTopColor: theme.border, borderTopWidth: 1, flexDirection: 'row', justifyContent: 'space-evenly', marginTop: spacing.xs, paddingTop: spacing.xs }}>
               {READER_HIGHLIGHT_PALETTE.map(({ color, fill }) => {
                 const selectedColor = readingPreferences.highlightColor === color;

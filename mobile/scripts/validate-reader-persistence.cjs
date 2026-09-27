@@ -59,6 +59,40 @@ function main() {
     throw new Error('EPUB highlights are not unique by book and CFI range.');
   }
 
+  const replaceHighlight = database.prepare(`INSERT INTO reader_epub_highlights
+    (id, book_id, cfi_range, text_excerpt, color, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)`);
+  database.exec('BEGIN EXCLUSIVE');
+  database.prepare('DELETE FROM reader_epub_highlights WHERE book_id = ? AND cfi_range = ?')
+    .run('book-1', cfiRange);
+  database.prepare('DELETE FROM reader_epub_highlights WHERE book_id = ? AND cfi_range = ?')
+    .run('book-1', 'epubcfi(/6/2!/4/2:30-70)');
+  replaceHighlight.run('highlight-left', 'book-1', 'epubcfi(/6/2!/4/2:30-40)', 'left', 'yellow', 4, 4);
+  replaceHighlight.run('highlight-new', 'book-1', 'epubcfi(/6/2!/4/2:40-60)', 'selected', 'purple', 4, 4);
+  replaceHighlight.run('highlight-right', 'book-1', 'epubcfi(/6/2!/4/2:60-70)', 'right', 'yellow', 4, 4);
+  database.exec('COMMIT');
+  const replacedHighlights = database.prepare(
+    'SELECT cfi_range, text_excerpt, color FROM reader_epub_highlights WHERE book_id = ? ORDER BY cfi_range',
+  ).all('book-1');
+  if (replacedHighlights.length !== 3
+    || replacedHighlights[0].text_excerpt !== 'left'
+    || replacedHighlights[0].color !== 'yellow'
+    || replacedHighlights[1].text_excerpt !== 'selected'
+    || replacedHighlights[1].color !== 'purple'
+    || replacedHighlights[2].text_excerpt !== 'right'
+    || replacedHighlights[2].color !== 'yellow') {
+    throw new Error('Partial EPUB highlight replacement did not persist the outside fragments and selected color.');
+  }
+  database.prepare('DELETE FROM reader_epub_highlights WHERE book_id = ? AND cfi_range = ?')
+    .run('book-1', 'epubcfi(/6/2!/4/2:40-60)');
+  const remainingAfterRemoval = database.prepare(
+    'SELECT cfi_range FROM reader_epub_highlights WHERE book_id = ? ORDER BY cfi_range',
+  ).all('book-1');
+  if (remainingAfterRemoval.length !== 2
+    || remainingAfterRemoval.some((row) => row.cfi_range.includes(':40-60'))) {
+    throw new Error('Removing a partial EPUB highlight did not leave only its unselected fragments.');
+  }
+
   const epubLocator = {
     format: 'epub',
     cfi: 'epubcfi(/6/4!/4/2:0)',
@@ -237,7 +271,7 @@ function main() {
   }
 
   database.close();
-  console.log('Reader database migration, PDF/EPUB locators, bookmarks, and PDF note CRUD are valid.');
+  console.log('Reader database migration, PDF/EPUB locators, EPUB highlight patches, bookmarks, and PDF note CRUD are valid.');
 }
 
 try {

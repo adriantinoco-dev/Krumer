@@ -99,6 +99,8 @@ export type ReaderEpubHighlight = {
   updatedAt: number;
 };
 
+export type ReaderEpubHighlightPatchItem = Pick<ReaderEpubHighlight, 'cfiRange' | 'textExcerpt' | 'color'>;
+
 type HighlightRow = {
   id: string;
   book_id: string;
@@ -145,6 +147,43 @@ export async function saveReaderEpubHighlight(
     textExcerpt: row.text_excerpt, color: row.color,
     createdAt: row.created_at, updatedAt: row.updated_at,
   };
+}
+
+export async function applyReaderEpubHighlightPatch(
+  bookId: string,
+  removedCfiRanges: string[],
+  highlights: ReaderEpubHighlightPatchItem[],
+): Promise<void> {
+  const database = await getDatabase();
+  const uniqueRemoved = [...new Set(removedCfiRanges)];
+  const now = Date.now();
+  await database.withExclusiveTransactionAsync(async (transaction) => {
+    for (const cfiRange of uniqueRemoved) {
+      await transaction.runAsync(
+        'DELETE FROM reader_epub_highlights WHERE book_id = ? AND cfi_range = ?',
+        bookId,
+        cfiRange,
+      );
+    }
+    for (const highlight of highlights) {
+      const id = `highlight-${now}-${Math.random().toString(36).slice(2, 12)}`;
+      await transaction.runAsync(
+        `INSERT INTO reader_epub_highlights
+          (id, book_id, cfi_range, text_excerpt, color, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(book_id, cfi_range) DO UPDATE SET
+            text_excerpt = excluded.text_excerpt, color = excluded.color,
+            updated_at = excluded.updated_at`,
+        id,
+        bookId,
+        highlight.cfiRange,
+        highlight.textExcerpt,
+        highlight.color,
+        now,
+        now,
+      );
+    }
+  });
 }
 
 function rowToLocator(row: LocatorRow): ReaderLocator | null {

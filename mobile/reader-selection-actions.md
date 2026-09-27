@@ -18,7 +18,10 @@ O leitor do Krumer usa epub.js em uma WebView, com CFIs para persistir highlight
 - No modo normal, uma barra flutuante junto à seleção oferece Selecionar tudo e Copiar, além de cinco cores de highlight: vermelho, amarelo, verde, azul e roxo. Amarelo é o padrão.
 - Selecionar tudo amplia a seleção somente até os CFIs inicial e final da localização visível do epub.js; não seleciona o capítulo ou o livro inteiro.
 - Tocar em uma cor aplica imediatamente o highlight à seleção inteira atual e salva essa cor como a preferência para os próximos highlights. Não há um botão separado de Destacar.
+- Se a seleção intersectar ao menos um highlight existente, a barra mostra **Remover marcação**. Essa ação remove o destaque somente dentro da seleção atual.
+- Ao aplicar uma cor sobre highlights existentes, substituir a cor somente na interseção com a seleção. Partes dos highlights originais fora da seleção continuam com a cor anterior; nenhuma faixa pode ficar sobreposta ou misturar cores.
 - Cada highlight continua salvando sua própria cor junto ao CFI e ao trecho no SQLite existente.
+- Alterações de faixa são calculadas no runtime a partir de `Range`/CFI; a persistência remove os CFIs substituídos e grava os fragmentos preservados e o trecho novo em uma única transação SQLite.
 - O botão de ação rápida no topo abre apenas Copiar instantâneo e Destacar instantâneo. Tocar na ação ativa novamente a desativa. Com uma ação ativa, executá-la uma vez quando a seleção estiver concluída; a seleção e a barra contextual permanecem disponíveis.
 - Toque fora e navegação limpam a seleção e fecham a barra conforme o fluxo atual. A posição do leitor, a rendition e a WebView não podem mudar como efeito da seleção.
 - Em modo paginado, texto, CFI e retângulo permanecem dentro da localização visível. Em modo scroll, usar o retângulo visível no viewport atual.
@@ -33,6 +36,7 @@ O leitor do Krumer usa epub.js em uma WebView, com CFIs para persistir highlight
 
 ## Critérios de validação
 
-- Verificar seleção de palavra e trecho longo, ajuste das alças, Selecionar tudo dentro da página visível, cópia fiel, highlight imediato ao tocar em uma cor, troca de cor e persistência após reabrir o livro.
+- Verificar seleção de palavra e trecho longo, ajuste das alças, Selecionar tudo dentro da página visível, cópia fiel, highlight imediato ao tocar numa cor, troca de cor e persistência após reabrir o livro.
+- Verificar que Remover marcação aparece somente quando a seleção cruza um highlight e que remove apenas o trecho selecionado; aplicar outra cor em parte de um highlight deve manter a cor antiga dos fragmentos externos sem sobreposição.
 - Verificar capítulos e apresentação, modos paginado e scroll, seleções próximas às bordas, temas dark/claro/sépia e menu nativo ausente com alças visíveis.
 - Confirmar que a seleção não vira página, não oscila o viewport, não chama `rendition.resize()` e não remonta/recarrega a WebView.

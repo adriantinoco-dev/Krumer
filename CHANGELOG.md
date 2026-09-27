@@ -15,6 +15,7 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   do PyInstaller foi fixada para tornar seu bootloader reproduzível.
 
 ### Corrigido
+- **Mobile — edição de highlights EPUB:** a barra de seleção permite remover marcações e trocar a cor somente no trecho selecionado. Os fragmentos externos preservam a cor existente, sem sobreposição de destaques.
 - **Desktop — ciclo de vida do backend:** o processo Python agora é aguardado e,
   no Windows, sua árvore de processos é encerrada como fallback antes do Electron
   sair. O backend também monitora o PID pai para se encerrar caso o Krumer seja

@@ -139,10 +139,139 @@ function load(file, imports = {}) {
       const expected = selection.toString();
       doc.dispatchEvent(new Event('selectionchange'));
       const actual = selection.toString();
+      window.__touch(doc, 'touchend');
       window.__touch(document, 'touchstart'); window.__touch(document, 'touchend');
       return { full: actual === expected, cleared: selection.toString() === '' };
     });
     assert(scrollResult.full && scrollResult.cleared, JSON.stringify(scrollResult));
+
+    const highlightSelection = await page.evaluate(() => {
+      const rendition = window.__testReader.getRendition();
+      const content = rendition.getContents().find(item => item.sectionIndex === rendition.currentLocation().start.index);
+      const doc = content.document;
+      const frameRect = doc.defaultView.frameElement.getBoundingClientRect();
+      const scaleY = frameRect.height / doc.defaultView.innerHeight;
+      const paragraph = [...doc.querySelectorAll('p')].find(item => {
+        const rects = Array.from(item.getClientRects());
+        return rects.some(rect => {
+          const top = frameRect.top + rect.top * scaleY;
+          const bottom = frameRect.top + rect.bottom * scaleY;
+          return bottom > 0 && top < window.innerHeight;
+        });
+      });
+      if (!paragraph) throw new Error('The fixture needs a paragraph visible in the active EPUB viewport.');
+      const walker = doc.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT);
+      const textNodes = [];
+      while (walker.nextNode()) textNodes.push(walker.currentNode);
+      if (textNodes.length < 3) throw new Error('The fixture paragraph must span multiple text nodes.');
+
+      const originalRange = doc.createRange();
+      originalRange.setStart(textNodes[0], 0);
+      originalRange.setEnd(textNodes[textNodes.length - 1], textNodes[textNodes.length - 1].length);
+      const originalCfi = content.cfiFromRange(originalRange);
+      const restoredOriginalRange = content.range(originalCfi);
+      window.__send('SET_HIGHLIGHTS', { highlights: [{ cfiRange: originalCfi, color: 'yellow' }] });
+
+      const selectedRange = doc.createRange();
+      selectedRange.setStart(textNodes[0], 4);
+      selectedRange.setEnd(textNodes[textNodes.length - 1], Math.min(18, textNodes[textNodes.length - 1].length));
+      const selection = doc.defaultView.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(selectedRange);
+      doc.dispatchEvent(new Event('selectionchange'));
+      window.__highlightRegression = { content, doc, originalRange, originalCfi, selectedRange };
+      return {
+        originalCfi,
+        selectedCfi: content.cfiFromRange(selectedRange),
+        selectedText: selectedRange.toString(),
+        originalText: originalRange.toString(),
+        restoredOriginalText: restoredOriginalRange.toString(),
+        nodeCount: textNodes.length,
+      };
+    });
+    assert(highlightSelection.nodeCount >= 3, JSON.stringify(highlightSelection));
+    await page.waitForTimeout(350);
+    const liveSelection = await page.evaluate(() => ({
+      event: window.__events.filter(event => event.type === 'SELECTION_READY').at(-1),
+      activeText: window.__highlightRegression.doc.defaultView.getSelection().toString(),
+      touchInProgress: window.__highlightRegression.doc.__krumerSelectionTouchInProgress,
+      documentBound: window.__highlightRegression.doc.__krumerF1Bound,
+      events: window.__events.slice(-5).map(event => event.type),
+    }));
+    assert.equal(liveSelection.event?.payload.cfiRange, highlightSelection.selectedCfi,
+      `Selection handles must publish the complete live CFI range without depending on touchend: ${JSON.stringify({ highlightSelection, liveSelection })}`);
+    assert.equal(liveSelection.event.payload.text, highlightSelection.selectedText);
+    assert.equal(liveSelection.event.payload.hasHighlight, true,
+      `The selected range must recognize the existing multi-node highlight: ${JSON.stringify({ highlightSelection, liveSelection })}`);
+
+    const recolorResult = await page.evaluate(() => {
+      const state = window.__highlightRegression;
+      window.__send('UPSERT_HIGHLIGHT', {
+        cfiRange: state.content.cfiFromRange(state.selectedRange),
+        color: 'purple',
+        textExcerpt: state.selectedRange.toString(),
+      });
+      const patch = window.__events.filter(event => event.type === 'HIGHLIGHTS_CHANGED').at(-1);
+      const ranges = patch.payload.highlights.map(item => ({
+        item,
+        range: state.content.range(item.cfiRange),
+      }));
+      const selected = state.selectedRange;
+      const intersects = (first, second) => first.compareBoundaryPoints(3, second) < 0
+        && first.compareBoundaryPoints(1, second) > 0;
+      const selectedFragment = ranges.find(({ item }) => item.color === 'purple');
+      const yellowFragments = ranges.filter(({ item }) => item.color === 'yellow');
+      const rangesOverlap = ranges.some((first, index) => ranges.slice(index + 1).some(second =>
+        intersects(first.range, second.range)));
+      state.currentHighlights = patch.payload.highlights;
+      return {
+        removedCfiRanges: patch.payload.removedCfiRanges,
+        fragments: ranges
+          .sort((first, second) => first.range.compareBoundaryPoints(0, second.range))
+          .map(({ item, range }) => ({ cfiRange: item.cfiRange, color: item.color, text: range.toString() })),
+        originalText: state.originalRange.toString(),
+        selectedText: selected.toString(),
+        selectedExact: !!selectedFragment
+          && selectedFragment.range.compareBoundaryPoints(0, selected) === 0
+          && selectedFragment.range.compareBoundaryPoints(2, selected) === 0,
+        yellowCount: yellowFragments.length,
+        overlap: rangesOverlap,
+      };
+    });
+    assert(recolorResult.removedCfiRanges.includes(highlightSelection.originalCfi), JSON.stringify(recolorResult));
+    assert.equal(recolorResult.selectedExact, true, JSON.stringify(recolorResult));
+    assert.equal(recolorResult.yellowCount, 2, JSON.stringify(recolorResult));
+    assert.equal(recolorResult.overlap, false, JSON.stringify(recolorResult));
+    assert.equal(recolorResult.fragments.map(fragment => fragment.text).join(''), recolorResult.originalText,
+      'Changing color across text nodes must preserve only the old-color fragments outside the selection.');
+
+    const removalResult = await page.evaluate(() => {
+      const state = window.__highlightRegression;
+      const selection = state.selectedRange;
+      const range = state.doc.createRange();
+      range.setStart(selection.startContainer, selection.startOffset + 1);
+      range.setEnd(selection.endContainer, selection.endOffset - 1);
+      const removalCfi = state.content.cfiFromRange(range);
+      window.__send('REMOVE_SELECTION_HIGHLIGHT', { cfiRange: removalCfi });
+      const patch = window.__events.filter(event => event.type === 'HIGHLIGHTS_CHANGED').at(-1);
+      const remainingHighlights = state.currentHighlights
+        .filter(item => !patch.payload.removedCfiRanges.includes(item.cfiRange))
+        .concat(patch.payload.highlights);
+      state.currentHighlights = remainingHighlights;
+      const fragments = remainingHighlights.map(item => ({ item, range: state.content.range(item.cfiRange) }));
+      const intersects = (first, second) => first.compareBoundaryPoints(3, second) < 0
+        && first.compareBoundaryPoints(1, second) > 0;
+      return {
+        removedCfiRanges: patch.payload.removedCfiRanges,
+        removedText: range.toString(),
+        remaining: fragments.map(({ item, range: fragment }) => ({ color: item.color, text: fragment.toString() })),
+        overlapsRemovedSelection: fragments.some(({ range: fragment }) => intersects(fragment, range)),
+      };
+    });
+    assert.equal(removalResult.overlapsRemovedSelection, false, JSON.stringify(removalResult));
+    assert(removalResult.removedCfiRanges.length >= 1, JSON.stringify(removalResult));
+    assert(removalResult.remaining.some(fragment => fragment.color === 'yellow'), JSON.stringify(removalResult));
+    assert(removalResult.remaining.some(fragment => fragment.color === 'purple'), JSON.stringify(removalResult));
     assert.deepEqual(errors, []);
     const bridgeErrors = await page.evaluate(() => window.__events.filter(e => e.type === 'ERROR'));
     assert.deepEqual(bridgeErrors, []);
