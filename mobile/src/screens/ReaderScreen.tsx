@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, BackHandler, Easing, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, StatusBar, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Anchor, Bookmark, BookmarkPlus, Feather, ListTree, StickyNote, Sun, Trash2, X } from 'lucide-react-native';
+import { Anchor, Bookmark, BookmarkPlus, Check, Copy, Feather, Highlighter, ListTree, StickyNote, Sun, Trash2, X } from 'lucide-react-native';
 import * as Brightness from 'expo-brightness';
 import { ReadingSettingsButton } from '../components/ReadingSettingsButton';
 import { ReadingSettingsModal } from '../components/ReadingSettingsModal';
@@ -35,7 +35,7 @@ import {
 import { getCachedPdfProgress, loadPdfProgress, savePdfProgress } from '../readers/readerStartup';
 import { useApp } from '../context/AppContext';
 import { createPdfLocator, type EpubLocator, type ReaderNote } from '../models/reader';
-import type { ReadingPreferences } from '../models/readingPreferences';
+import type { ReaderHighlightColor, ReadingPreferences, SelectionQuickAction } from '../models/readingPreferences';
 import type { RootStackParamList } from '../navigation/types';
 import { radii, serifFont, spacing } from '../theme';
 
@@ -84,6 +84,7 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
     return cachedPdfProgress === undefined ? book.progress : cachedPdfProgress;
   });
   const [barsVisible, setBarsVisible] = useState(book.format !== 'epub');
+  const [selectionQuickActionsVisible, setSelectionQuickActionsVisible] = useState(false);
   const [bookmarksVisible, setBookmarksVisible] = useState(false);
   const [bookmarkBusy, setBookmarkBusy] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -135,6 +136,7 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
   const epubTopChrome = theme.name === 'dark' ? '#202020' : theme.name === 'sepia' ? '#f4ecd8' : '#ffffff';
   const epubContentVerticalInset = Math.max(insets.top, insets.bottom, 0) + EPUB_CONTENT_VERTICAL_OFFSET;
   const readerTopBarSideWidth = EPUB_TOP_BAR_SIDE_WIDTH;
+  const readerTopBarLeftWidth = isEpub ? EPUB_TOP_BAR_SIDE_WIDTH : READER_TOP_BAR_LEFT_WIDTH;
   const previewCardWidth = Math.max(1, Math.min(windowDimensions.width - spacing.lg * 2, 520));
   const previewCardMaxHeight = Math.max(1, windowDimensions.height * 0.88);
   const previewHeaderHeight = 54;
@@ -325,6 +327,7 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
       hideTimer.current = null;
     }
     setBarsVisible(false);
+    setSelectionQuickActionsVisible(false);
     setBookmarksVisible(false);
     setSettingsVisible(false);
     setPaginationSettingsVisible(false);
@@ -481,6 +484,7 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
       hideTimer.current = null;
     }
     setBarsVisible(visible);
+    if (!visible) setSelectionQuickActionsVisible(false);
     Animated.timing(opacity, {
       duration: 200,
       toValue: visible ? 1 : 0,
@@ -491,6 +495,21 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
 
   function toggleBars() {
     setBars(!barsVisible);
+  }
+
+  function toggleSelectionQuickActions() {
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+    setSelectionQuickActionsVisible((visible) => !visible);
+  }
+
+  function chooseSelectionQuickAction(action: Exclude<SelectionQuickAction, 'off'>) {
+    const selected = readingPreferences.preferences.selectionQuickAction;
+    readingPreferences.updatePreferences({ selectionQuickAction: selected === action ? 'off' : action });
+    setSelectionQuickActionsVisible(false);
+    scheduleHide();
   }
 
   const saveProgress = useCallback(async (value: string, percent: number, page?: number, total?: number) => {
@@ -831,6 +850,7 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
               onPositionStabilized={handleEpubPositionStabilized}
               onRelocate={handleEpubRelocate}
               onViewStatus={handleEpubViewStatus}
+              onHighlightColorChange={(highlightColor: ReaderHighlightColor) => readingPreferences.updatePreferences({ highlightColor })}
               readingPreferences={readingPreferences.preferences}
               useBookMargins={readerLayout.settings.useBookMargins}
               readOnly={!active}
@@ -1007,7 +1027,7 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
             zIndex: 101,
           }}
         >
-          <View style={{ flexDirection: 'row', gap: READER_TOP_BAR_BUTTON_GAP, width: READER_TOP_BAR_LEFT_WIDTH }}>
+          <View style={{ flexDirection: 'row', gap: READER_TOP_BAR_BUTTON_GAP, width: readerTopBarLeftWidth }}>
             <Pressable
               accessibilityLabel={t('reader.addBookmark')}
               disabled={!bookmarkReadyToAdd || bookmarkBusy}
@@ -1045,6 +1065,32 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
                 strokeWidth={1.7}
               />
             </Pressable>
+            {isEpub ? (
+              <Pressable
+                accessibilityLabel={t('reader.selectionQuickAction')}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: selectionQuickActionsVisible, selected: readingPreferences.preferences.selectionQuickAction !== 'off' }}
+                hitSlop={6}
+                onPress={toggleSelectionQuickActions}
+                style={({ pressed }) => ({
+                  alignItems: 'center',
+                  height: scaleEpubChrome(40),
+                  justifyContent: 'center',
+                  opacity: pressed ? 0.55 : 1,
+                  width: 44,
+                })}
+              >
+                {readingPreferences.preferences.selectionQuickAction === 'copy' ? (
+                  <Copy color={theme.accent} size={20} strokeWidth={1.8} />
+                ) : (
+                  <Highlighter
+                    color={readingPreferences.preferences.selectionQuickAction === 'highlight' ? theme.accent : epubText}
+                    size={21}
+                    strokeWidth={1.8}
+                  />
+                )}
+              </Pressable>
+            ) : null}
           </View>
 
           <Text
@@ -1100,6 +1146,65 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
           </View>
         </View>
       </Animated.View>
+
+      {isEpub && barsVisible && selectionQuickActionsVisible ? (
+        <View pointerEvents="box-none" style={{ bottom: 0, elevation: 120, left: 0, position: 'absolute', right: 0, top: 0, zIndex: 120 }}>
+          <Pressable
+            accessibilityLabel={t('common.cancel')}
+            onPress={() => {
+              setSelectionQuickActionsVisible(false);
+              scheduleHide();
+            }}
+            style={{ bottom: 0, left: 0, position: 'absolute', right: 0, top: 0 }}
+          />
+          <View style={{
+            backgroundColor: theme.card,
+            borderColor: theme.border,
+            borderRadius: radii.lg,
+            borderWidth: 1,
+            elevation: 121,
+            left: Math.max(insets.left, spacing.md),
+            padding: spacing.sm,
+            position: 'absolute',
+            top: Math.max(insets.top, Platform.OS === 'ios' ? 44 : 24) + scaleEpubChrome(44) + spacing.sm,
+            width: Math.min(288, windowDimensions.width - Math.max(insets.left, spacing.md) - spacing.md),
+            zIndex: 121,
+          }}>
+            <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12, marginBottom: spacing.xs, paddingHorizontal: spacing.sm }}>
+              {t('reader.selectionQuickAction')}
+            </Text>
+            {(['copy', 'highlight'] as const).map((action) => {
+              const selected = readingPreferences.preferences.selectionQuickAction === action;
+              return (
+                <Pressable
+                  key={action}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  onPress={() => chooseSelectionQuickAction(action)}
+                  style={({ pressed }) => ({
+                    alignItems: 'center',
+                    backgroundColor: selected ? theme.accentMuted : 'transparent',
+                    borderRadius: radii.md,
+                    flexDirection: 'row',
+                    gap: spacing.md,
+                    minHeight: 48,
+                    opacity: pressed ? 0.65 : 1,
+                    paddingHorizontal: spacing.sm,
+                  })}
+                >
+                  {action === 'copy'
+                    ? <Copy color={selected ? theme.accent : theme.textPrimary} size={20} strokeWidth={1.8} />
+                    : <Highlighter color={selected ? theme.accent : theme.textPrimary} size={21} strokeWidth={1.8} />}
+                  <Text style={{ color: theme.textPrimary, flex: 1, fontFamily: serifFont, fontSize: 14 }}>
+                    {t(action === 'copy' ? 'reader.selectionCopyInstant' : 'reader.selectionHighlightInstant')}
+                  </Text>
+                  {selected ? <Check color={theme.accent} size={19} strokeWidth={2.2} /> : null}
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
 
       {/* Bottom bar compartilhada pelos leitores. */}
       <Animated.View
@@ -1492,6 +1597,7 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
             fontFamily: 'serif',
             fontWeight: 'regular',
             selectionQuickAction: 'off',
+            highlightColor: 'yellow',
           });
         }}
         onUpdatePreferences={readingPreferences.updatePreferences}

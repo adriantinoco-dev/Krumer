@@ -211,6 +211,15 @@ export type TranslationKey =
   | 'reader.selectionQuickActionOff'
   | 'reader.selectionCopy'
   | 'reader.selectionHighlight'
+  | 'reader.selectionSelectAll'
+  | 'reader.selectionCopyInstant'
+  | 'reader.selectionHighlightInstant'
+  | 'reader.selectionHighlightColor'
+  | 'reader.highlightColor.red'
+  | 'reader.highlightColor.yellow'
+  | 'reader.highlightColor.green'
+  | 'reader.highlightColor.blue'
+  | 'reader.highlightColor.purple'
   | 'reader.fontWeight'
   | 'reader.layoutSettings'
   | 'reader.margins'
@@ -547,6 +556,15 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.selectionQuickActionOff': 'Off',
     'reader.selectionCopy': 'Copy',
     'reader.selectionHighlight': 'Highlight',
+    'reader.selectionSelectAll': 'Select all',
+    'reader.selectionCopyInstant': 'Copy instantly',
+    'reader.selectionHighlightInstant': 'Highlight instantly',
+    'reader.selectionHighlightColor': 'Highlight color: {0}',
+    'reader.highlightColor.red': 'red',
+    'reader.highlightColor.yellow': 'yellow',
+    'reader.highlightColor.green': 'green',
+    'reader.highlightColor.blue': 'blue',
+    'reader.highlightColor.purple': 'purple',
     'reader.fontWeight': 'Font weight',
     'reader.layoutSettings': 'Spacing & margins',
     'reader.margins': 'Margins',
@@ -873,6 +891,15 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.selectionQuickActionOff': 'Desativada',
     'reader.selectionCopy': 'Copiar',
     'reader.selectionHighlight': 'Destacar',
+    'reader.selectionSelectAll': 'Selecionar tudo',
+    'reader.selectionCopyInstant': 'Copiar instantâneo',
+    'reader.selectionHighlightInstant': 'Destacar instantâneo',
+    'reader.selectionHighlightColor': 'Cor do destaque: {0}',
+    'reader.highlightColor.red': 'vermelho',
+    'reader.highlightColor.yellow': 'amarelo',
+    'reader.highlightColor.green': 'verde',
+    'reader.highlightColor.blue': 'azul',
+    'reader.highlightColor.purple': 'roxo',
     'reader.fontWeight': 'Peso da fonte',
     'reader.layoutSettings': 'Espaçamento e margens',
     'reader.margins': 'Margens',
@@ -1199,6 +1226,15 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.selectionQuickActionOff': 'Desactivada',
     'reader.selectionCopy': 'Copiar',
     'reader.selectionHighlight': 'Resaltar',
+    'reader.selectionSelectAll': 'Seleccionar todo',
+    'reader.selectionCopyInstant': 'Copiar al instante',
+    'reader.selectionHighlightInstant': 'Resaltar al instante',
+    'reader.selectionHighlightColor': 'Color del resaltado: {0}',
+    'reader.highlightColor.red': 'rojo',
+    'reader.highlightColor.yellow': 'amarillo',
+    'reader.highlightColor.green': 'verde',
+    'reader.highlightColor.blue': 'azul',
+    'reader.highlightColor.purple': 'morado',
     'reader.fontWeight': 'Peso de fuente',
     'reader.layoutSettings': 'Espaciado y márgenes',
     'reader.margins': 'Márgenes',

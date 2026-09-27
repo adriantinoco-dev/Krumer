@@ -859,6 +859,57 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           return selection;
         }
 
+        function selectionViewportGeometry(doc, range) {
+          var viewportWidth = Number(window.innerWidth) || 0;
+          var viewportHeight = Number(window.innerHeight) || 0;
+          if (!viewportWidth || !viewportHeight || !range) return null;
+
+          var view = doc && doc.defaultView;
+          var frame = view && view.frameElement;
+          var frameRect = null;
+          if (frame && typeof frame.getBoundingClientRect === 'function') {
+            frameRect = frame.getBoundingClientRect();
+          }
+          var innerWidth = Number(view && view.innerWidth) || (frameRect && frameRect.width) || 0;
+          var innerHeight = Number(view && view.innerHeight) || (frameRect && frameRect.height) || 0;
+          var scaleX = frameRect && innerWidth ? frameRect.width / innerWidth : 1;
+          var scaleY = frameRect && innerHeight ? frameRect.height / innerHeight : 1;
+          var sourceRects = [];
+          try {
+            if (typeof range.getClientRects === 'function') {
+              sourceRects = Array.prototype.slice.call(range.getClientRects());
+            }
+            if (!sourceRects.length && typeof range.getBoundingClientRect === 'function') {
+              sourceRects = [range.getBoundingClientRect()];
+            }
+          } catch (_) {}
+          if (!sourceRects.length) return null;
+
+          var visibleRects = [];
+          sourceRects.forEach(function (rect) {
+            if (!rect) return;
+            var offsetX = frameRect ? frameRect.left : 0;
+            var offsetY = frameRect ? frameRect.top : 0;
+            var left = Math.max(0, offsetX + Number(rect.left) * scaleX);
+            var top = Math.max(0, offsetY + Number(rect.top) * scaleY);
+            var right = Math.min(viewportWidth, offsetX + Number(rect.right) * scaleX);
+            var bottom = Math.min(viewportHeight, offsetY + Number(rect.bottom) * scaleY);
+            if ([left, top, right, bottom].every(Number.isFinite) && right > left && bottom > top) {
+              visibleRects.push({ left: left, top: top, right: right, bottom: bottom });
+            }
+          });
+          if (!visibleRects.length) return null;
+
+          return {
+            left: Math.min.apply(null, visibleRects.map(function (rect) { return rect.left; })),
+            top: Math.min.apply(null, visibleRects.map(function (rect) { return rect.top; })),
+            right: Math.max.apply(null, visibleRects.map(function (rect) { return rect.right; })),
+            bottom: Math.max.apply(null, visibleRects.map(function (rect) { return rect.bottom; })),
+            viewportWidth: viewportWidth,
+            viewportHeight: viewportHeight
+          };
+        }
+
         function cancelSelectionTimers() {
           if (selectionReadyTimer) clearTimeout(selectionReadyTimer);
           if (selectionClearTimer) clearTimeout(selectionClearTimer);
@@ -876,14 +927,18 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           var text = String(selection.toString()).slice(0, 100000);
           if (!text.trim()) return;
           var cfiRange = null;
+          var range = null;
           try {
-            var range = selection.getRangeAt(0);
+            range = selection.getRangeAt(0);
             if (typeof content.cfiFromRange === 'function') cfiRange = content.cfiFromRange(range);
           } catch (_) {}
+          var geometry = selectionViewportGeometry(doc, range);
+          if (!geometry) return;
           post('SELECTION_READY', {
             text: text,
             cfiRange: typeof cfiRange === 'string' && cfiRange.length <= 4096 ? cfiRange : null,
-            gestureId: selectionGestureId
+            gestureId: selectionGestureId,
+            geometry: geometry
           });
         }
 
@@ -910,8 +965,15 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
         function renderReaderHighlight(item) {
           if (!rendition || !rendition.annotations) return;
           try {
+            var fills = {
+              red: '#f87171',
+              yellow: '#f8d95e',
+              green: '#4ade80',
+              blue: '#60a5fa',
+              purple: '#a78bfa'
+            };
             rendition.annotations.highlight(item.cfiRange, {}, null, 'krumer-mobile-highlight', {
-              fill: item.color === 'yellow' ? '#f8d95e' : item.color,
+              fill: fills[item.color] || item.color,
               'fill-opacity': '0.42'
             });
           } catch (_) {}
@@ -1129,6 +1191,48 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           } catch (_) {
             return 'unavailable';
           }
+        }
+
+        function selectVisiblePageText() {
+          if (!rendition || typeof rendition.getContents !== 'function') return false;
+          var contents = rendition.getContents() || [];
+          for (var index = 0; index < contents.length; index += 1) {
+            var content = contents[index];
+            var doc = content && content.document;
+            var selection = activeTextSelection(doc);
+            if (!selection || !doc || typeof doc.createRange !== 'function') continue;
+            var location = visibleSelectionLocation(doc);
+            if (!location || !location.start || !location.end) continue;
+            var visibleStart = visibleBoundaryRange(content, location.start, doc);
+            var visibleEnd = visibleBoundaryRange(content, location.end, doc);
+            if (!visibleStart || !visibleEnd) continue;
+            try {
+              var range = doc.createRange();
+              range.setStart(visibleStart.startContainer, visibleStart.startOffset);
+              range.setEnd(visibleEnd.endContainer, visibleEnd.endOffset);
+              if (range.collapsed) continue;
+              capturePaginatedSelectionViewport(doc, true);
+              if (readerLayout.displayMode === 'paginated') {
+                doc.__krumerSelectionLocation = selectionLocationSnapshot(location);
+              }
+              if (typeof selection.setBaseAndExtent === 'function') {
+                selection.setBaseAndExtent(range.startContainer, range.startOffset, range.endContainer, range.endOffset);
+              } else if (typeof selection.removeAllRanges === 'function' && typeof selection.addRange === 'function') {
+                selection.removeAllRanges();
+                selection.addRange(range);
+              } else {
+                continue;
+              }
+              selectionGestureId += 1;
+              readerSelectionSessionActive = true;
+              readerSelectionActive = true;
+              constrainSelectionToVisiblePage(doc, selection);
+              holdPaginatedSelectionViewport(doc);
+              scheduleSelectionReady(doc);
+              return true;
+            } catch (_) {}
+          }
+          return false;
         }
 
         function paginatedSelectionScrollTargets(doc) {
@@ -2094,6 +2198,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           }
           else if (message.type === 'SET_HIGHLIGHTS') setReaderHighlights(message);
           else if (message.type === 'UPSERT_HIGHLIGHT') upsertReaderHighlight(message);
+          else if (message.type === 'SELECT_VISIBLE_PAGE_TEXT') selectVisiblePageText();
           else if (message.type === 'GO_TO_LOCATOR') goToLocator(message);
           else if (message.type === 'GET_CURRENT_LOCATOR') sendCurrentLocator(message);
           else if (message.type === 'GET_TOC') getToc(message);

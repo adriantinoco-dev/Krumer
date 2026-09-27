@@ -32,17 +32,21 @@ independente do snapshot, `moveToLocatorInPlace()` realinha o manager ao locator
 somente quando o snapshot não existe, capturando em seguida a posição recuperada. Com snapshot,
 a restauração só escreve no scroll quando há deslocamento real. Isso impede que a posição
 capturada e o locator disputem o viewport a cada atualização da seleção.
-A direção das alças e o menu nativo são preservados. Em modo scroll, tanto a contenção quanto
-a restauração horizontal permanecem desativadas.
+A direção das alças é preservada. O menu nativo do Android é substituído por uma barra própria
+da WebView EPUB (`menuItems={[]}`), enquanto o DOM continua selecionável e ajustável pelas
+alças. Em modo scroll, tanto a contenção quanto a restauração horizontal permanecem desativadas.
+O comando **Selecionar tudo** reutiliza os CFIs inicial e final da localização visível para
+expandir a seleção no documento XHTML ativo; ele não seleciona o capítulo inteiro. Cada cor da
+paleta salva imediatamente um highlight para todo o CFI atualmente selecionado.
 
 Como o `ActionMode` pode auto-rolar depois do callback DOM, o realinhamento permanece ativo por
 uma janela curta de quatro verificações (0, 32, 120 e 320 ms). As correções usam o scroll
 silencioso do manager e não publicam relocation de usuário nem gravam progresso.
 
 **Regressões obrigatórias:** seleção dentro da página não deve ser alterada; seleção que
-ultrapassa o início ou o fim deve ser truncada no CFI visível; seleção em scroll deve continuar
-livre; todos os testes de estabilidade da WebView, paginação, persistência e contexto devem
-continuar passando.
+ultrapassa o início ou o fim deve ser truncada no CFI visível; Selecionar tudo deve parar no CFI
+visível; seleção em scroll deve continuar livre; todos os testes de estabilidade da WebView,
+paginação, persistência e contexto devem continuar passando.
 
 O validador cobre ranges dentro da página, ranges que atravessam os dois limites, seleção em
 direção reversa, reescrita tardia do range nativo, restauração do scroll paginado e ausência de
@@ -74,8 +78,9 @@ sintético com texto em vários nós. Foram verificadas onze páginas consecutiv
 apresentação e capítulo, sem reposicionamento/resize durante a seleção, além da seleção livre
 e da dispensa no modo scroll. O teste salva uma captura da apresentação no diretório temporário.
 O ADB foi localizado no SDK local, mas não havia aparelho/emulador conectado para confirmar
-visualmente o ActionMode Android. O reteste manual deve incluir apresentação e capítulos,
-seleção de palavra/trecho longo, copiar/selecionar tudo, toque para dispensar e ambos os modos.
+visualmente o menu Android. O reteste manual deve incluir apresentação e capítulos, seleção de
+palavra/trecho longo, alças visíveis, barra contextual e paleta, menu nativo ausente, toque para
+dispensar e ambos os modos.
 
 O primeiro diagnóstico encontrou um risco real no runtime: seleção nativa podia produzir um
 `window.resize`, executar `rendition.resize()` e deslocar a location do epub.js. A proteção de
@@ -280,9 +285,11 @@ necessário elevar o texto selecionado a state React nem recriar deliberadamente
    - Se falhar, usar `displayLocator(anchor)` como fallback explícito.
    - Só publicar `POSITION_STABILIZED`/`VIEW_STATUS` depois de confirmar o anchor recuperado.
 
-7. **Não desabilitar seleção nativa.**
-   - Não aplicar `user-select: none` nem suprimir o menu Android.
-   - Não alterar o bridge público salvo se telemetria temporária de diagnóstico for aprovada.
+7. **Ocultar somente o menu nativo da WebView EPUB.**
+   - Usar `menuItems={[]}` nessa WebView, mantendo a seleção DOM e as alças do Android.
+   - Não aplicar `user-select: none` nem alterar a seleção de outras telas.
+   - A barra própria usa o `Range` e o CFI do runtime; o bridge informa também o retângulo visível
+     e as dimensões do viewport para posicioná-la sem repaginar o livro.
 
 ## Arquivos afetados pela implementação proposta
 

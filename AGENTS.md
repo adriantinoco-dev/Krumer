@@ -174,7 +174,8 @@ Aplicam-se a mudanças em `AppContext`, `ReaderScreen`, `EpubReader`, `useEpubPe
   e clique sintético posterior não podem chamar `next`, `previous`, reabrir o livro ou limpar a
   posição atual.
 - No modo paginado, o `Selection/Range` deve permanecer contido entre os CFIs `start/end` da
-  localização visível; preservar a direção das alças e o menu nativo. Reaplicar o limite no
+  localização visível; preservar a direção das alças e ocultar somente o menu nativo do Android
+  na WebView EPUB (`menuItems={[]}`). Reaplicar o limite no
   evento tardio `rendition.selected`, preservar o primeiro snapshot da seleção e restaurar o
   manager, os scrollers do XHTML e as janelas interna/externa para o `ActionMode` Android não
   deixar o viewport entre duas colunas. Manter o realinhamento de fallback pelo locator quando

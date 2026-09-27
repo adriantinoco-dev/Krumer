@@ -44,6 +44,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   seleção ou fallback para engine nativa.
 
 ### Adicionado
+- **Mobile — ações de seleção no EPUB:** a barra ancorada oferece selecionar tudo dentro da página
+  visível e copiar; tocar numa das cinco cores aplica imediatamente o destaque à seleção inteira.
+  O menu do topo mantém cópia ou destaque instantâneos.
 - **Mobile — busca contínua de capas:** livros sem capa agora são tentados
   novamente em segundo plano com espera progressiva até cinco minutos, sem
   rescan. A busca pausa fora do foreground, retoma ao voltar ao app e preserva

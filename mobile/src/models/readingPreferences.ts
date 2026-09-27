@@ -3,6 +3,18 @@ export type ReaderOrientation = 'free' | 'landscape' | 'portrait';
 export type ReadingFontFamily = 'serif' | 'sans' | 'mono';
 export type ReadingFontWeight = 'light' | 'regular' | 'medium' | 'bold';
 export type SelectionQuickAction = 'off' | 'copy' | 'highlight';
+export type ReaderHighlightColor = 'red' | 'yellow' | 'green' | 'blue' | 'purple';
+
+export const READER_HIGHLIGHT_PALETTE: ReadonlyArray<{
+  color: ReaderHighlightColor;
+  fill: string;
+}> = [
+  { color: 'red', fill: '#f87171' },
+  { color: 'yellow', fill: '#f8d95e' },
+  { color: 'green', fill: '#4ade80' },
+  { color: 'blue', fill: '#60a5fa' },
+  { color: 'purple', fill: '#a78bfa' },
+];
 
 export type ReadingPreferences = {
   displayMode: DisplayMode;
@@ -11,6 +23,7 @@ export type ReadingPreferences = {
   fontFamily: ReadingFontFamily;
   fontWeight: ReadingFontWeight;
   selectionQuickAction: SelectionQuickAction;
+  highlightColor: ReaderHighlightColor;
 };
 
 export const DEFAULT_READING_PREFERENCES: ReadingPreferences = {
@@ -20,6 +33,7 @@ export const DEFAULT_READING_PREFERENCES: ReadingPreferences = {
   fontFamily: 'serif',
   fontWeight: 'regular',
   selectionQuickAction: 'off',
+  highlightColor: 'yellow',
 };
 
 export function parseReadingPreferences(value: unknown): ReadingPreferences | null {
@@ -44,6 +58,12 @@ export function parseReadingPreferences(value: unknown): ReadingPreferences | nu
     && candidate.selectionQuickAction !== 'off'
     && candidate.selectionQuickAction !== 'copy'
     && candidate.selectionQuickAction !== 'highlight') return null;
+  if (candidate.highlightColor !== undefined
+    && candidate.highlightColor !== 'red'
+    && candidate.highlightColor !== 'yellow'
+    && candidate.highlightColor !== 'green'
+    && candidate.highlightColor !== 'blue'
+    && candidate.highlightColor !== 'purple') return null;
   return {
     displayMode: candidate.displayMode,
     doubleColumn: candidate.doubleColumn,
@@ -51,5 +71,6 @@ export function parseReadingPreferences(value: unknown): ReadingPreferences | nu
     fontFamily: candidate.fontFamily,
     fontWeight: candidate.fontWeight,
     selectionQuickAction: candidate.selectionQuickAction ?? 'off',
+    highlightColor: candidate.highlightColor ?? 'yellow',
   };
 }

@@ -50,12 +50,12 @@ function main() {
       text_excerpt = excluded.text_excerpt, color = excluded.color,
       updated_at = excluded.updated_at`);
   upsertHighlight.run('highlight-1', 'book-1', cfiRange, 'Selected', 'yellow', 1, 1);
-  upsertHighlight.run('highlight-2', 'book-1', cfiRange, 'Selected text', 'yellow', 2, 2);
+  upsertHighlight.run('highlight-2', 'book-1', cfiRange, 'Selected text', 'blue', 2, 2);
   upsertHighlight.run('highlight-3', 'book-2', cfiRange, 'Other book', 'yellow', 3, 3);
   const bookHighlights = database.prepare(
     'SELECT * FROM reader_epub_highlights WHERE book_id = ? ORDER BY created_at',
   ).all('book-1');
-  if (bookHighlights.length !== 1 || bookHighlights[0].text_excerpt !== 'Selected text') {
+  if (bookHighlights.length !== 1 || bookHighlights[0].text_excerpt !== 'Selected text' || bookHighlights[0].color !== 'blue') {
     throw new Error('EPUB highlights are not unique by book and CFI range.');
   }
 

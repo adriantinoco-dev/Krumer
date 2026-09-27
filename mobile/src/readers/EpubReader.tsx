@@ -7,13 +7,19 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import { Check, Copy, TextSelect } from 'lucide-react-native';
 import { WebView } from 'react-native-webview';
 import type { WebView as WebViewType } from 'react-native-webview';
 import { useApp } from '../context/AppContext';
 import type { EpubLocator } from '../models/reader';
-import { DEFAULT_READING_PREFERENCES, type ReadingPreferences } from '../models/readingPreferences';
+import {
+  DEFAULT_READING_PREFERENCES,
+  READER_HIGHLIGHT_PALETTE,
+  type ReaderHighlightColor,
+  type ReadingPreferences,
+} from '../models/readingPreferences';
 import { radii, serifFont, spacing } from '../theme';
 import {
   EPUB_BRIDGE_QUEUE_LIMIT,
@@ -22,6 +28,7 @@ import {
   type EpubAppearance,
   type EpubBridgeCommand,
   type EpubRelocationSource,
+  type EpubSelectionGeometry,
   type EpubTocItem,
   type EpubViewStatus,
 } from './epubBridge';
@@ -57,6 +64,7 @@ type EpubReaderProps = {
   marginHorizontal?: number;
   onCenterTap?: () => void;
   onExternalLink?: (url: string) => void;
+  onHighlightColorChange?: (color: ReaderHighlightColor) => void;
   onPositionStabilized?: (locator: EpubLocator, source: 'restore' | 'reflow') => void;
   onRelocate?: (locator: EpubLocator, source: EpubRelocationSource) => void;
   onViewStatus?: (status: EpubViewStatus) => void;
@@ -77,6 +85,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     marginHorizontal = 20,
     onCenterTap,
     onExternalLink,
+    onHighlightColorChange,
     onPositionStabilized,
     onRelocate,
     onViewStatus,
@@ -115,7 +124,14 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   const [loading, setLoading] = useState(true);
   const [loadProgress, setLoadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [selection, setSelection] = useState<{ text: string; cfiRange: string | null; gestureId: number } | null>(null);
+  const [selection, setSelection] = useState<{
+    text: string;
+    cfiRange: string | null;
+    gestureId: number;
+    geometry: EpubSelectionGeometry;
+  } | null>(null);
+  const selectionRef = useRef<typeof selection>(null);
+  const [readerBounds, setReaderBounds] = useState({ width: 0, height: 0 });
   const lastAutomaticGestureRef = useRef(-1);
   const highlightQueueRef = useRef<Promise<void>>(Promise.resolve());
   const source = useMemo(() => ({ html: EPUB_RUNTIME_HTML, baseUrl: RUNTIME_ORIGIN }), []);
@@ -161,6 +177,23 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   const appearanceRef = useRef(appearance);
   appearanceRef.current = appearance;
   const visualTheme = appearance.visualTheme;
+  const selectionBarPosition = useMemo(() => {
+    if (!selection || readerBounds.width <= 0 || readerBounds.height <= 0) return null;
+    const geometry = selection.geometry;
+    const scaleX = readerBounds.width / geometry.viewportWidth;
+    const scaleY = readerBounds.height / geometry.viewportHeight;
+    const anchorX = ((geometry.left + geometry.right) / 2) * scaleX;
+    const anchorTop = geometry.top * scaleY;
+    const anchorBottom = geometry.bottom * scaleY;
+    const margin = barsVisible ? spacing.md : spacing.sm;
+    const width = Math.max(0, Math.min(296, readerBounds.width - margin * 2));
+    const height = 104;
+    const left = Math.max(margin, Math.min(readerBounds.width - width - margin, anchorX - width / 2));
+    const above = anchorTop - height - spacing.sm;
+    const preferredTop = above >= margin ? above : anchorBottom + spacing.sm;
+    const top = Math.max(margin, Math.min(readerBounds.height - height - margin, preferredTop));
+    return { left, top, width };
+  }, [barsVisible, readerBounds.height, readerBounds.width, selection]);
 
   const injectCommand = useCallback((command: EpubBridgeCommand) => {
     const serialized = JSON.stringify(command);
@@ -195,6 +228,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   const performSelectionAction = useCallback(async (
     action: 'copy' | 'highlight',
     value: { text: string; cfiRange: string | null },
+    highlightColor = readingPreferences.highlightColor,
   ) => {
     try {
       if (action === 'copy') {
@@ -202,9 +236,9 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       } else if (value.cfiRange) {
         const cfiRange = value.cfiRange;
         const queued = highlightQueueRef.current.then(async () => {
-          await saveReaderEpubHighlight(bookId, cfiRange, value.text, 'yellow');
+          await saveReaderEpubHighlight(bookId, cfiRange, value.text, highlightColor);
           if (bookOpenedRef.current && currentBookIdRef.current === bookId) {
-            sendCommand(createEpubBridgeCommand('UPSERT_HIGHLIGHT', { cfiRange, color: 'yellow' }));
+            sendCommand(createEpubBridgeCommand('UPSERT_HIGHLIGHT', { cfiRange, color: highlightColor }));
           }
         });
         highlightQueueRef.current = queued.catch(() => undefined);
@@ -213,7 +247,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     } catch (caught) {
       console.warn('[Krumer EpubReader] selection action failed', caught);
     }
-  }, [bookId, sendCommand]);
+  }, [bookId, readingPreferences.highlightColor, sendCommand]);
 
   const registerFontFamily = useCallback((family: ReadingPreferences['fontFamily']) => {
     if (registeredFontFamiliesRef.current.has(family)) return Promise.resolve();
@@ -447,13 +481,29 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     }
 
     if (message.type === 'SELECTION_CLEARED') {
+      selectionRef.current = null;
       setSelection(null);
       return;
     }
 
     if (message.type === 'SELECTION_READY') {
       if (readOnly) return;
-      setSelection(message.payload);
+      const previousSelection = selectionRef.current;
+      const nextSelection = message.payload;
+      const sameSelection = previousSelection
+        && previousSelection.text === nextSelection.text
+        && previousSelection.cfiRange === nextSelection.cfiRange
+        && previousSelection.gestureId === nextSelection.gestureId
+        && previousSelection.geometry.left === nextSelection.geometry.left
+        && previousSelection.geometry.top === nextSelection.geometry.top
+        && previousSelection.geometry.right === nextSelection.geometry.right
+        && previousSelection.geometry.bottom === nextSelection.geometry.bottom
+        && previousSelection.geometry.viewportWidth === nextSelection.geometry.viewportWidth
+        && previousSelection.geometry.viewportHeight === nextSelection.geometry.viewportHeight;
+      if (!sameSelection) {
+        selectionRef.current = nextSelection;
+        setSelection(nextSelection);
+      }
       const action = readingPreferences.selectionQuickAction;
       if (action !== 'off'
         && (action === 'copy' || message.payload.cfiRange)
@@ -585,7 +635,15 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   }
 
   return (
-    <View style={{ backgroundColor: visualTheme.backgroundColor, flex: 1 }}>
+    <View
+      onLayout={(event) => {
+        const { width, height } = event.nativeEvent.layout;
+        setReaderBounds((current) => current.width === width && current.height === height
+          ? current
+          : { width, height });
+      }}
+      style={{ backgroundColor: visualTheme.backgroundColor, flex: 1 }}
+    >
       {loading ? (
         <View style={{ alignItems: 'center', backgroundColor: visualTheme.backgroundColor, bottom: 0, justifyContent: 'center', left: 0, position: 'absolute', right: 0, top: 0, zIndex: 1 }}>
           <ActivityIndicator color="#f97316" size="large" />
@@ -601,6 +659,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       <WebView
         ref={webviewRef}
         androidLayerType="none"
+        menuItems={Platform.OS === 'android' ? [] : undefined}
         source={source}
         injectedJavaScript={EPUB_RUNTIME_HANDSHAKE_SCRIPT}
         onLoad={() => console.info('[Krumer EpubReader] runtime HTML carregado')}
@@ -627,25 +686,111 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
           setError(t('reader.epubWebViewUnavailable'));
         }}
       />
-      {!readOnly && !loading && selection ? (
-        <View pointerEvents="box-none" style={{ alignItems: 'center', bottom: barsVisible ? 88 : spacing.md, elevation: 2, left: 0, position: 'absolute', right: 0, zIndex: 2 }}>
-          <View style={{ backgroundColor: theme.card, borderColor: theme.border, borderRadius: radii.md, borderWidth: 1, flexDirection: 'row', overflow: 'hidden' }}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => { void performSelectionAction('copy', selection); }}
-              style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm })}
-            >
-              <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 14 }}>{t('reader.selectionCopy')}</Text>
-            </Pressable>
-            <View style={{ backgroundColor: theme.border, width: 1 }} />
-            <Pressable
-              accessibilityRole="button"
-              disabled={!selection.cfiRange}
-              onPress={() => { void performSelectionAction('highlight', selection); }}
-              style={({ pressed }) => ({ opacity: !selection.cfiRange ? 0.4 : pressed ? 0.6 : 1, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm })}
-            >
-              <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 14 }}>{t('reader.selectionHighlight')}</Text>
-            </Pressable>
+      {!readOnly && !loading && selection && selectionBarPosition ? (
+        <View
+          pointerEvents="box-none"
+          style={{
+            elevation: 12,
+            left: selectionBarPosition.left,
+            position: 'absolute',
+            top: selectionBarPosition.top,
+            width: selectionBarPosition.width,
+            zIndex: 12,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: theme.card,
+              borderColor: theme.border,
+              borderRadius: radii.lg,
+              borderWidth: 1,
+              elevation: 12,
+              overflow: 'hidden',
+              paddingHorizontal: spacing.sm,
+              paddingVertical: spacing.xs,
+              shadowColor: '#000000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: theme.name === 'light' ? 0.18 : 0.35,
+              shadowRadius: 10,
+            }}
+          >
+            <View style={{ alignItems: 'center', flexDirection: 'row', gap: spacing.xs }}>
+              <Pressable
+                accessibilityLabel={t('reader.selectionSelectAll')}
+                accessibilityRole="button"
+                onPress={() => sendCommand(createEpubBridgeCommand('SELECT_VISIBLE_PAGE_TEXT', {}))}
+                style={({ pressed }) => ({
+                  alignItems: 'center',
+                  borderRadius: radii.md,
+                  flex: 1,
+                  flexDirection: 'row',
+                  gap: spacing.sm,
+                  justifyContent: 'center',
+                  minHeight: 44,
+                  opacity: pressed ? 0.65 : 1,
+                })}
+              >
+                <TextSelect color={theme.textPrimary} size={21} strokeWidth={1.8} />
+                <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 13 }}>{t('reader.selectionSelectAll')}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityLabel={t('reader.selectionCopy')}
+                accessibilityRole="button"
+                onPress={() => { void performSelectionAction('copy', selection); }}
+                style={({ pressed }) => ({
+                  alignItems: 'center',
+                  borderRadius: radii.md,
+                  flex: 1,
+                  flexDirection: 'row',
+                  gap: spacing.sm,
+                  justifyContent: 'center',
+                  minHeight: 44,
+                  opacity: pressed ? 0.65 : 1,
+                })}
+              >
+                <Copy color={theme.textPrimary} size={21} strokeWidth={1.8} />
+                <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 13 }}>{t('reader.selectionCopy')}</Text>
+              </Pressable>
+            </View>
+            <View style={{ alignItems: 'center', borderTopColor: theme.border, borderTopWidth: 1, flexDirection: 'row', justifyContent: 'space-evenly', marginTop: spacing.xs, paddingTop: spacing.xs }}>
+              {READER_HIGHLIGHT_PALETTE.map(({ color, fill }) => {
+                const selectedColor = readingPreferences.highlightColor === color;
+                const colorLabel = t(`reader.highlightColor.${color}`);
+                return (
+                  <Pressable
+                    key={color}
+                    accessibilityLabel={t('reader.selectionHighlightColor').replace('{0}', colorLabel)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: selectedColor }}
+                    disabled={!selection.cfiRange}
+                    onPress={() => {
+                      onHighlightColorChange?.(color);
+                      void performSelectionAction('highlight', selection, color);
+                    }}
+                    style={({ pressed }) => ({
+                      alignItems: 'center',
+                      height: 34,
+                      justifyContent: 'center',
+                      opacity: !selection.cfiRange ? 0.4 : pressed ? 0.7 : 1,
+                      width: 38,
+                    })}
+                  >
+                    <View style={{
+                      alignItems: 'center',
+                      backgroundColor: fill,
+                      borderColor: selectedColor ? theme.textPrimary : theme.border,
+                      borderRadius: 16,
+                      borderWidth: selectedColor ? 2 : 1,
+                      height: 30,
+                      justifyContent: 'center',
+                      width: 30,
+                    }}>
+                      {selectedColor ? <Check color={color === 'yellow' || color === 'green' ? '#202020' : '#ffffff'} size={17} strokeWidth={2.6} /> : null}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
         </View>
       ) : null}

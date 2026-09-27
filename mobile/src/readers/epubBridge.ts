@@ -1,7 +1,7 @@
 import { parseReaderLocator, type EpubLocator } from '../models/reader';
 import type { ReadingPreferences } from '../models/readingPreferences';
 
-export const EPUB_BRIDGE_VERSION = 5 as const;
+export const EPUB_BRIDGE_VERSION = 6 as const;
 export const EPUB_BRIDGE_QUEUE_LIMIT = 8;
 
 export type EpubFontWeight = 300 | 400 | 500 | 700;
@@ -23,7 +23,7 @@ export type EpubVisualTheme = {
   textColor: string;
 };
 
-export type EpubAppearance = Omit<ReadingPreferences, 'selectionQuickAction'> & {
+export type EpubAppearance = Omit<ReadingPreferences, 'selectionQuickAction' | 'highlightColor'> & {
   fontSize: number;
   lineHeight: number;
   marginHorizontal: number;
@@ -52,6 +52,15 @@ export type EpubSelectionBoundsStatus = {
   viewportRestored: boolean;
 };
 
+export type EpubSelectionGeometry = {
+  bottom: number;
+  left: number;
+  right: number;
+  top: number;
+  viewportHeight: number;
+  viewportWidth: number;
+};
+
 type BridgeEnvelope<Type extends string, Payload> = {
   version: typeof EPUB_BRIDGE_VERSION;
   id: string;
@@ -76,6 +85,7 @@ export type EpubBridgeCommand =
   | BridgeEnvelope<'SET_APPEARANCE', { appearance: EpubAppearance }>
   | BridgeEnvelope<'SET_HIGHLIGHTS', { highlights: { cfiRange: string; color: string }[] }>
   | BridgeEnvelope<'UPSERT_HIGHLIGHT', { cfiRange: string; color: string }>
+  | BridgeEnvelope<'SELECT_VISIBLE_PAGE_TEXT', Record<string, never>>
   | BridgeEnvelope<'GO_TO_LOCATOR', { locator: EpubLocator }>
   | BridgeEnvelope<'GET_CURRENT_LOCATOR', Record<string, never>>
   | BridgeEnvelope<'GET_TOC', Record<string, never>>
@@ -97,7 +107,12 @@ export type EpubBridgeEvent =
   | BridgeEnvelope<'TOC', { toc: EpubTocItem[]; requestId: string }>
   | BridgeEnvelope<'VIEW_STATUS', EpubViewStatus>
   | BridgeEnvelope<'SELECTION_BOUNDS_STATUS', EpubSelectionBoundsStatus>
-  | BridgeEnvelope<'SELECTION_READY', { text: string; cfiRange: string | null; gestureId: number }>
+  | BridgeEnvelope<'SELECTION_READY', {
+      text: string;
+      cfiRange: string | null;
+      gestureId: number;
+      geometry: EpubSelectionGeometry;
+    }>
   | BridgeEnvelope<'SELECTION_CLEARED', Record<string, never>>
   | BridgeEnvelope<'LINK_PRESSED', { url: string }>
   | BridgeEnvelope<'ERROR', { code: string; message: string; requestId?: string }>;
@@ -119,6 +134,29 @@ export function createEpubBridgeCommand<Type extends EpubBridgeCommand['type']>(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isEpubSelectionGeometry(value: unknown): value is EpubSelectionGeometry {
+  if (!isRecord(value)) return false;
+  const { left, top, right, bottom, viewportWidth, viewportHeight } = value;
+  const validCoordinate = (coordinate: unknown): coordinate is number =>
+    typeof coordinate === 'number' && Number.isFinite(coordinate);
+  if (
+    !validCoordinate(left)
+    || !validCoordinate(top)
+    || !validCoordinate(right)
+    || !validCoordinate(bottom)
+    || !validCoordinate(viewportWidth)
+    || !validCoordinate(viewportHeight)
+  ) return false;
+  return left >= 0
+    && top >= 0
+    && right > left
+    && bottom > top
+    && viewportWidth > 0
+    && viewportHeight > 0
+    && right <= viewportWidth + 1
+    && bottom <= viewportHeight + 1;
 }
 
 export function parseEpubBridgeEvent(raw: string): EpubBridgeEvent | null {
@@ -165,6 +203,7 @@ export function parseEpubBridgeEvent(raw: string): EpubBridgeEvent | null {
     return typeof value.payload.text === 'string'
       && value.payload.text.length > 0
       && value.payload.text.length <= 100000
+      && isEpubSelectionGeometry(value.payload.geometry)
       && (value.payload.cfiRange === null
         || (typeof value.payload.cfiRange === 'string' && value.payload.cfiRange.length <= 4096))
       && Number.isSafeInteger(value.payload.gestureId)

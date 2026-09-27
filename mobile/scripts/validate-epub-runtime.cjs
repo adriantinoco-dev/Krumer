@@ -25,6 +25,8 @@ async function main() {
   const epubFileSource = fs.readFileSync('src/readers/epubFile.ts', 'utf8');
   const readerStartupSource = fs.readFileSync('src/readers/readerStartup.ts', 'utf8');
   const bookDetailSource = fs.readFileSync('src/screens/BookDetailScreen.tsx', 'utf8');
+  const readerScreenSource = fs.readFileSync('src/screens/ReaderScreen.tsx', 'utf8');
+  const runtimeSource = fs.readFileSync('src/readers/epubRuntime.ts', 'utf8');
   if (
     !epubFileSource.includes('const preparedEpubCache = new ReaderLruCache<PreparedEpubCacheEntry>()')
     || !epubFileSource.includes('const cached = preparedEpubCache.get(key)')
@@ -36,6 +38,23 @@ async function main() {
     || !bookDetailSource.includes('preloadReaderBook(defaultReaderBook, preferences.language)')
   ) {
     throw new Error('EPUB startup can regress to serial runtime, file, font, or preference preparation.');
+  }
+  if (
+    !epubReaderSource.includes("menuItems={Platform.OS === 'android' ? [] : undefined}")
+    || !epubReaderSource.includes('selectionBarPosition.left')
+    || !epubReaderSource.includes('selectionBarPosition.top')
+    || !epubReaderSource.includes('READER_HIGHLIGHT_PALETTE.map')
+    || !epubReaderSource.includes("createEpubBridgeCommand('SELECT_VISIBLE_PAGE_TEXT', {})")
+    || !epubReaderSource.includes("performSelectionAction('highlight', selection, color)")
+    || epubReaderSource.includes("t('reader.selectionHighlight')")
+    || !epubReaderSource.includes("t('reader.selectionSelectAll')")
+    || !runtimeSource.includes('function selectVisiblePageText()')
+    || !runtimeSource.includes("message.type === 'SELECT_VISIBLE_PAGE_TEXT'")
+    || !readerScreenSource.includes('reader.selectionCopyInstant')
+    || !readerScreenSource.includes('reader.selectionHighlightInstant')
+    || !readerScreenSource.includes('const readerTopBarLeftWidth = isEpub ? EPUB_TOP_BAR_SIDE_WIDTH : READER_TOP_BAR_LEFT_WIDTH;')
+  ) {
+    throw new Error('The EPUB selection menu must use the custom anchored actions and quick-action picker.');
   }
 
   const vendor = loadTypeScriptModule('src/readers/epubVendorScript.ts');
@@ -142,7 +161,7 @@ async function main() {
   };
   const rendition = {
     annotations: {
-      highlight: (cfiRange) => { highlightCalls.push({ type: 'add', cfiRange }); },
+      highlight: (cfiRange, _data, _callback, _className, styles) => { highlightCalls.push({ type: 'add', cfiRange, styles }); },
       remove: (cfiRange) => { highlightCalls.push({ type: 'remove', cfiRange }); },
     },
     currentLocation: () => currentRenditionLocation,
@@ -444,10 +463,11 @@ async function main() {
     version: bridge.EPUB_BRIDGE_VERSION,
     id: 'test-instant-highlight',
     type: 'UPSERT_HIGHLIGHT',
-    payload: { cfiRange: 'epubcfi(/instant-selection)', color: 'yellow' },
+    payload: { cfiRange: 'epubcfi(/instant-selection)', color: 'blue' },
   }));
   if (
     !highlightCalls.some((call) => call.type === 'add' && call.cfiRange === 'epubcfi(/instant-selection)')
+    || !highlightCalls.some((call) => call.type === 'add' && call.cfiRange === 'epubcfi(/instant-selection)' && call.styles.fill === '#60a5fa')
     || highlightCalls.some((call) => call.type === 'remove' && call.cfiRange === 'epubcfi(/stored-selection)')
   ) {
     throw new Error('Instant highlighting changed an existing EPUB annotation.');
@@ -617,6 +637,9 @@ async function main() {
         createElement: () => ({ style: {}, textContent: '' }),
         defaultView: {
           getSelection: () => ({
+            getRangeAt: () => ({
+              getClientRects: () => [{ bottom: 70, left: 50, right: 160, top: 50 }],
+            }),
             isCollapsed: selectionText.length === 0,
             rangeCount: selectionText.length > 0 ? 1 : 0,
             removeAllRanges: () => {
@@ -659,6 +682,7 @@ async function main() {
 
     function createRange(startOffset, endOffset) {
       return {
+        get collapsed() { return startOffset === endOffset; },
         compareBoundaryPoints(how, sourceRange) {
           if (how === 0) return Math.sign(startOffset - sourceRange.startOffset);
           if (how === 2) return Math.sign(endOffset - sourceRange.endOffset);
@@ -666,10 +690,35 @@ async function main() {
         },
         endContainer: textNode,
         endOffset,
+        getClientRects: () => [{
+          bottom: 240,
+          left: 20 + startOffset,
+          right: 20 + endOffset,
+          top: 220,
+        }],
+        getBoundingClientRect: () => ({
+          bottom: 240,
+          left: 20 + startOffset,
+          right: 20 + endOffset,
+          top: 220,
+        }),
         startContainer: textNode,
         startOffset,
       };
     }
+
+    document.createRange = () => {
+      let range = createRange(0, 0);
+      return {
+        get collapsed() { return range.collapsed; },
+        get endContainer() { return range.endContainer; },
+        get endOffset() { return range.endOffset; },
+        get startContainer() { return range.startContainer; },
+        get startOffset() { return range.startOffset; },
+        setEnd(_node, offset) { range = createRange(range.startOffset, offset); },
+        setStart(_node, offset) { range = createRange(offset, range.endOffset); },
+      };
+    };
 
     const selection = {
       get anchorNode() { return anchorNode; },
@@ -950,9 +999,20 @@ async function main() {
     !selectionReady
     || selectionReady.payload.text !== 'bounded selection'
     || selectionReady.payload.cfiRange !== 'epubcfi(/selected:20-80)'
+    || selectionReady.payload.geometry.viewportWidth !== 1000
+    || selectionReady.payload.geometry.viewportHeight !== 600
+    || selectionReady.payload.geometry.left < 0
+    || selectionReady.payload.geometry.right > selectionReady.payload.geometry.viewportWidth
     || !bridge.parseEpubBridgeEvent(JSON.stringify(selectionReady))
   ) {
     throw new Error('The stable visible selection did not publish its text and CFI range.');
+  }
+  const invalidSelectionGeometry = {
+    ...selectionReady,
+    payload: { ...selectionReady.payload, geometry: { ...selectionReady.payload.geometry, left: -1 } },
+  };
+  if (bridge.parseEpubBridgeEvent(JSON.stringify(invalidSelectionGeometry))) {
+    throw new Error('The EPUB bridge accepted selection geometry outside the reader viewport.');
   }
   if (
     managerContainer.scrollLeft !== 600
@@ -977,6 +1037,27 @@ async function main() {
   ) {
     throw new Error('A backward text selection lost direction while being constrained to the visible EPUB page.');
   }
+  const selectionCountBeforeSelectAll = boundedSelection.appliedSelections.length;
+  const selectionReadyCountBeforeSelectAll = postedEvents.filter((event) => event.type === 'SELECTION_READY').length;
+  runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
+    version: bridge.EPUB_BRIDGE_VERSION,
+    id: 'test-select-visible-page-text',
+    type: 'SELECT_VISIBLE_PAGE_TEXT',
+    payload: {},
+  }));
+  await wait(250);
+  const selectedPageText = postedEvents.filter((event) => event.type === 'SELECTION_READY').at(-1);
+  if (
+    boundedSelection.appliedSelections.length !== selectionCountBeforeSelectAll + 1
+    || boundedSelection.appliedSelections.at(-1).anchorOffset !== 20
+    || boundedSelection.appliedSelections.at(-1).focusOffset !== 80
+    || postedEvents.filter((event) => event.type === 'SELECTION_READY').length <= selectionReadyCountBeforeSelectAll
+    || !selectedPageText
+    || selectedPageText.payload.cfiRange !== 'epubcfi(/selected:20-80)'
+  ) {
+    throw new Error('Select all did not expand only to the CFIs of the visible EPUB page.');
+  }
+  const appliedSelectionCountAfterSelectAll = boundedSelection.appliedSelections.length;
   if (turns.next !== 2 || turns.previous !== 1) {
     throw new Error('Constraining a text selection changed the EPUB navigation state.');
   }
@@ -1177,7 +1258,7 @@ async function main() {
   activeReaderDocuments.splice(0, activeReaderDocuments.length, boundedSelection.document);
   boundedSelection.setSelectionRange(5, 95);
   boundedSelection.listeners.selectionchange();
-  if (boundedSelection.appliedSelections.length !== 4) {
+  if (boundedSelection.appliedSelections.length !== appliedSelectionCountAfterSelectAll) {
     throw new Error('Scroll mode incorrectly constrained text selection to paginated bounds.');
   }
   boundedSelection.clearSelection();

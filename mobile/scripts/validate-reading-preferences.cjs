@@ -38,6 +38,7 @@ async function main() {
     fontFamily: 'mono',
     fontWeight: 'bold',
     selectionQuickAction: 'highlight',
+    highlightColor: 'purple',
   };
   await hooks.saveStoredReadingPreferences(expected, storage);
   const restored = await hooks.loadStoredReadingPreferences(storage);
@@ -51,9 +52,16 @@ async function main() {
     throw new Error('Invalid stored preferences were not rejected.');
   }
 
+  memory.set('krumer.reading.preferences.v1', JSON.stringify({ ...expected, highlightColor: 'orange' }));
+  const invalidHighlightColor = await hooks.loadStoredReadingPreferences(storage);
+  if (JSON.stringify(invalidHighlightColor) !== JSON.stringify(models.DEFAULT_READING_PREFERENCES)) {
+    throw new Error('Invalid stored highlight colors were not rejected.');
+  }
+
   const legacy = { ...expected };
   delete legacy.orientation;
   delete legacy.selectionQuickAction;
+  delete legacy.highlightColor;
   memory.set('krumer.reading.preferences.v1', JSON.stringify(legacy));
   const migrated = await hooks.loadStoredReadingPreferences(storage);
   if (migrated.orientation !== 'portrait') {
@@ -61,6 +69,9 @@ async function main() {
   }
   if (migrated.selectionQuickAction !== 'off') {
     throw new Error('Legacy reading preferences did not keep instant selection disabled.');
+  }
+  if (migrated.highlightColor !== 'yellow') {
+    throw new Error('Legacy reading preferences did not default the highlight color to yellow.');
   }
 
   const fontPackages = [
