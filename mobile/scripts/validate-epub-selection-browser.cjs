@@ -149,6 +149,7 @@ function load(file, imports = {}) {
       const rendition = window.__testReader.getRendition();
       const content = rendition.getContents().find(item => item.sectionIndex === rendition.currentLocation().start.index);
       const doc = content.document;
+      window.__touch(doc, 'touchstart');
       const frameRect = doc.defaultView.frameElement.getBoundingClientRect();
       const scaleY = frameRect.height / doc.defaultView.innerHeight;
       const paragraph = [...doc.querySelectorAll('p')].find(item => {
@@ -190,6 +191,7 @@ function load(file, imports = {}) {
       };
     });
     assert(highlightSelection.nodeCount >= 3, JSON.stringify(highlightSelection));
+    await page.evaluate(() => window.__touch(window.__highlightRegression.doc, 'touchend'));
     await page.waitForTimeout(350);
     const liveSelection = await page.evaluate(() => ({
       event: window.__events.filter(event => event.type === 'SELECTION_READY').at(-1),
@@ -203,6 +205,7 @@ function load(file, imports = {}) {
     assert.equal(liveSelection.event.payload.text, highlightSelection.selectedText);
     assert.equal(liveSelection.event.payload.hasHighlight, true,
       `The selected range must recognize the existing multi-node highlight: ${JSON.stringify({ highlightSelection, liveSelection })}`);
+    assert(!('released' in liveSelection.event.payload), 'The selection protocol must not carry instant-action release state.');
 
     const recolorResult = await page.evaluate(() => {
       const state = window.__highlightRegression;

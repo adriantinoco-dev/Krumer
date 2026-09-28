@@ -23,7 +23,7 @@ export type EpubVisualTheme = {
   textColor: string;
 };
 
-export type EpubAppearance = Omit<ReadingPreferences, 'selectionQuickAction' | 'highlightColor'> & {
+export type EpubAppearance = Omit<ReadingPreferences, 'highlightColor'> & {
   fontSize: number;
   lineHeight: number;
   marginHorizontal: number;
@@ -88,9 +88,11 @@ export type EpubBridgeCommand =
   | BridgeEnvelope<'REMOVE_SELECTION_HIGHLIGHT', { cfiRange: string }>
   | BridgeEnvelope<'SELECT_VISIBLE_PAGE_TEXT', Record<string, never>>
   | BridgeEnvelope<'GO_TO_LOCATOR', { locator: EpubLocator }>
+  | BridgeEnvelope<'GO_TO_PROGRESS', { progress: number }>
   | BridgeEnvelope<'GET_CURRENT_LOCATOR', Record<string, never>>
   | BridgeEnvelope<'GET_TOC', Record<string, never>>
   | BridgeEnvelope<'GO_TO_HREF', { href: string }>
+  | BridgeEnvelope<'CLEAR_SELECTION', Record<string, never>>
   | BridgeEnvelope<'CLOSE_BOOK', Record<string, never>>;
 
 export type EpubBridgeEvent =
@@ -115,7 +117,7 @@ export type EpubBridgeEvent =
       geometry: EpubSelectionGeometry;
       hasHighlight: boolean;
     }>
-  | BridgeEnvelope<'SELECTION_CLEARED', Record<string, never>>
+  | BridgeEnvelope<'SELECTION_CLEARED', { requestId?: string }>
   | BridgeEnvelope<'HIGHLIGHTS_CHANGED', {
       bookId: string;
       selectionCfiRange: string;
@@ -209,7 +211,12 @@ export function parseEpubBridgeEvent(raw: string): EpubBridgeEvent | null {
   }
 
   if (value.type === 'CENTER_TAP') return value as EpubBridgeEvent;
-  if (value.type === 'SELECTION_CLEARED') return value as EpubBridgeEvent;
+  if (value.type === 'SELECTION_CLEARED') {
+    return value.payload.requestId === undefined
+      || (typeof value.payload.requestId === 'string' && value.payload.requestId.length <= 128)
+      ? value as EpubBridgeEvent
+      : null;
+  }
   if (value.type === 'SELECTION_READY') {
     return typeof value.payload.text === 'string'
       && value.payload.text.length > 0

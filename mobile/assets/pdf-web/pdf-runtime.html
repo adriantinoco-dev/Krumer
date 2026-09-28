@@ -3916,7 +3916,7 @@ customElements.define('foliate-fxl', FixedLayout)
         resetFrames();
         Array.from(surfaces).forEach(function (surface) { surface.detach(); });
     }
-    return { attach: attach, destroy: destroy, resetFrames: resetFrames };
+    return { attach: attach, clearSelections: clearSelections, destroy: destroy, resetFrames: resetFrames };
 })({
       viewer: viewer,
       post: post,
@@ -4176,6 +4176,7 @@ customElements.define('foliate-fxl', FixedLayout)
 
     function destroyCurrentBook() {
       cancelViewportScroll();
+      gestureController.clearSelections();
       pendingRanges.forEach(function (pending) {
         clearTimeout(pending.timeout);
         pending.reject(new Error('PDF book closed.'));
@@ -4306,6 +4307,11 @@ customElements.define('foliate-fxl', FixedLayout)
       try {
         if (command.type === 'OPEN_BOOK') return openBook(payload);
         if (command.type === 'CLOSE_BOOK') { generation += 1; destroyCurrentBook(); return; }
+        if (command.type === 'CLEAR_SELECTION') {
+          gestureController.clearSelections();
+          post('SELECTION_CLEARED', { requestId: command.id });
+          return;
+        }
         if (command.type === 'READ_RANGE_RESULT') {
           var pending = pendingRanges.get(payload.requestId);
           if (!pending || payload.bookId !== pending.bookId) return;

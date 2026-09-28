@@ -22,6 +22,7 @@ function wait(milliseconds) {
 
 async function main() {
   const epubReaderSource = fs.readFileSync('src/readers/EpubReader.tsx', 'utf8');
+  const readingPreferencesModel = loadTypeScriptModule('src/models/readingPreferences.ts');
   const epubFileSource = fs.readFileSync('src/readers/epubFile.ts', 'utf8');
   const readerStartupSource = fs.readFileSync('src/readers/readerStartup.ts', 'utf8');
   const bookDetailSource = fs.readFileSync('src/screens/BookDetailScreen.tsx', 'utf8');
@@ -53,13 +54,20 @@ async function main() {
     || !epubReaderSource.includes("t('reader.selectionSelectAll')")
     || !runtimeSource.includes('function selectVisiblePageText()')
     || !runtimeSource.includes('function mutateSelectionHighlights(message, removeSelection)')
+    || !runtimeSource.includes("message.type === 'CLEAR_SELECTION'")
+    || !runtimeSource.includes('clearReaderTextSelection(null, true, true)')
     || !readerDatabaseSource.includes('applyReaderEpubHighlightPatch')
     || !runtimeSource.includes("message.type === 'SELECT_VISIBLE_PAGE_TEXT'")
-    || !readerScreenSource.includes('reader.selectionCopyInstant')
-    || !readerScreenSource.includes('reader.selectionHighlightInstant')
+    || !readingPreferencesModel.READER_HIGHLIGHT_PALETTE.every(({ color, fill }) => runtimeSource.includes(`${color}: '${fill}'`))
+    || !runtimeSource.includes("'fill-opacity': '0.32'")
+    || readerScreenSource.includes('selectionQuickAction')
+    || (readerScreenSource.match(/\.clearTextSelection\(\)/g) || []).length !== 2
+    || !readerScreenSource.includes('pdfReaderRef.current?.clearTextSelection()')
+    || epubReaderSource.includes('selectionQuickAction')
+    || runtimeSource.includes('krumerSelectionGestureReleased')
     || !readerScreenSource.includes('const readerTopBarLeftWidth = isEpub ? EPUB_TOP_BAR_SIDE_WIDTH : READER_TOP_BAR_LEFT_WIDTH;')
   ) {
-    throw new Error('The EPUB selection menu must use the custom anchored actions and quick-action picker.');
+    throw new Error('The EPUB selection actions, highlight colors, and opacity must stay synchronized.');
   }
 
   const vendor = loadTypeScriptModule('src/readers/epubVendorScript.ts');
@@ -273,10 +281,12 @@ async function main() {
         if (value.includes('book-end')) return 181;
         if (value.includes('excerpt')) return 135;
         if (value.includes('spine-progression')) return 45;
+        if (value.includes('progress-37')) return 67;
         if (value.includes('shifted')) return 57;
         if (value.includes('relocated')) return 56;
         return 0;
       },
+      cfiFromPercentage: (percentage) => `epubcfi(/progress-${Math.round(percentage * 100)})`,
       percentageFromCfi: (cfi) => book.locations.locationFromCfi(cfi) / 181,
     },
     navigation: {
@@ -485,7 +495,10 @@ async function main() {
   }));
   if (
     !highlightCalls.some((call) => call.type === 'add' && call.cfiRange === 'epubcfi(/6/2!/4/2:50-60)')
-    || !highlightCalls.some((call) => call.type === 'add' && call.cfiRange === 'epubcfi(/6/2!/4/2:50-60)' && call.styles.fill === '#60a5fa')
+    || !highlightCalls.some((call) => call.type === 'add'
+      && call.cfiRange === 'epubcfi(/6/2!/4/2:50-60)'
+      && call.styles.fill === '#3b82f6'
+      && call.styles['fill-opacity'] === '0.32')
     || highlightCalls.some((call) => call.type === 'remove' && call.cfiRange === 'epubcfi(/stored-selection)')
   ) {
     throw new Error('Instant highlighting changed an existing EPUB annotation.');
@@ -583,6 +596,23 @@ async function main() {
     start: {
       cfi: 'epubcfi(/relocated)',
       displayed: { page: 2, total: 4 },
+      href: progressionSection.href,
+      index: 0,
+    },
+  };
+  await emitUserRelocation(currentRenditionLocation);
+
+  const progressSeek = bridge.createEpubBridgeCommand('GO_TO_PROGRESS', { progress: 0.37 });
+  runtimeWindow.KrumerEpubBridge.receive(JSON.stringify(progressSeek));
+  await wait(0);
+  if (displayTargets.at(-1) !== 'epubcfi(/progress-37)'
+    || currentRenditionLocation.start.cfi !== 'epubcfi(/progress-37)') {
+    throw new Error('GO_TO_PROGRESS did not resolve the requested fraction through the generated EPUB locations.');
+  }
+  currentRenditionLocation = {
+    start: {
+      cfi: 'epubcfi(/relocated)',
+      displayed: { page: 57, total: 182 },
       href: progressionSection.href,
       index: 0,
     },
@@ -1043,7 +1073,6 @@ async function main() {
     || handleAdjustedSelection.payload.text !== 'bounded selection') {
     throw new Error('A selectionchange from native handle adjustment did not refresh the selected CFI range.');
   }
-
   const oldHighlightCfi = 'epubcfi(/6/2!/4/2:30-70)';
   runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
     version: bridge.EPUB_BRIDGE_VERSION,
@@ -1432,6 +1461,7 @@ async function main() {
   const replaceCountBeforeRotation = viewerReplaceCount;
   const displayCountBeforeRotation = displayTargets.length;
   const inPlaceMovesBeforeRotation = inPlaceMoveCalls.length;
+  const columnAlignmentsBeforeRotation = columnAlignmentCalls.length;
 
   runtimeWindow.innerWidth = 1200;
   runtimeWindow.innerHeight = 700;
@@ -1442,7 +1472,7 @@ async function main() {
     spreadCalls.at(-1) !== 'always'
     || resizeCalls.at(-1)[0] !== 1160
     || resizeCalls.at(-1)[1] !== 700
-    || columnAlignmentCalls.length !== 2
+    || columnAlignmentCalls.length !== columnAlignmentsBeforeRotation + 1
     || columnAlignmentCalls.at(-1).left !== 600
     || columnAlignmentCalls.at(-1).top !== 0
     || columnAlignmentCalls.at(-1).silent !== true
@@ -1486,7 +1516,7 @@ async function main() {
     || viewerReplaceCount !== replaceCountBeforeRotation
     || displayTargets.length !== displayCountAfterRecovery
     || inPlaceMoveCalls.length !== inPlaceMovesAfterRotation + 1
-    || columnAlignmentCalls.length !== 3
+    || columnAlignmentCalls.length !== columnAlignmentsBeforeRotation + 2
   ) {
     throw new Error('Typography reflow did not preserve the exact CFI in place in the leading EPUB column.');
   }
@@ -1508,7 +1538,7 @@ async function main() {
     || renditionDestroyCount !== destroyCountBeforeRotation
     || viewerReplaceCount !== replaceCountBeforeRotation
     || displayTargets.length !== displayCountAfterTypography
-    || columnAlignmentCalls.length !== 3
+    || columnAlignmentCalls.length !== columnAlignmentsBeforeRotation + 2
   ) {
     throw new Error('Repeated rotation recreated, cleared, or redisplayed the EPUB rendition.');
   }
@@ -1578,6 +1608,34 @@ async function main() {
     || chapter.selectionClearCount !== selectionClearCountBeforeNavigation + 1
   ) {
     throw new Error('A paginated navigation left the previous page text selected.');
+  }
+
+  activeReaderDocuments.splice(0, activeReaderDocuments.length, boundedSelection.document);
+  boundedSelection.setSelectionRange(22, 32);
+  boundedSelection.listeners.selectionchange();
+  await wait(250);
+  const clearSelectionRequestId = 'test-clear-selection-before-close';
+  runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
+    version: bridge.EPUB_BRIDGE_VERSION,
+    id: clearSelectionRequestId,
+    type: 'CLEAR_SELECTION',
+    payload: {},
+  }));
+  const selectionCleared = postedEvents.filter((event) => event.type === 'SELECTION_CLEARED').at(-1);
+  if (boundedSelection.document.defaultView.getSelection().toString()
+    || selectionCleared?.payload.requestId !== clearSelectionRequestId
+    || !bridge.parseEpubBridgeEvent(JSON.stringify(selectionCleared))) {
+    throw new Error('Closing the EPUB reader did not clear text selection and acknowledge the native handle dismissal.');
+  }
+  boundedSelection.setSelectionRange(35, 45);
+  runtimeWindow.KrumerEpubBridge.receive(JSON.stringify({
+    version: bridge.EPUB_BRIDGE_VERSION,
+    id: 'test-close-book-clears-selection',
+    type: 'CLOSE_BOOK',
+    payload: {},
+  }));
+  if (boundedSelection.document.defaultView.getSelection().toString()) {
+    throw new Error('CLOSE_BOOK destroyed the EPUB rendition while leaving its DOM text selection active.');
   }
 
   console.log('EPUB runtime selection, stable pagination, in-place rotation, first-frame spreads, typography, and navigation are valid.');

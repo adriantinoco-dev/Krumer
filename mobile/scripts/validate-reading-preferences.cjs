@@ -37,7 +37,6 @@ async function main() {
     orientation: 'landscape',
     fontFamily: 'mono',
     fontWeight: 'bold',
-    selectionQuickAction: 'highlight',
     highlightColor: 'purple',
   };
   await hooks.saveStoredReadingPreferences(expected, storage);
@@ -58,17 +57,16 @@ async function main() {
     throw new Error('Invalid stored highlight colors were not rejected.');
   }
 
-  const legacy = { ...expected };
+  const legacy = { ...expected, selectionQuickAction: 'highlight' };
   delete legacy.orientation;
-  delete legacy.selectionQuickAction;
   delete legacy.highlightColor;
   memory.set('krumer.reading.preferences.v1', JSON.stringify(legacy));
   const migrated = await hooks.loadStoredReadingPreferences(storage);
   if (migrated.orientation !== 'portrait') {
     throw new Error('Legacy reading preferences did not migrate to portrait orientation.');
   }
-  if (migrated.selectionQuickAction !== 'off') {
-    throw new Error('Legacy reading preferences did not keep instant selection disabled.');
+  if ('selectionQuickAction' in migrated) {
+    throw new Error('A legacy instant selection preference was not ignored.');
   }
   if (migrated.highlightColor !== 'yellow') {
     throw new Error('Legacy reading preferences did not default the highlight color to yellow.');

@@ -359,7 +359,11 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
     }
   }, [onScaleChange]);
 
-  useImperativeHandle(ref, () => ({ getScale, goToPage, setScale }), [getScale, goToPage, setScale]);
+  const clearTextSelection = useCallback(() => (
+    engineRef.current?.clearTextSelection() ?? Promise.resolve()
+  ), []);
+
+  useImperativeHandle(ref, () => ({ clearTextSelection, getScale, goToPage, setScale }), [clearTextSelection, getScale, goToPage, setScale]);
 
   useEffect(() => {
     if (!interactionEnabled) return undefined;

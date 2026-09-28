@@ -2,7 +2,7 @@
 
 ## Objetivo e escopo
 
-Implementar no Krumer Mobile uma barra contextual própria para **Selecionar tudo** e **Copiar**, além de uma escolha de ação instantânea no topo do leitor. A paleta aplica highlights diretamente à seleção. A barra acompanha a seleção e usa cores compatíveis com os temas dark, claro e sépia.
+Manter no Krumer Mobile uma barra contextual própria para **Selecionar tudo** e **Copiar**. A paleta aplica highlights diretamente à seleção. Não há ação instantânea no topo do leitor; copiar ou destacar exige a ação explícita na barra. A barra acompanha a seleção e usa cores compatíveis com os temas dark, claro e sépia.
 
 Não incluir busca, tradução, dicionário, leitura em voz alta, compartilhamento, estilos de sublinhado ou outros comandos.
 
@@ -22,7 +22,7 @@ O leitor do Krumer usa epub.js em uma WebView, com CFIs para persistir highlight
 - Ao aplicar uma cor sobre highlights existentes, substituir a cor somente na interseção com a seleção. Partes dos highlights originais fora da seleção continuam com a cor anterior; nenhuma faixa pode ficar sobreposta ou misturar cores.
 - Cada highlight continua salvando sua própria cor junto ao CFI e ao trecho no SQLite existente.
 - Alterações de faixa são calculadas no runtime a partir de `Range`/CFI; a persistência remove os CFIs substituídos e grava os fragmentos preservados e o trecho novo em uma única transação SQLite.
-- O botão de ação rápida no topo abre apenas Copiar instantâneo e Destacar instantâneo. Tocar na ação ativa novamente a desativa. Com uma ação ativa, executá-la uma vez quando a seleção estiver concluída; a seleção e a barra contextual permanecem disponíveis.
+- Fechar ou sair do leitor limpa as seleções de todos os documentos EPUB e aguarda a confirmação do runtime antes de remover a WebView, para dispensar as alças do Android.
 - Toque fora e navegação limpam a seleção e fecham a barra conforme o fluxo atual. A posição do leitor, a rendition e a WebView não podem mudar como efeito da seleção.
 - Em modo paginado, texto, CFI e retângulo permanecem dentro da localização visível. Em modo scroll, usar o retângulo visível no viewport atual.
 
@@ -30,7 +30,7 @@ O leitor do Krumer usa epub.js em uma WebView, com CFIs para persistir highlight
 
 - `SELECTION_READY` inclui o retângulo da seleção em coordenadas CSS do viewport externo e a largura/altura desse viewport. O parser valida números finitos e dimensões positivas.
 - A camada React Native escala essas coordenadas para a área medida do leitor e limita a barra às bordas disponíveis, posicionando-a acima da seleção ou abaixo quando faltar espaço.
-- A ação instantânea e a cor escolhida são preferências globais em AsyncStorage. Preferências antigas sem cor continuam válidas e recebem amarelo.
+- A cor escolhida é uma preferência global em AsyncStorage. Preferências antigas sem cor continuam válidas e recebem amarelo; preferências antigas de ação instantânea são ignoradas.
 - Cores usam identificadores estáveis (`red`, `yellow`, `green`, `blue`, `purple`); o runtime os converte em preenchimentos visuais. Highlights existentes em amarelo permanecem compatíveis, sem migração de banco.
 - O menu nativo é suprimido somente na WebView EPUB. As alças e a seleção nativa do texto permanecem disponíveis.
 

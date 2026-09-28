@@ -12,6 +12,7 @@ export const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function Pd
 }, ref) {
   const { theme, t } = useApp();
   useImperativeHandle(ref, () => ({
+    clearTextSelection: () => Promise.resolve(),
     getScale: () => 1,
     goToPage: () => undefined,
     setScale: () => undefined,

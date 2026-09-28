@@ -41,14 +41,17 @@ import { applyReaderEpubHighlightPatch, listReaderEpubHighlights } from '../stor
 const RUNTIME_ORIGIN = 'https://krumer.local/';
 const RUNTIME_READY_TIMEOUT_MS = 12_000;
 const LOCATOR_REQUEST_TIMEOUT_MS = 1_000;
+const SELECTION_CLEAR_TIMEOUT_MS = 500;
 const TOC_REQUEST_TIMEOUT_MS = 2_000;
 const FONT_REGISTRATION_TIMEOUT_MS = 5_000;
 
 export type EpubReaderHandle = {
+  clearTextSelection: () => Promise<void>;
   getCurrentLocator: () => Promise<EpubLocator | null>;
   getToc: () => Promise<EpubTocItem[] | null>;
   goToHref: (href: string) => void;
   goToLocator: (locator: EpubLocator) => void;
+  goToProgress: (progress: number) => void;
   next: () => void;
   previous: () => void;
 };
@@ -113,6 +116,10 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     resolve: (locator: EpubLocator | null) => void;
     timer: ReturnType<typeof setTimeout>;
   }>());
+  const pendingSelectionClearRequestsRef = useRef(new Map<string, {
+    resolve: () => void;
+    timer: ReturnType<typeof setTimeout>;
+  }>());
   const pendingTocRequestsRef = useRef(new Map<string, {
     resolve: (toc: EpubTocItem[] | null) => void;
     timer: ReturnType<typeof setTimeout>;
@@ -133,7 +140,6 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   } | null>(null);
   const selectionRef = useRef<typeof selection>(null);
   const [readerBounds, setReaderBounds] = useState({ width: 0, height: 0 });
-  const lastAutomaticGestureRef = useRef(-1);
   const highlightQueueRef = useRef<Promise<void>>(Promise.resolve());
   const source = useMemo(() => ({ html: EPUB_RUNTIME_HTML, baseUrl: RUNTIME_ORIGIN }), []);
   const appearance = useMemo<EpubAppearance>(() => {
@@ -274,6 +280,18 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
   }, [injectCommand]);
 
   useImperativeHandle(forwardedRef, () => ({
+    clearTextSelection: () => {
+      if (!bookOpenedRef.current || !runtimeReadyRef.current) return Promise.resolve();
+      const command = createEpubBridgeCommand('CLEAR_SELECTION', {});
+      return new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          pendingSelectionClearRequestsRef.current.delete(command.id);
+          resolve();
+        }, SELECTION_CLEAR_TIMEOUT_MS);
+        pendingSelectionClearRequestsRef.current.set(command.id, { resolve, timer });
+        sendCommand(command);
+      });
+    },
     getCurrentLocator: () => {
       if (!bookOpenedRef.current) return Promise.resolve(null);
       const command = createEpubBridgeCommand('GET_CURRENT_LOCATOR', {});
@@ -306,6 +324,13 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     goToLocator: (locator) => {
       if (bookOpenedRef.current) {
         sendCommand(createEpubBridgeCommand('GO_TO_LOCATOR', { locator }));
+      }
+    },
+    goToProgress: (progress) => {
+      if (bookOpenedRef.current && Number.isFinite(progress)) {
+        sendCommand(createEpubBridgeCommand('GO_TO_PROGRESS', {
+          progress: Math.max(0, Math.min(1, progress)),
+        }));
       }
     },
     next: () => {
@@ -343,7 +368,6 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     setLoadProgress(0);
     setError(null);
     setSelection(null);
-    lastAutomaticGestureRef.current = -1;
 
     prepareEpubFile(filePath, fileSize, preferences.language)
       .then((result) => {
@@ -427,6 +451,11 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       pending.resolve(null);
     });
     pendingTocRequestsRef.current.clear();
+    pendingSelectionClearRequestsRef.current.forEach((pending) => {
+      clearTimeout(pending.timer);
+      pending.resolve();
+    });
+    pendingSelectionClearRequestsRef.current.clear();
     fontRegistrationPromisesRef.current.clear();
     registeredFontFamiliesRef.current.clear();
     runtimeReadyRef.current = false;
@@ -503,6 +532,14 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     }
 
     if (message.type === 'SELECTION_CLEARED') {
+      if (typeof message.payload.requestId === 'string') {
+        const pending = pendingSelectionClearRequestsRef.current.get(message.payload.requestId);
+        if (pending) {
+          clearTimeout(pending.timer);
+          pendingSelectionClearRequestsRef.current.delete(message.payload.requestId);
+          pending.resolve();
+        }
+      }
       selectionRef.current = null;
       setSelection(null);
       return;
@@ -526,13 +563,6 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
       if (!sameSelection) {
         selectionRef.current = nextSelection;
         setSelection(nextSelection);
-      }
-      const action = readingPreferences.selectionQuickAction;
-      if (action !== 'off'
-        && (action === 'copy' || message.payload.cfiRange)
-        && lastAutomaticGestureRef.current !== message.payload.gestureId) {
-        lastAutomaticGestureRef.current = message.payload.gestureId;
-        void performSelectionAction(action, message.payload);
       }
       return;
     }
@@ -621,7 +651,7 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
     setLoading(false);
     setError(message.payload.message || t('reader.epubOpenFailed'));
   }, [bookId, flushPendingCommands, onCenterTap, onExternalLink, onPositionStabilized,
-    onRelocate, onViewStatus, performSelectionAction, readOnly, readingPreferences.selectionQuickAction,
+    onRelocate, onViewStatus, readOnly,
     refreshHighlights, t]);
 
   const handleNavigationRequest = useCallback((request: { url: string }) => {

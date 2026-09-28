@@ -16,6 +16,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
 ### Corrigido
 - **Mobile — edição de highlights EPUB:** a barra de seleção permite remover marcações e trocar a cor somente no trecho selecionado. Os fragmentos externos preservam a cor existente, sem sobreposição de destaques.
+- **Mobile — fechamento do leitor:** limpar a seleção DOM e dispensar as alças nativas antes de sair dos leitores EPUB e PDF.
+- **Mobile — legibilidade dos highlights EPUB:** tons mais saturados para as mesmas cinco cores e menor opacidade de preenchimento preservam a leitura do texto marcado.
+- **Mobile — seleção EPUB:** removidas as ações instantâneas e a cópia/destaque automático ao selecionar. Copiar, selecionar tudo, aplicar cores e remover marcações continuam disponíveis na barra contextual.
 - **Desktop — ciclo de vida do backend:** o processo Python agora é aguardado e,
   no Windows, sua árvore de processos é encerrada como fallback antes do Electron
   sair. O backend também monitora o PID pai para se encerrar caso o Krumer seja
@@ -45,9 +48,9 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
   seleção ou fallback para engine nativa.
 
 ### Adicionado
+- **Mobile — navegação rápida no leitor:** botão central abre painel com progresso, salto para página e controles de página anterior/próxima em EPUB e PDF.
 - **Mobile — ações de seleção no EPUB:** a barra ancorada oferece selecionar tudo dentro da página
   visível e copiar; tocar numa das cinco cores aplica imediatamente o destaque à seleção inteira.
-  O menu do topo mantém cópia ou destaque instantâneos.
 - **Mobile — busca contínua de capas:** livros sem capa agora são tentados
   novamente em segundo plano com espera progressiva até cinco minutos, sem
   rescan. A busca pausa fora do foreground, retoma ao voltar ao app e preserva

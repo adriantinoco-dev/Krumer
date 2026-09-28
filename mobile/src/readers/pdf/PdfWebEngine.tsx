@@ -24,6 +24,7 @@ import {
   type PdfWebRuntimeMetrics,
 } from './pdfWebBridge';
 const RUNTIME_READY_TIMEOUT_MS = 12_000;
+const SELECTION_CLEAR_TIMEOUT_MS = 500;
 const MAX_CONCURRENT_RANGES = 2;
 const MAX_PENDING_RANGES = 24;
 const MAX_RANGE_BYTES = 1024 * 1024;
@@ -115,6 +116,10 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
     const runtimeReadyRef = useRef(false);
     const pendingCommandsRef = useRef<PdfWebBridgeCommand[]>([]);
     const readyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pendingSelectionClearRequestsRef = useRef(new Map<string, {
+      resolve: () => void;
+      timer: ReturnType<typeof setTimeout>;
+    }>());
     const openGenerationRef = useRef(0);
     const rangeQueueRef = useRef<RangeRequest[]>([]);
     const activeRangeCountRef = useRef(0);
@@ -309,6 +314,15 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
         onSingleTap(currentPageRef.current, 0, 0);
         return;
       }
+      if (message.type === 'SELECTION_CLEARED') {
+        const request = pendingSelectionClearRequestsRef.current.get(message.payload.requestId);
+        if (request) {
+          clearTimeout(request.timer);
+          pendingSelectionClearRequestsRef.current.delete(message.payload.requestId);
+          request.resolve();
+        }
+        return;
+      }
       if (message.type === 'ERROR') {
         const detail = message.payload.code
           ? `${message.payload.code}: ${message.payload.message}`
@@ -331,6 +345,18 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
     }, [binaryRangeDisabled, drainRangeQueue, flushPendingCommands, onError, onExternalLink, onLoadComplete, onLoadProgress, onPageChanged, onScaleChanged, onSingleTap, postCommand, resolvedUri]);
 
     useImperativeHandle(ref, () => ({
+      clearTextSelection: () => {
+        if (!runtimeReadyRef.current || !webviewRef.current) return Promise.resolve();
+        const command = createPdfWebBridgeCommand('CLEAR_SELECTION', {});
+        return new Promise<void>((resolve) => {
+          const timer = setTimeout(() => {
+            pendingSelectionClearRequestsRef.current.delete(command.id);
+            resolve();
+          }, SELECTION_CLEAR_TIMEOUT_MS);
+          pendingSelectionClearRequestsRef.current.set(command.id, { resolve, timer });
+          sendCommand(command);
+        });
+      },
       scrollByViewport: (fraction) => {
         sendCommand(createPdfWebBridgeCommand('SCROLL_BY_VIEWPORT', { fraction }));
       },
@@ -431,6 +457,11 @@ export const PdfWebEngine = memo(forwardRef<PdfEngineHandle, PdfWebEngineProps>(
     useEffect(() => () => {
       openGenerationRef.current += 1;
       if (runtimeReadyRef.current) postCommand(createPdfWebBridgeCommand('CLOSE_BOOK', {}));
+      pendingSelectionClearRequestsRef.current.forEach(({ resolve, timer }) => {
+        clearTimeout(timer);
+        resolve();
+      });
+      pendingSelectionClearRequestsRef.current.clear();
       closeActiveFile();
       pendingCommandsRef.current = [];
       rangeQueueRef.current = [];

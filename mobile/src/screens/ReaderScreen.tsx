@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, BackHandler, Easing, Linking, Modal, PanResponder, Platform, Pressable, ScrollView, StatusBar, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Anchor, Bookmark, BookmarkPlus, Check, Copy, Feather, Highlighter, ListTree, StickyNote, Sun, Trash2, X } from 'lucide-react-native';
+import { Anchor, Bookmark, BookmarkPlus, ChevronLeft, ChevronRight, Feather, ListTree, SlidersHorizontal, StickyNote, Sun, Trash2, X } from 'lucide-react-native';
 import * as Brightness from 'expo-brightness';
 import { ReadingSettingsButton } from '../components/ReadingSettingsButton';
 import { ReadingSettingsModal } from '../components/ReadingSettingsModal';
@@ -35,7 +35,7 @@ import {
 import { getCachedPdfProgress, loadPdfProgress, savePdfProgress } from '../readers/readerStartup';
 import { useApp } from '../context/AppContext';
 import { createPdfLocator, type EpubLocator, type ReaderNote } from '../models/reader';
-import type { ReaderHighlightColor, ReadingPreferences, SelectionQuickAction } from '../models/readingPreferences';
+import type { ReaderHighlightColor, ReadingPreferences } from '../models/readingPreferences';
 import type { RootStackParamList } from '../navigation/types';
 import { radii, serifFont, spacing } from '../theme';
 
@@ -84,7 +84,12 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
     return cachedPdfProgress === undefined ? book.progress : cachedPdfProgress;
   });
   const [barsVisible, setBarsVisible] = useState(book.format !== 'epub');
-  const [selectionQuickActionsVisible, setSelectionQuickActionsVisible] = useState(false);
+  const [navigationVisible, setNavigationVisible] = useState(false);
+  const [navigationSliderValue, setNavigationSliderValue] = useState(0);
+  const [navigationSliderDragging, setNavigationSliderDragging] = useState(false);
+  const [navigationPageDraft, setNavigationPageDraft] = useState('');
+  const [pdfReaderReady, setPdfReaderReady] = useState(false);
+  const [readerBottomBarHeight, setReaderBottomBarHeight] = useState(0);
   const [bookmarksVisible, setBookmarksVisible] = useState(false);
   const [bookmarkBusy, setBookmarkBusy] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
@@ -120,6 +125,13 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
   const lastBrightnessApplyRef = useRef(0);
   const pendingBrightnessRef = useRef(0.7);
   const sliderWidthRef = useRef(0);
+  const navigationSliderWidthRef = useRef(0);
+  const navigationSliderValueRef = useRef(0);
+  const navigationSliderEnabledRef = useRef(false);
+  const navigationProgressRef = useRef(0);
+  const navigationSeekRef = useRef<(value: number) => void>(() => undefined);
+  const navigationPageInputRef = useRef<TextInput>(null);
+  const navigationPageInputFocusedRef = useRef(false);
   const [trackWidthState, setTrackWidthState] = useState(300);
   const brightnessAnim = useRef(new Animated.Value(0.7)).current;
   const opacity = useRef(new Animated.Value(book.format === 'epub' ? 0 : 1)).current;
@@ -156,6 +168,7 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
     || pdfZoomVisible
     || brightnessVisible
     || notesVisible
+    || navigationVisible
     || detailVisible
     || editorVisible
     || noteToDelete !== null
@@ -184,21 +197,31 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
     onDurableProgress: syncDurableEpubProgress,
   });
 
+  const clearReaderSelection = useCallback(async () => {
+    if (isEpub) {
+      await epubReaderRef.current?.clearTextSelection();
+      return;
+    }
+    await pdfReaderRef.current?.clearTextSelection();
+  }, [isEpub]);
+
   const handleManagedClose = useCallback(() => {
     if (!onRequestClose) {
       navigation.goBack();
       return;
     }
-    if (!isEpub) {
-      onRequestClose();
-      return;
-    }
     if (controlledCloseInFlightRef.current) return;
     controlledCloseInFlightRef.current = true;
-    const locatorRequest = epubReaderRef.current?.getCurrentLocator() ?? Promise.resolve(null);
-    void locatorRequest
-      .catch(() => null)
-      .then((locator) => epubPersistence.flush(locator))
+    void clearReaderSelection()
+      .catch((error) => {
+        console.warn('[Krumer ReaderScreen] falha ao limpar seleção ao fechar leitor', error);
+      })
+      .then(async () => {
+        if (!isEpub) return;
+        const locator = await (epubReaderRef.current?.getCurrentLocator() ?? Promise.resolve(null))
+          .catch(() => null);
+        await epubPersistence.flush(locator);
+      })
       .catch((error) => {
         console.warn('[Krumer ReaderScreen] falha no flush ao fechar EPUB', error);
       })
@@ -206,7 +229,7 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
         controlledCloseInFlightRef.current = false;
         onRequestClose();
       });
-  }, [epubPersistence.flush, isEpub, navigation, onRequestClose]);
+  }, [clearReaderSelection, epubPersistence.flush, isEpub, navigation, onRequestClose]);
 
   const pdfBookmarks = usePdfBookmarks({
     bookId: book.id,
@@ -236,6 +259,28 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
     if (status.totalPages != null) setTotalPages(status.totalPages);
   }, []);
 
+  const hasReadyPageCount = epubViewStatus?.paginationState === 'ready' && currentPage > 0 && totalPages > 0;
+  const navigationPageCountReady = isEpub ? hasReadyPageCount : pdfReaderReady && totalPages > 0;
+  const navigationProgress = isEpub
+    ? Math.max(0, Math.min(1, progress))
+    : totalPages > 1
+      ? Math.max(0, Math.min(1, (currentPage - 1) / (totalPages - 1)))
+      : 0;
+  navigationSliderEnabledRef.current = navigationPageCountReady;
+  navigationProgressRef.current = navigationProgress;
+
+  useEffect(() => {
+    if (!navigationSliderDragging) {
+      navigationSliderValueRef.current = navigationProgress;
+      setNavigationSliderValue(navigationProgress);
+    }
+  }, [navigationProgress, navigationSliderDragging]);
+
+  useEffect(() => {
+    if (navigationPageInputFocusedRef.current) return;
+    setNavigationPageDraft(navigationPageCountReady && currentPage > 0 ? String(currentPage) : '');
+  }, [currentPage, navigationPageCountReady, totalPages]);
+
   const handleExternalLink = useCallback((url: string) => {
     void Linking.openURL(url).catch((caught: unknown) => {
       console.warn('[Krumer ReaderScreen] falha ao abrir link externo', caught);
@@ -244,6 +289,7 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
 
   useEffect(() => {
     if (!isEpub) {
+      setPdfReaderReady(false);
       loadPdfProgress(book.id).then(setSavedPosition);
       return;
     }
@@ -292,14 +338,20 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
     allowControlledCloseRef.current = false;
     controlledCloseInFlightRef.current = false;
     return navigation.addListener('beforeRemove', (event) => {
-      if (!isEpub || allowControlledCloseRef.current) return;
+      if (allowControlledCloseRef.current) return;
       event.preventDefault();
       if (controlledCloseInFlightRef.current) return;
       controlledCloseInFlightRef.current = true;
-      const locatorRequest = epubReaderRef.current?.getCurrentLocator() ?? Promise.resolve(null);
-      void locatorRequest
-        .catch(() => null)
-        .then((locator) => epubPersistence.flush(locator))
+      void clearReaderSelection()
+        .catch((error) => {
+          console.warn('[Krumer ReaderScreen] falha ao limpar seleção ao fechar leitor', error);
+        })
+        .then(async () => {
+          if (!isEpub) return;
+          const locator = await (epubReaderRef.current?.getCurrentLocator() ?? Promise.resolve(null))
+            .catch(() => null);
+          await epubPersistence.flush(locator);
+        })
         .catch((error) => {
           console.warn('[Krumer ReaderScreen] falha no flush ao fechar EPUB', error);
         })
@@ -309,7 +361,7 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
           navigation.dispatch(event.data.action);
         });
     });
-  }, [epubPersistence.flush, isEpub, navigation]);
+  }, [clearReaderSelection, epubPersistence.flush, isEpub, navigation]);
 
   useEffect(() => {
     if (!onRequestClose || !active) return undefined;
@@ -327,7 +379,7 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
       hideTimer.current = null;
     }
     setBarsVisible(false);
-    setSelectionQuickActionsVisible(false);
+    setNavigationVisible(false);
     setBookmarksVisible(false);
     setSettingsVisible(false);
     setPaginationSettingsVisible(false);
@@ -484,7 +536,6 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
       hideTimer.current = null;
     }
     setBarsVisible(visible);
-    if (!visible) setSelectionQuickActionsVisible(false);
     Animated.timing(opacity, {
       duration: 200,
       toValue: visible ? 1 : 0,
@@ -495,21 +546,6 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
 
   function toggleBars() {
     setBars(!barsVisible);
-  }
-
-  function toggleSelectionQuickActions() {
-    if (hideTimer.current) {
-      clearTimeout(hideTimer.current);
-      hideTimer.current = null;
-    }
-    setSelectionQuickActionsVisible((visible) => !visible);
-  }
-
-  function chooseSelectionQuickAction(action: Exclude<SelectionQuickAction, 'off'>) {
-    const selected = readingPreferences.preferences.selectionQuickAction;
-    readingPreferences.updatePreferences({ selectionQuickAction: selected === action ? 'off' : action });
-    setSelectionQuickActionsVisible(false);
-    scheduleHide();
   }
 
   const saveProgress = useCallback(async (value: string, percent: number, page?: number, total?: number) => {
@@ -528,6 +564,7 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
   }, [book.currentPage, book.format, book.id, book.totalPages, updateBookProgress]);
 
   const handlePdfPageChange = useCallback((page: number, total: number) => {
+    setPdfReaderReady(true);
     const nextProgress = total ? page / total : 0;
     setProgress(nextProgress);
     setCurrentPage(page);
@@ -547,6 +584,72 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
       );
     }, PDF_PROGRESS_SAVE_DELAY_MS);
   }, [saveProgress]);
+
+  function updateNavigationSlider(locationX: number) {
+    const width = Math.max(1, navigationSliderWidthRef.current);
+    const value = Math.max(0, Math.min(1, locationX / width));
+    navigationSliderValueRef.current = value;
+    setNavigationSliderValue(value);
+  }
+
+  function commitNavigationProgress(value: number) {
+    if (!navigationPageCountReady || totalPages < 1) return;
+    const progressValue = Math.max(0, Math.min(1, value));
+    navigationSliderValueRef.current = progressValue;
+    setNavigationSliderValue(progressValue);
+    if (isEpub) {
+      epubReaderRef.current?.goToProgress(progressValue);
+      return;
+    }
+    const targetPage = totalPages > 1
+      ? Math.round(progressValue * (totalPages - 1)) + 1
+      : 1;
+    pdfReaderRef.current?.goToPage(targetPage);
+  }
+
+  function submitNavigationPage() {
+    if (!navigationPageCountReady || totalPages < 1) return;
+    const parsedPage = Number(navigationPageDraft.trim());
+    if (!Number.isInteger(parsedPage) || parsedPage < 1) return;
+    const targetPage = Math.max(1, Math.min(totalPages, parsedPage));
+    const progressValue = totalPages > 1 ? (targetPage - 1) / (totalPages - 1) : 0;
+    navigationPageInputFocusedRef.current = false;
+    navigationPageInputRef.current?.blur();
+    setNavigationPageDraft(String(targetPage));
+    commitNavigationProgress(progressValue);
+  }
+
+  function stepNavigationPage(direction: -1 | 1) {
+    if (isEpub) {
+      if (direction < 0) epubReaderRef.current?.previous();
+      else epubReaderRef.current?.next();
+      return;
+    }
+    if (pdfReaderReady && totalPages > 0) {
+      pdfReaderRef.current?.goToPage(currentPage + direction);
+    }
+  }
+
+  const navigationSliderResponder = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: () => navigationSliderEnabledRef.current,
+    onPanResponderGrant: (event) => {
+      if (!navigationSliderEnabledRef.current) return;
+      setNavigationSliderDragging(true);
+      updateNavigationSlider(event.nativeEvent.locationX);
+    },
+    onPanResponderMove: (event) => updateNavigationSlider(event.nativeEvent.locationX),
+    onPanResponderRelease: () => {
+      setNavigationSliderDragging(false);
+      navigationSeekRef.current(navigationSliderValueRef.current);
+    },
+    onPanResponderTerminate: () => {
+      setNavigationSliderDragging(false);
+      navigationSliderValueRef.current = navigationProgressRef.current;
+      setNavigationSliderValue(navigationProgressRef.current);
+    },
+    onStartShouldSetPanResponder: () => navigationSliderEnabledRef.current,
+  })).current;
+  navigationSeekRef.current = commitNavigationProgress;
 
   useEffect(() => () => {
     if (pdfProgressTimerRef.current) clearTimeout(pdfProgressTimerRef.current);
@@ -721,6 +824,24 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
     scheduleHide();
   }, [scheduleHide]);
 
+  const openNavigation = useCallback(() => {
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current);
+      hideTimer.current = null;
+    }
+    navigationSliderValueRef.current = navigationProgress;
+    setNavigationSliderValue(navigationProgress);
+    setNavigationPageDraft(navigationPageCountReady && currentPage > 0 ? String(currentPage) : '');
+    setNavigationVisible(true);
+  }, [currentPage, navigationPageCountReady, navigationProgress]);
+
+  const closeNavigation = useCallback(() => {
+    setNavigationVisible(false);
+    navigationPageInputFocusedRef.current = false;
+    navigationPageInputRef.current?.blur();
+    scheduleHide();
+  }, [scheduleHide]);
+
   const handleTocSelect = useCallback((href: string) => {
     if (!href) return;
     epubReaderRef.current?.goToHref(href);
@@ -793,7 +914,24 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
     return count;
   }
 
-  const hasReadyPageCount = epubViewStatus?.paginationState === 'ready' && currentPage > 0 && totalPages > 0;
+  const navigationButton = (
+    <Pressable
+      accessibilityLabel={t('reader.navigation')}
+      accessibilityRole="button"
+      accessibilityState={{ expanded: navigationVisible }}
+      hitSlop={12}
+      key="reader-navigation"
+      onPress={openNavigation}
+      style={({ pressed }) => ({
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: pressed ? 0.5 : 1,
+        padding: 12,
+      })}
+    >
+      <SlidersHorizontal color={navigationVisible ? theme.accent : epubText} size={23} strokeWidth={1.9} />
+    </Pressable>
+  );
 
   return (
     <View style={{ backgroundColor: theme.bg, flex: 1 }}>
@@ -999,6 +1137,7 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
       {/* Top bar */}
       <Animated.View
         onTouchStart={scheduleHide}
+        onLayout={(event) => setReaderBottomBarHeight(event.nativeEvent.layout.height)}
         pointerEvents={barsVisible ? 'auto' : 'none'}
         style={{
           backgroundColor: epubTopChrome,
@@ -1065,32 +1204,6 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
                 strokeWidth={1.7}
               />
             </Pressable>
-            {isEpub ? (
-              <Pressable
-                accessibilityLabel={t('reader.selectionQuickAction')}
-                accessibilityRole="button"
-                accessibilityState={{ expanded: selectionQuickActionsVisible, selected: readingPreferences.preferences.selectionQuickAction !== 'off' }}
-                hitSlop={6}
-                onPress={toggleSelectionQuickActions}
-                style={({ pressed }) => ({
-                  alignItems: 'center',
-                  height: scaleEpubChrome(40),
-                  justifyContent: 'center',
-                  opacity: pressed ? 0.55 : 1,
-                  width: 44,
-                })}
-              >
-                {readingPreferences.preferences.selectionQuickAction === 'copy' ? (
-                  <Copy color={theme.accent} size={20} strokeWidth={1.8} />
-                ) : (
-                  <Highlighter
-                    color={readingPreferences.preferences.selectionQuickAction === 'highlight' ? theme.accent : epubText}
-                    size={21}
-                    strokeWidth={1.8}
-                  />
-                )}
-              </Pressable>
-            ) : null}
           </View>
 
           <Text
@@ -1147,65 +1260,6 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
         </View>
       </Animated.View>
 
-      {isEpub && barsVisible && selectionQuickActionsVisible ? (
-        <View pointerEvents="box-none" style={{ bottom: 0, elevation: 120, left: 0, position: 'absolute', right: 0, top: 0, zIndex: 120 }}>
-          <Pressable
-            accessibilityLabel={t('common.cancel')}
-            onPress={() => {
-              setSelectionQuickActionsVisible(false);
-              scheduleHide();
-            }}
-            style={{ bottom: 0, left: 0, position: 'absolute', right: 0, top: 0 }}
-          />
-          <View style={{
-            backgroundColor: theme.card,
-            borderColor: theme.border,
-            borderRadius: radii.lg,
-            borderWidth: 1,
-            elevation: 121,
-            left: Math.max(insets.left, spacing.md),
-            padding: spacing.sm,
-            position: 'absolute',
-            top: Math.max(insets.top, Platform.OS === 'ios' ? 44 : 24) + scaleEpubChrome(44) + spacing.sm,
-            width: Math.min(288, windowDimensions.width - Math.max(insets.left, spacing.md) - spacing.md),
-            zIndex: 121,
-          }}>
-            <Text style={{ color: theme.textMuted, fontFamily: serifFont, fontSize: 12, marginBottom: spacing.xs, paddingHorizontal: spacing.sm }}>
-              {t('reader.selectionQuickAction')}
-            </Text>
-            {(['copy', 'highlight'] as const).map((action) => {
-              const selected = readingPreferences.preferences.selectionQuickAction === action;
-              return (
-                <Pressable
-                  key={action}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  onPress={() => chooseSelectionQuickAction(action)}
-                  style={({ pressed }) => ({
-                    alignItems: 'center',
-                    backgroundColor: selected ? theme.accentMuted : 'transparent',
-                    borderRadius: radii.md,
-                    flexDirection: 'row',
-                    gap: spacing.md,
-                    minHeight: 48,
-                    opacity: pressed ? 0.65 : 1,
-                    paddingHorizontal: spacing.sm,
-                  })}
-                >
-                  {action === 'copy'
-                    ? <Copy color={selected ? theme.accent : theme.textPrimary} size={20} strokeWidth={1.8} />
-                    : <Highlighter color={selected ? theme.accent : theme.textPrimary} size={21} strokeWidth={1.8} />}
-                  <Text style={{ color: theme.textPrimary, flex: 1, fontFamily: serifFont, fontSize: 14 }}>
-                    {t(action === 'copy' ? 'reader.selectionCopyInstant' : 'reader.selectionHighlightInstant')}
-                  </Text>
-                  {selected ? <Check color={theme.accent} size={19} strokeWidth={2.2} /> : null}
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-      ) : null}
-
       {/* Bottom bar compartilhada pelos leitores. */}
       <Animated.View
         onTouchStart={scheduleHide}
@@ -1254,6 +1308,8 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
               />
             ) : null}
 
+            {isEpub ? navigationButton : null}
+
             <Pressable
               accessibilityLabel={t('reader.notes')}
               accessibilityRole="button"
@@ -1268,6 +1324,8 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
             >
               <Feather color={epubText} size={24} strokeWidth={1.9} />
             </Pressable>
+
+            {!isEpub ? navigationButton : null}
 
             <Pressable
               accessibilityLabel={t('reader.brightness')}
@@ -1466,6 +1524,133 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
           </Pressable>
       </ActionSheetModal>
 
+      {/* Navigation Modal - Salto rápido por página */}
+      <ActionSheetModal
+        backdropColor="rgba(0,0,0,0.08)"
+        navigationBarTranslucent
+        onClose={closeNavigation}
+        statusBarTranslucent
+        visible={navigationVisible}
+      >
+        <Pressable
+          onPress={(event) => event.stopPropagation()}
+          style={{
+            backgroundColor: theme.card,
+            borderTopColor: theme.border,
+            borderTopWidth: 1,
+            marginBottom: readerBottomBarHeight,
+            paddingHorizontal: spacing.lg,
+            paddingTop: spacing.md,
+            paddingBottom: spacing.xs,
+          }}
+        >
+          <View style={{ alignItems: 'center', justifyContent: 'center', marginBottom: spacing.sm }}>
+            <View style={{ alignItems: 'center', backgroundColor: theme.bg, borderColor: theme.border, borderRadius: 24, borderWidth: 1, flexDirection: 'row', justifyContent: 'center', minHeight: 44, paddingHorizontal: spacing.md }}>
+              <TextInput
+                accessibilityLabel={t('reader.goToPage')}
+                editable={navigationPageCountReady}
+                keyboardType="number-pad"
+                maxLength={Math.max(1, String(totalPages || 1).length)}
+                onBlur={() => {
+                  navigationPageInputFocusedRef.current = false;
+                  if (!navigationPageCountReady) {
+                    setNavigationPageDraft('');
+                    return;
+                  }
+                  const parsedPage = Number(navigationPageDraft.trim());
+                  setNavigationPageDraft(Number.isInteger(parsedPage) && parsedPage >= 1
+                    ? String(Math.min(totalPages, parsedPage))
+                    : String(currentPage));
+                }}
+                onChangeText={(value) => setNavigationPageDraft(value.replace(/\D/g, ''))}
+                onFocus={() => {
+                  navigationPageInputFocusedRef.current = true;
+                }}
+                onSubmitEditing={submitNavigationPage}
+                ref={navigationPageInputRef}
+                returnKeyType="go"
+                selectTextOnFocus
+                style={{ color: navigationPageCountReady ? theme.textPrimary : theme.textMuted, fontFamily: serifFont, fontSize: 16, fontWeight: '700', minWidth: 34, paddingVertical: spacing.sm, textAlign: 'center' }}
+                value={navigationPageDraft}
+              />
+              <Text style={{ color: theme.textSecondary, fontFamily: serifFont, fontSize: 15 }}>
+                / {navigationPageCountReady ? totalPages : '—'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={{ marginBottom: spacing.xs }}>
+            <View
+              {...navigationSliderResponder.panHandlers}
+              accessibilityLabel={t('reader.readingProgress')}
+              accessibilityRole="adjustable"
+              onLayout={(event) => {
+                navigationSliderWidthRef.current = event.nativeEvent.layout.width;
+              }}
+              style={{ height: 48, justifyContent: 'center', marginHorizontal: 22, opacity: navigationPageCountReady ? 1 : 0.45 }}
+            >
+              <View style={{ backgroundColor: theme.surface, borderColor: theme.border, borderRadius: 10, borderWidth: 1, height: 16, overflow: 'hidden', width: '100%' }}>
+                <View style={{ backgroundColor: theme.accentMuted, height: '100%', width: `${navigationSliderValue * 100}%` }} />
+              </View>
+              <View
+                pointerEvents="none"
+                style={{
+                  alignItems: 'center',
+                  backgroundColor: theme.bg,
+                  borderColor: theme.border,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  height: 32,
+                  left: `${navigationSliderValue * 100}%`,
+                  position: 'absolute',
+                  transform: [{ translateX: -22 }],
+                  justifyContent: 'center',
+                  minWidth: 44,
+                  paddingHorizontal: spacing.xs,
+                }}
+              >
+                <Text style={{ color: navigationPageCountReady ? theme.textPrimary : theme.textMuted, fontFamily: serifFont, fontSize: 12, fontWeight: '600' }}>
+                  {navigationPageCountReady ? `${Math.round(navigationSliderValue * 100)}%` : '—'}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={{ alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginHorizontal: spacing.md }}>
+            <Pressable
+              accessibilityLabel={t('reader.previousPage')}
+              accessibilityRole="button"
+              disabled={(!isEpub && !pdfReaderReady) || (navigationPageCountReady && currentPage <= 1)}
+              onPress={() => stepNavigationPage(-1)}
+              style={({ pressed }) => ({
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: 48,
+                minWidth: 48,
+                opacity: (!isEpub && !pdfReaderReady) || (navigationPageCountReady && currentPage <= 1) ? 0.4 : pressed ? 0.7 : 1,
+              })}
+            >
+              <ChevronLeft color={theme.textSecondary} size={25} strokeWidth={2.1} />
+            </Pressable>
+            <Pressable
+              accessibilityLabel={t('reader.nextPage')}
+              accessibilityRole="button"
+              disabled={(!isEpub && !pdfReaderReady) || (navigationPageCountReady && currentPage >= totalPages)}
+              onPress={() => stepNavigationPage(1)}
+              style={({ pressed }) => ({
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: 48,
+                minWidth: 48,
+                opacity: (!isEpub && !pdfReaderReady) || (navigationPageCountReady && currentPage >= totalPages) ? 0.4 : pressed ? 0.7 : 1,
+              })}
+            >
+              <ChevronRight color={theme.textSecondary} size={25} strokeWidth={2.1} />
+            </Pressable>
+          </View>
+        </Pressable>
+      </ActionSheetModal>
+
       {/* Brightness Modal - Controle de brilho */}
       <ActionSheetModal
         navigationBarTranslucent
@@ -1596,7 +1781,6 @@ export function ReaderScreen({ active = true, navigation, onRequestClose, route 
           readingPreferences.updatePreferences({
             fontFamily: 'serif',
             fontWeight: 'regular',
-            selectionQuickAction: 'off',
             highlightColor: 'yellow',
           });
         }}

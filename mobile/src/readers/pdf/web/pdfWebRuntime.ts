@@ -481,7 +481,7 @@ export function createPdfGestureController(options: any) {
     Array.from(surfaces).forEach(function (surface: any) { surface.detach(); });
   }
 
-  return { attach: attach, destroy: destroy, resetFrames: resetFrames };
+  return { attach: attach, clearSelections: clearSelections, destroy: destroy, resetFrames: resetFrames };
 }
 
 function inlineScript(source: string) {
@@ -1028,6 +1028,7 @@ const bridgeRuntime = `
 
     function destroyCurrentBook() {
       cancelViewportScroll();
+      gestureController.clearSelections();
       pendingRanges.forEach(function (pending) {
         clearTimeout(pending.timeout);
         pending.reject(new Error('PDF book closed.'));
@@ -1158,6 +1159,11 @@ const bridgeRuntime = `
       try {
         if (command.type === 'OPEN_BOOK') return openBook(payload);
         if (command.type === 'CLOSE_BOOK') { generation += 1; destroyCurrentBook(); return; }
+        if (command.type === 'CLEAR_SELECTION') {
+          gestureController.clearSelections();
+          post('SELECTION_CLEARED', { requestId: command.id });
+          return;
+        }
         if (command.type === 'READ_RANGE_RESULT') {
           var pending = pendingRanges.get(payload.requestId);
           if (!pending || payload.bookId !== pending.bookId) return;

@@ -355,7 +355,8 @@ Na data do diagnóstico já existia um patch local não commitado em `epubRuntim
 `validate-epub-runtime.cjs`. Após aprovação, esse patch foi revisado e consolidado. Além das
 guardas de seleção e resize, a implementação final:
 
-- zera o estado global de seleção ao fechar/trocar de livro ou recriar a rendition;
+- remove os ranges DOM de todos os documentos EPUB ao fechar o leitor, aguarda o ACK de `SELECTION_CLEARED` antes da navegação e também limpa a seleção antes de destruir/trocar a rendition;
+- o leitor PDF aplica o mesmo contrato pelo bridge do PDF.js antes de desmontar a tela;
 - cobre o fallback por `displayLocator(anchor)` quando a recuperação in-place não encontra a
   view ativa;
 - cobre seleção + resize também no modo scroll, preservando o locator.

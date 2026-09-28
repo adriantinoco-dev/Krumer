@@ -207,14 +207,10 @@ export type TranslationKey =
   | 'reader.fontSerif'
   | 'reader.fontSize'
   | 'reader.fontSettings'
-  | 'reader.selectionQuickAction'
-  | 'reader.selectionQuickActionOff'
   | 'reader.selectionCopy'
   | 'reader.selectionRemoveHighlight'
   | 'reader.selectionHighlight'
   | 'reader.selectionSelectAll'
-  | 'reader.selectionCopyInstant'
-  | 'reader.selectionHighlightInstant'
   | 'reader.selectionHighlightColor'
   | 'reader.highlightColor.red'
   | 'reader.highlightColor.yellow'
@@ -227,6 +223,9 @@ export type TranslationKey =
   | 'reader.bookMargins'
   | 'reader.customMargins'
   | 'reader.horizontalMargin'
+  | 'reader.navigation'
+  | 'reader.readingProgress'
+  | 'reader.goToPage'
   | 'reader.nextPage'
   | 'reader.noBookmarks'
   | 'reader.topics'
@@ -553,14 +552,10 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.fontSerif': 'Serif',
     'reader.fontSize': 'Font size',
     'reader.fontSettings': 'Font & theme',
-    'reader.selectionQuickAction': 'Instant selection action',
-    'reader.selectionQuickActionOff': 'Off',
     'reader.selectionCopy': 'Copy',
     'reader.selectionRemoveHighlight': 'Remove highlight',
     'reader.selectionHighlight': 'Highlight',
     'reader.selectionSelectAll': 'Select all',
-    'reader.selectionCopyInstant': 'Copy instantly',
-    'reader.selectionHighlightInstant': 'Highlight instantly',
     'reader.selectionHighlightColor': 'Highlight color: {0}',
     'reader.highlightColor.red': 'red',
     'reader.highlightColor.yellow': 'yellow',
@@ -573,6 +568,9 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.bookMargins': 'Book',
     'reader.customMargins': 'My margins',
     'reader.horizontalMargin': 'Horizontal margin',
+    'reader.navigation': 'Navigation',
+    'reader.readingProgress': 'Reading progress',
+    'reader.goToPage': 'Go to page',
     'reader.nextPage': 'Next page',
     'reader.noBookmarks': 'No bookmarks yet.',
     'reader.topics': 'Topics',
@@ -889,14 +887,10 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.fontSerif': 'Serifa',
     'reader.fontSize': 'Tamanho da fonte',
     'reader.fontSettings': 'Fonte e tema',
-    'reader.selectionQuickAction': 'Ação instantânea ao selecionar',
-    'reader.selectionQuickActionOff': 'Desativada',
     'reader.selectionCopy': 'Copiar',
     'reader.selectionRemoveHighlight': 'Remover marcação',
     'reader.selectionHighlight': 'Destacar',
     'reader.selectionSelectAll': 'Selecionar tudo',
-    'reader.selectionCopyInstant': 'Copiar instantâneo',
-    'reader.selectionHighlightInstant': 'Destacar instantâneo',
     'reader.selectionHighlightColor': 'Cor do destaque: {0}',
     'reader.highlightColor.red': 'vermelho',
     'reader.highlightColor.yellow': 'amarelo',
@@ -909,6 +903,9 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.bookMargins': 'Livro',
     'reader.customMargins': 'Minhas margens',
     'reader.horizontalMargin': 'Margem horizontal',
+    'reader.navigation': 'Navegação',
+    'reader.readingProgress': 'Progresso da leitura',
+    'reader.goToPage': 'Ir para página',
     'reader.nextPage': 'Próxima página',
     'reader.noBookmarks': 'Nenhum marcador ainda.',
     'reader.topics': 'Tópicos',
@@ -1225,14 +1222,10 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.fontSerif': 'Serifa',
     'reader.fontSize': 'Tamaño de fuente',
     'reader.fontSettings': 'Fuente y tema',
-    'reader.selectionQuickAction': 'Acción instantánea al seleccionar',
-    'reader.selectionQuickActionOff': 'Desactivada',
     'reader.selectionCopy': 'Copiar',
     'reader.selectionRemoveHighlight': 'Quitar resaltado',
     'reader.selectionHighlight': 'Resaltar',
     'reader.selectionSelectAll': 'Seleccionar todo',
-    'reader.selectionCopyInstant': 'Copiar al instante',
-    'reader.selectionHighlightInstant': 'Resaltar al instante',
     'reader.selectionHighlightColor': 'Color del resaltado: {0}',
     'reader.highlightColor.red': 'rojo',
     'reader.highlightColor.yellow': 'amarillo',
@@ -1245,6 +1238,9 @@ export const translations: Record<LanguageCode, Dictionary> = {
     'reader.bookMargins': 'Libro',
     'reader.customMargins': 'Mis márgenes',
     'reader.horizontalMargin': 'Margen horizontal',
+    'reader.navigation': 'Navegación',
+    'reader.readingProgress': 'Progreso de lectura',
+    'reader.goToPage': 'Ir a la página',
     'reader.nextPage': 'Página siguiente',
     'reader.noBookmarks': 'Aún no hay marcadores.',
     'reader.topics': 'Temas',

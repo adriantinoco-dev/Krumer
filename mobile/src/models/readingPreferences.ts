@@ -2,18 +2,17 @@ export type DisplayMode = 'scroll' | 'paginated';
 export type ReaderOrientation = 'free' | 'landscape' | 'portrait';
 export type ReadingFontFamily = 'serif' | 'sans' | 'mono';
 export type ReadingFontWeight = 'light' | 'regular' | 'medium' | 'bold';
-export type SelectionQuickAction = 'off' | 'copy' | 'highlight';
 export type ReaderHighlightColor = 'red' | 'yellow' | 'green' | 'blue' | 'purple';
 
 export const READER_HIGHLIGHT_PALETTE: ReadonlyArray<{
   color: ReaderHighlightColor;
   fill: string;
 }> = [
-  { color: 'red', fill: '#f87171' },
-  { color: 'yellow', fill: '#f8d95e' },
-  { color: 'green', fill: '#4ade80' },
-  { color: 'blue', fill: '#60a5fa' },
-  { color: 'purple', fill: '#a78bfa' },
+  { color: 'red', fill: '#ef4444' },
+  { color: 'yellow', fill: '#eab308' },
+  { color: 'green', fill: '#22c55e' },
+  { color: 'blue', fill: '#3b82f6' },
+  { color: 'purple', fill: '#a855f7' },
 ];
 
 export type ReadingPreferences = {
@@ -22,7 +21,6 @@ export type ReadingPreferences = {
   orientation: ReaderOrientation;
   fontFamily: ReadingFontFamily;
   fontWeight: ReadingFontWeight;
-  selectionQuickAction: SelectionQuickAction;
   highlightColor: ReaderHighlightColor;
 };
 
@@ -32,7 +30,6 @@ export const DEFAULT_READING_PREFERENCES: ReadingPreferences = {
   orientation: 'portrait',
   fontFamily: 'serif',
   fontWeight: 'regular',
-  selectionQuickAction: 'off',
   highlightColor: 'yellow',
 };
 
@@ -54,10 +51,6 @@ export function parseReadingPreferences(value: unknown): ReadingPreferences | nu
     && candidate.fontWeight !== 'medium'
     && candidate.fontWeight !== 'bold'
   ) return null;
-  if (candidate.selectionQuickAction !== undefined
-    && candidate.selectionQuickAction !== 'off'
-    && candidate.selectionQuickAction !== 'copy'
-    && candidate.selectionQuickAction !== 'highlight') return null;
   if (candidate.highlightColor !== undefined
     && candidate.highlightColor !== 'red'
     && candidate.highlightColor !== 'yellow'
@@ -70,7 +63,6 @@ export function parseReadingPreferences(value: unknown): ReadingPreferences | nu
     orientation: candidate.orientation ?? DEFAULT_READING_PREFERENCES.orientation,
     fontFamily: candidate.fontFamily,
     fontWeight: candidate.fontWeight,
-    selectionQuickAction: candidate.selectionQuickAction ?? 'off',
     highlightColor: candidate.highlightColor ?? 'yellow',
   };
 }

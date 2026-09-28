@@ -35,7 +35,7 @@ function loadRuntimeModule() {
     }
     if (name === './generated/pdfGestureController') {
       return {
-        PDF_WEB_GESTURE_CONTROLLER_SOURCE: 'function createPdfGestureController(options) { return { attach() {}, resetFrames() {} }; }',
+        PDF_WEB_GESTURE_CONTROLLER_SOURCE: 'function createPdfGestureController(options) { return { attach() {}, clearSelections() { globalThis.__pdfSelectionClearCalls = (globalThis.__pdfSelectionClearCalls || 0) + 1; }, resetFrames() {} }; }',
       };
     }
     throw new Error(`Unexpected import: ${name}`);
@@ -58,6 +58,7 @@ async function main() {
   const fixedSource = read('src/readers/pdf/web/vendor/foliate/fixed-layout.js');
   const generatedVendorSource = read('src/readers/pdf/web/generated/pdfWebVendor.ts');
   const generatedGestureSource = read('src/readers/pdf/web/generated/pdfGestureController.ts');
+  const runtimeAssetSource = read('assets/pdf-web/pdf-runtime.html');
   const readerScreenSource = read('src/screens/ReaderScreen.tsx');
 
   assert(runtimeSource.includes('var rangeRequestTimeoutMs = 10000;'));
@@ -71,6 +72,17 @@ async function main() {
   assert(runtimeSource.includes('function stopViewportScroll()'));
   assert(runtimeSource.includes("window.addEventListener('message', receiveMessage)"));
   assert(runtimeSource.includes("document.addEventListener('message', receiveMessage)"));
+  assert(runtimeSource.includes("command.type === 'CLEAR_SELECTION'"));
+  assert(runtimeSource.includes("post('SELECTION_CLEARED', { requestId: command.id })"));
+  assert(runtimeSource.includes('gestureController.clearSelections();'));
+  assert(runtimeAssetSource.includes("command.type === 'CLEAR_SELECTION'"));
+  assert(runtimeAssetSource.includes("post('SELECTION_CLEARED', { requestId: command.id })"));
+  assert(generatedGestureSource.includes('clearSelections: clearSelections'));
+  assert(bridgeSource.includes("BridgeEnvelope<'CLEAR_SELECTION'"));
+  assert(bridgeSource.includes("BridgeEnvelope<'SELECTION_CLEARED'"));
+  assert(engineSource.includes("createPdfWebBridgeCommand('CLEAR_SELECTION', {})"));
+  assert(engineSource.includes("message.type === 'SELECTION_CLEARED'"));
+  assert(readerScreenSource.includes('pdfReaderRef.current?.clearTextSelection()'));
   assert(!runtimeSource.includes("viewer.scrollBy({ top: viewer.clientHeight * fraction, behavior: 'smooth' })"));
   // Run the existing 18% animation and verify release cancels every queued frame.
   const scrollFunctions = runtimeSource.slice(
@@ -377,6 +389,15 @@ async function main() {
   assert.doesNotThrow(() => vm.runInNewContext(runtimeScript, runtimeSandbox));
   await new Promise((resolve) => setTimeout(resolve, 5));
   assert(runtimeMessages.some((message) => message.type === 'READY'), 'The runtime did not emit READY.');
+  runtimeSandbox.KrumerPdfBridge.receive(JSON.stringify({
+    version: 1,
+    id: 'pdf-clear-selection-request',
+    type: 'CLEAR_SELECTION',
+    payload: {},
+  }));
+  const clearedMessage = runtimeMessages.find((message) => message.type === 'SELECTION_CLEARED');
+  assert.strictEqual(runtimeSandbox.__pdfSelectionClearCalls, 1, 'CLEAR_SELECTION did not clear PDF.js selection ranges.');
+  assert.strictEqual(clearedMessage?.payload.requestId, 'pdf-clear-selection-request', 'The selection-clear acknowledgment did not match its request.');
 
   const delayedMessages = [];
   const delayedWindow = { addEventListener() {}, ReactNativeWebView: null };

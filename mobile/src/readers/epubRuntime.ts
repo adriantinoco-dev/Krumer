@@ -968,15 +968,15 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           if (!rendition || !rendition.annotations) return;
           try {
             var fills = {
-              red: '#f87171',
-              yellow: '#f8d95e',
-              green: '#4ade80',
-              blue: '#60a5fa',
-              purple: '#a78bfa'
+              red: '#ef4444',
+              yellow: '#eab308',
+              green: '#22c55e',
+              blue: '#3b82f6',
+              purple: '#a855f7'
             };
             rendition.annotations.highlight(item.cfiRange, {}, null, 'krumer-mobile-highlight', {
               fill: fills[item.color] || item.color,
-              'fill-opacity': '0.42'
+              'fill-opacity': '0.32'
             });
           } catch (_) {}
         }
@@ -1602,7 +1602,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           });
         }
 
-        function clearReaderTextSelection() {
+        function clearReaderTextSelection(requestId, suppressViewportLayout, forcePublish) {
           var hadSelection = readerSelectionSessionActive || hasReaderTextSelection();
           var contents = rendition && typeof rendition.getContents === 'function' ? rendition.getContents() || [] : [];
           var documents = [document].concat(contents.map(function (content) { return content && content.document; }));
@@ -1633,8 +1633,15 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           readerSelectionSessionActive = false;
           readerSelectionActive = hasReaderTextSelection();
           cancelSelectionTimers();
-          if (hadSelection) post('SELECTION_CLEARED', {});
-          flushDeferredViewportLayout();
+          if (hadSelection || requestId || forcePublish) {
+            post('SELECTION_CLEARED', requestId ? { requestId: requestId } : {});
+          }
+          if (suppressViewportLayout) {
+            viewportResizePending = false;
+            viewportResizeAnchor = null;
+          } else {
+            flushDeferredViewportLayout();
+          }
           return hadSelection;
         }
 
@@ -2095,6 +2102,7 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
         }
 
         async function closeBook() {
+          clearReaderTextSelection(null, true, true);
           generation += 1;
           renditionGeneration += 1;
           var oldRendition = rendition;
@@ -2115,7 +2123,6 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           readerSelectionActive = false;
           readerSelectionSessionActive = false;
           cancelSelectionTimers();
-          post('SELECTION_CLEARED', {});
           readerHighlights = [];
           selectionBoundsStatusCount = 0;
           lastSelectionBoundsStatus = '';
@@ -2351,6 +2358,30 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           }
         }
 
+        async function goToProgress(message) {
+          var requestedProgress = message.payload && Number(message.payload.progress);
+          if (!rendition
+            || !book
+            || paginationState !== 'ready'
+            || !book.locations
+            || typeof book.locations.cfiFromPercentage !== 'function'
+            || !Number.isFinite(requestedProgress)) return;
+
+          try {
+            var progress = clampProgression(requestedProgress);
+            var cfi = book.locations.cfiFromPercentage(progress);
+            if (typeof cfi !== 'string' || !cfi) return;
+            expectUserRelocation();
+            await rendition.display(cfi);
+            var location = await Promise.resolve(rendition.currentLocation());
+            var locator = locatorFromLocation(location);
+            if (locator) alignLocatorToLeadingColumn(rendition, locator);
+          } catch (error) {
+            clearUserRelocationExpectation();
+            reportError('NAVIGATION_FAILED', error, message.id);
+          }
+        }
+
         function receive(raw) {
           var message;
           try {
@@ -2383,9 +2414,11 @@ export const EPUB_RUNTIME_HTML = String.raw`<!doctype html>
           else if (message.type === 'REMOVE_SELECTION_HIGHLIGHT') removeSelectionHighlight(message);
           else if (message.type === 'SELECT_VISIBLE_PAGE_TEXT') selectVisiblePageText();
           else if (message.type === 'GO_TO_LOCATOR') goToLocator(message);
+          else if (message.type === 'GO_TO_PROGRESS') goToProgress(message);
           else if (message.type === 'GET_CURRENT_LOCATOR') sendCurrentLocator(message);
           else if (message.type === 'GET_TOC') getToc(message);
           else if (message.type === 'GO_TO_HREF') goToHref(message);
+          else if (message.type === 'CLEAR_SELECTION') clearReaderTextSelection(message.id, true);
           else if (message.type === 'CLOSE_BOOK') closeBook();
           else reportError('UNKNOWN_COMMAND', 'Unsupported bridge command.', message.id);
         }

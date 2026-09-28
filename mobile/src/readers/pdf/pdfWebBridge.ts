@@ -16,6 +16,7 @@ export type PdfWebBridgeCommand =
   | BridgeEnvelope<'SCROLL_BY_VIEWPORT', { fraction: number }>
   | BridgeEnvelope<'START_VIEWPORT_SCROLL', { direction: 1 | -1 }>
   | BridgeEnvelope<'STOP_VIEWPORT_SCROLL', Record<string, never>>
+  | BridgeEnvelope<'CLEAR_SELECTION', Record<string, never>>
   | BridgeEnvelope<'READ_RANGE_RESULT', {
       bookId: string;
       dataBase64?: string;
@@ -75,6 +76,7 @@ export type PdfWebBridgeEvent =
       requestId: string;
     }>
   | BridgeEnvelope<'CENTER_TAP', Record<string, never>>
+  | BridgeEnvelope<'SELECTION_CLEARED', { requestId: string }>
   | BridgeEnvelope<'ERROR', { code: string; message: string }>;
 
 export type PdfWebRuntimeMetrics = Extract<PdfWebBridgeEvent, {
@@ -219,6 +221,10 @@ export function parsePdfWebBridgeEvent(raw: string): PdfWebBridgeEvent | null {
       ? value as PdfWebBridgeEvent : null;
   }
   if (value.type === 'CENTER_TAP') return value as PdfWebBridgeEvent;
+  if (value.type === 'SELECTION_CLEARED') {
+    return typeof payload.requestId === 'string' && payload.requestId.length <= 128
+      ? value as PdfWebBridgeEvent : null;
+  }
   if (value.type === 'ERROR') {
     return typeof payload.code === 'string' && typeof payload.message === 'string'
       ? value as PdfWebBridgeEvent : null;
