@@ -9,7 +9,7 @@ import React, {
 } from 'react';
 import { ActivityIndicator, Platform, Pressable, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { Check, Copy, Eraser, TextSelect } from 'lucide-react-native';
+import { Copy, Eraser, TextSelect } from 'lucide-react-native';
 import { WebView } from 'react-native-webview';
 import type { WebView as WebViewType } from 'react-native-webview';
 import { useApp } from '../context/AppContext';
@@ -824,22 +824,20 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
                   opacity: pressed ? 0.65 : 1,
                 })}
               >
-                <Eraser color={theme.textPrimary} size={19} strokeWidth={1.8} />
-                <Text style={{ color: theme.textPrimary, fontFamily: serifFont, fontSize: 13 }}>
+                <Eraser color="#ef4444" size={19} strokeWidth={1.8} />
+                <Text style={{ color: '#ef4444', fontFamily: serifFont, fontSize: 13 }}>
                   {t('reader.selectionRemoveHighlight')}
                 </Text>
               </Pressable>
             ) : null}
             <View style={{ alignItems: 'center', borderTopColor: theme.border, borderTopWidth: 1, flexDirection: 'row', justifyContent: 'space-evenly', marginTop: spacing.xs, paddingTop: spacing.xs }}>
               {READER_HIGHLIGHT_PALETTE.map(({ color, fill }) => {
-                const selectedColor = readingPreferences.highlightColor === color;
                 const colorLabel = t(`reader.highlightColor.${color}`);
                 return (
                   <Pressable
                     key={color}
                     accessibilityLabel={t('reader.selectionHighlightColor').replace('{0}', colorLabel)}
                     accessibilityRole="button"
-                    accessibilityState={{ selected: selectedColor }}
                     disabled={!selection.cfiRange}
                     onPress={() => {
                       onHighlightColorChange?.(color);
@@ -856,15 +854,11 @@ export const EpubReader = forwardRef<EpubReaderHandle, EpubReaderProps>(function
                     <View style={{
                       alignItems: 'center',
                       backgroundColor: fill,
-                      borderColor: selectedColor ? theme.textPrimary : theme.border,
                       borderRadius: 16,
-                      borderWidth: selectedColor ? 2 : 1,
                       height: 30,
                       justifyContent: 'center',
                       width: 30,
-                    }}>
-                      {selectedColor ? <Check color={color === 'yellow' || color === 'green' ? '#202020' : '#ffffff'} size={17} strokeWidth={2.6} /> : null}
-                    </View>
+                    }} />
                   </Pressable>
                 );
               })}

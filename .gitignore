@@ -45,3 +45,4 @@ android/**/build/
 mobile/**/build
 supabase/
 .expo
+.git/objects/
